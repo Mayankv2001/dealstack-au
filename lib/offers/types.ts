@@ -122,6 +122,12 @@ export interface OzBargainSignal {
   postedAt: string | null;
   confidence: Confidence;
   lastCheckedAt: string;
+  /**
+   * True for static/manual MVP examples — `sourceUrl` is a placeholder, not a
+   * real OzBargain post, and must NOT be rendered as a live link. The future
+   * source-monitoring agent emits real signals with `isSample: false`.
+   */
+  isSample: boolean;
   // ── Optional enrichment (static MVP; populated where known) ──
   /** Number of comments on the source thread — heat signal only. */
   commentCount?: number | null;
@@ -139,6 +145,10 @@ export interface OzBargainSignal {
   sourceNativeId?: string | null;
   /** Moderation status (future use). */
   status?: "pending" | "approved" | "hidden" | "expired";
+  /** Retailer homepage the post points to, if any. */
+  merchantUrl?: string | null;
+  /** Exact product/category page at the retailer, if the post points to one. */
+  productUrl?: string | null;
 }
 
 export interface WeeklyDeal {

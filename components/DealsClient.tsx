@@ -410,6 +410,9 @@ const signalDeals: SignalTaggedDeal[] = ozBargainSignals
         postedAt: o.postedAt,
         expiryDate: o.expiryDate ?? null,
         expiringSoon: soon,
+        sourceUrl: o.sourceUrl,
+        retailerUrl: o.productUrl ?? o.merchantUrl ?? null,
+        isSample: o.isSample,
         lastCheckedAt: o.lastCheckedAt,
         confidence: o.confidence,
         citations: [{ source: "ozbargain", sourceUrl: o.sourceUrl }],
@@ -810,7 +813,12 @@ export default function DealsClient() {
               title="OzBargain deal signals"
               subtitle="Community-reported activity to corroborate before you act."
             />
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <p className="mb-3 rounded-lg border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              These are community deal signals. Static examples are shown for the
+              MVP. Real OzBargain links will appear after source monitoring is
+              enabled.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visSig.map((d, i) => (
                 <WeeklyDealCard key={`sig-${i}`} data={d.data} />
               ))}

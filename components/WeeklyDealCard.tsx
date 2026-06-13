@@ -7,6 +7,7 @@ import {
   CreditCard,
   ExternalLink,
   Flame,
+  FlaskConical,
   Gift,
   type LucideIcon,
   MessageSquare,
@@ -14,6 +15,7 @@ import {
   Store as StoreIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDateAU } from "@/lib/sources/normalise";
 import {
@@ -72,6 +74,12 @@ export interface WeeklyDealCardData {
   promoCode?: string | null;
   /** Short price/discount text (signal variant). */
   priceText?: string | null;
+  /** Exact OzBargain post URL for the "View OzBargain signal" button. */
+  sourceUrl?: string | null;
+  /** Retailer/product destination for the optional "View retailer" button. */
+  retailerUrl?: string | null;
+  /** True when this is static sample data — links are not rendered live. */
+  isSample?: boolean;
   /** Posted date ISO (signal variant). */
   postedAt?: string | null;
   /** GCDB-style practical facts shown as a compact grid (giftcard variant). */
@@ -575,7 +583,58 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
                 </span>
               )}
             </div>
-            <CitationLinks citations={data.citations} />
+            {data.isSample ? (
+              <div className="flex flex-col gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  className="h-7 w-fit gap-1 px-2 text-[11px]"
+                >
+                  <FlaskConical className="size-3" />
+                  Sample OzBargain signal
+                </Button>
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  Static example — real OzBargain link will appear once source
+                  monitoring is enabled.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1 px-2 text-[11px]"
+                >
+                  <a
+                    href={data.sourceUrl ?? data.citations[0]?.sourceUrl ?? "#"}
+                    target="_blank"
+                    rel="nofollow noopener noreferrer"
+                  >
+                    View OzBargain signal
+                    <ExternalLink className="size-3" />
+                  </a>
+                </Button>
+                {data.retailerUrl && (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 gap-1 px-2 text-[11px]"
+                  >
+                    <a
+                      href={data.retailerUrl}
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                    >
+                      View retailer
+                      <ExternalLink className="size-3" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

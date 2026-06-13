@@ -330,13 +330,20 @@ export const pointsOffers: PointsOffer[] = [
 //
 // SAMPLE / STATIC / MANUAL community-signal examples only. Nothing here was
 // fetched or copied from OzBargain. Titles and summaries are our own short,
-// original paraphrases; URLs are placeholder links back to OzBargain. These
-// model the "signal/corroboration" layer — never a content source. Community
-// posts default to "needs-verification"; the expired item is "expired-unknown".
-export const ozBargainSignals: OzBargainSignal[] = [
+// original paraphrases. `sourceUrl` uses exact-style placeholder node URLs
+// (https://www.ozbargain.com.au/node/9000xx) so each card links to a specific
+// post rather than a generic page; `productUrl`/`merchantUrl` are placeholder
+// retailer destinations. These model the "signal/corroboration" layer — never
+// a content source. Community posts default to "needs-verification"; the
+// expired item is "expired-unknown".
+//
+// Every entry below is a SAMPLE: its `sourceUrl` is a placeholder node URL, not
+// a real post. We stamp `isSample: true` on all of them via the map at the end
+// so the UI never renders these as live OzBargain links.
+const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
   {
     id: "ozb-signal-jbhifi-ultimate",
-    sourceNativeId: "node-845210",
+    sourceNativeId: "node-900001",
     merchantId: "jb-hifi",
     title: "Discounted Ultimate gift cards reported working at JB Hi-Fi",
     summary:
@@ -348,7 +355,9 @@ export const ozBargainSignals: OzBargainSignal[] = [
     priceText: null,
     sentiment: "hot",
     dealKind: "gift-card",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
+    sourceUrl: "https://www.ozbargain.com.au/node/900001",
+    merchantUrl: "https://www.jbhifi.com.au",
+    productUrl: "https://www.jbhifi.com.au/collections/gift-cards",
     postedAt: "2026-06-10",
     expiryDate: "2026-07-15",
     signalScore: 0.82,
@@ -357,8 +366,32 @@ export const ozBargainSignals: OzBargainSignal[] = [
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
+    id: "ozb-signal-amazon-deal",
+    sourceNativeId: "node-900002",
+    merchantId: "amazon-au",
+    title: "Popular noise-cancelling headphones at a low at Amazon AU",
+    summary:
+      "Sample community price-drop alert. Click through a cashback portal first, then check the live price.",
+    votesSample: 140,
+    commentCount: 52,
+    tags: ["electronics", "audio", "amazon"],
+    promoCode: null,
+    priceText: "$129 (was $179)",
+    sentiment: "hot",
+    dealKind: "discount-code",
+    sourceUrl: "https://www.ozbargain.com.au/node/900002",
+    merchantUrl: "https://www.amazon.com.au",
+    productUrl: "https://www.amazon.com.au/deals",
+    postedAt: "2026-06-11",
+    expiryDate: "2026-06-18", // within 7 days → expiring soon
+    signalScore: 0.78,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
     id: "ozb-signal-woolworths-halfprice",
-    sourceNativeId: "node-845377",
+    sourceNativeId: "node-900003",
     merchantId: "woolworths",
     title: "Half-price pantry staples spotted at Woolworths this week",
     summary:
@@ -370,7 +403,9 @@ export const ozBargainSignals: OzBargainSignal[] = [
     priceText: "½ price selected items",
     sentiment: "neutral",
     dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
+    sourceUrl: "https://www.ozbargain.com.au/node/900003",
+    merchantUrl: "https://www.woolworths.com.au",
+    productUrl: "https://www.woolworths.com.au/shop/catalogue",
     postedAt: "2026-06-11",
     expiryDate: "2026-06-17", // within 7 days → expiring soon
     signalScore: 0.75,
@@ -379,8 +414,32 @@ export const ozBargainSignals: OzBargainSignal[] = [
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
+    id: "ozb-signal-jbhifi-code",
+    sourceNativeId: "node-900004",
+    merchantId: "jb-hifi",
+    title: "App-only code shared for selected JB Hi-Fi categories",
+    summary:
+      "Sample community-posted app code for a little extra off. Exclusions likely — confirm in the JB Hi-Fi app.",
+    votesSample: 110,
+    commentCount: 30,
+    tags: ["electronics", "coupon", "app-only"],
+    promoCode: "APP5",
+    priceText: null,
+    sentiment: "hot",
+    dealKind: "discount-code",
+    sourceUrl: "https://www.ozbargain.com.au/node/900004",
+    merchantUrl: "https://www.jbhifi.com.au",
+    productUrl: null,
+    postedAt: "2026-06-10",
+    expiryDate: "2026-06-20",
+    signalScore: 0.72,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
     id: "ozb-signal-coles-giftcard-points",
-    sourceNativeId: "node-845401",
+    sourceNativeId: "node-900005",
     merchantId: "coles",
     title: "Bonus Flybuys on Coles Group gift cards spotted in-store",
     summary:
@@ -392,7 +451,9 @@ export const ozBargainSignals: OzBargainSignal[] = [
     priceText: null,
     sentiment: "neutral",
     dealKind: "points",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
+    sourceUrl: "https://www.ozbargain.com.au/node/900006",
+    merchantUrl: "https://www.coles.com.au",
+    productUrl: "https://www.coles.com.au/gift-cards",
     postedAt: "2026-06-11",
     expiryDate: "2026-06-30",
     signalScore: 0.7,
@@ -401,52 +462,8 @@ export const ozBargainSignals: OzBargainSignal[] = [
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
-    id: "ozb-signal-jbhifi-price-drop",
-    sourceNativeId: "node-845588",
-    merchantId: "jb-hifi",
-    title: "Popular soundbar drops in price at JB Hi-Fi",
-    summary:
-      "Sample community price-drop alert on a soundbar. Layer a discounted gift card on top for extra savings.",
-    votesSample: 64,
-    commentCount: 12,
-    tags: ["electronics", "audio", "price-drop"],
-    promoCode: null,
-    priceText: "$1,799 (was $1,999)",
-    sentiment: "neutral",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
-    postedAt: "2026-06-09",
-    expiryDate: "2026-06-16", // within 7 days → expiring soon
-    signalScore: 0.68,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
-    id: "ozb-signal-myer-code",
-    sourceNativeId: "node-845612",
-    merchantId: "myer",
-    title: "Community-shared Myer code for extra % off",
-    summary:
-      "Sample community-posted code for extra off selected ranges. Exclusions likely — verify at checkout.",
-    votesSample: 53,
-    commentCount: 9,
-    tags: ["department-store", "coupon", "myer"],
-    promoCode: "EXTRA15",
-    priceText: null,
-    sentiment: "neutral",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
-    postedAt: "2026-06-10",
-    expiryDate: "2026-06-30",
-    signalScore: 0.6,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
     id: "ozb-signal-apple-giftcard-points",
-    sourceNativeId: "node-845640",
+    sourceNativeId: "node-900007",
     merchantId: null, // Apple cards aren't spent at our tracked stores
     title: "Bonus points on Apple gift cards reported at supermarkets",
     summary:
@@ -458,9 +475,59 @@ export const ozBargainSignals: OzBargainSignal[] = [
     priceText: null,
     sentiment: "neutral",
     dealKind: "points",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
+    sourceUrl: "https://www.ozbargain.com.au/node/900008",
+    merchantUrl: "https://www.apple.com/au/",
+    productUrl: null,
     postedAt: "2026-06-10",
     expiryDate: "2026-06-24",
+    signalScore: 0.62,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "ozb-signal-myer-code",
+    sourceNativeId: "node-900009",
+    merchantId: "myer",
+    title: "Community-shared Myer code for extra % off",
+    summary:
+      "Sample community-posted code for extra off selected ranges. Exclusions likely — verify at checkout.",
+    votesSample: 53,
+    commentCount: 9,
+    tags: ["department-store", "coupon", "myer"],
+    promoCode: "EXTRA15",
+    priceText: null,
+    sentiment: "neutral",
+    dealKind: "discount-code",
+    sourceUrl: "https://www.ozbargain.com.au/node/900010",
+    merchantUrl: "https://www.myer.com.au",
+    productUrl: null,
+    postedAt: "2026-06-10",
+    expiryDate: "2026-06-30",
+    signalScore: 0.6,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "ozb-signal-kogan-deal",
+    sourceNativeId: "node-900011",
+    merchantId: "kogan",
+    title: "Kogan app code shared for selected categories",
+    summary:
+      "Sample community code for a small extra discount on selected Kogan lines. Check category exclusions first.",
+    votesSample: 38,
+    commentCount: 7,
+    tags: ["marketplace", "coupon", "kogan"],
+    promoCode: "KOGAN10",
+    priceText: null,
+    sentiment: "neutral",
+    dealKind: "discount-code",
+    sourceUrl: "https://www.ozbargain.com.au/node/900012",
+    merchantUrl: "https://www.kogan.com",
+    productUrl: null,
+    postedAt: "2026-06-09",
+    expiryDate: "2026-06-21",
     signalScore: 0.55,
     status: "approved",
     confidence: "needs-verification",
@@ -468,7 +535,7 @@ export const ozBargainSignals: OzBargainSignal[] = [
   },
   {
     id: "ozb-signal-chemist-cashback",
-    sourceNativeId: "node-845702",
+    sourceNativeId: "node-900013",
     merchantId: "chemist-warehouse",
     title: "Upsized cashback flagged for Chemist Warehouse",
     summary:
@@ -480,9 +547,35 @@ export const ozBargainSignals: OzBargainSignal[] = [
     priceText: null,
     sentiment: "neutral",
     dealKind: "cashback",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
+    sourceUrl: "https://www.ozbargain.com.au/node/900014",
+    merchantUrl: "https://www.chemistwarehouse.com.au",
+    productUrl: null,
     postedAt: "2026-06-09",
     expiryDate: null,
+    signalScore: 0.52,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "ozb-signal-qantas-shopping",
+    sourceNativeId: "node-900015",
+    merchantId: "amazon-au",
+    title: "Bonus Qantas points via shopping portal on selected stores",
+    summary:
+      "Sample community note about a points-portal bonus. Click through the portal before you buy; value the points realistically.",
+    votesSample: 60,
+    commentCount: 11,
+    tags: ["points", "qantas", "shopping-portal"],
+    promoCode: null,
+    priceText: null,
+    sentiment: "neutral",
+    dealKind: "points",
+    sourceUrl: "https://www.ozbargain.com.au/node/900016",
+    merchantUrl: "https://www.amazon.com.au",
+    productUrl: null,
+    postedAt: "2026-06-08",
+    expiryDate: "2026-06-30",
     signalScore: 0.5,
     status: "approved",
     confidence: "needs-verification",
@@ -490,7 +583,7 @@ export const ozBargainSignals: OzBargainSignal[] = [
   },
   {
     id: "ozb-signal-card-statement-credit",
-    sourceNativeId: "node-845755",
+    sourceNativeId: "node-900017",
     merchantId: "myer",
     title: "Targeted card offer: statement credit at Myer (selected cardholders)",
     summary:
@@ -502,7 +595,9 @@ export const ozBargainSignals: OzBargainSignal[] = [
     priceText: "Spend $200, get $40 back (sample)",
     sentiment: "warning",
     dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
+    sourceUrl: "https://www.ozbargain.com.au/node/900018",
+    merchantUrl: null,
+    productUrl: null,
     postedAt: "2026-06-08",
     expiryDate: "2026-07-31",
     signalScore: 0.45,
@@ -511,8 +606,32 @@ export const ozBargainSignals: OzBargainSignal[] = [
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
+    id: "ozb-signal-restaurant-giftcard",
+    sourceNativeId: "node-900019",
+    merchantId: null,
+    title: "Discounted dining gift cards reported via a member portal",
+    summary:
+      "Sample community sighting of discounted restaurant/cafe gift cards. A discount layer for dining you'd do anyway.",
+    votesSample: 25,
+    commentCount: 4,
+    tags: ["gift-cards", "dining"],
+    promoCode: null,
+    priceText: null,
+    sentiment: "neutral",
+    dealKind: "gift-card",
+    sourceUrl: "https://www.ozbargain.com.au/node/900020",
+    merchantUrl: null,
+    productUrl: null,
+    postedAt: "2026-06-07",
+    expiryDate: "2026-07-31",
+    signalScore: 0.4,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
     id: "ozb-signal-thegoodguys-expired",
-    sourceNativeId: "node-844901",
+    sourceNativeId: "node-900021",
     merchantId: "the-good-guys",
     title: "Expired: appliance bundle deal at The Good Guys",
     summary:
@@ -524,7 +643,9 @@ export const ozBargainSignals: OzBargainSignal[] = [
     priceText: null,
     sentiment: "expired",
     dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/deals",
+    sourceUrl: "https://www.ozbargain.com.au/node/900022",
+    merchantUrl: "https://www.thegoodguys.com.au",
+    productUrl: null,
     postedAt: "2026-06-02",
     expiryDate: "2026-06-05", // past → expired styling
     signalScore: 0.1,
@@ -533,6 +654,13 @@ export const ozBargainSignals: OzBargainSignal[] = [
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
 ];
+
+// All static signals are samples: stamp isSample: true so the UI shows a muted
+// "Sample OzBargain signal" label instead of opening the placeholder node URL.
+export const ozBargainSignals: OzBargainSignal[] = SAMPLE_SIGNALS.map((s) => ({
+  ...s,
+  isSample: true,
+}));
 
 // ─── Weekly deals (curated view referencing the offers above) ──────────────
 export const weeklyDeals: WeeklyDeal[] = [
