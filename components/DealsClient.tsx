@@ -4,17 +4,22 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
   Bell,
+  Calculator,
   CreditCard,
   Flame,
   Gift,
   Layers,
+  Plane,
   SearchX,
+  ShieldCheck,
   Sparkles,
   Star,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import Logo from "@/components/Logo";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
 import WeeklyDealCard, {
@@ -27,8 +32,9 @@ import {
   ozBargainSignals,
   pointsOffers,
 } from "@/lib/offers/manualOffers";
-import type { StackRecommendation } from "@/lib/offers/types";
+import type { GiftCardOffer, StackRecommendation } from "@/lib/offers/types";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
+import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
 /**
@@ -103,6 +109,119 @@ function isExpiringSoon(expiry: string | null): boolean {
   return diff >= 0 && diff <= EXPIRY_SOON_MS;
 }
 
+// ─── Points programme quick-guide content (FreePoints-style) ───────────────
+
+type ProgrammeTone = "amber" | "sky" | "rose" | "violet";
+
+const PROG_TONE: Record<ProgrammeTone, string> = {
+  amber: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  sky: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400",
+  rose: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400",
+  violet:
+    "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-400",
+};
+
+const PROGRAMME_GUIDES: {
+  id: FilterId;
+  name: string;
+  tone: ProgrammeTone;
+  earn: string;
+  convert: string;
+  bestUse: string;
+}[] = [
+  {
+    id: "everyday-rewards",
+    name: "Everyday Rewards",
+    tone: "amber",
+    earn: "Woolworths, BIG W, BWS, Ampol & partners",
+    convert: "2,000 points = $10 off or 1,000 Qantas points",
+    bestUse: "Pay with discounted WISH gift cards while scanning to stack both.",
+  },
+  {
+    id: "flybuys",
+    name: "Flybuys",
+    tone: "sky",
+    earn: "Coles, Kmart, Target, Liquorland & partners",
+    convert: "2,000 points = $10 off or 1,000 Velocity points",
+    bestUse: "Activate boosters, then pay with discounted Coles Group cards.",
+  },
+  {
+    id: "qantas",
+    name: "Qantas",
+    tone: "rose",
+    earn: "Qantas flights, Qantas Shopping portal & partners",
+    convert: "Earn direct, or convert 2,000 Everyday Rewards → 1,000 Qantas",
+    bestUse: "Pair Everyday Rewards conversion with gift-card and cashback layers.",
+  },
+  {
+    id: "velocity",
+    name: "Velocity",
+    tone: "violet",
+    earn: "Velocity e-Store, Virgin partners & Flybuys conversion",
+    convert: "Convert 2,000 Flybuys → 1,000 Velocity (watch for transfer bonuses)",
+    bestUse: "Route Flybuys earn to Velocity during transfer-bonus windows.",
+  },
+];
+
+// ─── Gift-card sub-filters (GCDB-style offer-type chips) ────────────────────
+
+type GiftSub = "all" | "discount" | "bonus" | "multi";
+
+const GIFT_SUB_LABEL: Record<GiftSub, string> = {
+  all: "All",
+  discount: "Discount",
+  bonus: "Bonus points",
+  multi: "Multi-retailer",
+};
+
+const METHOD_LABEL: Record<
+  NonNullable<GiftCardOffer["purchaseMethod"]>,
+  string
+> = {
+  online: "Online",
+  "in-store": "In-store",
+  "online-and-in-store": "Online & in-store",
+  unknown: "Check source",
+};
+
+function giftDateRange(start: string | null, expiry: string | null): string {
+  const from = formatDateAU(start);
+  const to = formatDateAU(expiry);
+  if (from && to) return `${from} → ${to}`;
+  if (to) return `Until ${to}`;
+  if (from) return `From ${from}`;
+  return "Ongoing (sample)";
+}
+
+// "How DealStack checks a stack" steps.
+const CHECK_STEPS: { icon: typeof Gift; title: string; text: string }[] = [
+  {
+    icon: Flame,
+    title: "Source signal",
+    text: "Start from a community or database signal (OzBargain, GCDB, FreePoints) and link to it.",
+  },
+  {
+    icon: Gift,
+    title: "Gift card compatibility",
+    text: "Check which discounted gift cards are actually accepted at that store.",
+  },
+  {
+    icon: CreditCard,
+    title: "Cashback eligibility",
+    text: "Flag when cashback excludes gift card payment, so layers aren't double-counted.",
+  },
+  {
+    icon: Star,
+    title: "Points activation",
+    text: "Note boosts that must be activated in the program app before you shop.",
+  },
+  {
+    icon: Calculator,
+    title: "Effective price",
+    text: "Combine the compatible layers into one effective price with a confidence rating.",
+  },
+];
+
 // ─── Static data (computed once at module load) ────────────────────────────
 
 const recommendations = buildStackRecommendations();
@@ -124,51 +243,81 @@ const taggedStacks: { rec: StackRecommendation; tags: Set<FilterId> }[] =
     return { rec, tags };
   });
 
-const giftCardDeals: TaggedDeal[] = giftCardOffers.map((o): TaggedDeal => {
-  const tags = new Set<FilterId>(["gift-cards"]);
-  const prog = programTag(o.pointsOnPurchase?.program);
-  if (prog) tags.add(prog);
-  const soon = isExpiringSoon(o.expiryDate);
-  if (soon) tags.add("expiring-soon");
-  const acceptedAt = o.acceptedAtMerchantIds
-    .map(storeName)
-    .filter(Boolean)
-    .join(", ");
-  const summary = [
-    o.discountPercent > 0
-      ? `${o.discountPercent}% off ${o.brand} cards via ${o.source}.`
-      : `${o.brand} cards via ${o.source}.`,
-    acceptedAt ? `Spend at ${acceptedAt}.` : null,
-    o.pointsOnPurchase ? `${o.pointsOnPurchase.earnNote}.` : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const badge =
-    o.discountPercent > 0
-      ? { value: `${o.discountPercent}% OFF`, caption: "off face value" }
-      : o.pointsOnPurchase
-        ? { value: "Bonus", caption: "points on purchase" }
-        : { value: "Offer" };
-  return {
-    tags,
-    data: {
-      variant: "giftcard",
-      kind: "gift-card",
-      category: "Gift card",
-      tone: "violet",
-      icon: Gift,
-      title: `${o.brand} gift cards`,
-      subject: o.source,
-      summary,
-      badge,
-      expiryDate: o.expiryDate,
-      expiringSoon: soon,
-      lastCheckedAt: o.lastCheckedAt,
-      confidence: o.confidence,
-      citations: o.citations,
-    },
-  };
-});
+interface GiftTaggedDeal extends TaggedDeal {
+  sub: Set<GiftSub>;
+}
+
+const giftCardDeals: GiftTaggedDeal[] = giftCardOffers.map(
+  (o): GiftTaggedDeal => {
+    const tags = new Set<FilterId>(["gift-cards"]);
+    const prog = programTag(o.pointsOnPurchase?.program);
+    if (prog) tags.add(prog);
+    const soon = isExpiringSoon(o.expiryDate);
+    if (soon) tags.add("expiring-soon");
+
+    // GCDB-style offer-type sub-tags.
+    const sub = new Set<GiftSub>();
+    if (o.discountPercent > 0) sub.add("discount");
+    if (o.pointsOnPurchase) sub.add("bonus");
+    if ((o.acceptedAt?.length ?? 0) >= 3 || o.acceptedAtMerchantIds.length > 1)
+      sub.add("multi");
+
+    const summary =
+      o.discountPercent > 0
+        ? `${o.discountPercent}% off ${o.brand} cards via ${o.source}.`
+        : o.pointsOnPurchase
+          ? `${o.pointsOnPurchase.earnNote}.`
+          : `${o.brand} cards via ${o.source}.`;
+
+    const badge =
+      o.discountPercent > 0
+        ? { value: `${o.discountPercent}% OFF`, caption: "off face value" }
+        : o.pointsOnPurchase
+          ? { value: "Bonus", caption: "points on purchase" }
+          : { value: "Offer" };
+
+    const details = [
+      o.purchaseLocation
+        ? { label: "Buy at", value: o.purchaseLocation }
+        : null,
+      o.purchaseMethod && o.purchaseMethod !== "unknown"
+        ? { label: "Where", value: METHOD_LABEL[o.purchaseMethod] }
+        : null,
+      { label: "Dates", value: giftDateRange(o.startDate, o.expiryDate) },
+      o.limitPerCustomer
+        ? { label: "Limit", value: o.limitPerCustomer }
+        : null,
+      o.acceptedAt && o.acceptedAt.length > 0
+        ? { label: "Works at", value: o.acceptedAt.join(", ") }
+        : null,
+    ].filter((x): x is { label: string; value: string } => x !== null);
+
+    return {
+      tags,
+      sub,
+      data: {
+        variant: "giftcard",
+        kind: "gift-card",
+        category: "Gift card",
+        tone: "violet",
+        icon: Gift,
+        title: `${o.brand} gift cards`,
+        subject: o.source,
+        summary,
+        badge,
+        details,
+        usageNotes: o.usageNotes,
+        stackNotes: o.stackNotes,
+        detailUrl: o.sourceDetailUrl ?? null,
+        expiryDate: o.expiryDate,
+        expiringSoon: soon,
+        lastCheckedAt: o.lastCheckedAt,
+        confidence: o.confidence,
+        citations: o.citations,
+      },
+    };
+  }
+);
 
 const pointsDeals: TaggedDeal[] = pointsOffers.map((o): TaggedDeal => {
   const tags = new Set<FilterId>(["points"]);
@@ -294,9 +443,13 @@ const verificationNotes = [
 
 export default function DealsClient() {
   const [active, setActive] = useState<FilterId>("all");
+  const [giftSub, setGiftSub] = useState<GiftSub>("all");
 
   const matchDeal = (d: TaggedDeal) => active === "all" || d.tags.has(active);
   const visGift = giftCardDeals.filter(matchDeal);
+  const shownGift = visGift.filter(
+    (d) => giftSub === "all" || d.sub.has(giftSub)
+  );
   const visPoints = pointsDeals.filter(matchDeal);
   const visCash = cashbackDeals.filter(matchDeal);
   const visSig = signalDeals.filter(matchDeal);
@@ -425,6 +578,56 @@ export default function DealsClient() {
           </div>
         </section>
 
+        {/* Points programme quick guide (FreePoints-style) */}
+        <section className="mt-8">
+          <SectionHeading
+            icon={Plane}
+            iconClass="bg-rose-500/10 text-rose-600 dark:text-rose-400"
+            title="Points programme quick guide"
+            subtitle="How the four big programmes earn, convert and stack."
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {PROGRAMME_GUIDES.map((g) => (
+              <Card key={g.id} className="gap-0 py-0 shadow-sm">
+                <CardContent className="flex h-full flex-col gap-2 p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn("gap-1 text-[10px]", PROG_TONE[g.tone])}
+                    >
+                      <Star className="size-3" />
+                      {g.name}
+                    </Badge>
+                  </div>
+                  <dl className="space-y-1.5 text-[11px] leading-snug">
+                    <div>
+                      <dt className="font-semibold">Earn</dt>
+                      <dd className="text-muted-foreground">{g.earn}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold">Convert</dt>
+                      <dd className="text-muted-foreground">{g.convert}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-semibold">In a stack</dt>
+                      <dd className="text-muted-foreground">{g.bestUse}</dd>
+                    </div>
+                  </dl>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setActive(g.id)}
+                    className="mt-auto w-full"
+                  >
+                    Show {g.name} offers
+                    <ArrowRight className="size-3.5" />
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
         {/* 2 — Filter chips */}
         <div className="mt-6 flex flex-wrap items-center gap-1.5">
           {LAYER_FILTERS.map((f) => (
@@ -491,11 +694,56 @@ export default function DealsClient() {
               title="Weekly gift card offers"
               subtitle="Discounted cards and bonus-points promos to pre-buy your spend."
             />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {visGift.map((d, i) => (
-                <WeeklyDealCard key={`gc-${i}`} data={d.data} />
-              ))}
+
+            {/* GCDB-style offer-type sub-filters */}
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              {(["all", "discount", "bonus", "multi"] as GiftSub[]).map((s) => {
+                const on = giftSub === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setGiftSub(s)}
+                    aria-pressed={on}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                      on
+                        ? "border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-300"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {GIFT_SUB_LABEL[s]}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setActive("cashback")}
+                className="inline-flex items-center gap-1 rounded-md border border-dashed px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Cashback
+                <ArrowRight className="size-2.5" />
+              </button>
             </div>
+
+            {shownGift.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {shownGift.map((d, i) => (
+                  <WeeklyDealCard key={`gc-${i}`} data={d.data} />
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground">
+                No {GIFT_SUB_LABEL[giftSub].toLowerCase()} gift cards this week.{" "}
+                <button
+                  type="button"
+                  onClick={() => setGiftSub("all")}
+                  className="font-medium text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+                >
+                  Show all gift cards
+                </button>
+              </p>
+            )}
           </section>
         )}
 
@@ -549,6 +797,36 @@ export default function DealsClient() {
             </div>
           </section>
         )}
+
+        {/* How DealStack checks a stack */}
+        <section className="mt-10">
+          <SectionHeading
+            icon={ShieldCheck}
+            iconClass="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            title="How DealStack checks a stack"
+            subtitle="Five quick checks behind every effective price."
+          />
+          <Card className="gap-0 py-0 shadow-sm">
+            <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-5">
+              {CHECK_STEPS.map((step, i) => (
+                <div key={step.title} className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
+                      {i + 1}
+                    </span>
+                    <step.icon className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <p className="text-xs font-semibold leading-snug">
+                    {step.title}
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    {step.text}
+                  </p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
 
         {/* Coming soon: weekly stack alerts (static UI only) */}
         <section className="mt-10">

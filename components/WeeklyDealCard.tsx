@@ -1,6 +1,7 @@
 import {
   BadgePercent,
   Check,
+  ChevronDown,
   Clock,
   CreditCard,
   ExternalLink,
@@ -64,6 +65,14 @@ export interface WeeklyDealCardData {
   votes?: number | null;
   /** Posted date ISO (signal variant). */
   postedAt?: string | null;
+  /** GCDB-style practical facts shown as a compact grid (giftcard variant). */
+  details?: { label: string; value: string }[];
+  /** Collapsible usage notes (giftcard variant). */
+  usageNotes?: string[];
+  /** Collapsible stacking notes (giftcard variant). */
+  stackNotes?: string[];
+  /** Link to a fuller offer-detail page at the source. */
+  detailUrl?: string | null;
   expiryDate: string | null;
   expiringSoon?: boolean;
   lastCheckedAt?: string | null;
@@ -314,6 +323,78 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
             <p className="text-xs leading-relaxed text-muted-foreground">
               {data.summary}
             </p>
+
+            {/* GCDB-style practical facts */}
+            {data.details && data.details.length > 0 && (
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg border bg-muted/30 p-2.5">
+                {data.details.map((f) => (
+                  <div key={f.label} className="min-w-0">
+                    <dt className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {f.label}
+                    </dt>
+                    <dd className="text-[11px] font-medium leading-snug">
+                      {f.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+
+            {/* Collapsible usage & stack notes (keeps the card short) */}
+            {(data.usageNotes?.length ||
+              data.stackNotes?.length ||
+              data.detailUrl) && (
+              <details className="group rounded-lg border px-2.5 py-1.5">
+                <summary className="flex cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+                  <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
+                  Usage &amp; stack notes
+                </summary>
+                <div className="mt-2 space-y-2 text-[11px] leading-snug">
+                  {data.usageNotes && data.usageNotes.length > 0 && (
+                    <div>
+                      <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        How to use
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {data.usageNotes.map((n) => (
+                          <li key={n} className="flex gap-1.5">
+                            <span className="mt-1.5 size-1 shrink-0 rounded-full bg-violet-500/60" />
+                            <span className="text-muted-foreground">{n}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {data.stackNotes && data.stackNotes.length > 0 && (
+                    <div>
+                      <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Stacking
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {data.stackNotes.map((n) => (
+                          <li key={n} className="flex gap-1.5">
+                            <span className="mt-1.5 size-1 shrink-0 rounded-full bg-emerald-500/60" />
+                            <span className="text-muted-foreground">{n}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {data.detailUrl && (
+                    <a
+                      href={data.detailUrl}
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:opacity-80 dark:text-emerald-400"
+                    >
+                      Offer details
+                      <ExternalLink className="size-2.5" />
+                    </a>
+                  )}
+                </div>
+              </details>
+            )}
+
             <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
               <ExpiryLine
                 expiryDate={data.expiryDate}

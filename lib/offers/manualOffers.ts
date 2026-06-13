@@ -45,6 +45,19 @@ export const giftCardOffers: GiftCardOffer[] = [
     capDollars: 200,
     expiryDate: "2026-06-30",
     startDate: "2026-06-08",
+    purchaseLocation: "Coles supermarkets & Coles Online",
+    purchaseMethod: "online-and-in-store",
+    limitPerCustomer: "Bonus on up to $200 in gift cards (sample)",
+    acceptedAt: ["Coles", "Coles Online", "Liquorland", "First Choice Liquor"],
+    usageNotes: [
+      "Activate the bonus in Flybuys before you buy",
+      "Bonus points usually post within a few days",
+    ],
+    stackNotes: [
+      "Stacks on top of your Flybuys base earn",
+      "May not combine with other gift card promos",
+    ],
+    sourceDetailUrl: "https://www.gcdb.com.au",
     citations: [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ],
@@ -63,6 +76,19 @@ export const giftCardOffers: GiftCardOffer[] = [
     capDollars: null,
     expiryDate: "2026-07-15",
     startDate: "2026-06-01",
+    purchaseLocation: "RACV Member Benefits portal",
+    purchaseMethod: "online",
+    limitPerCustomer: "No stated cap (sample)",
+    acceptedAt: ["JB Hi-Fi", "The Good Guys", "many Ultimate-network retailers"],
+    usageNotes: [
+      "Digital cards are delivered by email",
+      "Check the balance before paying in-store",
+    ],
+    stackNotes: [
+      "Pair with a public store promo code at checkout",
+      "Cashback usually voids when you pay with gift cards",
+    ],
+    sourceDetailUrl: "https://www.gcdb.com.au",
     citations: [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ],
@@ -80,10 +106,53 @@ export const giftCardOffers: GiftCardOffer[] = [
     capDollars: 500,
     expiryDate: "2026-06-15", // close to "today" → triggers expiry-soon
     startDate: "2026-06-01",
+    purchaseLocation: "Suncorp Benefits portal",
+    purchaseMethod: "online",
+    limitPerCustomer: "Up to $500 per order (sample)",
+    acceptedAt: ["JB Hi-Fi", "The Good Guys"],
+    usageNotes: [
+      "TCN cards are accepted at many electronics retailers",
+      "Confirm acceptance with staff before a big purchase",
+    ],
+    stackNotes: [
+      "Use alongside a store promo code",
+      "Buy below face value, then pay full value",
+    ],
+    sourceDetailUrl: "https://www.gcdb.com.au",
     citations: [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ],
     confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "gc-woolworths-wish",
+    brand: "Woolworths WISH",
+    discountPercent: 5,
+    channel: "membership-portal",
+    source: "Suncorp Benefits",
+    acceptedAtMerchantIds: ["woolworths"],
+    pointsOnPurchase: null,
+    capDollars: null,
+    expiryDate: "2026-07-10",
+    startDate: "2026-06-01",
+    purchaseLocation: "Suncorp Benefits portal",
+    purchaseMethod: "online",
+    limitPerCustomer: "No stated cap (sample)",
+    acceptedAt: ["Woolworths", "BIG W", "BWS", "Caltex Woolworths"],
+    usageNotes: [
+      "Scan Everyday Rewards while paying with WISH",
+      "eGift cards arrive by email for online or in-store use",
+    ],
+    stackNotes: [
+      "Stacks with activated Everyday Rewards point boosts",
+      "Buy below face value, then pay full value at the till",
+    ],
+    sourceDetailUrl: "https://www.gcdb.com.au",
+    citations: [
+      { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
+    ],
+    confidence: "confirmed",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -101,6 +170,19 @@ export const giftCardOffers: GiftCardOffer[] = [
     capDollars: 200,
     expiryDate: "2026-06-24",
     startDate: "2026-06-08",
+    purchaseLocation: "Woolworths supermarkets",
+    purchaseMethod: "in-store",
+    limitPerCustomer: "Bonus on up to $200 per transaction (sample)",
+    acceptedAt: ["App Store & iTunes", "Apple Store / apple.com"],
+    usageNotes: [
+      "Add the card to your Apple Account balance",
+      "Not redeemable for cash",
+    ],
+    stackNotes: [
+      "Earn Everyday Rewards on the gift card purchase",
+      "Spent in the Apple ecosystem, not at our sample retailers",
+    ],
+    sourceDetailUrl: "https://www.gcdb.com.au",
     citations: [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ],
@@ -119,6 +201,19 @@ export const giftCardOffers: GiftCardOffer[] = [
     capDollars: 250,
     expiryDate: "2026-07-31",
     startDate: "2026-06-01",
+    purchaseLocation: "NRMA Blue member portal",
+    purchaseMethod: "online",
+    limitPerCustomer: "Up to $250 per order (sample)",
+    acceptedAt: ["Participating restaurants & cafes (dining network)"],
+    usageNotes: [
+      "Useful for restaurants in the dining-network",
+      "Check the venue list before buying",
+    ],
+    stackNotes: [
+      "A discount layer for dining spend you'd make anyway",
+      "Not for use at our sample retailers",
+    ],
+    sourceDetailUrl: "https://www.gcdb.com.au",
     citations: [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ],
@@ -199,6 +294,36 @@ export const pointsOffers: PointsOffer[] = [
     confidence: "confirmed",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
+  {
+    id: "pts-qantas-shopping-amazon",
+    merchantId: "amazon-au",
+    program: "Qantas",
+    earnRateDisplay: "3 Qantas pts per $1 (Qantas Shopping)",
+    earnMultiple: 3,
+    pointValueCents: 1, // ~1c/pt sample valuation
+    mechanism: "shopping-portal",
+    expiryDate: "2026-06-30",
+    citations: [
+      { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
+    ],
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "pts-velocity-estore-kogan",
+    merchantId: "kogan",
+    program: "Velocity",
+    earnRateDisplay: "2 Velocity pts per $1 (Velocity e-Store)",
+    earnMultiple: 2,
+    pointValueCents: 1,
+    mechanism: "shopping-portal",
+    expiryDate: "2026-06-28",
+    citations: [
+      { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
+    ],
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
 ];
 
 // ─── OzBargain community signals ───────────────────────────────────────────
@@ -214,6 +339,20 @@ export const ozBargainSignals: OzBargainSignal[] = [
     dealKind: "gift-card",
     sourceUrl: "https://www.ozbargain.com.au/deals",
     postedAt: "2026-06-10",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "ozb-signal-coles-giftcard-points",
+    merchantId: "coles",
+    title: "Bonus Flybuys on Coles Group gift cards spotted in-store",
+    summary:
+      "Sample community report of a bonus-points promo on Coles Group gift cards. Activate in Flybuys first; confirm dates in-store.",
+    votesSample: 86,
+    sentiment: "neutral",
+    dealKind: "points",
+    sourceUrl: "https://www.ozbargain.com.au/deals",
+    postedAt: "2026-06-11",
     confidence: "needs-verification",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },

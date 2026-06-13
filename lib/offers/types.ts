@@ -54,6 +54,20 @@ export interface GiftCardOffer {
   capDollars: number | null;
   expiryDate: string | null;
   startDate: string | null;
+  // ── GCDB-style practical details (all optional, backward-compatible) ──
+  /** Where the card is bought, e.g. "RACV Member Benefits portal". */
+  purchaseLocation?: string | null;
+  purchaseMethod?: "online" | "in-store" | "online-and-in-store" | "unknown";
+  /** Stated per-customer / per-transaction limit, human-readable. */
+  limitPerCustomer?: string | null;
+  /** Human-readable retailers where the card can be spent. */
+  acceptedAt?: string[];
+  /** Short practical usage notes (our wording). */
+  usageNotes?: string[];
+  /** How this card stacks with codes / cashback / points (our wording). */
+  stackNotes?: string[];
+  /** Link to a fuller offer-detail page at the source, if any. */
+  sourceDetailUrl?: string | null;
   citations: Citation[];
   confidence: Confidence;
   lastCheckedAt: string;
