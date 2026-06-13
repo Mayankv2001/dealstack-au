@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import StoreLogo from "@/components/StoreLogo";
 import { CitationLinks, ConfidencePill } from "@/components/WeeklyDealCard";
 import { formatAUD } from "@/lib/calculateStack";
 import { stores } from "@/lib/data";
@@ -77,13 +78,6 @@ const warningStyles: Record<
   },
 };
 
-function storeLogo(rec: StackRecommendation): string {
-  return (
-    stores.find((s) => s.id === rec.merchantId)?.logo ??
-    rec.merchantName.slice(0, 2).toUpperCase()
-  );
-}
-
 /** Short chip value per layer for the compact variant. */
 function layerChipValue(c: StackComponent): string {
   if (c.layer === "points") {
@@ -104,7 +98,10 @@ export function StackRecommendationCard({
   compact?: boolean;
   rank?: number;
 }) {
-  const logo = storeLogo(rec);
+  const store = stores.find((s) => s.id === rec.merchantId);
+  const fallbackText = store
+    ? undefined
+    : rec.merchantName.slice(0, 2).toUpperCase();
 
   // ── Compact, scannable variant (top stacks strip) ──────────────────────
   if (compact) {
@@ -118,9 +115,7 @@ export function StackRecommendationCard({
                 {rank}
               </span>
             )}
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted font-mono text-[9px] font-bold tracking-tight">
-              {logo}
-            </span>
+            <StoreLogo store={store} text={fallbackText} size="xs" />
             <p className="min-w-0 flex-1 truncate text-sm font-semibold">
               {rec.merchantName}
             </p>
@@ -172,9 +167,7 @@ export function StackRecommendationCard({
       <CardContent className="flex h-full flex-col gap-3 p-4">
         {/* Header */}
         <div className="flex items-center gap-2.5">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted font-mono text-[10px] font-bold tracking-tight">
-            {logo}
-          </span>
+          <StoreLogo store={store} text={fallbackText} size="sm" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold leading-tight">
               {rec.title}

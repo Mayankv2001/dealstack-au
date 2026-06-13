@@ -22,6 +22,7 @@ import {
 import DealStackCalculator from "@/components/DealStackCalculator";
 import Logo from "@/components/Logo";
 import SourceResultCard from "@/components/SourceResultCard";
+import StoreLogo from "@/components/StoreLogo";
 import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, stores, type Store } from "@/lib/data";
@@ -191,9 +192,7 @@ export default async function StorePage({
         <div className="mt-3 rounded-2xl border bg-gradient-to-br from-emerald-500/10 via-background to-background p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-xl border bg-background font-mono text-sm font-bold tracking-tight shadow-sm">
-                {store.logo}
-              </span>
+              <StoreLogo store={store} size="lg" />
               <div>
                 <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                   {store.name}

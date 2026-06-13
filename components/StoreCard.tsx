@@ -3,6 +3,7 @@ import { ArrowRight, Clock, CreditCard, Gift, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import StoreLogo from "@/components/StoreLogo";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, type Store } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -54,9 +55,7 @@ export function StoreCard({ store }: { store: Store }) {
       <Card className="h-full gap-0 py-0 shadow-sm transition-all duration-200 group-hover:-translate-y-1 group-hover:border-emerald-500/50 group-hover:shadow-lg group-hover:shadow-emerald-500/10">
         <CardContent className="flex h-full flex-col gap-3 p-4">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted font-mono text-[10px] font-bold tracking-tight">
-              {store.logo}
-            </span>
+            <StoreLogo store={store} size="sm" />
             <div className="min-w-0">
               <p className="truncate font-semibold leading-tight">
                 {store.name}

@@ -1,11 +1,39 @@
 export type CashbackProvider = "ShopBack" | "TopCashback" | "—";
 
+/**
+ * Brand-INSPIRED colour theme for a CSS-only logo tile. These are custom,
+ * non-official colour treatments rendered purely with CSS — not copies of, or
+ * downloads of, any retailer's real logo or brand assets.
+ */
+export interface StoreLogoTheme {
+  /** CSS background (solid or gradient), applied via inline style. */
+  bg: string;
+  /** Text colour. */
+  fg: string;
+  /** Optional thin accent bar along the base of the tile. */
+  accent?: string;
+  /** Optional inset ring/border colour. */
+  ring?: string;
+}
+
 export interface Store {
   id: string;
   name: string;
   category: string;
   /** Text/initials placeholder shown instead of an image logo */
   logo: string;
+  /**
+   * Path to a manually provided local logo asset in public/logos
+   * (e.g. "/logos/myer.svg"). Optional — when missing or the file fails to
+   * load, the component falls back to the CSS tile. Do not scrape or hotlink.
+   */
+  logoPath?: string;
+  /** Short wordmark for the CSS logo tile, e.g. "MYER", "Coles", "JB". */
+  logoText?: string;
+  /** Optional tiny subtext under the wordmark. */
+  logoSubtext?: string;
+  /** Brand-inspired (not official) colour theme for the CSS logo tile. */
+  logoTheme?: StoreLogoTheme;
   /** Best known public discount code offer, as a percentage off */
   discountPercent: number;
   discountCode: string;
@@ -33,12 +61,19 @@ export function formatExpiry(iso: string | null): string {
 }
 
 // All offers below are illustrative sample data, not live rates.
+//
+// Logo paths expect manually provided local assets in public/logos. Do not
+// scrape or hotlink logos. Until those files exist, each store falls back to
+// its CSS logo tile.
 export const stores: Store[] = [
   {
     id: "myer",
     name: "Myer",
     category: "Department Store",
     logo: "MYER",
+    logoPath: "/logos/myer.png",
+    logoText: "MYER",
+    logoTheme: { bg: "linear-gradient(135deg,#2c2c2c,#000000)", fg: "#ffffff" },
     discountPercent: 10,
     discountCode: "MYER10",
     expiryDate: "2026-06-30",
@@ -54,6 +89,13 @@ export const stores: Store[] = [
     name: "JB Hi-Fi",
     category: "Electronics",
     logo: "JB",
+    logoPath: "/logos/jb-hi-fi.png",
+    logoText: "JB",
+    logoTheme: {
+      bg: "linear-gradient(135deg,#ffe24d,#f4c500)",
+      fg: "#141414",
+      accent: "#141414",
+    },
     discountPercent: 5,
     discountCode: "PERKS5",
     expiryDate: "2026-07-15",
@@ -69,6 +111,9 @@ export const stores: Store[] = [
     name: "The Good Guys",
     category: "Electronics & Appliances",
     logo: "TGG",
+    logoPath: "/logos/the-good-guys.svg",
+    logoText: "TGG",
+    logoTheme: { bg: "linear-gradient(135deg,#e64a4d,#c62526)", fg: "#ffffff" },
     discountPercent: 5,
     discountCode: "GOODGUYS5",
     expiryDate: null,
@@ -84,6 +129,9 @@ export const stores: Store[] = [
     name: "Coles",
     category: "Groceries",
     logo: "C",
+    logoPath: "/logos/coles.svg",
+    logoText: "Coles",
+    logoTheme: { bg: "linear-gradient(135deg,#e22931,#b3151c)", fg: "#ffffff" },
     discountPercent: 0,
     discountCode: "No public codes",
     expiryDate: null,
@@ -99,6 +147,13 @@ export const stores: Store[] = [
     name: "Woolworths",
     category: "Groceries",
     logo: "W",
+    logoPath: "/logos/woolworths.webp",
+    logoText: "W",
+    logoTheme: {
+      bg: "linear-gradient(135deg,#1fa84c,#0e7a33)",
+      fg: "#ffffff",
+      accent: "#9ccc3c",
+    },
     discountPercent: 0,
     discountCode: "No public codes",
     expiryDate: null,
@@ -114,6 +169,13 @@ export const stores: Store[] = [
     name: "Amazon AU",
     category: "Online Marketplace",
     logo: "A",
+    logoPath: "/logos/amazon-au.png",
+    logoText: "A",
+    logoTheme: {
+      bg: "linear-gradient(135deg,#243140,#131a24)",
+      fg: "#ff9f1c",
+      accent: "#ff9f1c",
+    },
     discountPercent: 5,
     discountCode: "Subscribe & Save",
     expiryDate: "2026-08-01",
@@ -129,6 +191,9 @@ export const stores: Store[] = [
     name: "Kogan",
     category: "Online Marketplace",
     logo: "K",
+    logoPath: "/logos/kogan.png",
+    logoText: "K",
+    logoTheme: { bg: "linear-gradient(135deg,#2563eb,#1e293b)", fg: "#ffffff" },
     discountPercent: 10,
     discountCode: "KOGAN10",
     expiryDate: "2026-06-21",
@@ -144,6 +209,13 @@ export const stores: Store[] = [
     name: "Chemist Warehouse",
     category: "Pharmacy & Health",
     logo: "CW",
+    logoPath: "/logos/chemist-warehouse.avif",
+    logoText: "CW",
+    logoTheme: {
+      bg: "linear-gradient(135deg,#1565c0,#d32f2f)",
+      fg: "#ffffff",
+      accent: "#ffd400",
+    },
     discountPercent: 5,
     discountCode: "CW5OFF",
     expiryDate: null,
