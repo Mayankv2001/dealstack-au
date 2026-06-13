@@ -270,6 +270,9 @@ export default function ResourcesPage() {
             >
               Resources
             </span>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/deals">Weekly Deals</Link>
+            </Button>
             <Button asChild size="sm" variant="outline" className="bg-background">
               <Link href="/search">All stores</Link>
             </Button>

@@ -74,6 +74,12 @@ export default function Home() {
             <a href="#stores" className="transition-colors hover:text-foreground">
               Stores
             </a>
+            <Link
+              href="/deals"
+              className="transition-colors hover:text-foreground"
+            >
+              Weekly Deals
+            </Link>
             <a
               href="#how-it-works"
               className="transition-colors hover:text-foreground"

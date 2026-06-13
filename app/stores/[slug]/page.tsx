@@ -165,6 +165,9 @@ export default async function StorePage({
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
           <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/deals">Weekly Deals</Link>
+            </Button>
             <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
               <Link href="/resources">Resources</Link>
             </Button>
