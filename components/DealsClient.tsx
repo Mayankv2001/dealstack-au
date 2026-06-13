@@ -381,28 +381,48 @@ const cashbackDeals: TaggedDeal[] = cashbackOffers.map((o): TaggedDeal => {
   };
 });
 
-const signalDeals: TaggedDeal[] = ozBargainSignals.map((o): TaggedDeal => {
-  const tags = new Set<FilterId>(["signals"]);
-  return {
-    tags,
-    data: {
-      variant: "signal",
-      kind: "discount-code",
-      category: "OzBargain signal",
-      tone: "orange",
-      icon: Flame,
-      title: o.title,
-      subject: storeName(o.merchantId),
-      summary: o.summary,
-      votes: o.votesSample,
-      postedAt: o.postedAt,
-      expiryDate: null,
-      lastCheckedAt: o.lastCheckedAt,
-      confidence: o.confidence,
-      citations: [{ source: "ozbargain", sourceUrl: o.sourceUrl }],
-    },
-  };
-});
+interface SignalTaggedDeal extends TaggedDeal {
+  score: number;
+}
+
+const signalDeals: SignalTaggedDeal[] = ozBargainSignals
+  .map((o): SignalTaggedDeal => {
+    const tags = new Set<FilterId>(["signals"]);
+    const soon = isExpiringSoon(o.expiryDate ?? null);
+    if (soon) tags.add("expiring-soon");
+    return {
+      tags,
+      score: o.signalScore ?? 0,
+      data: {
+        variant: "signal",
+        kind: o.dealKind,
+        category: "OzBargain signal",
+        tone: "orange",
+        icon: Flame,
+        title: o.title,
+        subject: storeName(o.merchantId),
+        summary: o.summary,
+        votes: o.votesSample,
+        comments: o.commentCount ?? null,
+        tags: o.tags,
+        promoCode: o.promoCode ?? null,
+        priceText: o.priceText ?? null,
+        postedAt: o.postedAt,
+        expiryDate: o.expiryDate ?? null,
+        expiringSoon: soon,
+        lastCheckedAt: o.lastCheckedAt,
+        confidence: o.confidence,
+        citations: [{ source: "ozbargain", sourceUrl: o.sourceUrl }],
+      },
+    };
+  })
+  // Expired signals sink to the bottom; otherwise strongest signal first.
+  .sort((a, b) => {
+    const aExpired = a.data.confidence === "expired-unknown" ? 1 : 0;
+    const bExpired = b.data.confidence === "expired-unknown" ? 1 : 0;
+    if (aExpired !== bExpired) return aExpired - bExpired;
+    return b.score - a.score;
+  });
 
 // ─── UI scaffolding ────────────────────────────────────────────────────────
 

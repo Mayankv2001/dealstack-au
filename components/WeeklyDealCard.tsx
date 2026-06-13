@@ -1,5 +1,6 @@
 import {
   BadgePercent,
+  CalendarClock,
   Check,
   ChevronDown,
   Clock,
@@ -8,7 +9,7 @@ import {
   Flame,
   Gift,
   type LucideIcon,
-  RefreshCw,
+  MessageSquare,
   Star,
   Store as StoreIcon,
 } from "lucide-react";
@@ -63,6 +64,14 @@ export interface WeeklyDealCardData {
   program?: string | null;
   /** Community votes (signal variant). */
   votes?: number | null;
+  /** Community comment count (signal variant). */
+  comments?: number | null;
+  /** Short tag labels (signal variant). */
+  tags?: string[];
+  /** Community-posted promo code (signal variant). */
+  promoCode?: string | null;
+  /** Short price/discount text (signal variant). */
+  priceText?: string | null;
   /** Posted date ISO (signal variant). */
   postedAt?: string | null;
   /** GCDB-style practical facts shown as a compact grid (giftcard variant). */
@@ -481,7 +490,13 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
       >
         <CardContent className="flex h-full flex-col gap-2 p-3.5">
           <div className="flex flex-wrap items-center gap-1.5">
-            <CitationLinks citations={data.citations} />
+            <Badge
+              variant="outline"
+              className="gap-1 border-orange-500/25 bg-orange-500/10 text-[10px] text-orange-700 dark:text-orange-400"
+            >
+              <Flame className="size-3" />
+              Community signal
+            </Badge>
             {data.subject && (
               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                 <StoreIcon className="size-3" />
@@ -490,29 +505,77 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
             )}
             <ConfidencePill confidence={data.confidence} className="ml-auto" />
           </div>
+
           <p className="text-sm font-semibold leading-snug">{data.title}</p>
           <p className="text-xs leading-relaxed text-muted-foreground">
             {data.summary}
           </p>
-          <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-[11px] text-muted-foreground">
-            {typeof data.votes === "number" && (
-              <span className="inline-flex items-center gap-1 font-medium text-orange-700 dark:text-orange-400">
-                <Flame className="size-3" />
-                {data.votes} votes
-              </span>
-            )}
-            {data.postedAt && (
-              <span className="inline-flex items-center gap-1">
-                <Clock className="size-3" />
-                Posted {formatDateAU(data.postedAt)}
-              </span>
-            )}
-            {data.lastCheckedAt && (
-              <span className="inline-flex items-center gap-1">
-                <RefreshCw className="size-3" />
-                Checked {formatDateAU(data.lastCheckedAt)}
-              </span>
-            )}
+
+          {(data.promoCode || data.priceText) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {data.promoCode && (
+                <code className="rounded border border-dashed border-emerald-500/40 bg-emerald-500/5 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                  {data.promoCode}
+                </code>
+              )}
+              {data.priceText && (
+                <span className="text-[11px] font-semibold">{data.priceText}</span>
+              )}
+            </div>
+          )}
+
+          {data.tags && data.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {data.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-auto flex flex-col gap-1.5 border-t pt-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              {typeof data.votes === "number" && (
+                <span className="inline-flex items-center gap-1 font-medium text-orange-700 dark:text-orange-400">
+                  <Flame className="size-3" />
+                  {data.votes} votes
+                </span>
+              )}
+              {typeof data.comments === "number" && (
+                <span className="inline-flex items-center gap-1">
+                  <MessageSquare className="size-3" />
+                  {data.comments}
+                </span>
+              )}
+              {data.postedAt && (
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="size-3" />
+                  {formatDateAU(data.postedAt)}
+                </span>
+              )}
+              {data.expiryDate && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1",
+                    data.expiringSoon &&
+                      "font-medium text-amber-700 dark:text-amber-400"
+                  )}
+                >
+                  <CalendarClock className="size-3" />
+                  {expired
+                    ? "Expired"
+                    : data.expiringSoon
+                      ? "Ends soon"
+                      : "Expires"}{" "}
+                  {formatDateAU(data.expiryDate)}
+                </span>
+              )}
+            </div>
+            <CitationLinks citations={data.citations} />
           </div>
         </CardContent>
       </Card>

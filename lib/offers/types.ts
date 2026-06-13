@@ -122,6 +122,23 @@ export interface OzBargainSignal {
   postedAt: string | null;
   confidence: Confidence;
   lastCheckedAt: string;
+  // ── Optional enrichment (static MVP; populated where known) ──
+  /** Number of comments on the source thread — heat signal only. */
+  commentCount?: number | null;
+  /** Short tag/category labels (our wording). */
+  tags?: string[];
+  /** Community-posted promo code, if cleanly visible. */
+  promoCode?: string | null;
+  /** Short price/discount text, e.g. "$1,799 (was $1,999)". */
+  priceText?: string | null;
+  /** Offer expiry if stated by the post. */
+  expiryDate?: string | null;
+  /** 0–1 heuristic signal score (see scoring plan). */
+  signalScore?: number | null;
+  /** Stable OzBargain node id, for future dedupe. */
+  sourceNativeId?: string | null;
+  /** Moderation status (future use). */
+  status?: "pending" | "approved" | "hidden" | "expired";
 }
 
 export interface WeeklyDeal {
