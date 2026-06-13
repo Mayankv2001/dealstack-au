@@ -1,8 +1,10 @@
 import {
   BadgePercent,
+  Check,
   Clock,
   CreditCard,
   ExternalLink,
+  Flame,
   Gift,
   type LucideIcon,
   RefreshCw,
@@ -11,7 +13,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import ConfidenceBadge from "@/components/ConfidenceBadge";
 import { formatDateAU } from "@/lib/sources/normalise";
 import {
   SOURCE_META,
@@ -23,12 +24,14 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Compact, responsive card for a single weekly deal or offer (gift card,
- * points boost, cashback boost, OzBargain signal or a curated pick).
+ * Card for a single weekly deal/offer. One normalised `WeeklyDealCardData`
+ * drives several layouts via `variant`:
+ *   - "default"  curated picks (compact summary)
+ *   - "giftcard" GCDB-style: prominent CSS-only discount/points badge tile
+ *   - "points"   FreePoints-style: program badge + big points figure
+ *   - "signal"   OzBargain-style: compact community feed row
  *
- * It is presentation-only and takes a normalised `WeeklyDealCardData` so the
- * Deals page can feed it from any of the static offer types in
- * lib/offers/manualOffers.ts. No data fetching, no network.
+ * Presentation only — no data fetching, no network, no external images.
  */
 
 export type WeeklyDealTone =
@@ -39,50 +42,65 @@ export type WeeklyDealTone =
   | "orange"
   | "sky";
 
+export type WeeklyDealVariant = "default" | "giftcard" | "points" | "signal";
+
 export interface WeeklyDealCardData {
-  /** Drives the default icon when no explicit `icon` is given. */
   kind: DealKind;
-  /** Short label shown as the top-left chip, e.g. "Gift card offer". */
   category: string;
   title: string;
   summary: string;
-  /** Merchant name or gift card brand. */
+  /** Merchant name or gift card source. */
   subject?: string | null;
-  /** Headline value, e.g. "5% off", "20x points", "6% cashback". */
+  /** Headline value for the default variant, e.g. "5% off". */
   highlight?: string | null;
   tone?: WeeklyDealTone;
-  /** Optional icon override (e.g. a flame for community signals). */
   icon?: LucideIcon;
+  variant?: WeeklyDealVariant;
+  /** Big CSS-only badge tile (gift card / points variants). */
+  badge?: { value: string; caption?: string };
+  /** Points program name, drives the program badge (points variant). */
+  program?: string | null;
+  /** Community votes (signal variant). */
+  votes?: number | null;
+  /** Posted date ISO (signal variant). */
+  postedAt?: string | null;
   expiryDate: string | null;
+  expiringSoon?: boolean;
   lastCheckedAt?: string | null;
   confidence: Confidence;
   citations: Citation[];
 }
 
-const toneStyles: Record<WeeklyDealTone, { tile: string; text: string }> = {
+const toneStyles: Record<WeeklyDealTone, { tile: string; text: string; grad: string }> = {
   emerald: {
     tile: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     text: "text-emerald-700 dark:text-emerald-400",
+    grad: "from-emerald-500/15 to-emerald-500/[0.03]",
   },
   violet: {
     tile: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
     text: "text-violet-700 dark:text-violet-400",
+    grad: "from-violet-500/15 to-violet-500/[0.03]",
   },
   amber: {
     tile: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     text: "text-amber-700 dark:text-amber-400",
+    grad: "from-amber-500/15 to-amber-500/[0.03]",
   },
   rose: {
     tile: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
     text: "text-rose-700 dark:text-rose-400",
+    grad: "from-rose-500/15 to-rose-500/[0.03]",
   },
   orange: {
     tile: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
     text: "text-orange-700 dark:text-orange-400",
+    grad: "from-orange-500/15 to-orange-500/[0.03]",
   },
   sky: {
     tile: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
     text: "text-sky-700 dark:text-sky-400",
+    grad: "from-sky-500/15 to-sky-500/[0.03]",
   },
 };
 
@@ -107,20 +125,91 @@ const sourceBadgeClasses: Record<SourceId, string> = {
     "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
 };
 
-export function CitationLinks({ citations }: { citations: Citation[] }) {
+/** Program → badge tint (FreePoints-style program pills). */
+function programClass(program?: string | null): string {
+  const p = (program ?? "").toLowerCase();
+  if (p.includes("qantas"))
+    return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400";
+  if (p.includes("velocity"))
+    return "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-400";
+  if (p.includes("flybuys"))
+    return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400";
+  if (p.includes("everyday"))
+    return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+  return "border-border bg-muted text-muted-foreground";
+}
+
+/**
+ * Softer, smaller confidence indicator than the shared ConfidenceBadge — used
+ * across the Deals page to reduce visual noise (req: soften "needs verification").
+ */
+export function ConfidencePill({
+  confidence,
+  className,
+}: {
+  confidence: Confidence;
+  className?: string;
+}) {
+  if (confidence === "confirmed") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-400",
+          className
+        )}
+      >
+        <Check className="size-3" />
+        Confirmed
+      </span>
+    );
+  }
+  if (confidence === "expired-unknown") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground",
+          className
+        )}
+      >
+        <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+        Expired
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[10px] text-muted-foreground",
+        className
+      )}
+      title="Unverified — confirm at the source"
+    >
+      <span className="size-1.5 rounded-full bg-amber-500/70" />
+      Unverified
+    </span>
+  );
+}
+
+export function CitationLinks({
+  citations,
+  className,
+}: {
+  citations: Citation[];
+  className?: string;
+}) {
   if (citations.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {citations.map((c) => {
         const meta = SOURCE_META[c.source];
         const external = c.sourceUrl.startsWith("http");
-        const className = cn(
+        const classes = cn(
           "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
           sourceBadgeClasses[c.source]
         );
         if (!external) {
           return (
-            <span key={c.source + c.sourceUrl} className={className}>
+            <span key={c.source + c.sourceUrl} className={classes}>
               {meta.displayName}
             </span>
           );
@@ -131,7 +220,7 @@ export function CitationLinks({ citations }: { citations: Citation[] }) {
             href={c.sourceUrl}
             target="_blank"
             rel="nofollow noopener noreferrer"
-            className={cn(className, "transition-opacity hover:opacity-80")}
+            className={cn(classes, "transition-opacity hover:opacity-80")}
           >
             {meta.displayName}
             <ExternalLink className="size-2.5" />
@@ -142,11 +231,214 @@ export function CitationLinks({ citations }: { citations: Citation[] }) {
   );
 }
 
+/** Expiry line, tinted amber when expiring soon. */
+function ExpiryLine({
+  expiryDate,
+  expiringSoon,
+  expired,
+}: {
+  expiryDate: string | null;
+  expiringSoon?: boolean;
+  expired: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[11px]",
+        expiringSoon
+          ? "font-medium text-amber-700 dark:text-amber-400"
+          : "text-muted-foreground"
+      )}
+    >
+      <Clock className="size-3" />
+      {expiryDate
+        ? `${expired ? "Expired" : expiringSoon ? "Ends soon —" : "Expires"} ${formatDateAU(expiryDate)}`
+        : "Check source for expiry"}
+    </span>
+  );
+}
+
 export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
   const tone = toneStyles[data.tone ?? "emerald"];
   const Icon = data.icon ?? kindIcons[data.kind];
   const expired = data.confidence === "expired-unknown";
+  const variant = data.variant ?? "default";
 
+  // ── GCDB-style gift card card ──────────────────────────────────────────
+  if (variant === "giftcard") {
+    return (
+      <Card
+        className={cn(
+          "gap-0 overflow-hidden py-0 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-md",
+          expired && "opacity-70"
+        )}
+      >
+        <CardContent className="flex h-full flex-col p-0">
+          {/* Visual badge banner (CSS only) */}
+          <div
+            className={cn(
+              "flex items-center justify-between gap-3 border-b bg-gradient-to-br px-4 py-3",
+              tone.grad
+            )}
+          >
+            <div className="min-w-0">
+              <p className={cn("text-2xl font-extrabold leading-none tracking-tight", tone.text)}>
+                {data.badge?.value ?? "Offer"}
+              </p>
+              {data.badge?.caption && (
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {data.badge.caption}
+                </p>
+              )}
+            </div>
+            <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", tone.tile)}>
+              <Icon className="size-5" />
+            </span>
+          </div>
+
+          <div className="flex h-full flex-col gap-2 p-4">
+            <div className="flex items-center gap-1.5">
+              <Badge variant="secondary" className="text-[10px]">
+                {data.category}
+              </Badge>
+              <ConfidencePill confidence={data.confidence} className="ml-auto" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold leading-snug">{data.title}</p>
+              {data.subject && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  via {data.subject}
+                </p>
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {data.summary}
+            </p>
+            <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
+              <ExpiryLine
+                expiryDate={data.expiryDate}
+                expiringSoon={data.expiringSoon}
+                expired={expired}
+              />
+              <CitationLinks citations={data.citations} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── FreePoints-style points card ───────────────────────────────────────
+  if (variant === "points") {
+    return (
+      <Card
+        className={cn(
+          "gap-0 py-0 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-500/40 hover:shadow-md",
+          expired && "opacity-70"
+        )}
+      >
+        <CardContent className="flex h-full flex-col gap-2.5 p-4">
+          <div className="flex items-center gap-2">
+            {data.program && (
+              <Badge
+                variant="outline"
+                className={cn("gap-1 text-[10px]", programClass(data.program))}
+              >
+                <Star className="size-3" />
+                {data.program}
+              </Badge>
+            )}
+            <ConfidencePill confidence={data.confidence} className="ml-auto" />
+          </div>
+
+          {/* Points figure is the focus */}
+          <div className="flex items-baseline gap-2">
+            <span className={cn("text-3xl font-extrabold tracking-tight", tone.text)}>
+              {data.badge?.value ?? data.highlight}
+            </span>
+            {data.badge?.caption && (
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {data.badge.caption}
+              </span>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-snug">{data.title}</p>
+            {data.subject && (
+              <p className="mt-0.5 inline-flex items-center gap-1 truncate text-xs text-muted-foreground">
+                <StoreIcon className="size-3 shrink-0" />
+                {data.subject}
+              </p>
+            )}
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {data.summary}
+          </p>
+
+          <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
+            <ExpiryLine
+              expiryDate={data.expiryDate}
+              expiringSoon={data.expiringSoon}
+              expired={expired}
+            />
+            <CitationLinks citations={data.citations} />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── OzBargain-style community signal feed row ──────────────────────────
+  if (variant === "signal") {
+    return (
+      <Card
+        className={cn(
+          "gap-0 overflow-hidden border-l-4 border-l-orange-500/60 py-0 shadow-sm transition-all duration-200 hover:border-l-orange-500",
+          expired && "opacity-70"
+        )}
+      >
+        <CardContent className="flex h-full flex-col gap-2 p-3.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <CitationLinks citations={data.citations} />
+            {data.subject && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <StoreIcon className="size-3" />
+                {data.subject}
+              </span>
+            )}
+            <ConfidencePill confidence={data.confidence} className="ml-auto" />
+          </div>
+          <p className="text-sm font-semibold leading-snug">{data.title}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {data.summary}
+          </p>
+          <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-[11px] text-muted-foreground">
+            {typeof data.votes === "number" && (
+              <span className="inline-flex items-center gap-1 font-medium text-orange-700 dark:text-orange-400">
+                <Flame className="size-3" />
+                {data.votes} votes
+              </span>
+            )}
+            {data.postedAt && (
+              <span className="inline-flex items-center gap-1">
+                <Clock className="size-3" />
+                Posted {formatDateAU(data.postedAt)}
+              </span>
+            )}
+            {data.lastCheckedAt && (
+              <span className="inline-flex items-center gap-1">
+                <RefreshCw className="size-3" />
+                Checked {formatDateAU(data.lastCheckedAt)}
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Default compact card (curated picks) ───────────────────────────────
   return (
     <Card
       className={cn(
@@ -159,16 +451,11 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
           <Badge variant="secondary" className="text-[10px]">
             {data.category}
           </Badge>
-          <ConfidenceBadge confidence={data.confidence} className="ml-auto" />
+          <ConfidencePill confidence={data.confidence} className="ml-auto" />
         </div>
 
         <div className="flex items-start gap-2.5">
-          <span
-            className={cn(
-              "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg",
-              tone.tile
-            )}
-          >
+          <span className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg", tone.tile)}>
             <Icon className="size-4" />
           </span>
           <div className="min-w-0">
@@ -195,20 +482,11 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
         )}
 
         <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
-          <div className="flex flex-col gap-0.5 text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <Clock className="size-3" />
-              {data.expiryDate
-                ? `${expired ? "Expired" : "Expires"} ${formatDateAU(data.expiryDate)}`
-                : "Check source for expiry"}
-            </span>
-            {data.lastCheckedAt && (
-              <span className="inline-flex items-center gap-1">
-                <RefreshCw className="size-3" />
-                Checked {formatDateAU(data.lastCheckedAt)}
-              </span>
-            )}
-          </div>
+          <ExpiryLine
+            expiryDate={data.expiryDate}
+            expiringSoon={data.expiringSoon}
+            expired={expired}
+          />
           <CitationLinks citations={data.citations} />
         </div>
       </CardContent>

@@ -11,11 +11,11 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import ConfidenceBadge from "@/components/ConfidenceBadge";
-import { CitationLinks } from "@/components/WeeklyDealCard";
+import { CitationLinks, ConfidencePill } from "@/components/WeeklyDealCard";
 import { formatAUD } from "@/lib/calculateStack";
 import { stores } from "@/lib/data";
 import type {
+  StackComponent,
   StackLayer,
   StackRecommendation,
   StackWarningLevel,
@@ -25,7 +25,10 @@ import { cn } from "@/lib/utils";
 /**
  * Displays one StackRecommendation from lib/stack/buildStack.ts: the combined
  * discount + gift card + cashback + points stack, its effective price, total
- * saving, warnings, confidence and source citations. Presentation only.
+ * saving, warnings, confidence and source citations.
+ *
+ * `compact` renders a dense, scannable variant for the "top stacks" strip:
+ * store, layer chips, effective price + saving, confidence — and nothing else.
  */
 
 const layerMeta: Record<
@@ -60,8 +63,7 @@ const warningStyles: Record<
 > = {
   info: {
     icon: Info,
-    className:
-      "border-sky-500/25 bg-sky-500/5 text-sky-700 dark:text-sky-400",
+    className: "border-sky-500/25 bg-sky-500/5 text-sky-700 dark:text-sky-400",
   },
   caution: {
     icon: AlertTriangle,
@@ -75,15 +77,96 @@ const warningStyles: Record<
   },
 };
 
+function storeLogo(rec: StackRecommendation): string {
+  return (
+    stores.find((s) => s.id === rec.merchantId)?.logo ??
+    rec.merchantName.slice(0, 2).toUpperCase()
+  );
+}
+
+/** Short chip value per layer for the compact variant. */
+function layerChipValue(c: StackComponent): string {
+  if (c.layer === "points") {
+    return `${(c.pointsEarned ?? 0).toLocaleString("en-AU")} pts`;
+  }
+  if (typeof c.valuePercent === "number" && c.valuePercent > 0) {
+    return `${c.valuePercent}%`;
+  }
+  return layerMeta[c.layer].label;
+}
+
 export function StackRecommendationCard({
   recommendation: rec,
+  compact = false,
+  rank,
 }: {
   recommendation: StackRecommendation;
+  compact?: boolean;
+  rank?: number;
 }) {
-  const logo =
-    stores.find((s) => s.id === rec.merchantId)?.logo ??
-    rec.merchantName.slice(0, 2).toUpperCase();
+  const logo = storeLogo(rec);
 
+  // ── Compact, scannable variant (top stacks strip) ──────────────────────
+  if (compact) {
+    const layers = rec.components.filter((c) => !c.optional);
+    return (
+      <Card className="gap-0 py-0 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-500/50 hover:shadow-md">
+        <CardContent className="flex h-full flex-col gap-2.5 p-3.5">
+          <div className="flex items-center gap-2">
+            {typeof rank === "number" && (
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-[10px] font-bold text-white">
+                {rank}
+              </span>
+            )}
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border bg-muted font-mono text-[9px] font-bold tracking-tight">
+              {logo}
+            </span>
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+              {rec.merchantName}
+            </p>
+            <ConfidencePill confidence={rec.confidence} />
+          </div>
+
+          {/* Layer chips */}
+          <div className="flex flex-wrap gap-1">
+            {layers.map((c, i) => {
+              const meta = layerMeta[c.layer];
+              return (
+                <span
+                  key={`${c.layer}-${i}`}
+                  className="inline-flex items-center gap-1 rounded-md border bg-card px-1.5 py-0.5 text-[10px] font-medium"
+                >
+                  <meta.icon className="size-2.5 text-muted-foreground" />
+                  {layerChipValue(c)}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Price + saving */}
+          <div className="mt-auto flex items-end justify-between gap-2 rounded-lg border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2">
+            <div>
+              <p className="text-[10px] text-muted-foreground">Effective</p>
+              <p className="text-lg font-bold leading-none tracking-tight text-emerald-700 dark:text-emerald-400">
+                {formatAUD(rec.effectivePrice)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-muted-foreground">Save</p>
+              <p className="text-sm font-bold leading-tight text-emerald-700 dark:text-emerald-400">
+                {formatAUD(rec.totalSaving)}
+              </p>
+              <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                {rec.effectiveDiscountPercent}% off
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Full variant ───────────────────────────────────────────────────────
   return (
     <Card className="gap-0 py-0 shadow-sm">
       <CardContent className="flex h-full flex-col gap-3 p-4">
@@ -100,7 +183,7 @@ export function StackRecommendationCard({
               Example spend {formatAUD(rec.basePrice)}
             </p>
           </div>
-          <ConfidenceBadge confidence={rec.confidence} />
+          <ConfidencePill confidence={rec.confidence} />
         </div>
 
         {/* Effective price + saving — the headline */}
@@ -215,11 +298,8 @@ export function StackRecommendationCard({
         )}
 
         {/* Citations */}
-        <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
+        <div className="mt-auto border-t pt-2.5">
           <CitationLinks citations={rec.citations} />
-          <p className="text-[10px] leading-snug text-muted-foreground">
-            Verify each layer at its source before purchasing.
-          </p>
         </div>
       </CardContent>
     </Card>
