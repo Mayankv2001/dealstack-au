@@ -1,15 +1,16 @@
-import { stores, type Store } from "@/lib/data";
+import { stores as staticStores, type Store } from "@/lib/data";
 import { findMerchantIdInText } from "@/lib/sources/normalise";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import {
-  cashbackOffersForMerchant,
-  giftCardOffersForMerchant,
-  ozBargainSignalsForMerchant,
-  pointsOffersForMerchant,
+  cashbackOffers as staticCashbackOffers,
+  giftCardOffers as staticGiftCardOffers,
+  ozBargainSignals as staticOzBargainSignals,
+  pointsOffers as staticPointsOffers,
 } from "@/lib/offers/manualOffers";
 import type {
   CashbackOffer,
   GiftCardOffer,
+  OzBargainSignal,
   PointsOffer,
   StackComponent,
   StackRecommendation,
@@ -27,13 +28,35 @@ import {
 /**
  * The stack engine.
  *
- * Pure and testable: it reads the existing static `stores` (lib/data.ts) and
- * the static offer data (lib/offers/manualOffers.ts), combines the best
- * compatible layer from each — discount code, discounted gift card, cashback,
- * points — and returns StackRecommendations. No network, no database, no UI.
+ * Pure and testable: given a `StackData` bundle (stores + offers) it combines
+ * the best compatible layer from each — discount code, discounted gift card,
+ * cashback, points — and returns StackRecommendations. No network, no UI.
  *
- * The current sample week. Surfaced on every recommendation.
+ * Data is INJECTED so it can come from either the static files or the Supabase
+ * repos. `buildStackRecommendations` defaults to the static bundle (keeping
+ * existing callers working), and `buildStackRecommendationsFromStatic` is an
+ * explicit static wrapper.
  */
+
+/** The data the engine needs; supplied by static files or the repos. */
+export interface StackData {
+  stores: Store[];
+  giftCardOffers: GiftCardOffer[];
+  cashbackOffers: CashbackOffer[];
+  pointsOffers: PointsOffer[];
+  ozBargainSignals: OzBargainSignal[];
+}
+
+/** The static bundle (default for `buildStackRecommendations`). */
+export const STATIC_STACK_DATA: StackData = {
+  stores: staticStores,
+  giftCardOffers: staticGiftCardOffers,
+  cashbackOffers: staticCashbackOffers,
+  pointsOffers: staticPointsOffers,
+  ozBargainSignals: staticOzBargainSignals,
+};
+
+/** The current sample week. Surfaced on every recommendation. */
 const WEEK_OF = "2026-06-08";
 /** Default example basket used for the dollar estimates. */
 export const DEFAULT_SPEND = 500;
@@ -45,8 +68,13 @@ const round = (value: number) => Math.round(value * 100) / 100;
 const MANUAL_CITATION: Citation = { source: "manual", sourceUrl: "/" };
 
 /** Highest-discount gift card accepted at this merchant, or null. */
-function bestGiftCard(merchantId: string): GiftCardOffer | null {
-  const accepted = giftCardOffersForMerchant(merchantId);
+function bestGiftCard(
+  offers: GiftCardOffer[],
+  merchantId: string
+): GiftCardOffer | null {
+  const accepted = offers.filter((o) =>
+    o.acceptedAtMerchantIds.includes(merchantId)
+  );
   if (accepted.length === 0) return null;
   return accepted.reduce((best, o) =>
     o.discountPercent > best.discountPercent ? o : best
@@ -54,19 +82,25 @@ function bestGiftCard(merchantId: string): GiftCardOffer | null {
 }
 
 /** Highest-rate cashback at this merchant, or null. */
-function bestCashback(merchantId: string): CashbackOffer | null {
-  const offers = cashbackOffersForMerchant(merchantId);
-  if (offers.length === 0) return null;
-  return offers.reduce((best, o) =>
+function bestCashback(
+  offers: CashbackOffer[],
+  merchantId: string
+): CashbackOffer | null {
+  const matches = offers.filter((o) => o.merchantId === merchantId);
+  if (matches.length === 0) return null;
+  return matches.reduce((best, o) =>
     o.ratePercent > best.ratePercent ? o : best
   );
 }
 
 /** Best points offer at this merchant (highest multiplier), or null. */
-function bestPoints(merchantId: string): PointsOffer | null {
-  const offers = pointsOffersForMerchant(merchantId);
-  if (offers.length === 0) return null;
-  return offers.reduce((best, o) =>
+function bestPoints(
+  offers: PointsOffer[],
+  merchantId: string
+): PointsOffer | null {
+  const matches = offers.filter((o) => o.merchantId === merchantId);
+  if (matches.length === 0) return null;
+  return matches.reduce((best, o) =>
     (o.earnMultiple ?? 0) > (best.earnMultiple ?? 0) ? o : best
   );
 }
@@ -85,7 +119,11 @@ function cappedSaving(
  * Build one recommendation for a single store at the given spend, or null when
  * the store has no usable savings layer.
  */
-function buildForStore(store: Store, spend: number): StackRecommendation | null {
+function buildForStore(
+  store: Store,
+  spend: number,
+  data: StackData
+): StackRecommendation | null {
   const now = SAMPLE_NOW;
   const components: StackComponent[] = [];
   const warnings: StackWarning[] = [];
@@ -121,8 +159,8 @@ function buildForStore(store: Store, spend: number): StackRecommendation | null 
   const checkoutPrice = running; // basis for gift card / cashback / points
 
   // 2 ── Gift card + cashback (resolve the common payment conflict) ─────────
-  const giftCard = bestGiftCard(store.id);
-  const cashback = bestCashback(store.id);
+  const giftCard = bestGiftCard(data.giftCardOffers, store.id);
+  const cashback = bestCashback(data.cashbackOffers, store.id);
 
   const giftCardSaving = giftCard
     ? round(cappedSaving(checkoutPrice, giftCard.discountPercent, giftCard.capDollars))
@@ -243,7 +281,7 @@ function buildForStore(store: Store, spend: number): StackRecommendation | null 
   // 3 ── Points (informational — value is not deducted from the cash price) ─
   let pointsEarned = 0;
   let pointsValueDollars = 0;
-  const points = bestPoints(store.id);
+  const points = bestPoints(data.pointsOffers, store.id);
   if (points && points.earnMultiple) {
     pointsEarned = Math.round(checkoutPrice * points.earnMultiple);
     pointsValueDollars = round(
@@ -278,8 +316,10 @@ function buildForStore(store: Store, spend: number): StackRecommendation | null 
   if (components.filter((c) => !c.optional).length === 0) return null;
 
   // OzBargain signals contribute citations/context, not savings.
-  for (const signal of ozBargainSignalsForMerchant(store.id)) {
-    citations.push({ source: "ozbargain", sourceUrl: signal.sourceUrl });
+  for (const signal of data.ozBargainSignals) {
+    if (signal.merchantId === store.id) {
+      citations.push({ source: "ozbargain", sourceUrl: signal.sourceUrl });
+    }
   }
 
   const effectivePrice = round(running);
@@ -324,25 +364,36 @@ function dedupeCitations(citations: Citation[]): Citation[] {
  *               known merchant, only that store is returned. Otherwise all
  *               stores with a usable stack are returned, best saving first.
  * @param spend  Example basket size. Defaults to DEFAULT_SPEND ($500).
+ * @param data   Injected data bundle. Defaults to the static bundle so existing
+ *               callers keep working; pass repo-loaded data for the DB path.
  */
 export function buildStackRecommendations(
   input?: string,
-  spend: number = DEFAULT_SPEND
+  spend: number = DEFAULT_SPEND,
+  data: StackData = STATIC_STACK_DATA
 ): StackRecommendation[] {
   const basket = Number.isFinite(spend) && spend > 0 ? spend : DEFAULT_SPEND;
 
-  let targets: Store[] = stores;
+  let targets: Store[] = data.stores;
   if (input && input.trim()) {
     const merchantId =
-      stores.find((s) => s.id === input.trim())?.id ??
+      data.stores.find((s) => s.id === input.trim())?.id ??
       findMerchantIdInText(input);
     if (merchantId) {
-      targets = stores.filter((s) => s.id === merchantId);
+      targets = data.stores.filter((s) => s.id === merchantId);
     }
   }
 
   return targets
-    .map((store) => buildForStore(store, basket))
+    .map((store) => buildForStore(store, basket, data))
     .filter((r): r is StackRecommendation => r !== null)
     .sort((a, b) => b.totalSaving - a.totalSaving);
+}
+
+/** Explicit static wrapper — identical output to the pre-DB behaviour. */
+export function buildStackRecommendationsFromStatic(
+  input?: string,
+  spend: number = DEFAULT_SPEND
+): StackRecommendation[] {
+  return buildStackRecommendations(input, spend, STATIC_STACK_DATA);
 }

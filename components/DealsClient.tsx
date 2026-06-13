@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -25,25 +25,24 @@ import StackRecommendationCard from "@/components/StackRecommendationCard";
 import WeeklyDealCard, {
   type WeeklyDealCardData,
 } from "@/components/WeeklyDealCard";
-import { stores } from "@/lib/data";
-import {
-  cashbackOffers,
-  giftCardOffers,
-  ozBargainSignals,
-  pointsOffers,
-} from "@/lib/offers/manualOffers";
-import type { GiftCardOffer, StackRecommendation } from "@/lib/offers/types";
-import { buildStackRecommendations } from "@/lib/stack/buildStack";
+import type { Store } from "@/lib/data";
+import type {
+  CashbackOffer,
+  GiftCardOffer,
+  OzBargainSignal,
+  PointsOffer,
+  StackRecommendation,
+  WeeklyDeal,
+} from "@/lib/offers/types";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
 /**
  * Interactive client for the Weekly Deals page.
  *
- * Holds all filter state so the GCDB/FreePoints-style pills actually filter the
- * layer feeds. Rendered by the server component app/deals/page.tsx (which owns
- * the route metadata). All data is static/manual (lib/offers/manualOffers.ts)
- * and the pure stack engine (lib/stack/buildStack.ts) — no network, no database.
+ * Holds filter state only. All data (stack recommendations + offers + signals)
+ * is loaded on the server by app/deals/page.tsx (Supabase repos with static
+ * fallback) and passed in as props — this component imports no data itself.
  */
 
 const WEEK_LABEL = "Week of 8 June 2026";
@@ -89,9 +88,6 @@ interface TaggedDeal {
   tags: Set<FilterId>;
   data: WeeklyDealCardData;
 }
-
-const storeName = (id: string | null): string | null =>
-  id ? (stores.find((s) => s.id === id)?.name ?? null) : null;
 
 function programTag(program: string | null | undefined): FilterId | null {
   const p = (program ?? "").toLowerCase();
@@ -222,13 +218,14 @@ const CHECK_STEPS: { icon: typeof Gift; title: string; text: string }[] = [
   },
 ];
 
-// ─── Static data (computed once at module load) ────────────────────────────
+// ─── Deal builders (pure; called from the component over the prop data) ─────
 
-const recommendations = buildStackRecommendations();
-const topStacks = recommendations.slice(0, 3);
+type NameOf = (id: string | null) => string | null;
 
-const taggedStacks: { rec: StackRecommendation; tags: Set<FilterId> }[] =
-  recommendations.map((rec) => {
+function buildTaggedStacks(
+  recommendations: StackRecommendation[]
+): { rec: StackRecommendation; tags: Set<FilterId> }[] {
+  return recommendations.map((rec) => {
     const tags = new Set<FilterId>();
     const text = rec.components
       .map((c) => `${c.label} ${c.note ?? ""}`)
@@ -242,13 +239,14 @@ const taggedStacks: { rec: StackRecommendation; tags: Set<FilterId> }[] =
       tags.add("expiring-soon");
     return { rec, tags };
   });
+}
 
 interface GiftTaggedDeal extends TaggedDeal {
   sub: Set<GiftSub>;
 }
 
-const giftCardDeals: GiftTaggedDeal[] = giftCardOffers.map(
-  (o): GiftTaggedDeal => {
+function buildGiftCardDeals(offers: GiftCardOffer[]): GiftTaggedDeal[] {
+  return offers.map((o): GiftTaggedDeal => {
     const tags = new Set<FilterId>(["gift-cards"]);
     const prog = programTag(o.pointsOnPurchase?.program);
     if (prog) tags.add(prog);
@@ -316,116 +314,131 @@ const giftCardDeals: GiftTaggedDeal[] = giftCardOffers.map(
         citations: o.citations,
       },
     };
-  }
-);
+  });
+}
 
-const pointsDeals: TaggedDeal[] = pointsOffers.map((o): TaggedDeal => {
-  const tags = new Set<FilterId>(["points"]);
-  const prog = programTag(o.program);
-  if (prog) tags.add(prog);
-  const soon = isExpiringSoon(o.expiryDate);
-  if (soon) tags.add("expiring-soon");
-  return {
-    tags,
-    data: {
-      variant: "points",
-      kind: "points",
-      category: "Points boost",
-      tone: "amber",
-      program: o.program,
-      title:
-        o.mechanism === "in-store-boost"
-          ? "Activated in-store boost"
-          : "Base earn rate",
-      subject: storeName(o.merchantId),
-      summary:
-        o.mechanism === "in-store-boost"
-          ? "Sample activated offer — activate in-app before you shop to earn the bonus."
-          : "Sample base earn rate on eligible spend at this merchant.",
-      badge: o.earnMultiple
-        ? { value: `${o.earnMultiple}×`, caption: "points" }
-        : { value: o.earnRateDisplay },
-      expiryDate: o.expiryDate,
-      expiringSoon: soon,
-      lastCheckedAt: o.lastCheckedAt,
-      confidence: o.confidence,
-      citations: o.citations,
-    },
-  };
-});
-
-const cashbackDeals: TaggedDeal[] = cashbackOffers.map((o): TaggedDeal => {
-  const tags = new Set<FilterId>(["cashback"]);
-  if (isExpiringSoon(o.expiryDate)) tags.add("expiring-soon");
-  return {
-    tags,
-    data: {
-      variant: "giftcard", // reuse the badge-banner layout, emerald-toned
-      kind: "cashback",
-      category: "Cashback",
-      tone: "emerald",
-      icon: CreditCard,
-      title: `${o.provider} cashback`,
-      subject: storeName(o.merchantId),
-      summary: o.termsSummary,
-      badge: {
-        value: `${o.ratePercent}% BACK`,
-        caption: o.isUpsized ? "upsized rate" : "cashback",
+function buildPointsDeals(
+  offers: PointsOffer[],
+  nameOf: NameOf
+): TaggedDeal[] {
+  return offers.map((o): TaggedDeal => {
+    const tags = new Set<FilterId>(["points"]);
+    const prog = programTag(o.program);
+    if (prog) tags.add(prog);
+    const soon = isExpiringSoon(o.expiryDate);
+    if (soon) tags.add("expiring-soon");
+    return {
+      tags,
+      data: {
+        variant: "points",
+        kind: "points",
+        category: "Points boost",
+        tone: "amber",
+        program: o.program,
+        title:
+          o.mechanism === "in-store-boost"
+            ? "Activated in-store boost"
+            : "Base earn rate",
+        subject: nameOf(o.merchantId),
+        summary:
+          o.mechanism === "in-store-boost"
+            ? "Sample activated offer — activate in-app before you shop to earn the bonus."
+            : "Sample base earn rate on eligible spend at this merchant.",
+        badge: o.earnMultiple
+          ? { value: `${o.earnMultiple}×`, caption: "points" }
+          : { value: o.earnRateDisplay },
+        expiryDate: o.expiryDate,
+        expiringSoon: soon,
+        lastCheckedAt: o.lastCheckedAt,
+        confidence: o.confidence,
+        citations: o.citations,
       },
-      expiryDate: o.expiryDate,
-      expiringSoon: isExpiringSoon(o.expiryDate),
-      lastCheckedAt: o.lastCheckedAt,
-      confidence: o.confidence,
-      citations: o.citations,
-    },
-  };
-});
+    };
+  });
+}
+
+function buildCashbackDeals(
+  offers: CashbackOffer[],
+  nameOf: NameOf
+): TaggedDeal[] {
+  return offers.map((o): TaggedDeal => {
+    const tags = new Set<FilterId>(["cashback"]);
+    if (isExpiringSoon(o.expiryDate)) tags.add("expiring-soon");
+    return {
+      tags,
+      data: {
+        variant: "giftcard", // reuse the badge-banner layout, emerald-toned
+        kind: "cashback",
+        category: "Cashback",
+        tone: "emerald",
+        icon: CreditCard,
+        title: `${o.provider} cashback`,
+        subject: nameOf(o.merchantId),
+        summary: o.termsSummary,
+        badge: {
+          value: `${o.ratePercent}% BACK`,
+          caption: o.isUpsized ? "upsized rate" : "cashback",
+        },
+        expiryDate: o.expiryDate,
+        expiringSoon: isExpiringSoon(o.expiryDate),
+        lastCheckedAt: o.lastCheckedAt,
+        confidence: o.confidence,
+        citations: o.citations,
+      },
+    };
+  });
+}
 
 interface SignalTaggedDeal extends TaggedDeal {
   score: number;
 }
 
-const signalDeals: SignalTaggedDeal[] = ozBargainSignals
-  .map((o): SignalTaggedDeal => {
-    const tags = new Set<FilterId>(["signals"]);
-    const soon = isExpiringSoon(o.expiryDate ?? null);
-    if (soon) tags.add("expiring-soon");
-    return {
-      tags,
-      score: o.signalScore ?? 0,
-      data: {
-        variant: "signal",
-        kind: o.dealKind,
-        category: "OzBargain signal",
-        tone: "orange",
-        icon: Flame,
-        title: o.title,
-        subject: storeName(o.merchantId),
-        summary: o.summary,
-        votes: o.votesSample,
-        comments: o.commentCount ?? null,
-        tags: o.tags,
-        promoCode: o.promoCode ?? null,
-        priceText: o.priceText ?? null,
-        postedAt: o.postedAt,
-        expiryDate: o.expiryDate ?? null,
-        expiringSoon: soon,
-        sourceUrl: o.sourceUrl,
-        retailerUrl: o.productUrl ?? o.merchantUrl ?? null,
-        isSample: o.isSample,
-        lastCheckedAt: o.lastCheckedAt,
-        confidence: o.confidence,
-        citations: [{ source: "ozbargain", sourceUrl: o.sourceUrl }],
-      },
-    };
-  })
-  // Expired signals sink to the bottom; otherwise strongest signal first.
-  .sort((a, b) => {
-    const aExpired = a.data.confidence === "expired-unknown" ? 1 : 0;
-    const bExpired = b.data.confidence === "expired-unknown" ? 1 : 0;
-    if (aExpired !== bExpired) return aExpired - bExpired;
-    return b.score - a.score;
-  });
+function buildSignalDeals(
+  offers: OzBargainSignal[],
+  nameOf: NameOf
+): SignalTaggedDeal[] {
+  return offers
+    .map((o): SignalTaggedDeal => {
+      const tags = new Set<FilterId>(["signals"]);
+      const soon = isExpiringSoon(o.expiryDate ?? null);
+      if (soon) tags.add("expiring-soon");
+      return {
+        tags,
+        score: o.signalScore ?? 0,
+        data: {
+          variant: "signal",
+          kind: o.dealKind,
+          category: "OzBargain signal",
+          tone: "orange",
+          icon: Flame,
+          title: o.title,
+          subject: nameOf(o.merchantId),
+          summary: o.summary,
+          votes: o.votesSample,
+          comments: o.commentCount ?? null,
+          tags: o.tags,
+          promoCode: o.promoCode ?? null,
+          priceText: o.priceText ?? null,
+          postedAt: o.postedAt,
+          expiryDate: o.expiryDate ?? null,
+          expiringSoon: soon,
+          sourceUrl: o.sourceUrl,
+          retailerUrl: o.productUrl ?? o.merchantUrl ?? null,
+          isSample: o.isSample,
+          lastCheckedAt: o.lastCheckedAt,
+          confidence: o.confidence,
+          citations: [{ source: "ozbargain", sourceUrl: o.sourceUrl }],
+        },
+      };
+    })
+    // Expired signals sink to the bottom; otherwise strongest signal first.
+    .sort((a, b) => {
+      const aExpired = a.data.confidence === "expired-unknown" ? 1 : 0;
+      const bExpired = b.data.confidence === "expired-unknown" ? 1 : 0;
+      if (aExpired !== bExpired) return aExpired - bExpired;
+      return b.score - a.score;
+    });
+}
 
 // ─── UI scaffolding ────────────────────────────────────────────────────────
 
@@ -464,9 +477,64 @@ const verificationNotes = [
   "Points boosts almost always need to be activated in the program app before you shop.",
 ];
 
-export default function DealsClient() {
+interface DealsClientProps {
+  stackRecommendations: StackRecommendation[];
+  /** Received from the server for forward-compat; not rendered as its own section. */
+  weeklyDeals: WeeklyDeal[];
+  stores: Store[];
+  giftCardOffers: GiftCardOffer[];
+  cashbackOffers: CashbackOffer[];
+  pointsOffers: PointsOffer[];
+  ozBargainSignals: OzBargainSignal[];
+}
+
+export default function DealsClient({
+  stackRecommendations,
+  stores,
+  giftCardOffers,
+  cashbackOffers,
+  pointsOffers,
+  ozBargainSignals,
+}: DealsClientProps) {
   const [active, setActive] = useState<FilterId>("all");
   const [giftSub, setGiftSub] = useState<GiftSub>("all");
+
+  // Merchant id → name lookup, derived from the injected stores.
+  const storeNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of stores) m.set(s.id, s.name);
+    return m;
+  }, [stores]);
+  const nameOf = useCallback<NameOf>(
+    (id) => (id ? (storeNameById.get(id) ?? null) : null),
+    [storeNameById]
+  );
+
+  // Derived view data (recomputed only when the underlying props change).
+  const topStacks = useMemo(
+    () => stackRecommendations.slice(0, 3),
+    [stackRecommendations]
+  );
+  const taggedStacks = useMemo(
+    () => buildTaggedStacks(stackRecommendations),
+    [stackRecommendations]
+  );
+  const giftCardDeals = useMemo(
+    () => buildGiftCardDeals(giftCardOffers),
+    [giftCardOffers]
+  );
+  const pointsDeals = useMemo(
+    () => buildPointsDeals(pointsOffers, nameOf),
+    [pointsOffers, nameOf]
+  );
+  const cashbackDeals = useMemo(
+    () => buildCashbackDeals(cashbackOffers, nameOf),
+    [cashbackOffers, nameOf]
+  );
+  const signalDeals = useMemo(
+    () => buildSignalDeals(ozBargainSignals, nameOf),
+    [ozBargainSignals, nameOf]
+  );
 
   const matchDeal = (d: TaggedDeal) => active === "all" || d.tags.has(active);
   const visGift = giftCardDeals.filter(matchDeal);
