@@ -8,9 +8,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { requireAdmin } from "@/lib/admin/auth";
-import { getDashboardCounts } from "@/lib/admin/repos/dashboard";
+import {
+  getDashboardCounts,
+  getRecentUpdates,
+} from "@/lib/admin/repos/dashboard";
 
 export const metadata: Metadata = {
   title: "Admin dashboard | DealStack AU",
@@ -29,11 +41,24 @@ interface Section {
   stats: Stat[];
 }
 
+// Deterministic, AU-local timestamp for the recent-updates feed. Fixed parts +
+// timeZone keep server-rendered output stable (this page has no client island).
+const RECENT_DATE_FMT = new Intl.DateTimeFormat("en-AU", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Australia/Sydney",
+});
+
 export default async function AdminDashboardPage() {
   // Belt-and-suspenders: the protected layout already gates, but every admin
   // page verifies independently (proxy is only an optimistic check).
   const { email } = await requireAdmin();
-  const counts = await getDashboardCounts();
+  const [counts, recent] = await Promise.all([
+    getDashboardCounts(),
+    getRecentUpdates(5),
+  ]);
 
   const sections: Section[] = [
     {
@@ -88,6 +113,45 @@ export default async function AdminDashboardPage() {
     },
   ];
 
+  // Derived entirely from the counts above — drafts waiting to publish plus
+  // signals still pending review. Each links to its section list.
+  const attention = [
+    {
+      label: "Pending OzBargain signals",
+      value: counts.signals.pending,
+      href: "/admin/signals",
+    },
+    {
+      label: "Unpublished cashback offers",
+      value: counts.cashback.unpublished,
+      href: "/admin/cashback",
+    },
+    {
+      label: "Unpublished gift card offers",
+      value: counts.giftCards.unpublished,
+      href: "/admin/gift-cards",
+    },
+    {
+      label: "Unpublished points offers",
+      value: counts.points.unpublished,
+      href: "/admin/points",
+    },
+    {
+      label: "Unpublished weekly deals",
+      value: counts.weeklyDeals.unpublished,
+      href: "/admin/weekly-deals",
+    },
+  ];
+  const attentionTotal = attention.reduce((sum, a) => sum + a.value, 0);
+
+  const quickActions = [
+    { label: "Add Cashback Rate", href: "/admin/cashback/new" },
+    { label: "Add Gift Card Offer", href: "/admin/gift-cards/new" },
+    { label: "Add Points Offer", href: "/admin/points/new" },
+    { label: "Add OzBargain Signal", href: "/admin/signals/new" },
+    { label: "Compose Weekly Deal", href: "/admin/weekly-deals/new" },
+  ];
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -103,39 +167,153 @@ export default async function AdminDashboardPage() {
         source fetching is running.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {sections.map((section) => (
-          <Card key={section.title} className="flex flex-col">
-            <CardHeader>
-              <CardTitle>{section.title}</CardTitle>
-              <CardDescription>{section.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 space-y-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-semibold tabular-nums">
-                  {section.total}
-                </span>
-                <span className="text-xs text-muted-foreground">total</span>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                {section.stats.map((stat) => (
-                  <span key={stat.label}>
-                    <span className="font-medium text-foreground tabular-nums">
-                      {stat.value}
-                    </span>{" "}
-                    {stat.label}
+      {/* Overview — existing per-section count cards. */}
+      <section className="space-y-3">
+        <h2 className="font-heading text-lg font-semibold">Overview</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {sections.map((section) => (
+            <Card key={section.title} className="flex flex-col">
+              <CardHeader>
+                <CardTitle>{section.title}</CardTitle>
+                <CardDescription>{section.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold tabular-nums">
+                    {section.total}
                   </span>
-                ))}
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button asChild variant="outline" size="sm">
-                <Link href={section.href}>Manage</Link>
+                  <span className="text-xs text-muted-foreground">total</span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {section.stats.map((stat) => (
+                    <span key={stat.label}>
+                      <span className="font-medium text-foreground tabular-nums">
+                        {stat.value}
+                      </span>{" "}
+                      {stat.label}
+                    </span>
+                  ))}
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={section.href}>Manage</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Needs attention + Quick actions, side by side on large screens. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>Needs attention</CardTitle>
+            <CardDescription>
+              {attentionTotal === 0
+                ? "All clear — every draft is published and signals are reviewed."
+                : `${attentionTotal} ${attentionTotal === 1 ? "item" : "items"} waiting on you.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 space-y-2">
+            {attention.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+              >
+                <span
+                  className={
+                    item.value > 0
+                      ? "font-medium text-foreground"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {item.label}
+                </span>
+                <Badge
+                  variant={item.value > 0 ? "default" : "outline"}
+                  className="tabular-nums"
+                >
+                  {item.value}
+                </Badge>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>Quick actions</CardTitle>
+            <CardDescription>Jump straight into manual entry.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid flex-1 gap-2 sm:grid-cols-2">
+            {quickActions.map((action) => (
+              <Button
+                key={action.href}
+                asChild
+                variant="outline"
+                className="justify-start"
+              >
+                <Link href={action.href}>{action.label}</Link>
               </Button>
-            </CardFooter>
-          </Card>
-        ))}
+            ))}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Recent updates — latest changed items across every section. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent updates</CardTitle>
+          <CardDescription>
+            The five most recently edited items across all sections.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recent.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nothing edited yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Item</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead className="text-right">Edit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recent.map((item) => (
+                  <TableRow key={`${item.type}-${item.id}`}>
+                    <TableCell className="text-muted-foreground">
+                      {item.typeLabel}
+                    </TableCell>
+                    <TableCell className="font-medium">{item.title}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.isLive ? "default" : "secondary"}>
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {RECENT_DATE_FMT.format(new Date(item.updatedAt))}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={item.editHref}>Edit</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
