@@ -22,6 +22,7 @@ const NAV_LINKS = [
   { href: "/admin/gift-cards", label: "Gift Cards" },
   { href: "/admin/points", label: "Points" },
   { href: "/admin/signals", label: "Signals" },
+  { href: "/admin/weekly-deals", label: "Weekly Deals" },
 ];
 
 export default async function AdminLayout({

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   Card,
   CardDescription,
@@ -17,18 +18,27 @@ const SECTIONS = [
   {
     title: "Cashback",
     description: "ShopBack & TopCashback offers (no Cashrewards).",
+    href: "/admin/cashback",
   },
   {
     title: "Gift Cards",
     description: "Discounted gift-card offers and where they're accepted.",
+    href: "/admin/gift-cards",
   },
   {
     title: "Points",
     description: "Points programs and earn-rate boosts.",
+    href: "/admin/points",
   },
   {
     title: "OzBargain Signals",
     description: "Manually curated community deal signals.",
+    href: "/admin/signals",
+  },
+  {
+    title: "Weekly Deals",
+    description: "Curated editorial cards referencing existing offer ids.",
+    href: "/admin/weekly-deals",
   },
 ];
 
@@ -55,13 +65,10 @@ export default async function AdminDashboardPage() {
               <CardTitle>{section.title}</CardTitle>
               <CardDescription>{section.description}</CardDescription>
             </CardHeader>
-            <CardFooter className="justify-between">
-              <Button variant="outline" size="sm" disabled>
-                Manage
+            <CardFooter>
+              <Button asChild variant="outline" size="sm">
+                <Link href={section.href}>Manage</Link>
               </Button>
-              <span className="text-xs font-medium text-muted-foreground">
-                Coming soon
-              </span>
             </CardFooter>
           </Card>
         ))}
