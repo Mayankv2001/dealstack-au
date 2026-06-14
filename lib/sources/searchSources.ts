@@ -107,17 +107,23 @@ function latest(a: string, b: string): string {
 }
 
 /**
- * Search all (static) source results. Every word in the query must match
- * somewhere across title, merchant, summary, source, kind, program,
- * gift card brand or provider. An empty query returns everything.
- * Results come back deduped, scored and ranked, expired items last.
+ * Core search over ANY pool of source results. Every word in the query must
+ * match somewhere across title, merchant, summary, source, kind, program, gift
+ * card brand or provider. An empty query returns everything. Results come back
+ * deduped, scored and ranked, expired items last.
+ *
+ * Parameterised on `results` so the same pipeline serves both the static sample
+ * pool (below) and the Supabase-backed pool (lib/repos/sourceResults.ts).
  */
-export function searchSources(query: string): RankedDealResult[] {
+export function rankSourceResults(
+  results: DealSourceResult[],
+  query: string
+): RankedDealResult[] {
   const now = new Date();
   const terms = normaliseText(query).split(" ").filter(Boolean);
   const queryMerchantId = findMerchantIdInText(query);
 
-  const matches = allSourceResults.filter((result) => {
+  const matches = results.filter((result) => {
     if (terms.length === 0) return true;
     const text = haystack(result);
     return terms.every(
@@ -137,13 +143,26 @@ export function searchSources(query: string): RankedDealResult[] {
   return rankResults(deduped, { queryMerchantId, now });
 }
 
-/** All results for a specific store, ranked (for the store detail page later) */
-export function sourceResultsForStore(storeId: string): RankedDealResult[] {
+/** Core: every result in `results` for one store, deduped + derived + ranked. */
+export function rankSourceResultsForStore(
+  results: DealSourceResult[],
+  storeId: string
+): RankedDealResult[] {
   const now = new Date();
-  const matches = allSourceResults.filter((r) => r.merchantId === storeId);
+  const matches = results.filter((r) => r.merchantId === storeId);
   const deduped = dedupeResults(matches).map((result) => ({
     ...result,
     confidence: deriveConfidence(result, now),
   }));
   return rankResults(deduped, { queryMerchantId: storeId, now });
+}
+
+/** Search the STATIC sample pool — the fallback when Supabase is unavailable. */
+export function searchSources(query: string): RankedDealResult[] {
+  return rankSourceResults(allSourceResults, query);
+}
+
+/** Static-pool results for a specific store — the Supabase fallback path. */
+export function sourceResultsForStore(storeId: string): RankedDealResult[] {
+  return rankSourceResultsForStore(allSourceResults, storeId);
 }

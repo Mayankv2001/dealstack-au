@@ -9,7 +9,7 @@ import SourceResultCard from "@/components/SourceResultCard";
 import StoreCard from "@/components/StoreCard";
 import type { Store } from "@/lib/data";
 import { getStores } from "@/lib/repos";
-import { searchSources } from "@/lib/sources/searchSources";
+import { searchSourceResults } from "@/lib/repos/sourceResults";
 
 export const metadata: Metadata = {
   title: "Search stores — DealStack AU",
@@ -50,7 +50,9 @@ export default async function SearchPage({
   // fallback otherwise). Source checks stay on the static pipeline for now.
   const stores = await getStores();
   const results = query ? stores.filter((s) => matchesQuery(s, query)) : stores;
-  const sourceResults = searchSources(query);
+  // Source checks come from the repository layer (Supabase published/approved
+  // rows when configured, static sample pipeline otherwise).
+  const sourceResults = await searchSourceResults(query);
 
   return (
     <div className="min-h-screen bg-emerald-500/[0.04]">

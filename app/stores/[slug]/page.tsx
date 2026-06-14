@@ -27,7 +27,7 @@ import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, stores as staticStores, type Store } from "@/lib/data";
 import { getStores } from "@/lib/repos";
-import { sourceResultsForStore } from "@/lib/sources/searchSources";
+import { storeSourceResults } from "@/lib/repos/sourceResults";
 import { cn } from "@/lib/utils";
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
@@ -120,7 +120,9 @@ export default async function StorePage({
     giftCardDiscountPercent: store.giftCardDiscountPercent,
   });
   const steps = buildSteps(store);
-  const sourceResults = sourceResultsForStore(store.id);
+  // Source checks come from the repository layer (Supabase published/approved
+  // rows when configured, static sample pipeline otherwise).
+  const sourceResults = await storeSourceResults(store.id);
 
   const layers = [
     {
