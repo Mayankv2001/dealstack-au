@@ -294,8 +294,9 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 
 - [ ] 1. Compliance pre-flight: `robots.txt` + ToS review, decision log, chosen
       feeds, `User-Agent` string. *(No fetching code.)*
-- [ ] 2. Migration: `feed_sources`, `feed_items`, `feed_fetch_log` +
-      service-role-only RLS; seed feeds **disabled by default**.
+- [x] 2. Migration: `feed_sources`, `feed_items`, `feed_fetch_log` +
+      service-role-only RLS; feeds seeded **disabled by default**. *(Done —
+      `supabase/migrations/002_feed_import_queue.sql`. Schema only; no fetcher.)*
 - [ ] 3. Pure parser/mapper lib (XML → raw item → `SignalInput`), unit-tested
       against committed **fixture feeds**, zero network.
 - [ ] 4. Fetcher module (kill switch, conditional GET, backoff) run as a manual
@@ -340,7 +341,11 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 
 ## Status
 
-**Current phase: planning only.** No fetching, no migrations, no cron routes.
-OzBargain data is entirely manual (admin-entered) with static sample fallback.
+**Current phase: import-queue schema in place; still no fetching.** Migration
+`supabase/migrations/002_feed_import_queue.sql` adds the `feed_sources`,
+`feed_items`, and `feed_fetch_log` staging tables (RLS-enabled, service-role
+only, feeds disabled by default). There is still **no fetcher, cron, or agent**,
+and nothing makes external requests. OzBargain data remains entirely manual
+(admin-entered) with the static sample fallback.
 
 > **Do not implement automated fetching until compliance review is complete.**
