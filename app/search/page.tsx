@@ -7,12 +7,18 @@ import Logo from "@/components/Logo";
 import SearchBar from "@/components/SearchBar";
 import SourceResultCard from "@/components/SourceResultCard";
 import StoreCard from "@/components/StoreCard";
-import { stores, type Store } from "@/lib/data";
+import type { Store } from "@/lib/data";
+import { getStores } from "@/lib/repos";
 import { searchSources } from "@/lib/sources/searchSources";
 
 export const metadata: Metadata = {
   title: "Search stores — DealStack AU",
 };
+
+// ISR: serve cached HTML and refresh stores from the DB periodically, matching
+// the home and /deals routes. getStores() falls back to static data when
+// Supabase is unconfigured or unavailable, so the page always renders.
+export const revalidate = 300;
 
 function matchesQuery(store: Store, query: string) {
   const haystack = [
@@ -40,6 +46,9 @@ export default async function SearchPage({
 }) {
   const { q } = await searchParams;
   const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
+  // Stores come from the repository layer (Supabase when configured, static
+  // fallback otherwise). Source checks stay on the static pipeline for now.
+  const stores = await getStores();
   const results = query ? stores.filter((s) => matchesQuery(s, query)) : stores;
   const sourceResults = searchSources(query);
 
