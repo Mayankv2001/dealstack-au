@@ -20,6 +20,17 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Data Sources & Compliance
+
+Deal data is **manually entered and curated** by admins; the public site reads
+from Supabase (with a static sample fallback) and never makes external source
+requests on a user's behalf.
+
+OzBargain monitoring is **planned but not implemented**. Any future feed-based
+ingestion must follow the safety, compliance, and review rules — including a
+mandatory compliance review before any automated fetching — documented in
+[docs/ozbargain-monitoring.md](docs/ozbargain-monitoring.md).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
