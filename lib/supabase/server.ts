@@ -10,8 +10,10 @@ import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "@/lib/env";
  */
 
 // Permissive schema so dynamic table names type-check without generated types.
+// Exported so the service-role (./admin.ts) and SSR auth (./ssr.ts) clients
+// share one loose schema type — no behaviour change to public reads here.
 type Row = Record<string, unknown>;
-type LooseDB = {
+export type LooseDB = {
   public: {
     Tables: Record<
       string,
