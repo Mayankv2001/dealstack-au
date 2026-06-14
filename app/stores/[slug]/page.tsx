@@ -25,12 +25,26 @@ import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
 import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
-import { formatExpiry, stores, type Store } from "@/lib/data";
+import { formatExpiry, stores as staticStores, type Store } from "@/lib/data";
+import { getStores } from "@/lib/repos";
 import { sourceResultsForStore } from "@/lib/sources/searchSources";
 import { cn } from "@/lib/utils";
 
-export function generateStaticParams() {
-  return stores.map((store) => ({ slug: store.id }));
+// ISR: serve cached HTML and refresh stores from the DB periodically, matching
+// the home, search and /deals routes. getStores() falls back to static data when
+// Supabase is unconfigured or unavailable, so every store page still renders.
+export const revalidate = 300;
+
+// Pre-render one page per store. Pull the store list from the repository layer
+// when possible; if that throws at build time, fall back to the static `stores`
+// so the build never breaks.
+export async function generateStaticParams() {
+  try {
+    const stores = await getStores();
+    return stores.map((store) => ({ slug: store.id }));
+  } catch {
+    return staticStores.map((store) => ({ slug: store.id }));
+  }
 }
 
 export async function generateMetadata({
@@ -39,6 +53,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const stores = await getStores();
   const store = stores.find((s) => s.id === slug);
   return {
     title: store
@@ -94,6 +109,7 @@ export default async function StorePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const stores = await getStores();
   const store = stores.find((s) => s.id === slug);
   if (!store) notFound();
 
