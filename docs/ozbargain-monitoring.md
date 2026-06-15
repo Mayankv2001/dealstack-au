@@ -309,7 +309,11 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 - [ ] 6. Auto-expire job (conservative, reversible).
 - [ ] 7. Schedule via Vercel Cron at low cadence — only after manual runs look
       clean.
-- [ ] 8. Observability + alerts + admin kill-switch toggle.
+- [~] 8. Observability + alerts + admin kill-switch toggle. *(Partial — a
+      read-only status page exists at `/admin/monitor`
+      (`lib/admin/repos/monitorStatus.ts`): master-switch value, compliance
+      approval, feed-source counts, queue backlog, recent fetch log, and
+      error/blocked feeds. No fetch controls; alerts + toggle still pending.)*
 
 ---
 

@@ -152,6 +152,7 @@ export default async function AdminDashboardPage() {
   const attentionTotal = attention.reduce((sum, a) => sum + a.value, 0);
 
   const quickActions = [
+    { label: "Monitor Status", href: "/admin/monitor" },
     { label: "Review Feed Queue", href: "/admin/signals/queue" },
     { label: "Add Cashback Rate", href: "/admin/cashback/new" },
     { label: "Add Gift Card Offer", href: "/admin/gift-cards/new" },

@@ -25,6 +25,7 @@ const NAV_LINKS = [
   { href: "/admin/signals/queue", label: "Feed Queue" },
   { href: "/admin/signals/sources", label: "Feed Sources" },
   { href: "/admin/compliance", label: "Compliance" },
+  { href: "/admin/monitor", label: "Monitor" },
   { href: "/admin/weekly-deals", label: "Weekly Deals" },
 ];
 
