@@ -5,17 +5,12 @@ import {
   listPointsOffers,
   type AdminPointsOffer,
 } from "@/lib/admin/repos/points";
-import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  AdminListTable,
+  type AdminColumn,
+  type AdminRow,
+} from "@/components/admin/AdminListTable";
+import { Button } from "@/components/ui/button";
 import { setPublished } from "./actions";
 
 export const metadata: Metadata = {
@@ -28,6 +23,47 @@ const MECHANISM_LABELS: Record<AdminPointsOffer["mechanism"], string> = {
   "shopping-portal": "Shopping portal",
   "base-earn": "Base earn",
 };
+
+const COLUMNS: AdminColumn[] = [
+  { key: "program", header: "Program" },
+  { key: "store", header: "Store" },
+  { key: "mechanism", header: "Mechanism" },
+  { key: "rate", header: "Rate" },
+  { key: "confidence", header: "Confidence" },
+  { key: "status", header: "Status" },
+];
+
+function toRow(offer: AdminPointsOffer): AdminRow {
+  const store = offer.storeName ?? "Program-wide";
+  const mechanism = MECHANISM_LABELS[offer.mechanism];
+  const rate = offer.earnRateDisplay || "—";
+  return {
+    id: offer.id,
+    searchText: `${offer.program} ${store} ${mechanism} ${rate}`.toLowerCase(),
+    filterValue: offer.isPublished ? "published" : "draft",
+    editHref: `/admin/points/${offer.id}/edit`,
+    cells: {
+      program: { kind: "text", text: offer.program, strong: true },
+      store: offer.storeName
+        ? { kind: "text", text: offer.storeName }
+        : { kind: "text", text: "Program-wide", muted: true },
+      mechanism: { kind: "text", text: mechanism },
+      rate: { kind: "text", text: rate },
+      confidence: { kind: "confidence", value: offer.confidence },
+      status: {
+        kind: "badge",
+        text: offer.isPublished ? "Published" : "Draft",
+        tone: offer.isPublished ? "secondary" : "outline",
+      },
+    },
+    actions: [
+      {
+        action: setPublished.bind(null, offer.id, !offer.isPublished),
+        label: offer.isPublished ? "Unpublish" : "Publish",
+      },
+    ],
+  };
+}
 
 export default async function PointsListPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
@@ -59,56 +95,18 @@ export default async function PointsListPage() {
           .
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Program</TableHead>
-              <TableHead>Store</TableHead>
-              <TableHead>Mechanism</TableHead>
-              <TableHead>Rate</TableHead>
-              <TableHead>Confidence</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {offers.map((offer) => (
-              <TableRow key={offer.id}>
-                <TableCell className="font-medium">{offer.program}</TableCell>
-                <TableCell>
-                  {offer.storeName ?? (
-                    <span className="text-muted-foreground">Program-wide</span>
-                  )}
-                </TableCell>
-                <TableCell>{MECHANISM_LABELS[offer.mechanism]}</TableCell>
-                <TableCell>{offer.earnRateDisplay || "—"}</TableCell>
-                <TableCell>
-                  <ConfidenceBadge confidence={offer.confidence} />
-                </TableCell>
-                <TableCell>
-                  {offer.isPublished ? (
-                    <Badge variant="secondary">Published</Badge>
-                  ) : (
-                    <Badge variant="outline">Draft</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/admin/points/${offer.id}/edit`}>Edit</Link>
-                    </Button>
-                    {/* POST form so the bound server action toggles published. */}
-                    <form action={setPublished.bind(null, offer.id, !offer.isPublished)}>
-                      <Button type="submit" variant="outline" size="sm">
-                        {offer.isPublished ? "Unpublish" : "Publish"}
-                      </Button>
-                    </form>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <AdminListTable
+          columns={COLUMNS}
+          rows={offers.map(toRow)}
+          searchPlaceholder="Search program, store, mechanism…"
+          filter={{
+            label: "Status",
+            options: [
+              { value: "published", label: "Published" },
+              { value: "draft", label: "Draft" },
+            ],
+          }}
+        />
       )}
     </div>
   );

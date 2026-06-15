@@ -2,17 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listSignals, type AdminSignal } from "@/lib/admin/repos/signals";
-import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  AdminListTable,
+  type AdminColumn,
+  type AdminRow,
+  type AdminRowAction,
+  type CellTone,
+} from "@/components/admin/AdminListTable";
+import { Button } from "@/components/ui/button";
 import { setStatus } from "./actions";
 
 export const metadata: Metadata = {
@@ -27,10 +24,7 @@ const DEAL_KIND_LABELS: Record<AdminSignal["dealKind"], string> = {
   guide: "Guide",
 };
 
-const STATUS_VARIANTS: Record<
-  AdminSignal["status"],
-  "secondary" | "outline" | "destructive"
-> = {
+const STATUS_TONES: Record<AdminSignal["status"], CellTone> = {
   approved: "secondary",
   pending: "outline",
   expired: "outline",
@@ -43,6 +37,60 @@ const STATUS_LABELS: Record<AdminSignal["status"], string> = {
   hidden: "Hidden",
   expired: "Expired",
 };
+
+const COLUMNS: AdminColumn[] = [
+  { key: "title", header: "Title" },
+  { key: "store", header: "Store" },
+  { key: "kind", header: "Kind" },
+  { key: "confidence", header: "Confidence" },
+  { key: "status", header: "Status" },
+];
+
+function toRow(signal: AdminSignal): AdminRow {
+  const store = signal.storeName ?? "—";
+  const kind = DEAL_KIND_LABELS[signal.dealKind];
+  const actions: AdminRowAction[] = [];
+  if (signal.status !== "approved") {
+    actions.push({
+      action: setStatus.bind(null, signal.id, "approved"),
+      label: "Approve",
+    });
+  }
+  if (signal.status !== "hidden") {
+    actions.push({
+      action: setStatus.bind(null, signal.id, "hidden"),
+      label: "Hide",
+    });
+  }
+  return {
+    id: signal.id,
+    searchText:
+      `${signal.title} ${store} ${kind} ${STATUS_LABELS[signal.status]}`.toLowerCase(),
+    filterValue: signal.status,
+    editHref: `/admin/signals/${signal.id}/edit`,
+    cells: {
+      title: { kind: "text", text: signal.title, strong: true },
+      store: signal.storeName
+        ? { kind: "text", text: signal.storeName }
+        : { kind: "text", text: "—", muted: true },
+      kind: { kind: "text", text: kind },
+      confidence: { kind: "confidence", value: signal.confidence },
+      status: {
+        kind: "badges",
+        items: [
+          {
+            text: STATUS_LABELS[signal.status],
+            tone: STATUS_TONES[signal.status],
+          },
+          ...(signal.isSample
+            ? [{ text: "Sample", tone: "outline" as const }]
+            : []),
+        ],
+      },
+    },
+    actions,
+  };
+}
 
 export default async function SignalsListPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
@@ -74,68 +122,20 @@ export default async function SignalsListPage() {
           .
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Store</TableHead>
-              <TableHead>Kind</TableHead>
-              <TableHead>Confidence</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {signals.map((signal) => (
-              <TableRow key={signal.id}>
-                <TableCell className="max-w-xs font-medium">
-                  <span className="line-clamp-2">{signal.title}</span>
-                </TableCell>
-                <TableCell>
-                  {signal.storeName ?? (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>{DEAL_KIND_LABELS[signal.dealKind]}</TableCell>
-                <TableCell>
-                  <ConfidenceBadge confidence={signal.confidence} />
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap items-center gap-1">
-                    <Badge variant={STATUS_VARIANTS[signal.status]}>
-                      {STATUS_LABELS[signal.status]}
-                    </Badge>
-                    {signal.isSample ? (
-                      <Badge variant="outline">Sample</Badge>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex flex-wrap items-center justify-end gap-1">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/admin/signals/${signal.id}/edit`}>Edit</Link>
-                    </Button>
-                    {/* POST forms so the bound server action changes status. */}
-                    {signal.status !== "approved" ? (
-                      <form action={setStatus.bind(null, signal.id, "approved")}>
-                        <Button type="submit" variant="outline" size="sm">
-                          Approve
-                        </Button>
-                      </form>
-                    ) : null}
-                    {signal.status !== "hidden" ? (
-                      <form action={setStatus.bind(null, signal.id, "hidden")}>
-                        <Button type="submit" variant="outline" size="sm">
-                          Hide
-                        </Button>
-                      </form>
-                    ) : null}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <AdminListTable
+          columns={COLUMNS}
+          rows={signals.map(toRow)}
+          searchPlaceholder="Search title, store, kind…"
+          filter={{
+            label: "Status",
+            options: [
+              { value: "pending", label: "Pending" },
+              { value: "approved", label: "Approved" },
+              { value: "hidden", label: "Hidden" },
+              { value: "expired", label: "Expired" },
+            ],
+          }}
+        />
       )}
     </div>
   );

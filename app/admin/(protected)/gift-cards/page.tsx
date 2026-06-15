@@ -5,17 +5,12 @@ import {
   listGiftCardOffers,
   type AdminGiftCardOffer,
 } from "@/lib/admin/repos/giftCards";
-import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  AdminListTable,
+  type AdminColumn,
+  type AdminRow,
+} from "@/components/admin/AdminListTable";
+import { Button } from "@/components/ui/button";
 import { setPublished } from "./actions";
 
 export const metadata: Metadata = {
@@ -27,6 +22,46 @@ const CHANNEL_LABELS: Record<AdminGiftCardOffer["channel"], string> = {
   "supermarket-promo": "Supermarket promo",
   "bank-benefit": "Bank benefit",
 };
+
+const COLUMNS: AdminColumn[] = [
+  { key: "brand", header: "Brand" },
+  { key: "channel", header: "Channel" },
+  { key: "discount", header: "Discount" },
+  { key: "source", header: "Source" },
+  { key: "confidence", header: "Confidence" },
+  { key: "status", header: "Status" },
+];
+
+function toRow(offer: AdminGiftCardOffer): AdminRow {
+  const channel = CHANNEL_LABELS[offer.channel];
+  return {
+    id: offer.id,
+    searchText: `${offer.brand} ${channel} ${offer.source}`.toLowerCase(),
+    filterValue: offer.isPublished ? "published" : "draft",
+    editHref: `/admin/gift-cards/${offer.id}/edit`,
+    cells: {
+      brand: { kind: "text", text: offer.brand, strong: true },
+      channel: { kind: "text", text: channel },
+      discount: {
+        kind: "text",
+        text: offer.discountPercent ? `${offer.discountPercent}%` : "—",
+      },
+      source: { kind: "text", text: offer.source },
+      confidence: { kind: "confidence", value: offer.confidence },
+      status: {
+        kind: "badge",
+        text: offer.isPublished ? "Published" : "Draft",
+        tone: offer.isPublished ? "secondary" : "outline",
+      },
+    },
+    actions: [
+      {
+        action: setPublished.bind(null, offer.id, !offer.isPublished),
+        label: offer.isPublished ? "Unpublish" : "Publish",
+      },
+    ],
+  };
+}
 
 export default async function GiftCardListPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
@@ -58,54 +93,18 @@ export default async function GiftCardListPage() {
           .
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Brand</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead>Discount</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Confidence</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {offers.map((offer) => (
-              <TableRow key={offer.id}>
-                <TableCell className="font-medium">{offer.brand}</TableCell>
-                <TableCell>{CHANNEL_LABELS[offer.channel]}</TableCell>
-                <TableCell>
-                  {offer.discountPercent ? `${offer.discountPercent}%` : "—"}
-                </TableCell>
-                <TableCell>{offer.source}</TableCell>
-                <TableCell>
-                  <ConfidenceBadge confidence={offer.confidence} />
-                </TableCell>
-                <TableCell>
-                  {offer.isPublished ? (
-                    <Badge variant="secondary">Published</Badge>
-                  ) : (
-                    <Badge variant="outline">Draft</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/admin/gift-cards/${offer.id}/edit`}>Edit</Link>
-                    </Button>
-                    {/* POST form so the bound server action toggles published. */}
-                    <form action={setPublished.bind(null, offer.id, !offer.isPublished)}>
-                      <Button type="submit" variant="outline" size="sm">
-                        {offer.isPublished ? "Unpublish" : "Publish"}
-                      </Button>
-                    </form>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <AdminListTable
+          columns={COLUMNS}
+          rows={offers.map(toRow)}
+          searchPlaceholder="Search brand, channel, source…"
+          filter={{
+            label: "Status",
+            options: [
+              { value: "published", label: "Published" },
+              { value: "draft", label: "Draft" },
+            ],
+          }}
+        />
       )}
     </div>
   );

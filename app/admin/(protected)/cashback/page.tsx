@@ -5,22 +5,25 @@ import {
   listCashbackOffers,
   type AdminCashbackOffer,
 } from "@/lib/admin/repos/cashback";
-import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  AdminListTable,
+  type AdminColumn,
+  type AdminRow,
+} from "@/components/admin/AdminListTable";
+import { Button } from "@/components/ui/button";
 import { setPublished } from "./actions";
 
 export const metadata: Metadata = {
   title: "Cashback offers | DealStack AU admin",
 };
+
+const COLUMNS: AdminColumn[] = [
+  { key: "store", header: "Store" },
+  { key: "provider", header: "Provider" },
+  { key: "rate", header: "Rate" },
+  { key: "confidence", header: "Confidence" },
+  { key: "status", header: "Status" },
+];
 
 /** Human-readable rate / flat-amount summary for the list. */
 function formatRate(offer: AdminCashbackOffer): string {
@@ -28,6 +31,40 @@ function formatRate(offer: AdminCashbackOffer): string {
   if (offer.ratePercent) parts.push(`${offer.ratePercent}%`);
   if (offer.flatAmount != null) parts.push(`$${offer.flatAmount}`);
   return parts.length > 0 ? parts.join(" + ") : "—";
+}
+
+function toRow(offer: AdminCashbackOffer): AdminRow {
+  const store = offer.storeName ?? offer.merchantId;
+  const rate = formatRate(offer);
+  return {
+    id: offer.id,
+    searchText: `${store} ${offer.provider} ${rate}`.toLowerCase(),
+    filterValue: offer.isPublished ? "published" : "draft",
+    editHref: `/admin/cashback/${offer.id}/edit`,
+    cells: {
+      store: { kind: "text", text: store, strong: true },
+      provider: { kind: "text", text: offer.provider },
+      rate: { kind: "text", text: rate },
+      confidence: { kind: "confidence", value: offer.confidence },
+      status: {
+        kind: "badges",
+        items: [
+          offer.isPublished
+            ? { text: "Published", tone: "secondary" }
+            : { text: "Draft", tone: "outline" },
+          ...(offer.isUpsized
+            ? [{ text: "Upsized", tone: "outline" as const }]
+            : []),
+        ],
+      },
+    },
+    actions: [
+      {
+        action: setPublished.bind(null, offer.id, !offer.isPublished),
+        label: offer.isPublished ? "Unpublish" : "Publish",
+      },
+    ],
+  };
 }
 
 export default async function CashbackListPage() {
@@ -60,57 +97,18 @@ export default async function CashbackListPage() {
           .
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Store</TableHead>
-              <TableHead>Provider</TableHead>
-              <TableHead>Rate</TableHead>
-              <TableHead>Confidence</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {offers.map((offer) => (
-              <TableRow key={offer.id}>
-                <TableCell className="font-medium">
-                  {offer.storeName ?? offer.merchantId}
-                </TableCell>
-                <TableCell>{offer.provider}</TableCell>
-                <TableCell>{formatRate(offer)}</TableCell>
-                <TableCell>
-                  <ConfidenceBadge confidence={offer.confidence} />
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap items-center gap-1">
-                    {offer.isPublished ? (
-                      <Badge variant="secondary">Published</Badge>
-                    ) : (
-                      <Badge variant="outline">Draft</Badge>
-                    )}
-                    {offer.isUpsized ? (
-                      <Badge variant="outline">Upsized</Badge>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/admin/cashback/${offer.id}/edit`}>Edit</Link>
-                    </Button>
-                    {/* POST form so the bound server action toggles published. */}
-                    <form action={setPublished.bind(null, offer.id, !offer.isPublished)}>
-                      <Button type="submit" variant="outline" size="sm">
-                        {offer.isPublished ? "Unpublish" : "Publish"}
-                      </Button>
-                    </form>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <AdminListTable
+          columns={COLUMNS}
+          rows={offers.map(toRow)}
+          searchPlaceholder="Search store, provider, rate…"
+          filter={{
+            label: "Status",
+            options: [
+              { value: "published", label: "Published" },
+              { value: "draft", label: "Draft" },
+            ],
+          }}
+        />
       )}
     </div>
   );

@@ -82,14 +82,26 @@ export async function logAudit(event: AuditEvent): Promise<void> {
   }
 }
 
-/** Latest audit events, newest first. */
-export async function listAuditLog(limit = 100): Promise<AuditEntry[]> {
+/** Optional filters for the audit list. */
+export interface AuditFilter {
+  tableName?: string;
+  action?: string;
+  limit?: number;
+}
+
+/** Latest audit events, newest first, optionally filtered by table / action. */
+export async function listAuditLog(
+  filter: AuditFilter = {}
+): Promise<AuditEntry[]> {
   const db = getSupabaseAdmin();
-  const { data, error } = await db
+  let query = db
     .from("audit_log")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(filter.limit ?? 100);
+  if (filter.tableName) query = query.eq("table_name", filter.tableName);
+  if (filter.action) query = query.eq("action", filter.action);
+  const { data, error } = await query;
   if (error) throw new Error(`listAuditLog failed: ${error.message}`);
   return ((data ?? []) as unknown as AuditRow[]).map(mapAudit);
 }

@@ -5,17 +5,12 @@ import {
   listWeeklyDeals,
   type AdminWeeklyDeal,
 } from "@/lib/admin/repos/weeklyDeals";
-import { ConfidenceBadge } from "@/components/ConfidenceBadge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  AdminListTable,
+  type AdminColumn,
+  type AdminRow,
+} from "@/components/admin/AdminListTable";
+import { Button } from "@/components/ui/button";
 import { setPublished } from "./actions";
 
 export const metadata: Metadata = {
@@ -30,6 +25,46 @@ const HIGHLIGHT_LABELS: Record<AdminWeeklyDeal["highlight"], string> = {
   signal: "Signal",
   "needs-verification": "Needs verification",
 };
+
+const COLUMNS: AdminColumn[] = [
+  { key: "weekOf", header: "Week of" },
+  { key: "title", header: "Title" },
+  { key: "store", header: "Store" },
+  { key: "highlight", header: "Highlight" },
+  { key: "confidence", header: "Confidence" },
+  { key: "status", header: "Status" },
+];
+
+function toRow(deal: AdminWeeklyDeal): AdminRow {
+  const store = deal.storeName ?? "—";
+  const highlight = HIGHLIGHT_LABELS[deal.highlight];
+  return {
+    id: deal.id,
+    searchText: `${deal.weekOf} ${deal.title} ${store} ${highlight}`.toLowerCase(),
+    filterValue: deal.isPublished ? "published" : "draft",
+    editHref: `/admin/weekly-deals/${deal.id}/edit`,
+    cells: {
+      weekOf: { kind: "text", text: deal.weekOf, strong: true },
+      title: { kind: "text", text: deal.title },
+      store: deal.storeName
+        ? { kind: "text", text: deal.storeName }
+        : { kind: "text", text: "—", muted: true },
+      highlight: { kind: "text", text: highlight },
+      confidence: { kind: "confidence", value: deal.confidence },
+      status: {
+        kind: "badge",
+        text: deal.isPublished ? "Published" : "Draft",
+        tone: deal.isPublished ? "secondary" : "outline",
+      },
+    },
+    actions: [
+      {
+        action: setPublished.bind(null, deal.id, !deal.isPublished),
+        label: deal.isPublished ? "Unpublish" : "Publish",
+      },
+    ],
+  };
+}
 
 export default async function WeeklyDealsListPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
@@ -61,60 +96,18 @@ export default async function WeeklyDealsListPage() {
           .
         </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Week of</TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Store</TableHead>
-              <TableHead>Highlight</TableHead>
-              <TableHead>Confidence</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {deals.map((deal) => (
-              <TableRow key={deal.id}>
-                <TableCell className="whitespace-nowrap font-medium">
-                  {deal.weekOf}
-                </TableCell>
-                <TableCell className="max-w-xs">
-                  <span className="line-clamp-2">{deal.title}</span>
-                </TableCell>
-                <TableCell>
-                  {deal.storeName ?? (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>{HIGHLIGHT_LABELS[deal.highlight]}</TableCell>
-                <TableCell>
-                  <ConfidenceBadge confidence={deal.confidence} />
-                </TableCell>
-                <TableCell>
-                  {deal.isPublished ? (
-                    <Badge variant="secondary">Published</Badge>
-                  ) : (
-                    <Badge variant="outline">Draft</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/admin/weekly-deals/${deal.id}/edit`}>Edit</Link>
-                    </Button>
-                    {/* POST form so the bound server action toggles published. */}
-                    <form action={setPublished.bind(null, deal.id, !deal.isPublished)}>
-                      <Button type="submit" variant="outline" size="sm">
-                        {deal.isPublished ? "Unpublish" : "Publish"}
-                      </Button>
-                    </form>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <AdminListTable
+          columns={COLUMNS}
+          rows={deals.map(toRow)}
+          searchPlaceholder="Search title, store, highlight…"
+          filter={{
+            label: "Status",
+            options: [
+              { value: "published", label: "Published" },
+              { value: "draft", label: "Draft" },
+            ],
+          }}
+        />
       )}
     </div>
   );

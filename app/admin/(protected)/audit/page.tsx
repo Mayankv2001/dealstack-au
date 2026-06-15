@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listAuditLog } from "@/lib/admin/repos/audit";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -14,6 +16,34 @@ import {
 export const metadata: Metadata = {
   title: "Audit log | DealStack AU admin",
 };
+
+// Known values to filter by (the tables/actions this app logs).
+const TABLE_OPTIONS = [
+  "cashback_offers",
+  "gift_card_offers",
+  "points_offers",
+  "ozbargain_signals",
+  "weekly_deals",
+  "feed_sources",
+  "feed_items",
+  "compliance_reviews",
+];
+
+const ACTION_OPTIONS = [
+  "create",
+  "update",
+  "publish",
+  "unpublish",
+  "status",
+  "enable",
+  "disable",
+  "import",
+  "ignore",
+  "mark-duplicate",
+];
+
+const controlClass =
+  "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
 // Deterministic AU-local timestamp (server-only render).
 const DATE_FMT = new Intl.DateTimeFormat("en-AU", {
@@ -45,11 +75,21 @@ function summariseDiff(diff: Record<string, unknown> | null): string {
     .join(" · ");
 }
 
-export default async function AuditLogPage() {
+export default async function AuditLogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ table?: string; action?: string }>;
+}) {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
-  const entries = await listAuditLog(100);
+
+  const { table, action } = await searchParams;
+  const tableName = TABLE_OPTIONS.includes(table ?? "") ? table : undefined;
+  const actionName = ACTION_OPTIONS.includes(action ?? "") ? action : undefined;
+  const hasFilter = Boolean(tableName || actionName);
+
+  const entries = await listAuditLog({ tableName, action: actionName });
 
   return (
     <div className="space-y-6">
@@ -61,9 +101,45 @@ export default async function AuditLogPage() {
         </p>
       </header>
 
+      {/* GET form — filters are applied server-side via the query string. */}
+      <form method="get" className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Table
+          <select name="table" defaultValue={tableName ?? ""} className={controlClass}>
+            <option value="">All tables</option>
+            {TABLE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Action
+          <select name="action" defaultValue={actionName ?? ""} className={controlClass}>
+            <option value="">All actions</option>
+            {ACTION_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button type="submit" variant="outline" size="sm">
+          Apply
+        </Button>
+        {hasFilter ? (
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/admin/audit">Clear</Link>
+          </Button>
+        ) : null}
+      </form>
+
       {entries.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No audit events recorded yet. New admin actions will appear here.
+          {hasFilter
+            ? "No audit events match these filters."
+            : "No audit events recorded yet. New admin actions will appear here."}
         </p>
       ) : (
         <Table>

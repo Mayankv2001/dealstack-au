@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import AdminNav from "@/components/admin/AdminNav";
 import { Button } from "@/components/ui/button";
 import { requireAdmin } from "@/lib/admin/auth";
 
@@ -16,20 +17,6 @@ import { requireAdmin } from "@/lib/admin/auth";
  * "after login" navigation.
  */
 
-const NAV_LINKS = [
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/cashback", label: "Cashback" },
-  { href: "/admin/gift-cards", label: "Gift Cards" },
-  { href: "/admin/points", label: "Points" },
-  { href: "/admin/signals", label: "Signals" },
-  { href: "/admin/signals/queue", label: "Feed Queue" },
-  { href: "/admin/signals/sources", label: "Feed Sources" },
-  { href: "/admin/compliance", label: "Compliance" },
-  { href: "/admin/monitor", label: "Monitor" },
-  { href: "/admin/weekly-deals", label: "Weekly Deals" },
-  { href: "/admin/audit", label: "Audit" },
-];
-
 export default async function AdminLayout({
   children,
 }: {
@@ -42,13 +29,7 @@ export default async function AdminLayout({
       <header className="border-b bg-card">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
           <Logo />
-          <nav className="flex flex-wrap items-center gap-1 text-sm">
-            {NAV_LINKS.map((link) => (
-              <Button key={link.href} asChild variant="ghost" size="sm">
-                <Link href={link.href}>{link.label}</Link>
-              </Button>
-            ))}
-          </nav>
+          <AdminNav />
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden text-xs text-muted-foreground sm:inline">
               {session.email}
