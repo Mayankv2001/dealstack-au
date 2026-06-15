@@ -107,7 +107,8 @@ function toneToBadge(tone: CellTone): {
   }
 }
 
-function CellView({ cell }: { cell: AdminCell }) {
+function CellView({ cell }: { cell: AdminCell | undefined }) {
+  if (!cell) return <span className="text-muted-foreground">—</span>;
   if (cell.kind === "confidence") {
     return <ConfidenceBadge confidence={cell.value} />;
   }
@@ -277,12 +278,13 @@ export function AdminListTable({
                     key={column.key}
                     className="flex items-start justify-between gap-3"
                   >
-                    <span className="text-xs text-muted-foreground">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {column.header}
                     </span>
-                    <span className="min-w-0 text-right break-words">
+                    {/* div (not span) so badge groups, which render a div, nest validly. */}
+                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-1 text-right break-words">
                       <CellView cell={row.cells[column.key]} />
-                    </span>
+                    </div>
                   </div>
                 ))}
                 <div className="border-t pt-2">
