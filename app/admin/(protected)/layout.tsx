@@ -27,6 +27,7 @@ const NAV_LINKS = [
   { href: "/admin/compliance", label: "Compliance" },
   { href: "/admin/monitor", label: "Monitor" },
   { href: "/admin/weekly-deals", label: "Weekly Deals" },
+  { href: "/admin/audit", label: "Audit" },
 ];
 
 export default async function AdminLayout({

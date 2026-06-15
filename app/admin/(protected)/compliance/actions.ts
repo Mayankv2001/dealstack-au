@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   insertComplianceReview,
   updateComplianceReview as persistComplianceReview,
@@ -75,7 +76,17 @@ export async function createReview(
   const parsed = parseReviewForm(formData, email);
   if (!parsed.ok) return { error: parsed.error };
 
-  await insertComplianceReview(parsed.input);
+  const reviewId = await insertComplianceReview(parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "create",
+    tableName: "compliance_reviews",
+    rowId: reviewId,
+    diff: {
+      sourceName: parsed.input.sourceName,
+      approvedForMonitoring: parsed.input.approvedForMonitoring,
+    },
+  });
   revalidateCompliance();
   redirect("/admin/compliance");
 }
@@ -91,6 +102,16 @@ export async function updateReview(
   if (!parsed.ok) return { error: parsed.error };
 
   await persistComplianceReview(id, parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "update",
+    tableName: "compliance_reviews",
+    rowId: id,
+    diff: {
+      sourceName: parsed.input.sourceName,
+      approvedForMonitoring: parsed.input.approvedForMonitoring,
+    },
+  });
   revalidateCompliance();
   redirect("/admin/compliance");
 }

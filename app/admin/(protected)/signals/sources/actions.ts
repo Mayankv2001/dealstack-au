@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   FEED_SOURCE_KINDS,
   insertFeedSource,
@@ -86,16 +87,29 @@ export async function createFeedSource(
   _prev: FeedSourceFormState,
   formData: FormData
 ): Promise<FeedSourceFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseFeedSourceForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
+  let id: string;
   try {
-    await insertFeedSource(parsed.input);
+    id = await insertFeedSource(parsed.input);
   } catch (err) {
     return { error: writeError(err) };
   }
+  await logAudit({
+    actorEmail: email,
+    action: "create",
+    tableName: "feed_sources",
+    rowId: id,
+    diff: {
+      label: parsed.input.label,
+      feedUrl: parsed.input.feedUrl,
+      kind: parsed.input.kind,
+      isEnabled: parsed.input.isEnabled,
+    },
+  });
   revalidateFeedSources();
   redirect("/admin/signals/sources");
 }
@@ -105,7 +119,7 @@ export async function updateFeedSource(
   _prev: FeedSourceFormState,
   formData: FormData
 ): Promise<FeedSourceFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseFeedSourceForm(formData);
   if (!parsed.ok) return { error: parsed.error };
@@ -115,13 +129,32 @@ export async function updateFeedSource(
   } catch (err) {
     return { error: writeError(err) };
   }
+  await logAudit({
+    actorEmail: email,
+    action: "update",
+    tableName: "feed_sources",
+    rowId: id,
+    diff: {
+      label: parsed.input.label,
+      feedUrl: parsed.input.feedUrl,
+      kind: parsed.input.kind,
+      isEnabled: parsed.input.isEnabled,
+    },
+  });
   revalidateFeedSources();
   redirect("/admin/signals/sources");
 }
 
 /** Enable / disable toggle invoked from the list view (bound id + next value). */
 export async function setEnabled(id: string, isEnabled: boolean): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setFeedSourceEnabled(id, isEnabled);
+  await logAudit({
+    actorEmail: email,
+    action: isEnabled ? "enable" : "disable",
+    tableName: "feed_sources",
+    rowId: id,
+    diff: { isEnabled },
+  });
   revalidateFeedSources();
 }

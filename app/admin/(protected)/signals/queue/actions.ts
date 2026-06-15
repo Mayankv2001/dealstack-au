@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   importFeedItem,
   setFeedItemReviewState,
@@ -29,21 +30,42 @@ function revalidateQueue(): void {
 
 /** Promote a staged item into a pending signal (idempotent, bound id). */
 export async function importItem(feedItemId: string): Promise<void> {
-  await requireAdmin();
-  await importFeedItem(feedItemId);
+  const { email } = await requireAdmin();
+  const result = await importFeedItem(feedItemId);
+  await logAudit({
+    actorEmail: email,
+    action: "import",
+    tableName: "feed_items",
+    rowId: feedItemId,
+    diff: { signalId: result.signalId, created: result.created },
+  });
   revalidateQueue();
 }
 
 /** Dismiss a staged item as not relevant (bound id). */
 export async function ignoreItem(feedItemId: string): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setFeedItemReviewState(feedItemId, "ignored");
+  await logAudit({
+    actorEmail: email,
+    action: "ignore",
+    tableName: "feed_items",
+    rowId: feedItemId,
+    diff: { reviewState: "ignored" },
+  });
   revalidateQueue();
 }
 
 /** Mark a staged item as already covered by an existing signal (bound id). */
 export async function markDuplicate(feedItemId: string): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setFeedItemReviewState(feedItemId, "duplicate");
+  await logAudit({
+    actorEmail: email,
+    action: "mark-duplicate",
+    tableName: "feed_items",
+    rowId: feedItemId,
+    diff: { reviewState: "duplicate" },
+  });
   revalidateQueue();
 }
