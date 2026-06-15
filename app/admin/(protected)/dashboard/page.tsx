@@ -23,6 +23,7 @@ import {
   getDashboardCounts,
   getRecentUpdates,
 } from "@/lib/admin/repos/dashboard";
+import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
 
 export const metadata: Metadata = {
   title: "Admin dashboard | DealStack AU",
@@ -55,9 +56,10 @@ export default async function AdminDashboardPage() {
   // Belt-and-suspenders: the protected layout already gates, but every admin
   // page verifies independently (proxy is only an optimistic check).
   const { email } = await requireAdmin();
-  const [counts, recent] = await Promise.all([
+  const [counts, recent, feedQueueCount] = await Promise.all([
     getDashboardCounts(),
     getRecentUpdates(5),
+    countNewFeedItems(),
   ]);
 
   const sections: Section[] = [
@@ -117,6 +119,11 @@ export default async function AdminDashboardPage() {
   // signals still pending review. Each links to its section list.
   const attention = [
     {
+      label: "Feed items to review",
+      value: feedQueueCount,
+      href: "/admin/signals/queue",
+    },
+    {
       label: "Pending OzBargain signals",
       value: counts.signals.pending,
       href: "/admin/signals",
@@ -145,6 +152,7 @@ export default async function AdminDashboardPage() {
   const attentionTotal = attention.reduce((sum, a) => sum + a.value, 0);
 
   const quickActions = [
+    { label: "Review Feed Queue", href: "/admin/signals/queue" },
     { label: "Add Cashback Rate", href: "/admin/cashback/new" },
     { label: "Add Gift Card Offer", href: "/admin/gift-cards/new" },
     { label: "Add Points Offer", href: "/admin/points/new" },
