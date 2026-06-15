@@ -297,8 +297,11 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 - [x] 2. Migration: `feed_sources`, `feed_items`, `feed_fetch_log` +
       service-role-only RLS; feeds seeded **disabled by default**. *(Done —
       `supabase/migrations/002_feed_import_queue.sql`. Schema only; no fetcher.)*
-- [ ] 3. Pure parser/mapper lib (XML → raw item → `SignalInput`), unit-tested
-      against committed **fixture feeds**, zero network.
+- [x] 3. Pure parser/mapper lib (XML → raw item → `feed_items` shape),
+      unit-tested against committed **fixture feeds**, zero network. *(Done —
+      `lib/monitor/parseFeed.ts`, `lib/monitor/mapFeedItem.ts`,
+      `tests/monitor/parseFeed.test.ts`; run `npm run test:monitor`. Offline
+      only; no fetcher.)*
 - [ ] 4. Fetcher module (kill switch, conditional GET, backoff) run as a manual
       script writing only to `feed_items`; env flag default off.
 - [ ] 5. Admin review queue UI (list / ignore / import), reusing the signal
@@ -503,7 +506,9 @@ Both are added **only** when build-order step 3 begins, after compliance sign-of
       (`example-seed-*` ids, `example.com` links) so `/admin/signals/queue` can
       be exercised. Safe to re-run; no network, no OzBargain fetch.
       *(`scripts/seed-feed-items.ts`.)*
-- [ ] Unit-test parser/mapper against saved fixture XML — **no network in CI**.
+- [x] Unit-test parser/mapper against saved fixture XML — **no network**.
+      *(`npm run test:monitor` — RSS + Atom basics, HTML stripping, duplicate
+      guid dedupe, missing-description fallback, id/hash generation.)*
 - [ ] Dry-run mode (`--dry-run`): logs what it *would* insert; no writes, no
       network.
 - [ ] Use a **staging** Supabase project for first live fetches, never prod.
@@ -532,11 +537,14 @@ Both are added **only** when build-order step 3 begins, after compliance sign-of
 
 ## Status
 
-**Current phase: import-queue schema in place; still no fetching.** Migration
-`supabase/migrations/002_feed_import_queue.sql` adds the `feed_sources`,
-`feed_items`, and `feed_fetch_log` staging tables (RLS-enabled, service-role
-only, feeds disabled by default). There is still **no fetcher, cron, or agent**,
-and nothing makes external requests. OzBargain data remains entirely manual
-(admin-entered) with the static sample fallback.
+**Current phase: import-queue schema + offline parser in place; still no
+fetching.** Migration `supabase/migrations/002_feed_import_queue.sql` adds the
+`feed_sources`, `feed_items`, and `feed_fetch_log` staging tables (RLS-enabled,
+service-role only, feeds disabled by default). The **pure, offline** RSS/Atom
+parser and mapper (`lib/monitor/parseFeed.ts`, `lib/monitor/mapFeedItem.ts`) are
+implemented and unit-tested against fixture XML (`npm run test:monitor`). There
+is still **no fetcher, cron, or agent**, and nothing makes external requests.
+OzBargain data remains entirely manual (admin-entered) with the static sample
+fallback.
 
 > **Do not implement automated fetching until compliance review is complete.**

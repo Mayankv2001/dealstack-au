@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LOCAL TEST FIXTURE ONLY — synthetic sample, never fetched.
+  Hand-written to exercise the offline parser/mapper: a normal item, an item
+  with HTML in its description, a duplicate guid, and an item with no
+  description. Titles/summaries are our own wording. No Cashrewards.
+-->
+<rss version="2.0">
+  <channel>
+    <title>OzBargain sample feed (fixture)</title>
+    <link>https://www.ozbargain.com.au/</link>
+    <description>Synthetic fixture for parser tests.</description>
+    <item>
+      <title>10% off sitewide at Myer with code MYER10</title>
+      <link>https://www.ozbargain.com.au/node/900001</link>
+      <guid isPermaLink="false">900001</guid>
+      <description>Community-posted code for 10% off most full-priced items online. Exclusions apply.</description>
+      <pubDate>Wed, 10 Jun 2026 09:00:00 +1000</pubDate>
+      <category>Discount Code</category>
+      <category>Myer</category>
+    </item>
+    <item>
+      <title>JB Hi-Fi gift cards 5% off for members</title>
+      <link>https://www.ozbargain.com.au/node/900002</link>
+      <guid isPermaLink="false">900002</guid>
+      <description><![CDATA[<p>Discounted <strong>JB Hi-Fi</strong> eGift cards via a <a href="https://example.com/portal">member portal</a>.</p>]]></description>
+      <pubDate>Thu, 11 Jun 2026 14:30:00 +1000</pubDate>
+      <category>Gift Card</category>
+    </item>
+    <item>
+      <title>Myer 10% code (reposted)</title>
+      <link>https://www.ozbargain.com.au/node/900001</link>
+      <guid isPermaLink="false">900001</guid>
+      <description>Duplicate repost of the Myer code — same guid as the first item.</description>
+      <pubDate>Wed, 10 Jun 2026 10:00:00 +1000</pubDate>
+      <category>Discount Code</category>
+    </item>
+    <item>
+      <title>The Good Guys 5% off appliances</title>
+      <link>https://www.ozbargain.com.au/node/900004</link>
+      <guid isPermaLink="false">900004</guid>
+      <pubDate>Fri, 13 Jun 2026 11:00:00 +1000</pubDate>
+      <category>Discount Code</category>
+    </item>
+  </channel>
+</rss>
