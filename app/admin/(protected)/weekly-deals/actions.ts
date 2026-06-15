@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
   WEEKLY_HIGHLIGHTS,
@@ -110,12 +111,24 @@ export async function createWeeklyDeal(
   _prev: WeeklyDealFormState,
   formData: FormData
 ): Promise<WeeklyDealFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseWeeklyDealForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  await insertWeeklyDeal(parsed.input);
+  const id = await insertWeeklyDeal(parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "create",
+    tableName: "weekly_deals",
+    rowId: id,
+    diff: {
+      weekOf: parsed.input.weekOf,
+      title: parsed.input.title,
+      highlight: parsed.input.highlight,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidateWeeklyDeals();
   redirect("/admin/weekly-deals");
 }
@@ -125,12 +138,24 @@ export async function updateWeeklyDeal(
   _prev: WeeklyDealFormState,
   formData: FormData
 ): Promise<WeeklyDealFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseWeeklyDealForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
   await persistWeeklyDeal(id, parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "update",
+    tableName: "weekly_deals",
+    rowId: id,
+    diff: {
+      weekOf: parsed.input.weekOf,
+      title: parsed.input.title,
+      highlight: parsed.input.highlight,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidateWeeklyDeals();
   redirect("/admin/weekly-deals");
 }
@@ -140,7 +165,14 @@ export async function setPublished(
   id: string,
   isPublished: boolean
 ): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setWeeklyDealPublished(id, isPublished);
+  await logAudit({
+    actorEmail: email,
+    action: isPublished ? "publish" : "unpublish",
+    tableName: "weekly_deals",
+    rowId: id,
+    diff: { isPublished },
+  });
   revalidateWeeklyDeals();
 }

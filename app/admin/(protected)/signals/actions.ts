@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
   DEAL_KINDS,
@@ -185,12 +186,23 @@ export async function createSignal(
   _prev: SignalFormState,
   formData: FormData
 ): Promise<SignalFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseSignalForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  await insertSignal(parsed.input);
+  const id = await insertSignal(parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "create",
+    tableName: "ozbargain_signals",
+    rowId: id,
+    diff: {
+      title: parsed.input.title,
+      status: parsed.input.status,
+      isSample: parsed.input.isSample,
+    },
+  });
   revalidateSignals();
   redirect("/admin/signals");
 }
@@ -200,12 +212,23 @@ export async function updateSignal(
   _prev: SignalFormState,
   formData: FormData
 ): Promise<SignalFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseSignalForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
   await persistSignal(id, parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "update",
+    tableName: "ozbargain_signals",
+    rowId: id,
+    diff: {
+      title: parsed.input.title,
+      status: parsed.input.status,
+      isSample: parsed.input.isSample,
+    },
+  });
   revalidateSignals();
   redirect("/admin/signals");
 }
@@ -215,7 +238,14 @@ export async function setStatus(
   id: string,
   status: SignalStatus
 ): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setSignalStatus(id, status);
+  await logAudit({
+    actorEmail: email,
+    action: "status",
+    tableName: "ozbargain_signals",
+    rowId: id,
+    diff: { status },
+  });
   revalidateSignals();
 }

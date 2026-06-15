@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CASHBACK_PROVIDERS,
   CONFIDENCE_LEVELS,
@@ -125,12 +126,24 @@ export async function createCashbackOffer(
   _prev: CashbackFormState,
   formData: FormData
 ): Promise<CashbackFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseCashbackForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  await insertCashbackOffer(parsed.input);
+  const id = await insertCashbackOffer(parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "create",
+    tableName: "cashback_offers",
+    rowId: id,
+    diff: {
+      merchantId: parsed.input.merchantId,
+      provider: parsed.input.provider,
+      ratePercent: parsed.input.ratePercent,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidateCashback();
   redirect("/admin/cashback");
 }
@@ -140,12 +153,24 @@ export async function updateCashbackOffer(
   _prev: CashbackFormState,
   formData: FormData
 ): Promise<CashbackFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseCashbackForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
   await persistCashbackOffer(id, parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "update",
+    tableName: "cashback_offers",
+    rowId: id,
+    diff: {
+      merchantId: parsed.input.merchantId,
+      provider: parsed.input.provider,
+      ratePercent: parsed.input.ratePercent,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidateCashback();
   redirect("/admin/cashback");
 }
@@ -155,7 +180,14 @@ export async function setPublished(
   id: string,
   isPublished: boolean
 ): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setCashbackPublished(id, isPublished);
+  await logAudit({
+    actorEmail: email,
+    action: isPublished ? "publish" : "unpublish",
+    tableName: "cashback_offers",
+    rowId: id,
+    diff: { isPublished },
+  });
   revalidateCashback();
 }

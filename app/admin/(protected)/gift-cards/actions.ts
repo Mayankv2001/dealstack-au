@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
   GIFT_CARD_CHANNELS,
@@ -174,12 +175,24 @@ export async function createGiftCardOffer(
   _prev: GiftCardFormState,
   formData: FormData
 ): Promise<GiftCardFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseGiftCardForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  await insertGiftCardOffer(parsed.input);
+  const id = await insertGiftCardOffer(parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "create",
+    tableName: "gift_card_offers",
+    rowId: id,
+    diff: {
+      brand: parsed.input.brand,
+      source: parsed.input.source,
+      discountPercent: parsed.input.discountPercent,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidateGiftCards();
   redirect("/admin/gift-cards");
 }
@@ -189,12 +202,24 @@ export async function updateGiftCardOffer(
   _prev: GiftCardFormState,
   formData: FormData
 ): Promise<GiftCardFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parseGiftCardForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
   await persistGiftCardOffer(id, parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "update",
+    tableName: "gift_card_offers",
+    rowId: id,
+    diff: {
+      brand: parsed.input.brand,
+      source: parsed.input.source,
+      discountPercent: parsed.input.discountPercent,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidateGiftCards();
   redirect("/admin/gift-cards");
 }
@@ -204,7 +229,14 @@ export async function setPublished(
   id: string,
   isPublished: boolean
 ): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setGiftCardPublished(id, isPublished);
+  await logAudit({
+    actorEmail: email,
+    action: isPublished ? "publish" : "unpublish",
+    tableName: "gift_card_offers",
+    rowId: id,
+    diff: { isPublished },
+  });
   revalidateGiftCards();
 }

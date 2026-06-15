@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
   POINTS_MECHANISMS,
@@ -120,12 +121,23 @@ export async function createPointsOffer(
   _prev: PointsFormState,
   formData: FormData
 ): Promise<PointsFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parsePointsForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  await insertPointsOffer(parsed.input);
+  const id = await insertPointsOffer(parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "create",
+    tableName: "points_offers",
+    rowId: id,
+    diff: {
+      program: parsed.input.program,
+      merchantId: parsed.input.merchantId,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidatePoints();
   redirect("/admin/points");
 }
@@ -135,12 +147,23 @@ export async function updatePointsOffer(
   _prev: PointsFormState,
   formData: FormData
 ): Promise<PointsFormState> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
 
   const parsed = parsePointsForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
   await persistPointsOffer(id, parsed.input);
+  await logAudit({
+    actorEmail: email,
+    action: "update",
+    tableName: "points_offers",
+    rowId: id,
+    diff: {
+      program: parsed.input.program,
+      merchantId: parsed.input.merchantId,
+      isPublished: parsed.input.isPublished,
+    },
+  });
   revalidatePoints();
   redirect("/admin/points");
 }
@@ -150,7 +173,14 @@ export async function setPublished(
   id: string,
   isPublished: boolean
 ): Promise<void> {
-  await requireAdmin();
+  const { email } = await requireAdmin();
   await setPointsPublished(id, isPublished);
+  await logAudit({
+    actorEmail: email,
+    action: isPublished ? "publish" : "unpublish",
+    tableName: "points_offers",
+    rowId: id,
+    diff: { isPublished },
+  });
   revalidatePoints();
 }
