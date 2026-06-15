@@ -531,6 +531,12 @@ Both are added **only** when build-order step 3 begins, after compliance sign-of
 
 > Fill this in during build-order step 1. The monitor must not fetch until this
 > table has an approved entry.
+>
+> **Now recorded in the admin UI** at `/admin/compliance` (service-role only),
+> backed by the `compliance_reviews` table
+> (`supabase/migrations/003_compliance_review.sql`). A review with
+> `approved_for_monitoring = true` is the gate. The table below is the
+> human-readable mirror.
 
 | Date | Reviewer | robots.txt OK? | ToS/feed policy OK? | Allowed feed URLs | Notes |
 |---|---|---|---|---|---|
