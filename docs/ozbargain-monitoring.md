@@ -509,8 +509,11 @@ Both are added **only** when build-order step 3 begins, after compliance sign-of
 - [x] Unit-test parser/mapper against saved fixture XML — **no network**.
       *(`npm run test:monitor` — RSS + Atom basics, HTML stripping, duplicate
       guid dedupe, missing-description fallback, id/hash generation.)*
-- [ ] Dry-run mode (`--dry-run`): logs what it *would* insert; no writes, no
-      network.
+- [x] Fixture dry-run: `npm run monitor:fixtures` reads the local fixture XML,
+      parses + maps it, and prints what it *would* stage — no Supabase client,
+      no fetch, no writes. *(`scripts/monitor-fixtures.ts`.)*
+- [ ] Live `--dry-run` mode (read-only against a real feed): logs what it
+      *would* insert; no writes. *(Pending the fetcher + compliance review.)*
 - [ ] Use a **staging** Supabase project for first live fetches, never prod.
 - [ ] First live run: single feed, manual invocation, kill switch armed; inspect
       `feed_fetch_log` + `feed_items`; confirm a second run returns `304`.

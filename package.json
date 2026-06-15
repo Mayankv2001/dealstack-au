@@ -9,6 +9,7 @@
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "seed:feed-items": "tsx scripts/seed-feed-items.ts",
+    "monitor:fixtures": "tsx scripts/monitor-fixtures.ts",
     "test:monitor": "vitest run tests/monitor"
   },
   "dependencies": {
