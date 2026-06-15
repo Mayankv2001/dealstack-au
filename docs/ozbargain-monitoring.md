@@ -310,6 +310,192 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 
 ---
 
+## Implementation Plan
+
+> **Do not implement automated fetching until compliance review is complete.**
+>
+> This section is the build spec for the monitor. No fetcher, cron route, or
+> monitor script exists yet, and none may be added until the
+> [Compliance decision log](#compliance-decision-log) has an approved entry. The
+> invariants still hold: **feed-only**, **no user-triggered fetches**, the
+> importer writes **only** `feed_items` (never `ozbargain_signals`), and **admin
+> approval stays mandatory**. Everything ships **off by default**.
+
+### Compliance preflight checklist
+
+The actionable version of [Compliance rules](#compliance-rules) — every box must
+be checked and logged before any feed or the env master switch is enabled:
+
+- [ ] Read OzBargain `robots.txt` manually (in a browser, **not** via the app);
+      record Allow/Disallow for each intended feed path vs `*` and our UA.
+- [ ] Read OzBargain Terms / any feed or scraping/API policy; confirm low-volume
+      RSS syndication is permitted; record verdict + links.
+- [ ] Confirm the targets are RSS/Atom feeds intended for syndication (not HTML).
+- [ ] Determine an acceptable cadence and any stated rate limit; set the schedule
+      well under it.
+- [ ] Finalise the **exact allowlist** of feed URLs; map each to a `merchant_id`
+      where store-specific.
+- [ ] Finalise the **User-Agent** (identifying + contact URL).
+- [ ] Confirm conditional-GET support (ETag / Last-Modified) on those feeds.
+- [ ] Record date / reviewer / links / allowed URLs in the
+      [Compliance decision log](#compliance-decision-log).
+- [ ] Define a re-review trigger (terms or `robots.txt` change).
+- [ ] **Gate:** do not set `OZB_MONITOR_ENABLED=true` or any
+      `feed_sources.is_enabled=true` until every box above is checked.
+
+### Candidate feed URL patterns (to verify)
+
+Register all in `feed_sources` **disabled**, only after preflight verifies each.
+These are candidate *patterns* to confirm during preflight — do not assume they
+are correct or permitted:
+
+| Type | Candidate pattern | Notes |
+|---|---|---|
+| Store / node | `…/store/<slug>/feed` | One per tracked merchant (myer, jb-hifi, the-good-guys, woolworths, coles, kogan, amazon, chemist-warehouse). **Preferred** — low volume, high relevance, maps cleanly to `merchant_id`. |
+| Tag / category | `…/tag/<tag>/feed` | For gift-card / cashback / points-relevant tags. |
+| Front deals | `…/deals/feed` | Firehose — high volume; avoid initially or filter hard. |
+
+**Recommendation:** start with **1–2 store feeds** for tracked merchants, not the
+front-page firehose. Map each `Store.id` → its OzBargain store slug in preflight.
+
+### Required User-Agent format
+
+Descriptive, identifying, with a contact URL — **never** a spoofed browser
+string (that would be evasion):
+
+```
+DealStackAU/1.0 (+https://<site>/about; feed monitor; contact: <owner-email>)
+```
+
+Sent on every request via `OZB_MONITOR_USER_AGENT`, alongside
+`Accept: application/rss+xml, application/atom+xml, application/xml;q=0.9` and the
+conditional-GET headers.
+
+### Backoff / retry rules
+
+- **Cadence:** fixed slow schedule (cron every 6–12h); a per-feed
+  `next_earliest_fetch_at` gate skips feeds not yet due.
+- **Conditional GET:** send `If-None-Match`(etag) / `If-Modified-Since`. `304` =
+  success, no parse, `items_seen = 0`.
+- **Per request:** ~10s timeout; at most **one** retry on a transient network
+  error/5xx with short jittered delay; honour `Retry-After` on `429`/`503`.
+- **Sequencing:** concurrency = 1, a small delay (2–5s) between feeds; hard caps
+  on feeds/run and requests/run.
+- **Failure backoff:** `failure_count++` and
+  `next_earliest_fetch_at = now + base · 2^failure_count` (capped ~24–48h), or
+  `Retry-After` if larger.
+- **Auto-disable** at `failure_count ≥ 5`: set `is_enabled=false`,
+  `last_status='error'|'blocked'`, surface to admin.
+- **Blocked detection:** non-2xx/304, an HTML/Cloudflare-challenge body, or a
+  non-XML content-type → `last_status='blocked'`, stop, **no bypass**.
+- Every run writes a `feed_fetch_log` row.
+
+### Kill switch env vars
+
+Layered — the env master OFF always beats a DB `is_enabled=true`. Documented
+(commented, default off) in `.env.example`; lazy helpers added to `lib/env.ts`:
+
+| Var | Default | Purpose |
+|---|---|---|
+| `OZB_MONITOR_ENABLED` | `false` | Master switch, checked at the very top of the fetcher **and** the cron route. Off → immediate no-op, zero outbound requests. |
+| `CRON_SECRET` | — | Secret the cron route checks (`Authorization: Bearer …`, set/sent by Vercel) so it can't be publicly triggered. |
+| `OZB_MONITOR_USER_AGENT` | — | The UA string (above); updatable without a code redeploy. |
+| `OZB_MONITOR_MAX_FEEDS_PER_RUN` | small const | Hard cap on feeds touched per run. |
+| `OZB_MONITOR_MIN_INTERVAL_HOURS` | conservative const | Floor on per-feed polling interval. |
+
+Plus the DB-level kill: per-feed `feed_sources.is_enabled` (+ an admin UI toggle
+later).
+
+### Manual run script design
+
+- `scripts/monitor-feeds.ts`, npm script `"monitor:feeds": "tsx scripts/monitor-feeds.ts"`
+  — the **first** way to run, before cron exists.
+- Loads `.env.local` and uses the service-role client (like the seed scripts).
+- Flags: `--dry-run`, `--fixtures`, `--source=<id>` (single feed), `--once`.
+- Calls the shared `runMonitor()` core (same code the cron uses); prints a
+  summary (feeds checked, 304s, new items, errors).
+- Writes only `feed_items` + `feed_sources` poll-state + `feed_fetch_log`;
+  **never** `ozbargain_signals`.
+
+### Vercel Cron route design
+
+- `app/api/cron/monitor-feeds/route.ts` — a `GET` handler matching the existing
+  route-handler style (`app/admin/auth/callback/route.ts`).
+- `vercel.json`:
+  ```json
+  { "crons": [{ "path": "/api/cron/monitor-feeds", "schedule": "0 */12 * * *" }] }
+  ```
+- **Auth:** require `Authorization: Bearer ${CRON_SECRET}` → else `401`. No public
+  triggering.
+- Top of handler: if `!OZB_MONITOR_ENABLED`, return `200 {disabled:true}` without
+  fetching.
+- Calls `runMonitor()`, catches errors → JSON summary (a feed failure must not
+  500 the cron); `export const dynamic = "force-dynamic"`, set `maxDuration`.
+- This is the **only** request path that can fetch; it is secret-gated **and**
+  flag-gated, and no page imports the fetcher, so user searches never reach it.
+
+### Dry-run mode
+
+- Runs the full pipeline **except DB writes** — fetch/parse/map and **log what it
+  would insert**; no `feed_items`/poll-state writes, nothing enabled.
+- Two sub-modes:
+  - `--dry-run` against live feeds (read-only) — validates parsing/dedupe; still
+    respects robots/UA/backoff/kill switch.
+  - `--fixtures` (offline) — reads committed sample XML, **no network at all**;
+    the safe default for first runs and CI.
+- Output: parsed items (native id, title, guessed `deal_kind`, dedupe key) +
+  counts, under a clear `DRY RUN — no writes` banner.
+
+### Fixture XML testing plan
+
+- Commit sample feeds under `tests/fixtures/ozbargain/*.xml` (handcrafted or
+  saved once manually — **not** fetched by the app), covering: a normal item, an
+  item missing fields, HTML in `<description>`, a duplicate guid, a malformed
+  entry.
+- Add a test runner and unit tests for `parseFeed()`, `mapFeedItem()`, dedupe by
+  `source_native_id`, HTML-stripping, and date parsing. Assert the parser/mapper
+  layer contains **no `fetch`**.
+- `--fixtures` mode runs the whole pipeline offline (dry-run or into staging).
+- **Order:** fixtures+unit green → `--dry-run` vs one live feed on **staging** →
+  single live write on staging → enable one feed in prod with the kill switch
+  armed.
+
+### Future files to create (none yet)
+
+| File | Purpose |
+|---|---|
+| `lib/monitor/parseFeed.ts` | Pure RSS/Atom XML → raw items (needs an XML parser dep). |
+| `lib/monitor/mapFeedItem.ts` | Raw item → `feed_items` row + `content_hash` + dedupe key. Pure. |
+| `lib/monitor/fetchFeed.ts` | Conditional GET one feed (UA, timeout, ETag/Last-Modified, blocked detection). **Only networked module.** |
+| `lib/monitor/backoff.ts` | `failure_count` → `next_earliest_fetch_at`; `Retry-After`. Pure. |
+| `lib/monitor/runMonitor.ts` | Orchestrator: select due+enabled feeds → fetch→parse→map→upsert `feed_items`, write `feed_fetch_log`, update poll-state. Honours kill switch + dry-run. Shared by script & cron. |
+| `lib/admin/repos/feedSources.ts` | Service-role ingestion writes (poll-state, `feed_items` upsert, `feed_fetch_log`). Complements the existing `feedQueue.ts` (item→signal promotion). |
+| `lib/env.ts` (edit) | `ozbMonitorEnabled()`, `cronSecret()`, `ozbMonitorUserAgent()`, and the cap/interval reads. |
+| `scripts/monitor-feeds.ts` (+ npm script) | Manual runner. |
+| `app/api/cron/monitor-feeds/route.ts` | Secret-gated cron route. |
+| `vercel.json` | Cron schedule. |
+| `tests/fixtures/ozbargain/*.xml` + `tests/monitor/*.test.ts` (+ runner config) | Offline fixture/unit tests. |
+| `.env.example` (edit) | Document the new vars, default off. |
+
+### Dependencies to consider later
+
+- **`fast-xml-parser`** — pure RSS/Atom XML parsing (no network).
+- **`vitest`** — test runner for the fixture/unit tests (none exists today).
+
+Both are added **only** when build-order step 3 begins, after compliance sign-off.
+
+### Open decisions
+
+- **First feeds:** 1–2 store feeds for tracked merchants *(recommended)* vs a tag
+  feed.
+- **Cron cadence:** every 12h *(recommended)* vs 6h.
+- **XML parser / test runner:** `fast-xml-parser` + `vitest` *(recommended)* vs
+  alternatives.
+- **Dry-run surface:** secret-gated `?dryRun=1` on the route, or dry-run
+  script-only *(recommended to start)*.
+
+---
+
 ## Testing checklist
 
 - [x] Manual queue test data: `npm run seed:feed-items` inserts a **disabled**

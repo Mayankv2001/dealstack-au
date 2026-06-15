@@ -28,7 +28,9 @@ requests on a user's behalf.
 
 OzBargain monitoring is **planned but not implemented**. Any future feed-based
 ingestion must follow the safety, compliance, and review rules — including a
-mandatory compliance review before any automated fetching — documented in
+mandatory compliance review before any automated fetching, plus the detailed
+**Implementation Plan** (feeds, User-Agent, backoff, kill-switch env vars, cron
+route, dry-run, and fixture testing) — documented in
 [docs/ozbargain-monitoring.md](docs/ozbargain-monitoring.md).
 
 ## Learn More
