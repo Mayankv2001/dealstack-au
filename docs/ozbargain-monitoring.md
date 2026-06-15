@@ -312,6 +312,11 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 
 ## Testing checklist
 
+- [x] Manual queue test data: `npm run seed:feed-items` inserts a **disabled**
+      example feed source + a few clearly-fake `feed_items`
+      (`example-seed-*` ids, `example.com` links) so `/admin/signals/queue` can
+      be exercised. Safe to re-run; no network, no OzBargain fetch.
+      *(`scripts/seed-feed-items.ts`.)*
 - [ ] Unit-test parser/mapper against saved fixture XML — **no network in CI**.
 - [ ] Dry-run mode (`--dry-run`): logs what it *would* insert; no writes, no
       network.
