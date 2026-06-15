@@ -23,6 +23,7 @@ const NAV_LINKS = [
   { href: "/admin/points", label: "Points" },
   { href: "/admin/signals", label: "Signals" },
   { href: "/admin/signals/queue", label: "Feed Queue" },
+  { href: "/admin/signals/sources", label: "Feed Sources" },
   { href: "/admin/weekly-deals", label: "Weekly Deals" },
 ];
 
