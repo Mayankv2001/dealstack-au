@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Info } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   listFeedSources,
@@ -16,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { setEnabled } from "./actions";
 
 export const metadata: Metadata = {
@@ -62,10 +64,13 @@ export default async function FeedSourcesListPage() {
         </Button>
       </header>
 
-      <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">No fetching yet.</span>{" "}
-        {FEED_ENABLE_WARNING}
-      </p>
+      <div className="flex items-start gap-2.5 rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0 text-foreground" />
+        <p>
+          <span className="font-medium text-foreground">No fetching yet.</span>{" "}
+          {FEED_ENABLE_WARNING}
+        </p>
+      </div>
 
       {sources.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -82,46 +87,69 @@ export default async function FeedSourcesListPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Label</TableHead>
+              <TableHead className="min-w-56">Feed source</TableHead>
               <TableHead>Kind</TableHead>
               <TableHead>Store</TableHead>
               <TableHead>Enabled</TableHead>
-              <TableHead>Last status</TableHead>
-              <TableHead className="text-right">Failures</TableHead>
-              <TableHead>Next fetch</TableHead>
+              <TableHead className="min-w-44">Monitor state</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sources.map((source) => (
               <TableRow key={source.id}>
-                <TableCell className="max-w-xs font-medium">
-                  <span className="line-clamp-2">{source.label}</span>
-                  <span className="block truncate text-xs font-normal text-muted-foreground">
+                {/* Wraps instead of truncating, so long labels/URLs stay readable. */}
+                <TableCell className="max-w-sm align-top whitespace-normal">
+                  <span className="font-medium break-words">
+                    {source.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs break-all text-muted-foreground">
                     {source.feedUrl}
                   </span>
                 </TableCell>
-                <TableCell>{KIND_LABELS[source.kind]}</TableCell>
-                <TableCell>
+                <TableCell className="align-top">
+                  {KIND_LABELS[source.kind]}
+                </TableCell>
+                <TableCell className="align-top">
                   {source.storeName ?? (
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell>
-                  <Badge variant={source.isEnabled ? "default" : "outline"}>
+                <TableCell className="align-top">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      source.isEnabled
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                        : "text-muted-foreground"
+                    )}
+                  >
                     {source.isEnabled ? "Enabled" : "Disabled"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {source.lastStatus ?? "—"}
+                <TableCell className="align-top">
+                  <dl className="space-y-0.5 text-xs text-muted-foreground">
+                    <div>
+                      Status:{" "}
+                      <span className="text-foreground">
+                        {source.lastStatus ?? "—"}
+                      </span>
+                    </div>
+                    <div>
+                      Failures:{" "}
+                      <span className="text-foreground tabular-nums">
+                        {source.failureCount}
+                      </span>
+                    </div>
+                    <div>
+                      Next:{" "}
+                      <span className="text-foreground tabular-nums">
+                        {formatDate(source.nextEarliestFetchAt)}
+                      </span>
+                    </div>
+                  </dl>
                 </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {source.failureCount}
-                </TableCell>
-                <TableCell className="text-muted-foreground tabular-nums">
-                  {formatDate(source.nextEarliestFetchAt)}
-                </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="align-top text-right">
                   <div className="flex flex-wrap items-center justify-end gap-1">
                     <Button asChild variant="ghost" size="sm">
                       <Link href={`/admin/signals/sources/${source.id}/edit`}>
