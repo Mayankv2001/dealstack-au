@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Clock, ExternalLink, Inbox, RefreshCw, Rss } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+  Inbox,
+  RefreshCw,
+  Rss,
+} from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listNewFeedItems } from "@/lib/admin/repos/feedQueue";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +37,15 @@ const QUEUE_DATE_FMT = new Intl.DateTimeFormat("en-AU", {
 
 function formatDate(iso: string | null): string {
   return iso ? QUEUE_DATE_FMT.format(new Date(iso)) : "—";
+}
+
+/** Hostname of an external link, for a safer "where does this go" display. */
+function safeHost(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
 }
 
 export default async function FeedQueuePage() {
@@ -73,7 +89,9 @@ export default async function FeedQueuePage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {items.map((item) => (
+          {items.map((item) => {
+            const host = safeHost(item.link);
+            return (
             <Card key={item.id} className="flex flex-col">
               <CardHeader className="gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -84,6 +102,15 @@ export default async function FeedQueuePage() {
                   <Badge variant="outline" className="capitalize">
                     {item.reviewState}
                   </Badge>
+                  {item.existingSignal ? (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 border-amber-500/50 text-amber-700 dark:text-amber-400"
+                    >
+                      <AlertTriangle className="size-3" />
+                      Already imported ({item.existingSignal.status})
+                    </Badge>
+                  ) : null}
                   {item.categories.map((category) => (
                     <Badge key={category} variant="secondary">
                       {category}
@@ -102,13 +129,21 @@ export default async function FeedQueuePage() {
                   )}
                 </p>
                 <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+                  {/* Safer link: surface the destination host, show the full URL
+                      as plain text, nofollow + noopener, never auto-opened. */}
+                  <span className="inline-flex items-center gap-1">
+                    <ExternalLink className="size-3 shrink-0" />
+                    Source host:{" "}
+                    <span className="font-medium text-foreground">
+                      {host ?? "unknown / unparseable"}
+                    </span>
+                  </span>
                   <a
                     href={item.link}
                     target="_blank"
                     rel="nofollow noopener noreferrer"
-                    className="inline-flex w-fit items-center gap-1 break-all underline-offset-2 hover:underline"
+                    className="w-fit break-all underline-offset-2 hover:underline"
                   >
-                    <ExternalLink className="size-3 shrink-0" />
                     {item.link}
                   </a>
                   <span className="inline-flex items-center gap-1">
@@ -119,6 +154,23 @@ export default async function FeedQueuePage() {
                     <RefreshCw className="size-3" />
                     Fetched {formatDate(item.fetchedAt)}
                   </span>
+                  <span className="break-all font-mono">
+                    native id: {item.sourceNativeId}
+                  </span>
+                  <span className="font-mono">
+                    hash:{" "}
+                    {item.contentHash
+                      ? `${item.contentHash.slice(0, 12)}…`
+                      : "—"}
+                  </span>
+                  {item.existingSignal ? (
+                    <span className="text-amber-700 dark:text-amber-400">
+                      Importing will link to existing signal{" "}
+                      <span className="font-mono">{item.existingSignal.id}</span>{" "}
+                      (status: {item.existingSignal.status}) instead of creating a
+                      new one.
+                    </span>
+                  ) : null}
                 </div>
               </CardContent>
 
@@ -141,7 +193,8 @@ export default async function FeedQueuePage() {
                 </form>
               </CardFooter>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

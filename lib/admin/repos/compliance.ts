@@ -107,6 +107,20 @@ export async function listComplianceReviews(): Promise<AdminComplianceReview[]> 
   return ((data ?? []) as unknown as ComplianceReviewRow[]).map(mapReview);
 }
 
+/**
+ * True when at least one review has approved_for_monitoring = true — the gate
+ * every other surface checks. Cheap head-count read; never fetches anything.
+ */
+export async function isMonitoringApproved(): Promise<boolean> {
+  const db = getSupabaseAdmin();
+  const { count, error } = await db
+    .from("compliance_reviews")
+    .select("*", { count: "exact", head: true })
+    .eq("approved_for_monitoring", true);
+  if (error) throw new Error(`isMonitoringApproved failed: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
 /** A single review by id, or null when it does not exist. */
 export async function getComplianceReview(
   id: string

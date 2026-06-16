@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, Info, ShieldCheck } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
-import { getMonitorStatus } from "@/lib/admin/repos/monitorStatus";
+import {
+  getMonitorStatus,
+  type MonitorFetchLogEntry,
+} from "@/lib/admin/repos/monitorStatus";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -68,6 +71,40 @@ function StatCard({
   );
 }
 
+function CountPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border bg-muted/30 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-lg font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+/** Compact summary of a single fetch-log row (last success / last problem). */
+function FetchLogSummary({
+  log,
+  emptyText,
+}: {
+  log: MonitorFetchLogEntry | null;
+  emptyText: string;
+}) {
+  if (!log) {
+    return <p className="text-sm text-muted-foreground">{emptyText}</p>;
+  }
+  return (
+    <div className="space-y-1 text-sm">
+      <p className="font-medium">{log.feedSourceLabel ?? "—"}</p>
+      <p className="text-xs text-muted-foreground tabular-nums">
+        {formatDate(log.startedAt)} · HTTP {log.httpStatus ?? "—"} · seen{" "}
+        {log.itemsSeen} · new {log.itemsNew}
+      </p>
+      {log.error ? (
+        <p className="break-words text-xs text-destructive">{log.error}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export default async function MonitorStatusPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
@@ -81,10 +118,27 @@ export default async function MonitorStatusPage() {
       <header className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold">Monitor status</h1>
         <p className="text-sm text-muted-foreground">
-          Read-only health snapshot of the planned OzBargain monitor. No fetcher
-          or cron exists yet — this page only reports flags and counts.
+          Read-only health snapshot of the OzBargain monitor. Fetching only ever
+          happens via the manual <code className="text-xs">monitor:feeds</code>{" "}
+          script — there is no cron and this page never fetches.
         </p>
       </header>
+
+      {/* Most severe: the master switch is armed but compliance is NOT approved. */}
+      {status.envEnabled && !status.complianceApproved ? (
+        <div className="flex items-start gap-2.5 rounded-lg border-2 border-destructive bg-destructive/15 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+          <p>
+            <span className="font-semibold text-destructive">
+              Stop — unsafe configuration.
+            </span>{" "}
+            <code className="text-xs">OZB_MONITOR_ENABLED</code> is{" "}
+            <code className="text-xs">true</code> but no compliance review is
+            approved. Set <code className="text-xs">OZB_MONITOR_ENABLED=false</code>{" "}
+            until an approved review is on file — do not run the monitor.
+          </p>
+        </div>
+      ) : null}
 
       {/* Risk: feeds enabled while compliance is not approved. */}
       {hasRisk ? (
@@ -159,6 +213,49 @@ export default async function MonitorStatusPage() {
         />
       </div>
 
+      {/* Staged feed items by triage state. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">
+            Staged feed items ({status.feedItemsTotal})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <CountPill label="New" value={status.feedItemCounts.new} />
+            <CountPill label="Imported" value={status.feedItemCounts.imported} />
+            <CountPill label="Ignored" value={status.feedItemCounts.ignored} />
+            <CountPill label="Duplicate" value={status.feedItemCounts.duplicate} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Last successful vs last problem fetch run. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Last successful run</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FetchLogSummary
+              log={status.lastSuccessLog}
+              emptyText="No successful run recorded yet."
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Last blocked / error run</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FetchLogSummary
+              log={status.lastProblemLog}
+              emptyText="No blocked or error runs recorded."
+            />
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Error / blocked feed sources. */}
       {status.problemSources.length > 0 ? (
         <Card>
@@ -187,7 +284,62 @@ export default async function MonitorStatusPage() {
         </Card>
       ) : null}
 
-      {/* Recent fetch log (expected empty until a fetcher exists). */}
+      {/* Latest staged feed items (any state). */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Latest feed items</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {status.latestFeedItems.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No feed items staged yet. Run{" "}
+              <code className="text-xs">npm run monitor:feeds -- --write</code> to
+              stage items from an enabled feed.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Feed</TableHead>
+                  <TableHead>State</TableHead>
+                  <TableHead>Native id</TableHead>
+                  <TableHead>Hash</TableHead>
+                  <TableHead>Fetched</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {status.latestFeedItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="max-w-xs truncate font-medium">
+                      {item.rawTitle}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {item.feedSourceLabel ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {item.reviewState}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[12rem] truncate font-mono text-xs text-muted-foreground">
+                      {item.sourceNativeId}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {item.contentHash ? `${item.contentHash.slice(0, 10)}…` : "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {formatDate(item.fetchedAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent fetch runs (latest 5). */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Recent fetch runs</CardTitle>
@@ -195,7 +347,8 @@ export default async function MonitorStatusPage() {
         <CardContent>
           {status.recentFetchLog.length === 0 ? (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No monitor runs recorded yet. (No fetcher is implemented.)
+              No monitor runs recorded yet. Runs appear here after{" "}
+              <code className="text-xs">npm run monitor:feeds -- --write</code>.
             </p>
           ) : (
             <Table>

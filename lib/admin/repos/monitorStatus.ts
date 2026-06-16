@@ -35,6 +35,26 @@ export interface MonitorProblemSource {
   isEnabled: boolean;
 }
 
+/** A staged feed item, summarised for the monitor's "latest items" preview. */
+export interface MonitorFeedItemSummary {
+  id: string;
+  feedSourceLabel: string | null;
+  sourceNativeId: string;
+  rawTitle: string;
+  reviewState: string;
+  /** Full content hash (the UI shows a short prefix); null on older rows. */
+  contentHash: string | null;
+  fetchedAt: string;
+}
+
+/** Counts of staged feed_items by triage state. */
+export interface FeedItemStateCounts {
+  new: number;
+  imported: number;
+  ignored: number;
+  duplicate: number;
+}
+
 export interface MonitorStatus {
   /** Raw OZB_MONITOR_ENABLED value (null when the var is absent). */
   envEnabledRaw: string | null;
@@ -45,7 +65,17 @@ export interface MonitorStatus {
   feedSourcesTotal: number;
   feedSourcesEnabled: number;
   feedQueuePending: number;
+  /** Total staged feed_items across all triage states. */
+  feedItemsTotal: number;
+  /** Staged feed_items broken down by triage state. */
+  feedItemCounts: FeedItemStateCounts;
   recentFetchLog: MonitorFetchLogEntry[];
+  /** Most recent run that completed without an error (ok / not-modified). */
+  lastSuccessLog: MonitorFetchLogEntry | null;
+  /** Most recent run that recorded an error (blocked / error). */
+  lastProblemLog: MonitorFetchLogEntry | null;
+  /** Newest staged feed items (any state), most recently fetched first. */
+  latestFeedItems: MonitorFeedItemSummary[];
   problemSources: MonitorProblemSource[];
   /** Enabled feeds while compliance is NOT approved — a risk to surface. */
   enabledWithoutApproval: number;
@@ -98,6 +128,29 @@ interface ProblemSourceRow {
   is_enabled: boolean;
 }
 
+interface FeedItemSummaryRow {
+  id: string;
+  source_native_id: string;
+  raw_title: string;
+  review_state: string;
+  content_hash: string | null;
+  fetched_at: string;
+  source: { label: string } | { label: string }[] | null;
+}
+
+function mapFeedItemSummary(r: FeedItemSummaryRow): MonitorFeedItemSummary {
+  const source = Array.isArray(r.source) ? r.source[0] : r.source;
+  return {
+    id: r.id,
+    feedSourceLabel: source?.label ?? null,
+    sourceNativeId: r.source_native_id,
+    rawTitle: r.raw_title,
+    reviewState: r.review_state,
+    contentHash: r.content_hash,
+    fetchedAt: r.fetched_at,
+  };
+}
+
 /** Read-only aggregate snapshot of the (planned) monitor's safety/health. */
 export async function getMonitorStatus(): Promise<MonitorStatus> {
   const db = getSupabaseAdmin();
@@ -110,7 +163,14 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     feedSourcesTotal,
     feedSourcesEnabled,
     feedQueuePending,
+    feedItemsTotal,
+    importedCount,
+    ignoredCount,
+    duplicateCount,
     fetchLogData,
+    lastSuccessData,
+    lastProblemData,
+    latestItemsData,
     problemData,
   ] = await Promise.all([
     countRows(db, "compliance_reviews", {
@@ -120,10 +180,37 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     countRows(db, "feed_sources"),
     countRows(db, "feed_sources", { column: "is_enabled", value: true }),
     countNewFeedItems(),
+    countRows(db, "feed_items"),
+    countRows(db, "feed_items", { column: "review_state", value: "imported" }),
+    countRows(db, "feed_items", { column: "review_state", value: "ignored" }),
+    countRows(db, "feed_items", { column: "review_state", value: "duplicate" }),
     db
       .from("feed_fetch_log")
       .select("*, source:feed_sources(label)")
       .order("started_at", { ascending: false })
+      .limit(5),
+    // Last run that completed cleanly (ok / not-modified store no error).
+    db
+      .from("feed_fetch_log")
+      .select("*, source:feed_sources(label)")
+      .is("error", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // Last run that recorded an error (blocked / error).
+    db
+      .from("feed_fetch_log")
+      .select("*, source:feed_sources(label)")
+      .not("error", "is", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("feed_items")
+      .select(
+        "id, source_native_id, raw_title, review_state, content_hash, fetched_at, source:feed_sources(label)"
+      )
+      .order("fetched_at", { ascending: false })
       .limit(5),
     db
       .from("feed_sources")
@@ -134,6 +221,15 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   if (fetchLogData.error) {
     throw new Error(`recent fetch log failed: ${fetchLogData.error.message}`);
   }
+  if (lastSuccessData.error) {
+    throw new Error(`last success log failed: ${lastSuccessData.error.message}`);
+  }
+  if (lastProblemData.error) {
+    throw new Error(`last problem log failed: ${lastProblemData.error.message}`);
+  }
+  if (latestItemsData.error) {
+    throw new Error(`latest feed items failed: ${latestItemsData.error.message}`);
+  }
   if (problemData.error) {
     throw new Error(`problem sources failed: ${problemData.error.message}`);
   }
@@ -141,6 +237,17 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   const recentFetchLog = (
     (fetchLogData.data ?? []) as unknown as FetchLogRow[]
   ).map(mapFetchLog);
+
+  const lastSuccessLog = lastSuccessData.data
+    ? mapFetchLog(lastSuccessData.data as unknown as FetchLogRow)
+    : null;
+  const lastProblemLog = lastProblemData.data
+    ? mapFetchLog(lastProblemData.data as unknown as FetchLogRow)
+    : null;
+
+  const latestFeedItems = (
+    (latestItemsData.data ?? []) as unknown as FeedItemSummaryRow[]
+  ).map(mapFeedItemSummary);
 
   const problemSources = (
     (problemData.data ?? []) as unknown as ProblemSourceRow[]
@@ -161,7 +268,17 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     feedSourcesTotal,
     feedSourcesEnabled,
     feedQueuePending,
+    feedItemsTotal,
+    feedItemCounts: {
+      new: feedQueuePending,
+      imported: importedCount,
+      ignored: ignoredCount,
+      duplicate: duplicateCount,
+    },
     recentFetchLog,
+    lastSuccessLog,
+    lastProblemLog,
+    latestFeedItems,
     problemSources,
     enabledWithoutApproval: complianceApproved ? 0 : feedSourcesEnabled,
   };

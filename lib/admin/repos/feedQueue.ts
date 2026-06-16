@@ -19,6 +19,12 @@ import type { DealKind } from "@/lib/sources/types";
 
 export type FeedReviewState = "new" | "imported" | "ignored" | "duplicate";
 
+/** An existing signal that already carries this item's source_native_id. */
+export interface ExistingSignalRef {
+  id: string;
+  status: string;
+}
+
 /** A staged feed item as the review queue sees it. */
 export interface FeedQueueItem {
   id: string;
@@ -29,10 +35,18 @@ export interface FeedQueueItem {
   rawTitle: string;
   rawSummary: string;
   categories: string[];
+  /** Hash of the meaningful fields — the UI shows a short prefix. */
+  contentHash: string | null;
   postedAt: string | null;
   fetchedAt: string;
   reviewState: FeedReviewState;
   promotedSignalId: string | null;
+  /**
+   * A signal that already exists with this source_native_id, if any. When set,
+   * importing will LINK to it rather than create a new one (idempotent) — so the
+   * admin can treat the item as a likely duplicate / already imported.
+   */
+  existingSignal: ExistingSignalRef | null;
 }
 
 /** Result of an import: which signal it maps to, and whether it was just made. */
@@ -52,6 +66,7 @@ interface FeedItemRow {
   raw_title: string;
   raw_summary: string;
   categories: string[] | null;
+  content_hash: string | null;
   posted_at: string | null;
   fetched_at: string;
   review_state: FeedReviewState;
@@ -60,7 +75,10 @@ interface FeedItemRow {
   source: { label: string } | { label: string }[] | null;
 }
 
-function mapItem(r: FeedItemRow): FeedQueueItem {
+function mapItem(
+  r: FeedItemRow,
+  existingSignal: ExistingSignalRef | null = null
+): FeedQueueItem {
   const src = Array.isArray(r.source) ? r.source[0] : r.source;
   return {
     id: r.id,
@@ -71,10 +89,12 @@ function mapItem(r: FeedItemRow): FeedQueueItem {
     rawTitle: r.raw_title,
     rawSummary: r.raw_summary,
     categories: r.categories ?? [],
+    contentHash: r.content_hash,
     postedAt: r.posted_at,
     fetchedAt: r.fetched_at,
     reviewState: r.review_state,
     promotedSignalId: r.promoted_signal_id,
+    existingSignal,
   };
 }
 
@@ -91,7 +111,45 @@ export async function listNewFeedItems(): Promise<FeedQueueItem[]> {
     .eq("review_state", "new")
     .order("fetched_at", { ascending: false });
   if (error) throw new Error(`listNewFeedItems failed: ${error.message}`);
-  return ((data ?? []) as unknown as FeedItemRow[]).map(mapItem);
+  const rows = (data ?? []) as unknown as FeedItemRow[];
+
+  // One batched lookup: which native ids already map to a signal? Importing such
+  // an item LINKS to the existing signal (idempotent), so flag it for the admin.
+  const existingByNativeId = await loadExistingSignals(
+    db,
+    rows.map((r) => r.source_native_id)
+  );
+
+  return rows.map((r) => mapItem(r, existingByNativeId.get(r.source_native_id) ?? null));
+}
+
+/** Map of source_native_id → existing signal, for the items passed in (read-only). */
+async function loadExistingSignals(
+  db: AdminDb,
+  nativeIds: string[]
+): Promise<Map<string, ExistingSignalRef>> {
+  const out = new Map<string, ExistingSignalRef>();
+  const unique = [...new Set(nativeIds)];
+  if (unique.length === 0) return out;
+
+  const { data, error } = await db
+    .from("ozbargain_signals")
+    .select("id, status, source_native_id")
+    .in("source_native_id", unique);
+  if (error) {
+    throw new Error(`listNewFeedItems existing-signal lookup failed: ${error.message}`);
+  }
+
+  for (const row of (data ?? []) as {
+    id: string;
+    status: string;
+    source_native_id: string | null;
+  }[]) {
+    if (row.source_native_id && !out.has(row.source_native_id)) {
+      out.set(row.source_native_id, { id: row.id, status: row.status });
+    }
+  }
+  return out;
 }
 
 /** Count of items awaiting triage — for the dashboard "Needs attention" row. */

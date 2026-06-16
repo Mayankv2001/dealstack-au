@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   listFeedSources,
   type AdminFeedSource,
 } from "@/lib/admin/repos/feedSources";
+import { isMonitoringApproved } from "@/lib/admin/repos/compliance";
 import { FEED_ENABLE_WARNING } from "@/components/admin/FeedSourceForm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,13 @@ export default async function FeedSourcesListPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
-  const sources = await listFeedSources();
+  const [sources, complianceApproved] = await Promise.all([
+    listFeedSources(),
+    isMonitoringApproved(),
+  ]);
+
+  const enabledCount = sources.filter((s) => s.isEnabled).length;
+  const enabledWithoutApproval = !complianceApproved && enabledCount > 0;
 
   return (
     <div className="space-y-6">
@@ -64,10 +71,29 @@ export default async function FeedSourcesListPage() {
         </Button>
       </header>
 
+      {/* Strong warning: a feed is enabled but compliance is not approved. */}
+      {enabledWithoutApproval ? (
+        <div className="flex items-start gap-2.5 rounded-lg border-2 border-destructive bg-destructive/15 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+          <p>
+            <span className="font-semibold text-destructive">
+              {enabledCount} feed{enabledCount === 1 ? " is" : "s are"} enabled
+              without an approved compliance review.
+            </span>{" "}
+            Disable {enabledCount === 1 ? "it" : "them"} until an approved review
+            is on file — do not run the monitor against{" "}
+            {enabledCount === 1 ? "it" : "them"}.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex items-start gap-2.5 rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
         <Info className="mt-0.5 size-4 shrink-0 text-foreground" />
         <p>
-          <span className="font-medium text-foreground">No fetching yet.</span>{" "}
+          <span className="font-medium text-foreground">
+            Registration only — fetching happens only via the manual{" "}
+            <code className="text-xs">monitor:feeds</code> script.
+          </span>{" "}
           {FEED_ENABLE_WARNING}
         </p>
       </div>

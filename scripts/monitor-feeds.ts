@@ -70,11 +70,17 @@ function parseArgs(argv: string[]): CliArgs {
   return { dryRun, sourceId };
 }
 
+/** A single, unmistakable mode line reused at the top and bottom of a run. */
+function modeBanner(dryRun: boolean): string {
+  return dryRun
+    ? ">>> DRY RUN — no writes (fetch + parse only). Pass --write to stage. <<<"
+    : ">>> LIVE RUN (--write) — staging writes are ENABLED. <<<";
+}
+
 function printSummary(summary: MonitorRunSummary): void {
-  const mode = summary.dryRun ? "DRY RUN — no writes" : "LIVE — writing staged items";
   console.log("=".repeat(64));
   console.log(" OzBargain feed monitor — manual run");
-  console.log(` ${mode}`);
+  console.log(` ${modeBanner(summary.dryRun)}`);
   console.log("=".repeat(64));
 
   if (!summary.enabled) {
@@ -106,8 +112,19 @@ function printSummary(summary: MonitorRunSummary): void {
   });
 
   if (summary.dryRun) {
-    console.log(`\n${"DRY RUN — nothing was written."}`);
+    console.log(
+      "\nDRY RUN complete — nothing was written (no feed_items, poll-state, or fetch logs)."
+    );
+  } else {
+    const staged = summary.results.reduce(
+      (n, r) => n + (r.status === "ok" ? r.itemsNew : 0),
+      0
+    );
+    console.log(
+      `\nLIVE RUN complete — staged ${staged} new feed_item(s); poll-state + fetch log updated. No signals were published.`
+    );
   }
+  console.log(modeBanner(summary.dryRun));
 }
 
 async function main(): Promise<void> {
@@ -119,6 +136,10 @@ async function main(): Promise<void> {
     console.log("Kill switch is OFF — exiting safely with no fetch.");
     return;
   }
+
+  // State the mode up front, before any fetch — so it is obvious even if the
+  // run later errors out mid-way.
+  console.log(modeBanner(dryRun));
 
   let userAgent: string;
   try {
