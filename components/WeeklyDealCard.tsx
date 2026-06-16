@@ -11,6 +11,7 @@ import {
   Gift,
   type LucideIcon,
   MessageSquare,
+  RefreshCw,
   Star,
   Store as StoreIcon,
 } from "lucide-react";
@@ -284,6 +285,18 @@ function ExpiryLine({
   );
 }
 
+/** "Last checked" line — when this offer's data was last manually verified. */
+function CheckedLine({ lastCheckedAt }: { lastCheckedAt?: string | null }) {
+  const checked = formatDateAU(lastCheckedAt ?? null);
+  if (!checked) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+      <RefreshCw className="size-3" />
+      Checked {checked}
+    </span>
+  );
+}
+
 export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
   const tone = toneStyles[data.tone ?? "emerald"];
   const Icon = data.icon ?? kindIcons[data.kind];
@@ -413,11 +426,14 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
             )}
 
             <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
-              <ExpiryLine
-                expiryDate={data.expiryDate}
-                expiringSoon={data.expiringSoon}
-                expired={expired}
-              />
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <ExpiryLine
+                  expiryDate={data.expiryDate}
+                  expiringSoon={data.expiringSoon}
+                  expired={expired}
+                />
+                <CheckedLine lastCheckedAt={data.lastCheckedAt} />
+              </div>
               <CitationLinks citations={data.citations} />
             </div>
           </div>
@@ -475,11 +491,14 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
           </p>
 
           <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
-            <ExpiryLine
-              expiryDate={data.expiryDate}
-              expiringSoon={data.expiringSoon}
-              expired={expired}
-            />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <ExpiryLine
+                expiryDate={data.expiryDate}
+                expiringSoon={data.expiringSoon}
+                expired={expired}
+              />
+              <CheckedLine lastCheckedAt={data.lastCheckedAt} />
+            </div>
             <CitationLinks citations={data.citations} />
           </div>
         </CardContent>
@@ -582,6 +601,7 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
                   {formatDateAU(data.expiryDate)}
                 </span>
               )}
+              <CheckedLine lastCheckedAt={data.lastCheckedAt} />
             </div>
             {data.isSample ? (
               <div className="flex flex-col gap-1">
@@ -685,11 +705,14 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
         )}
 
         <div className="mt-auto flex flex-col gap-2 border-t pt-2.5">
-          <ExpiryLine
-            expiryDate={data.expiryDate}
-            expiringSoon={data.expiringSoon}
-            expired={expired}
-          />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <ExpiryLine
+              expiryDate={data.expiryDate}
+              expiringSoon={data.expiringSoon}
+              expired={expired}
+            />
+            <CheckedLine lastCheckedAt={data.lastCheckedAt} />
+          </div>
           <CitationLinks citations={data.citations} />
         </div>
       </CardContent>
