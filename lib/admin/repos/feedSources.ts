@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { FeedItemInsert } from "@/lib/monitor/mapFeedItem";
+import type {
+  FeedFetchLogEntry,
+  FeedPollStatePatch,
+  MonitorFeed,
+} from "@/lib/monitor/runMonitor";
 
 /**
  * Admin-side feed sources repository — SERVICE-ROLE ONLY.
@@ -166,4 +172,135 @@ export async function setFeedSourceEnabled(
     .update({ is_enabled: isEnabled })
     .eq("id", id);
   if (error) throw new Error(`setFeedSourceEnabled failed: ${error.message}`);
+}
+
+// ── Monitor ingestion (SERVICE-ROLE; used by the manual monitor script) ──────
+// These back the runMonitor orchestrator's persistence contract. They write ONLY
+// to the staging tables (feed_items, feed_fetch_log) and feed_sources poll-state
+// — never to ozbargain_signals. The kill switch is honoured here too: disabled
+// feeds are never returned by listDueEnabledFeeds().
+
+interface CandidateRow {
+  id: string;
+  label: string;
+  feed_url: string;
+  etag: string | null;
+  last_modified: string | null;
+  failure_count: number | string | null;
+  next_earliest_fetch_at: string | null;
+}
+
+/**
+ * Enabled feeds that are DUE (next_earliest_fetch_at null or <= now), least
+ * recently fetched first, capped at `limit`. Optionally restricted to one id.
+ * Disabled feeds are never returned — the kill switch is enforced at the query.
+ * Due-ness is filtered in JS to avoid PostgREST `.or()` timestamp escaping.
+ */
+export async function listDueEnabledFeeds(opts: {
+  sourceId?: string;
+  now: Date;
+  limit: number;
+}): Promise<MonitorFeed[]> {
+  const db = getSupabaseAdmin();
+  let query = db
+    .from("feed_sources")
+    .select(
+      "id, label, feed_url, etag, last_modified, failure_count, next_earliest_fetch_at"
+    )
+    .eq("is_enabled", true)
+    .order("last_fetched_at", { ascending: true, nullsFirst: true });
+  if (opts.sourceId) query = query.eq("id", opts.sourceId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`listDueEnabledFeeds failed: ${error.message}`);
+
+  const nowMs = opts.now.getTime();
+  const due = ((data ?? []) as unknown as CandidateRow[]).filter((r) => {
+    const next = r.next_earliest_fetch_at;
+    return next == null || Date.parse(next) <= nowMs;
+  });
+
+  return due.slice(0, Math.max(1, opts.limit)).map((r) => ({
+    id: r.id,
+    label: r.label,
+    feedUrl: r.feed_url,
+    etag: r.etag,
+    lastModified: r.last_modified,
+    failureCount: r.failure_count == null ? 0 : Number(r.failure_count),
+  }));
+}
+
+/**
+ * Stage parsed items as `feed_items` (review_state 'new'), ignoring conflicts on
+ * source_native_id so re-runs are idempotent and never clobber an admin's triage.
+ * Returns the number of NEW rows inserted. Never publishes — promotion to a
+ * pending signal stays a separate manual queue action.
+ */
+export async function upsertFeedItems(
+  feedSourceId: string,
+  items: FeedItemInsert[]
+): Promise<number> {
+  if (items.length === 0) return 0;
+  const db = getSupabaseAdmin();
+  const fetchedAt = new Date().toISOString();
+  const rows = items.map((item) => ({
+    feed_source_id: feedSourceId,
+    source_native_id: item.source_native_id,
+    link: item.link,
+    raw_title: item.raw_title,
+    raw_summary: item.raw_summary,
+    categories: item.categories,
+    posted_at: item.posted_at,
+    content_hash: item.content_hash,
+    fetched_at: fetchedAt,
+    review_state: "new",
+  }));
+  const { data, error } = await db
+    .from("feed_items")
+    .upsert(rows, { onConflict: "source_native_id", ignoreDuplicates: true })
+    .select("id");
+  if (error) throw new Error(`upsertFeedItems failed: ${error.message}`);
+  return data?.length ?? 0;
+}
+
+/** Update ONLY the monitor-managed poll-state columns of a feed source. */
+export async function recordFeedPollState(
+  feedSourceId: string,
+  patch: FeedPollStatePatch
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if ("etag" in patch) update.etag = patch.etag;
+  if ("lastModified" in patch) update.last_modified = patch.lastModified;
+  if ("lastFetchedAt" in patch) update.last_fetched_at = patch.lastFetchedAt;
+  if ("lastStatus" in patch) update.last_status = patch.lastStatus;
+  if ("failureCount" in patch) update.failure_count = patch.failureCount;
+  if ("nextEarliestFetchAt" in patch) {
+    update.next_earliest_fetch_at = patch.nextEarliestFetchAt;
+  }
+  if ("isEnabled" in patch) update.is_enabled = patch.isEnabled;
+  if (Object.keys(update).length === 0) return;
+
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("feed_sources")
+    .update(update)
+    .eq("id", feedSourceId);
+  if (error) throw new Error(`recordFeedPollState failed: ${error.message}`);
+}
+
+/** Append one per-run audit row to feed_fetch_log. */
+export async function insertFeedFetchLog(
+  entry: FeedFetchLogEntry
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db.from("feed_fetch_log").insert({
+    feed_source_id: entry.feedSourceId,
+    started_at: entry.startedAt,
+    finished_at: entry.finishedAt,
+    http_status: entry.httpStatus,
+    items_seen: entry.itemsSeen,
+    items_new: entry.itemsNew,
+    error: entry.error,
+  });
+  if (error) throw new Error(`insertFeedFetchLog failed: ${error.message}`);
 }

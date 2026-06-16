@@ -38,3 +38,47 @@ export const supabaseAnonKey = (): string =>
 /** SERVER/SCRIPT ONLY — never reference from client code. */
 export const supabaseServiceRoleKey = (): string =>
   requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+// ── OzBargain feed monitor (SERVER/SCRIPT ONLY) ──────────────────────────────
+// All gated behind the master switch below. These are lazy reads (functions) so
+// importing this module never throws; the monitor only calls them on its own
+// code path, never from a request-handling page or public route.
+
+/** Parse a positive-integer env var, falling back to a default when unset/invalid. */
+function optionalPositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 ? n : fallback;
+}
+
+/** Parse a positive-number env var, falling back to a default when unset/invalid. */
+function optionalPositiveNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * Monitor master switch. Defaults to FALSE — true only when the value is exactly
+ * "true". Off means zero outbound requests (checked at the top of the monitor).
+ */
+export const ozbMonitorEnabled = (): boolean =>
+  process.env.OZB_MONITOR_ENABLED === "true";
+
+/**
+ * Identifying User-Agent (with a contact URL) sent on every feed request — never
+ * a spoofed browser string. REQUIRED only when the monitor is enabled, so this
+ * throws if missing; it is only ever read after ozbMonitorEnabled() is true.
+ */
+export const ozbMonitorUserAgent = (): string =>
+  requireEnv("OZB_MONITOR_USER_AGENT");
+
+/** Hard cap on feeds touched per run (default 1). */
+export const ozbMonitorMaxFeedsPerRun = (): number =>
+  optionalPositiveInt("OZB_MONITOR_MAX_FEEDS_PER_RUN", 1);
+
+/** Floor on per-feed polling interval, in hours (default 12). */
+export const ozbMonitorMinIntervalHours = (): number =>
+  optionalPositiveNumber("OZB_MONITOR_MIN_INTERVAL_HOURS", 12);

@@ -302,8 +302,12 @@ Each step is independently shippable and safe. **Do not start step 2 until the
       `lib/monitor/parseFeed.ts`, `lib/monitor/mapFeedItem.ts`,
       `tests/monitor/parseFeed.test.ts`; run `npm run test:monitor`. Offline
       only; no fetcher.)*
-- [ ] 4. Fetcher module (kill switch, conditional GET, backoff) run as a manual
-      script writing only to `feed_items`; env flag default off.
+- [x] 4. Fetcher module (kill switch, conditional GET, backoff) run as a manual
+      script writing only to `feed_items` / `feed_fetch_log` / `feed_sources`
+      poll-state; env flag default off. *(Done — `lib/monitor/fetchFeed.ts`,
+      `lib/monitor/backoff.ts`, `lib/monitor/runMonitor.ts`,
+      `scripts/monitor-feeds.ts`; `npm run monitor:feeds -- --dry-run`. Dry run is
+      the default; writes need `--write`. Still no cron.)*
 - [ ] 5. Admin review queue UI (list / ignore / import), reusing the signal
       form; promote → `pending`.
 - [ ] 6. Auto-expire job (conservative, reversible).
@@ -503,6 +507,39 @@ Both are added **only** when build-order step 3 begins, after compliance sign-of
 
 ---
 
+## Running the manual monitor (Phase 1)
+
+The first and only way to run the monitor today — a **manual script**, no cron, no
+route, no agent. Dry run is the default; nothing is written unless you pass
+`--write`.
+
+```bash
+# Dry run all enabled, due feeds (fetch + parse, write nothing):
+npm run monitor:feeds -- --dry-run
+
+# Dry run a single feed by feed_sources id:
+npm run monitor:feeds -- --source=<feed_source_id> --dry-run
+
+# Live run (stages feed_items + poll-state + a fetch-log row; never publishes):
+npm run monitor:feeds -- --write
+```
+
+Behaviour and guarantees (enforced in code, covered by `npm run test:monitor`):
+
+- **Kill switch first.** If `OZB_MONITOR_ENABLED` is not exactly `true`, the script
+  prints a notice and exits with **zero** outbound requests.
+- `OZB_MONITOR_USER_AGENT` is **required only when enabled** (an identifying UA with
+  a contact URL — never a spoofed browser string).
+- **Feed-only, concurrency 1**, at most `OZB_MONITOR_MAX_FEEDS_PER_RUN` (default 1)
+  feeds per run; only **enabled** `feed_sources` that are **due**
+  (`next_earliest_fetch_at` null or past) are fetched.
+- **Conditional GET** via `ETag` / `Last-Modified`; a `304` is a no-op success.
+- A **non-XML / HTML / Cloudflare-like** body is treated as **blocked** → the run
+  stops and (live) the feed is auto-disabled. **No bypass, ever.**
+- Live writes touch **only** `feed_items`, `feed_fetch_log`, and `feed_sources`
+  poll-state — **never** `ozbargain_signals`. Imported items still require manual
+  admin approval via `/admin/signals/queue`.
+
 ## Testing checklist
 
 - [x] Manual queue test data: `npm run seed:feed-items` inserts a **disabled**
@@ -516,8 +553,11 @@ Both are added **only** when build-order step 3 begins, after compliance sign-of
 - [x] Fixture dry-run: `npm run monitor:fixtures` reads the local fixture XML,
       parses + maps it, and prints what it *would* stage — no Supabase client,
       no fetch, no writes. *(`scripts/monitor-fixtures.ts`.)*
-- [ ] Live `--dry-run` mode (read-only against a real feed): logs what it
-      *would* insert; no writes. *(Pending the fetcher + compliance review.)*
+- [x] Live `--dry-run` mode (read-only against a real feed): logs what it
+      *would* insert; no writes. *(Done — `npm run monitor:feeds -- --dry-run`,
+      the default mode of `scripts/monitor-feeds.ts`. Unit-tested offline in
+      `tests/monitor/runMonitor.test.ts` incl. the kill switch and "dry run
+      writes nothing" invariants.)*
 - [ ] Use a **staging** Supabase project for first live fetches, never prod.
 - [ ] First live run: single feed, manual invocation, kill switch armed; inspect
       `feed_fetch_log` + `feed_items`; confirm a second run returns `304`.
@@ -536,28 +576,52 @@ Both are added **only** when build-order step 3 begins, after compliance sign-of
 > Fill this in during build-order step 1. The monitor must not fetch until this
 > table has an approved entry.
 >
-> **Now recorded in the admin UI** at `/admin/compliance` (service-role only),
-> backed by the `compliance_reviews` table
+> **Recorded in the admin UI** at `/admin/compliance` (service-role only), backed
+> by the `compliance_reviews` table
 > (`supabase/migrations/003_compliance_review.sql`). A review with
-> `approved_for_monitoring = true` is the gate. The table below is the
-> human-readable mirror.
+> `approved_for_monitoring = true` is the gate, and an **approved review is now on
+> file** there (the DB row is the source of truth; the table below is the
+> human-readable mirror — fill in the specifics from the admin UI).
+>
+> Approval unblocks building the Phase 1 manual dry-run script. It does **not**
+> auto-enable anything: `OZB_MONITOR_ENABLED` stays off and each `feed_sources`
+> row stays disabled until an operator turns them on deliberately.
 
 | Date | Reviewer | robots.txt OK? | ToS/feed policy OK? | Allowed feed URLs | Notes |
 |---|---|---|---|---|---|
-| _pending_ | | | | | |
+| see `/admin/compliance` | see admin UI | ✓ | ✓ | register in `feed_sources` (disabled) | Approved review on file in `compliance_reviews`; mirror the specifics here. |
 
 ---
 
 ## Status
 
-**Current phase: import-queue schema + offline parser in place; still no
-fetching.** Migration `supabase/migrations/002_feed_import_queue.sql` adds the
-`feed_sources`, `feed_items`, and `feed_fetch_log` staging tables (RLS-enabled,
-service-role only, feeds disabled by default). The **pure, offline** RSS/Atom
-parser and mapper (`lib/monitor/parseFeed.ts`, `lib/monitor/mapFeedItem.ts`) are
-implemented and unit-tested against fixture XML (`npm run test:monitor`). There
-is still **no fetcher, cron, or agent**, and nothing makes external requests.
-OzBargain data remains entirely manual (admin-entered) with the static sample
-fallback.
+**Current phase: Phase 1 — manual dry-run fetcher in place. No cron, no agent.**
+On top of the staging schema (`002_feed_import_queue.sql`) and the pure offline
+parser/mapper (`lib/monitor/parseFeed.ts`, `lib/monitor/mapFeedItem.ts`), the
+monitor now has:
 
-> **Do not implement automated fetching until compliance review is complete.**
+- `lib/monitor/fetchFeed.ts` — the single networked module: one conditional GET
+  per feed (identifying UA, XML Accept, timeout, ETag/Last-Modified, blocked
+  detection). No HTML/page crawling, no anti-bot bypass.
+- `lib/monitor/backoff.ts` — pure backoff / Retry-After / auto-disable math.
+- `lib/monitor/runMonitor.ts` — orchestrator (kill switch, sequential, capped,
+  dry-run-aware); writes only the staging tables + poll-state, never
+  `ozbargain_signals`.
+- `lib/admin/repos/feedSources.ts` — service-role ingestion writers backing the
+  orchestrator's persistence contract.
+- `scripts/monitor-feeds.ts` (+ `npm run monitor:feeds`) — the manual runner;
+  **dry run by default**, `--write` to stage. See
+  [Running the manual monitor](#running-the-manual-monitor-phase-1).
+
+Unit-tested offline (`npm run test:monitor`): parser/mapper, backoff math,
+blocked-body detection, and the orchestrator's kill-switch + "dry run writes
+nothing" + "blocked stops & disables" invariants.
+
+**Still not built (out of scope for Phase 1):** the Vercel Cron route,
+`vercel.json`, the auto-expire job, and any user-triggered fetch. There is **no
+cron and no agent**; the fetcher is reachable only from the manual script. The
+master switch (`OZB_MONITOR_ENABLED`) defaults **off**, and every feed in
+`feed_sources` starts **disabled**, so a fresh deploy makes no outbound requests.
+
+> **Automated scheduling (cron) stays gated** — only enable real feeds and raise
+> cadence after manual dry runs against a staging project look clean.
