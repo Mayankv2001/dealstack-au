@@ -18,12 +18,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   getDashboardCounts,
+  getDataQualityReport,
   getRecentUpdates,
 } from "@/lib/admin/repos/dashboard";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Admin dashboard | DealStack AU",
@@ -56,10 +59,11 @@ export default async function AdminDashboardPage() {
   // Belt-and-suspenders: the protected layout already gates, but every admin
   // page verifies independently (proxy is only an optimistic check).
   const { email } = await requireAdmin();
-  const [counts, recent, feedQueueCount] = await Promise.all([
+  const [counts, recent, feedQueueCount, dataQuality] = await Promise.all([
     getDashboardCounts(),
     getRecentUpdates(5),
     countNewFeedItems(),
+    getDataQualityReport(),
   ]);
 
   const sections: Section[] = [
@@ -150,6 +154,14 @@ export default async function AdminDashboardPage() {
     },
   ];
   const attentionTotal = attention.reduce((sum, a) => sum + a.value, 0);
+
+  // Read-only data-quality metrics over published offers + approved signals.
+  const dataQualityMetrics = [
+    { label: "Expired but still live", value: dataQuality.counts.expiredPublished },
+    { label: "Missing source URL", value: dataQuality.counts.missingSourceUrl },
+    { label: "Missing expiry date", value: dataQuality.counts.missingExpiry },
+    { label: "Not re-checked 30+ days", value: dataQuality.counts.staleChecked },
+  ];
 
   const quickActions = [
     { label: "Monitor Status", href: "/admin/monitor" },
@@ -271,6 +283,87 @@ export default async function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Data quality — issues on published offers / approved signals. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Data quality</CardTitle>
+          <CardDescription>
+            Checks across published offers and approved signals — the rows the
+            public site can show.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {dataQualityMetrics.map((metric) => (
+              <div
+                key={metric.label}
+                className="rounded-md border bg-muted/30 px-3 py-2"
+              >
+                <p className="text-xs text-muted-foreground">{metric.label}</p>
+                <p
+                  className={cn(
+                    "text-lg font-semibold tabular-nums",
+                    metric.value > 0 && "text-amber-600 dark:text-amber-400"
+                  )}
+                >
+                  {metric.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {dataQuality.flaggedItems === 0 ? (
+            <div className="flex items-start gap-2.5 rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <p>
+                No data-quality issues found on published offers or approved
+                signals.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {dataQuality.flags.map((flag) => (
+                <div
+                  key={`${flag.type}-${flag.id}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle
+                        className={cn(
+                          "size-3.5 shrink-0",
+                          flag.severity === "high"
+                            ? "text-destructive"
+                            : "text-amber-600 dark:text-amber-400"
+                        )}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {flag.typeLabel}
+                      </span>
+                      <span className="font-medium break-words">
+                        {flag.title}
+                      </span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {flag.reason}
+                    </span>
+                  </div>
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={flag.editHref}>Edit</Link>
+                  </Button>
+                </div>
+              ))}
+              {dataQuality.flaggedItems > dataQuality.flags.length ? (
+                <p className="text-xs text-muted-foreground">
+                  Showing {dataQuality.flags.length} of{" "}
+                  {dataQuality.flaggedItems} flagged items.
+                </p>
+              ) : null}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent updates — latest changed items across every section. */}
       <Card>

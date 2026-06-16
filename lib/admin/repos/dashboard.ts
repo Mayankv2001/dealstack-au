@@ -305,3 +305,269 @@ export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, limit);
 }
+
+// ── Data quality report ──────────────────────────────────────────────────────
+
+/** A published row is "stale" if it hasn't been re-checked in this many days. */
+const STALE_DAYS = 30;
+/** Cap the displayed flag list (counts are always complete). */
+const DQ_FLAG_LIMIT = 12;
+
+export type DataQualitySeverity = "high" | "medium";
+
+/** One flagged item shown in the dashboard data-quality list. */
+export interface DataQualityFlag {
+  type: RecentItemType;
+  typeLabel: string;
+  id: string;
+  title: string;
+  /** Human-readable issues, e.g. "Expired 2026-05-01 but still published". */
+  reason: string;
+  severity: DataQualitySeverity;
+  editHref: string;
+}
+
+/** Per-issue counts (an item may contribute to more than one). */
+export interface DataQualityCounts {
+  expiredPublished: number;
+  missingSourceUrl: number;
+  missingExpiry: number;
+  staleChecked: number;
+}
+
+export interface DataQualityReport {
+  counts: DataQualityCounts;
+  /** Distinct items with at least one high/medium issue (before display cap). */
+  flaggedItems: number;
+  /** Highest severity first, capped at DQ_FLAG_LIMIT for display. */
+  flags: DataQualityFlag[];
+}
+
+/** True when a jsonb citations value has at least one usable source URL. */
+function hasSourceUrl(citations: unknown): boolean {
+  if (!Array.isArray(citations)) return false;
+  return citations.some((c) => {
+    if (c == null || typeof c !== "object") return false;
+    const url = (c as { sourceUrl?: unknown }).sourceUrl;
+    return typeof url === "string" && url.trim() !== "";
+  });
+}
+
+// AU-local "today" as YYYY-MM-DD so it compares directly to a date column string.
+const DQ_DAY_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Australia/Sydney",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+interface CashbackDqRow {
+  id: string;
+  provider: string;
+  merchant_id: string;
+  expiry_date: string | null;
+  citations: unknown;
+  last_checked_at: string | null;
+  store: { name: string } | { name: string }[] | null;
+}
+interface GiftCardDqRow {
+  id: string;
+  brand: string;
+  expiry_date: string | null;
+  citations: unknown;
+  last_checked_at: string | null;
+}
+interface PointsDqRow {
+  id: string;
+  program: string;
+  merchant_id: string | null;
+  expiry_date: string | null;
+  citations: unknown;
+  last_checked_at: string | null;
+  store: { name: string } | { name: string }[] | null;
+}
+interface SignalDqRow {
+  id: string;
+  title: string;
+  expiry_date: string | null;
+  last_checked_at: string | null;
+}
+
+/**
+ * Read-only data-quality scan of PUBLISHED offers + APPROVED signals (i.e. the
+ * rows the public site can actually show). Surfaces:
+ *   - expired-but-still-live rows (high),
+ *   - published offers with no cited source URL (medium),
+ *   - rows not re-checked in over STALE_DAYS (medium),
+ *   - published offers with no expiry date (low — counted, not listed).
+ *
+ * Service-role only; counts/flags only, no writes. Row volume is small (manual
+ * data), so published rows are fetched and classified in JS.
+ */
+export async function getDataQualityReport(): Promise<DataQualityReport> {
+  const db = getSupabaseAdmin();
+  const now = new Date();
+  const todayStr = DQ_DAY_FMT.format(now);
+  const staleBeforeMs = now.getTime() - STALE_DAYS * 86_400_000;
+
+  const [cashback, giftCards, points, signals] = await Promise.all([
+    db
+      .from("cashback_offers")
+      .select(
+        "id, provider, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
+      )
+      .eq("is_published", true),
+    db
+      .from("gift_card_offers")
+      .select("id, brand, expiry_date, citations, last_checked_at")
+      .eq("is_published", true),
+    db
+      .from("points_offers")
+      .select(
+        "id, program, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
+      )
+      .eq("is_published", true),
+    db
+      .from("ozbargain_signals")
+      .select("id, title, expiry_date, last_checked_at")
+      .eq("status", "approved"),
+  ]);
+
+  for (const res of [cashback, giftCards, points, signals]) {
+    if (res.error) {
+      throw new Error(`data quality read failed: ${res.error.message}`);
+    }
+  }
+
+  const counts: DataQualityCounts = {
+    expiredPublished: 0,
+    missingSourceUrl: 0,
+    missingExpiry: 0,
+    staleChecked: 0,
+  };
+  const flags: DataQualityFlag[] = [];
+
+  /** Classify one row, tallying counts and (for high/medium) adding a flag. */
+  function consider(opts: {
+    type: RecentItemType;
+    typeLabel: string;
+    id: string;
+    title: string;
+    editHref: string;
+    expiryDate: string | null;
+    citations?: unknown;
+    lastChecked: string | null;
+    /** Offers cite sources + should have an expiry; signals do neither here. */
+    checkSource: boolean;
+    checkMissingExpiry: boolean;
+  }): void {
+    const reasons: string[] = [];
+    let severity: DataQualitySeverity | null = null;
+
+    if (opts.expiryDate != null && opts.expiryDate < todayStr) {
+      counts.expiredPublished += 1;
+      reasons.push(`Expired ${opts.expiryDate} but still live`);
+      severity = "high";
+    }
+    if (opts.checkSource && !hasSourceUrl(opts.citations)) {
+      counts.missingSourceUrl += 1;
+      reasons.push("No source URL cited");
+      if (severity == null) severity = "medium";
+    }
+    if (
+      opts.lastChecked != null &&
+      Date.parse(opts.lastChecked) < staleBeforeMs
+    ) {
+      counts.staleChecked += 1;
+      reasons.push(`Not re-checked in 30+ days`);
+      if (severity == null) severity = "medium";
+    }
+    if (opts.checkMissingExpiry && opts.expiryDate == null) {
+      counts.missingExpiry += 1;
+      // Low severity: counted, and appended only if the item is already flagged.
+      if (severity != null) reasons.push("No expiry date set");
+    }
+
+    if (severity != null) {
+      flags.push({
+        type: opts.type,
+        typeLabel: opts.typeLabel,
+        id: opts.id,
+        title: opts.title,
+        reason: reasons.join("; "),
+        severity,
+        editHref: opts.editHref,
+      });
+    }
+  }
+
+  for (const r of cashback.data as unknown as CashbackDqRow[]) {
+    consider({
+      type: "cashback",
+      typeLabel: "Cashback",
+      id: r.id,
+      title: `${embeddedStoreName(r.store) ?? r.merchant_id} · ${r.provider}`,
+      editHref: `/admin/cashback/${r.id}/edit`,
+      expiryDate: r.expiry_date,
+      citations: r.citations,
+      lastChecked: r.last_checked_at,
+      checkSource: true,
+      checkMissingExpiry: true,
+    });
+  }
+  for (const r of giftCards.data as unknown as GiftCardDqRow[]) {
+    consider({
+      type: "giftCards",
+      typeLabel: "Gift card",
+      id: r.id,
+      title: r.brand,
+      editHref: `/admin/gift-cards/${r.id}/edit`,
+      expiryDate: r.expiry_date,
+      citations: r.citations,
+      lastChecked: r.last_checked_at,
+      checkSource: true,
+      checkMissingExpiry: true,
+    });
+  }
+  for (const r of points.data as unknown as PointsDqRow[]) {
+    const store = embeddedStoreName(r.store);
+    consider({
+      type: "points",
+      typeLabel: "Points",
+      id: r.id,
+      title: store ? `${r.program} · ${store}` : r.program,
+      editHref: `/admin/points/${r.id}/edit`,
+      expiryDate: r.expiry_date,
+      citations: r.citations,
+      lastChecked: r.last_checked_at,
+      checkSource: true,
+      checkMissingExpiry: true,
+    });
+  }
+  for (const r of signals.data as unknown as SignalDqRow[]) {
+    consider({
+      type: "signals",
+      typeLabel: "Signal",
+      id: r.id,
+      title: r.title,
+      editHref: `/admin/signals/${r.id}/edit`,
+      expiryDate: r.expiry_date,
+      lastChecked: r.last_checked_at,
+      // source_url is NOT NULL for signals; expiry is often legitimately absent.
+      checkSource: false,
+      checkMissingExpiry: false,
+    });
+  }
+
+  const severityRank: Record<DataQualitySeverity, number> = {
+    high: 0,
+    medium: 1,
+  };
+  flags.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+
+  return {
+    counts,
+    flaggedItems: flags.length,
+    flags: flags.slice(0, DQ_FLAG_LIMIT),
+  };
+}
