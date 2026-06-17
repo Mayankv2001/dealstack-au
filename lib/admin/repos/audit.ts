@@ -82,26 +82,66 @@ export async function logAudit(event: AuditEvent): Promise<void> {
   }
 }
 
+/** Default number of audit rows shown per page. */
+export const AUDIT_PAGE_SIZE = 50;
+
 /** Optional filters for the audit list. */
 export interface AuditFilter {
   tableName?: string;
   action?: string;
-  limit?: number;
+  /** Partial, case-insensitive match on actor_email. */
+  actorEmail?: string;
+  /** Partial, case-insensitive match on row_id. */
+  rowId?: string;
+  /** Zero-based offset for pagination. */
+  offset?: number;
+  /** Rows returned per page (defaults to AUDIT_PAGE_SIZE). */
+  pageSize?: number;
 }
 
-/** Latest audit events, newest first, optionally filtered by table / action. */
+/** A page of audit entries plus whether more rows exist beyond it. */
+export interface AuditListResult {
+  entries: AuditEntry[];
+  hasMore: boolean;
+}
+
+/** Escape LIKE/ILIKE metacharacters so user input matches literally. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/**
+ * One page of audit events, newest first, optionally filtered by table, action,
+ * actor email or row id. Pagination is offset-based; one extra row is fetched to
+ * detect a next page without a separate count query. Read-only, service-role.
+ */
 export async function listAuditLog(
   filter: AuditFilter = {}
-): Promise<AuditEntry[]> {
+): Promise<AuditListResult> {
   const db = getSupabaseAdmin();
+  const pageSize = filter.pageSize ?? AUDIT_PAGE_SIZE;
+  const offset = Math.max(0, filter.offset ?? 0);
+
   let query = db
     .from("audit_log")
     .select("*")
+    // Secondary sort on id keeps paging deterministic when timestamps tie.
     .order("created_at", { ascending: false })
-    .limit(filter.limit ?? 100);
+    .order("id", { ascending: false })
+    .range(offset, offset + pageSize); // inclusive → pageSize + 1 rows
   if (filter.tableName) query = query.eq("table_name", filter.tableName);
   if (filter.action) query = query.eq("action", filter.action);
+  if (filter.actorEmail) {
+    query = query.ilike("actor_email", `%${escapeLike(filter.actorEmail)}%`);
+  }
+  if (filter.rowId) {
+    query = query.ilike("row_id", `%${escapeLike(filter.rowId)}%`);
+  }
+
   const { data, error } = await query;
   if (error) throw new Error(`listAuditLog failed: ${error.message}`);
-  return ((data ?? []) as unknown as AuditRow[]).map(mapAudit);
+
+  const rows = ((data ?? []) as unknown as AuditRow[]).map(mapAudit);
+  const hasMore = rows.length > pageSize;
+  return { entries: hasMore ? rows.slice(0, pageSize) : rows, hasMore };
 }

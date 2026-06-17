@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/auth";
-import { listAuditLog } from "@/lib/admin/repos/audit";
+import { AUDIT_PAGE_SIZE, listAuditLog } from "@/lib/admin/repos/audit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,18 +78,55 @@ function summariseDiff(diff: Record<string, unknown> | null): string {
 export default async function AuditLogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ table?: string; action?: string }>;
+  searchParams: Promise<{
+    table?: string;
+    action?: string;
+    actor?: string;
+    row?: string;
+    page?: string;
+  }>;
 }) {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
 
-  const { table, action } = await searchParams;
-  const tableName = TABLE_OPTIONS.includes(table ?? "") ? table : undefined;
-  const actionName = ACTION_OPTIONS.includes(action ?? "") ? action : undefined;
-  const hasFilter = Boolean(tableName || actionName);
+  const params = await searchParams;
+  const tableName = TABLE_OPTIONS.includes(params.table ?? "")
+    ? params.table
+    : undefined;
+  const actionName = ACTION_OPTIONS.includes(params.action ?? "")
+    ? params.action
+    : undefined;
+  const actorEmail = params.actor?.trim() || undefined;
+  const rowId = params.row?.trim() || undefined;
+  const hasFilter = Boolean(tableName || actionName || actorEmail || rowId);
 
-  const entries = await listAuditLog({ tableName, action: actionName });
+  const pageNum = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const offset = (pageNum - 1) * AUDIT_PAGE_SIZE;
+
+  const { entries, hasMore } = await listAuditLog({
+    tableName,
+    action: actionName,
+    actorEmail,
+    rowId,
+    offset,
+    pageSize: AUDIT_PAGE_SIZE,
+  });
+
+  // Build a filter-preserving href for a target page (drives Prev / Next).
+  const pageHref = (target: number) => {
+    const sp = new URLSearchParams();
+    if (tableName) sp.set("table", tableName);
+    if (actionName) sp.set("action", actionName);
+    if (actorEmail) sp.set("actor", actorEmail);
+    if (rowId) sp.set("row", rowId);
+    if (target > 1) sp.set("page", String(target));
+    const qs = sp.toString();
+    return qs ? `/admin/audit?${qs}` : "/admin/audit";
+  };
+
+  const firstRow = entries.length === 0 ? 0 : offset + 1;
+  const lastRow = offset + entries.length;
 
   return (
     <div className="space-y-6">
@@ -125,6 +162,26 @@ export default async function AuditLogPage({
             ))}
           </select>
         </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Actor email
+          <input
+            type="search"
+            name="actor"
+            defaultValue={actorEmail ?? ""}
+            placeholder="contains…"
+            className={controlClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Row id
+          <input
+            type="search"
+            name="row"
+            defaultValue={rowId ?? ""}
+            placeholder="contains…"
+            className={controlClass}
+          />
+        </label>
         <Button type="submit" variant="outline" size="sm">
           Apply
         </Button>
@@ -136,12 +193,22 @@ export default async function AuditLogPage({
       </form>
 
       {entries.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {hasFilter
-            ? "No audit events match these filters."
-            : "No audit events recorded yet. New admin actions will appear here."}
-        </p>
+        <div className="space-y-3 rounded-lg border border-dashed p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            {pageNum > 1
+              ? "No more audit events on this page."
+              : hasFilter
+                ? "No audit events match these filters."
+                : "No audit events recorded yet. New admin actions will appear here."}
+          </p>
+          {pageNum > 1 ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={pageHref(pageNum - 1)}>← Previous page</Link>
+            </Button>
+          ) : null}
+        </div>
       ) : (
+        <>
         <Table>
           <TableHeader>
             <TableRow>
@@ -180,6 +247,37 @@ export default async function AuditLogPage({
             ))}
           </TableBody>
         </Table>
+
+        {/* Offset-based pager — preserves the active filters across pages. */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Showing {firstRow}–{lastRow}
+          </p>
+          <div className="flex items-center gap-2">
+            {pageNum > 1 ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={pageHref(pageNum - 1)}>Previous</Link>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
+                Previous
+              </Button>
+            )}
+            <span className="px-1 text-xs text-muted-foreground tabular-nums">
+              Page {pageNum}
+            </span>
+            {hasMore ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={pageHref(pageNum + 1)}>Next</Link>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
+                Next
+              </Button>
+            )}
+          </div>
+        </div>
+        </>
       )}
     </div>
   );
