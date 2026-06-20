@@ -11,7 +11,8 @@ import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
  * own Supabase project via getSupabaseAdmin() (which bypasses RLS) and must only
  * run on the server behind requireAdmin().
  *
- * There is still no fetcher or cron, so the fetch log is expected to be empty.
+ * Fetching happens only via the manual monitor:feeds script or the secret-gated
+ * Vercel Cron route, and only when enabled — so the fetch log is empty until then.
  */
 
 /** One row of the recent fetch-log feed. */

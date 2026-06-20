@@ -118,9 +118,10 @@ export default async function MonitorStatusPage() {
       <header className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold">Monitor status</h1>
         <p className="text-sm text-muted-foreground">
-          Read-only health snapshot of the OzBargain monitor. Fetching only ever
-          happens via the manual <code className="text-xs">monitor:feeds</code>{" "}
-          script — there is no cron and this page never fetches.
+          Read-only health snapshot of the OzBargain monitor. This page never
+          fetches feeds. Fetching only happens — when enabled — via the manual{" "}
+          <code className="text-xs">monitor:feeds</code> script or the
+          secret-gated Vercel Cron route. Nothing is published automatically.
         </p>
       </header>
 
