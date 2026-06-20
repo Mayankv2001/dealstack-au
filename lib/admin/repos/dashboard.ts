@@ -310,10 +310,24 @@ export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
 
 /** A published row is "stale" if it hasn't been re-checked in this many days. */
 const STALE_DAYS = 30;
-/** Cap the displayed flag list (counts are always complete). */
-const DQ_FLAG_LIMIT = 12;
+/** Default number of flags the dashboard shows before "Show all". */
+export const DQ_FLAG_LIMIT = 12;
 
 export type DataQualitySeverity = "high" | "medium";
+
+/** The four data-quality checks an item can fail. */
+export type DataQualityIssueCode =
+  | "expired"
+  | "missing-source"
+  | "stale"
+  | "missing-expiry";
+
+/** One failed check on a flagged item. */
+export interface DataQualityIssue {
+  code: DataQualityIssueCode;
+  /** Human-readable detail, e.g. "Expired 2026-05-01 but still live". */
+  label: string;
+}
 
 /** One flagged item shown in the dashboard data-quality list. */
 export interface DataQualityFlag {
@@ -321,10 +335,13 @@ export interface DataQualityFlag {
   typeLabel: string;
   id: string;
   title: string;
-  /** Human-readable issues, e.g. "Expired 2026-05-01 but still published". */
-  reason: string;
+  /** Every check this item failed (highest-severity issue drives `severity`). */
+  issues: DataQualityIssue[];
   severity: DataQualitySeverity;
   editHref: string;
+  /** Shown when present, so admins can eyeball dates without opening the row. */
+  expiryDate: string | null;
+  lastCheckedAt: string | null;
 }
 
 /** Per-issue counts (an item may contribute to more than one). */
@@ -337,9 +354,9 @@ export interface DataQualityCounts {
 
 export interface DataQualityReport {
   counts: DataQualityCounts;
-  /** Distinct items with at least one high/medium issue (before display cap). */
+  /** Distinct items with at least one high/medium issue. */
   flaggedItems: number;
-  /** Highest severity first, capped at DQ_FLAG_LIMIT for display. */
+  /** Every flagged item, highest severity first (the page caps the display). */
   flags: DataQualityFlag[];
 }
 
@@ -461,17 +478,20 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     checkSource: boolean;
     checkMissingExpiry: boolean;
   }): void {
-    const reasons: string[] = [];
+    const issues: DataQualityIssue[] = [];
     let severity: DataQualitySeverity | null = null;
 
     if (opts.expiryDate != null && opts.expiryDate < todayStr) {
       counts.expiredPublished += 1;
-      reasons.push(`Expired ${opts.expiryDate} but still live`);
+      issues.push({
+        code: "expired",
+        label: `Expired ${opts.expiryDate} but still live`,
+      });
       severity = "high";
     }
     if (opts.checkSource && !hasSourceUrl(opts.citations)) {
       counts.missingSourceUrl += 1;
-      reasons.push("No source URL cited");
+      issues.push({ code: "missing-source", label: "No source URL cited" });
       if (severity == null) severity = "medium";
     }
     if (
@@ -479,13 +499,15 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       Date.parse(opts.lastChecked) < staleBeforeMs
     ) {
       counts.staleChecked += 1;
-      reasons.push(`Not re-checked in 30+ days`);
+      issues.push({ code: "stale", label: "Not re-checked in 30+ days" });
       if (severity == null) severity = "medium";
     }
     if (opts.checkMissingExpiry && opts.expiryDate == null) {
       counts.missingExpiry += 1;
-      // Low severity: counted, and appended only if the item is already flagged.
-      if (severity != null) reasons.push("No expiry date set");
+      // Low severity: counted, and listed only if the item is already flagged.
+      if (severity != null) {
+        issues.push({ code: "missing-expiry", label: "No expiry date set" });
+      }
     }
 
     if (severity != null) {
@@ -494,9 +516,11 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         typeLabel: opts.typeLabel,
         id: opts.id,
         title: opts.title,
-        reason: reasons.join("; "),
+        issues,
         severity,
         editHref: opts.editHref,
+        expiryDate: opts.expiryDate,
+        lastCheckedAt: opts.lastChecked,
       });
     }
   }
@@ -568,6 +592,6 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
   return {
     counts,
     flaggedItems: flags.length,
-    flags: flags.slice(0, DQ_FLAG_LIMIT),
+    flags,
   };
 }

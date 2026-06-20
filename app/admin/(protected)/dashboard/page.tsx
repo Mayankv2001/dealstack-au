@@ -18,14 +18,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
+  DQ_FLAG_LIMIT,
+  type DataQualityCounts,
+  type DataQualityIssueCode,
   getDashboardCounts,
   getDataQualityReport,
   getRecentUpdates,
 } from "@/lib/admin/repos/dashboard";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
+import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -55,16 +64,73 @@ const RECENT_DATE_FMT = new Intl.DateTimeFormat("en-AU", {
   timeZone: "Australia/Sydney",
 });
 
-export default async function AdminDashboardPage() {
+/**
+ * Plain-English meaning of each data-quality check — used for both the summary
+ * tiles and the per-item issue chips. Mirrors the checks in
+ * getDataQualityReport(); display only, no logic.
+ */
+const DQ_ISSUE_INFO: Record<
+  DataQualityIssueCode,
+  { label: string; explanation: string; tone: string }
+> = {
+  expired: {
+    label: "Expired but still live",
+    explanation:
+      "Expiry date has passed, yet the row is still published/approved — unpublish or refresh it.",
+    tone: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
+  "missing-source": {
+    label: "Missing source URL",
+    explanation:
+      "Published offer with no cited source link, so its terms can't be verified.",
+    tone: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  },
+  stale: {
+    label: "Not re-checked 30+ days",
+    explanation:
+      "Hasn't been re-checked in over 30 days and may be out of date.",
+    tone: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  },
+  "missing-expiry": {
+    label: "Missing expiry date",
+    explanation:
+      "Published offer with no expiry date, so it can never be auto-flagged as expired.",
+    tone: "border-muted-foreground/30 bg-muted text-muted-foreground",
+  },
+};
+
+/** Tile order + the count each maps to (typed accessor, no string lookups). */
+const DQ_TILE_ORDER: {
+  code: DataQualityIssueCode;
+  count: (c: DataQualityCounts) => number;
+}[] = [
+  { code: "expired", count: (c) => c.expiredPublished },
+  { code: "missing-source", count: (c) => c.missingSourceUrl },
+  { code: "missing-expiry", count: (c) => c.missingExpiry },
+  { code: "stale", count: (c) => c.staleChecked },
+];
+
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dq?: string }>;
+}) {
   // Belt-and-suspenders: the protected layout already gates, but every admin
   // page verifies independently (proxy is only an optimistic check).
   const { email } = await requireAdmin();
+  const { dq } = await searchParams;
   const [counts, recent, feedQueueCount, dataQuality] = await Promise.all([
     getDashboardCounts(),
     getRecentUpdates(5),
     countNewFeedItems(),
     getDataQualityReport(),
   ]);
+
+  // "Show all" via URL query param (page has no client island).
+  const showAllFlags = dq === "all";
+  const displayedFlags = showAllFlags
+    ? dataQuality.flags
+    : dataQuality.flags.slice(0, DQ_FLAG_LIMIT);
 
   const sections: Section[] = [
     {
@@ -156,12 +222,14 @@ export default async function AdminDashboardPage() {
   const attentionTotal = attention.reduce((sum, a) => sum + a.value, 0);
 
   // Read-only data-quality metrics over published offers + approved signals.
-  const dataQualityMetrics = [
-    { label: "Expired but still live", value: dataQuality.counts.expiredPublished },
-    { label: "Missing source URL", value: dataQuality.counts.missingSourceUrl },
-    { label: "Missing expiry date", value: dataQuality.counts.missingExpiry },
-    { label: "Not re-checked 30+ days", value: dataQuality.counts.staleChecked },
-  ];
+  // Derived from DQ_TILE_ORDER so the tile labels/explanations stay in sync
+  // with the per-item issue chips.
+  const dataQualityMetrics = DQ_TILE_ORDER.map(({ code, count }) => ({
+    code,
+    label: DQ_ISSUE_INFO[code].label,
+    explanation: DQ_ISSUE_INFO[code].explanation,
+    value: count(dataQuality.counts),
+  }));
 
   const quickActions = [
     { label: "Monitor Status", href: "/admin/monitor" },
@@ -285,7 +353,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* Data quality — issues on published offers / approved signals. */}
-      <Card>
+      <Card id="data-quality" className="scroll-mt-6">
         <CardHeader>
           <CardTitle>Data quality</CardTitle>
           <CardDescription>
@@ -294,20 +362,27 @@ export default async function AdminDashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Per-issue-type summary tiles, each with a plain-English meaning. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {dataQualityMetrics.map((metric) => (
               <div
-                key={metric.label}
-                className="rounded-md border bg-muted/30 px-3 py-2"
+                key={metric.code}
+                className="flex flex-col gap-1 rounded-md border bg-muted/30 px-3 py-2"
               >
-                <p className="text-xs text-muted-foreground">{metric.label}</p>
+                <p className="text-xs font-medium">{metric.label}</p>
                 <p
                   className={cn(
                     "text-lg font-semibold tabular-nums",
-                    metric.value > 0 && "text-amber-600 dark:text-amber-400"
+                    metric.value > 0 &&
+                      (metric.code === "expired"
+                        ? "text-destructive"
+                        : "text-amber-600 dark:text-amber-400")
                   )}
                 >
                   {metric.value}
+                </p>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {metric.explanation}
                 </p>
               </div>
             ))}
@@ -323,13 +398,13 @@ export default async function AdminDashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {dataQuality.flags.map((flag) => (
+              {displayedFlags.map((flag) => (
                 <div
                   key={`${flag.type}-${flag.id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-md border px-3 py-2 text-sm"
                 >
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <span className="flex flex-wrap items-center gap-1.5">
                       <AlertTriangle
                         className={cn(
                           "size-3.5 shrink-0",
@@ -338,27 +413,71 @@ export default async function AdminDashboardPage() {
                             : "text-amber-600 dark:text-amber-400"
                         )}
                       />
-                      <span className="text-xs text-muted-foreground">
+                      <Badge variant="secondary" className="text-[10px]">
                         {flag.typeLabel}
-                      </span>
+                      </Badge>
                       <span className="font-medium break-words">
                         {flag.title}
                       </span>
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {flag.reason}
+                    {/* One chip per failed check (grouped by issue type). */}
+                    <span className="flex flex-wrap gap-1">
+                      {flag.issues.map((issue) => (
+                        <span
+                          key={issue.code}
+                          title={DQ_ISSUE_INFO[issue.code].explanation}
+                          className={cn(
+                            "inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium",
+                            DQ_ISSUE_INFO[issue.code].tone
+                          )}
+                        >
+                          {issue.label}
+                        </span>
+                      ))}
                     </span>
+                    {(flag.expiryDate || flag.lastCheckedAt) && (
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                        {flag.expiryDate && (
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="size-3" />
+                            Expires {formatDateAU(flag.expiryDate)}
+                          </span>
+                        )}
+                        {flag.lastCheckedAt && (
+                          <span className="inline-flex items-center gap-1">
+                            <RefreshCw className="size-3" />
+                            Checked {formatDateAU(flag.lastCheckedAt)}
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </div>
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href={flag.editHref}>Edit</Link>
+                  <Button asChild variant="ghost" size="sm" className="shrink-0">
+                    <Link href={flag.editHref}>Edit in {flag.typeLabel}</Link>
                   </Button>
                 </div>
               ))}
-              {dataQuality.flaggedItems > dataQuality.flags.length ? (
-                <p className="text-xs text-muted-foreground">
-                  Showing {dataQuality.flags.length} of{" "}
-                  {dataQuality.flaggedItems} flagged items.
-                </p>
+
+              {dataQuality.flaggedItems > DQ_FLAG_LIMIT ? (
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    Showing {displayedFlags.length} of {dataQuality.flaggedItems}{" "}
+                    flagged items
+                  </p>
+                  {showAllFlags ? (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href="/admin/dashboard#data-quality">
+                        Show top {DQ_FLAG_LIMIT}
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href="/admin/dashboard?dq=all#data-quality">
+                        Show all {dataQuality.flaggedItems}
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               ) : null}
             </div>
           )}
