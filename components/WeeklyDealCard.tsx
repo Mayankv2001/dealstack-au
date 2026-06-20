@@ -524,6 +524,15 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
               <Flame className="size-3" />
               Community signal
             </Badge>
+            {data.isSample && (
+              <Badge
+                variant="outline"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-[10px] font-semibold text-amber-700 dark:text-amber-400"
+              >
+                <FlaskConical className="size-3" />
+                Sample
+              </Badge>
+            )}
             {data.subject && (
               <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                 <StoreIcon className="size-3" />

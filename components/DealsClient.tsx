@@ -472,9 +472,9 @@ function SectionHeading({
 }
 
 const verificationNotes = [
-  "Gift card acceptance and discounts change weekly — confirm the card is accepted before buying.",
-  "Most cashback offers exclude gift card payment; you usually cannot claim both on one order.",
-  "Points boosts almost always need to be activated in the program app before you shop.",
+  "Confirm the discounted gift card is actually accepted at that store before buying.",
+  "Check the cashback offer doesn't void on gift-card payment — you usually can't claim both on one order.",
+  "Activate any points boost in the program app before you shop.",
 ];
 
 interface DealsClientProps {
@@ -633,8 +633,12 @@ export default function DealsClient({
               </span>
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              DealStack summarises weekly opportunities and links to the original
-              sources. Always confirm offer terms before buying.
+              Every rate here is{" "}
+              <span className="font-medium text-foreground">
+                manually curated and cached — not fetched live
+              </span>
+              . Each card shows when it was last checked; always confirm the
+              offer at its source before buying.
             </p>
           </div>
 
@@ -642,9 +646,8 @@ export default function DealsClient({
           <p className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <span>
-              These are static/manual MVP examples. Offers change quickly. Always
-              verify with the original source, cashback provider, gift card
-              portal, or retailer before purchasing.
+              Prices and rates move fast. Treat these as a curated starting
+              point and confirm the live offer at its source before you spend.
             </span>
           </p>
         </div>
@@ -862,7 +865,7 @@ export default function DealsClient({
               icon={CreditCard}
               iconClass="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               title="Cashback boosts"
-              subtitle="ShopBack and TopCashback rates — note gift card exclusions."
+              subtitle="ShopBack & TopCashback rates — most can't be combined with gift-card discounts on the same order."
             />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visCash.map((d, i) => (
@@ -964,29 +967,31 @@ export default function DealsClient({
           </div>
         </section>
 
-        {/* Verification notes + single bottom disclaimer */}
+        {/* How to verify + single bottom disclaimer */}
         <section className="mt-8">
           <SectionHeading
             icon={AlertTriangle}
             iconClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
-            title="Before you buy"
-            subtitle="A few things that trip up stackers."
+            title="How to verify before you buy"
+            subtitle="Three quick checks that trip up stackers."
           />
           <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 shadow-sm sm:p-5">
-            <ul className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-3">
-              {verificationNotes.map((note) => (
+            <ol className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+              {verificationNotes.map((note, i) => (
                 <li key={note} className="flex gap-2 text-xs leading-relaxed">
-                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                    {i + 1}
+                  </span>
                   <span className="text-muted-foreground">{note}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
             <p className="mt-4 border-t border-amber-500/20 pt-3 text-xs leading-relaxed text-muted-foreground">
-              <strong>Disclaimer:</strong> These are static/manual MVP examples.
-              Offers change quickly. Always verify with the original source,
-              cashback provider, gift card portal, or retailer before purchasing.
-              DealStack AU is not affiliated with any retailer, program or
-              provider mentioned.
+              <strong>Disclaimer:</strong> These are manually curated, cached
+              examples — not live data. Offers change quickly. Always verify with
+              the original source, cashback provider, gift card portal, or
+              retailer before purchasing. DealStack AU is not affiliated with any
+              retailer, program or provider mentioned.
             </p>
           </div>
         </section>
