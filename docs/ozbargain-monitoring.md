@@ -1,12 +1,17 @@
 # OzBargain Monitoring — Planning & Compliance
 
-> **⚠️ Do not implement automated fetching until compliance review is complete.**
+> **⚠️ Automated fetching only runs behind the compliance gate.**
 >
-> This is a **planning and checklist document only**. No fetcher, cron route,
-> migration, or network code may be written or merged until the
-> [Compliance review](#compliance-rules) checklist below is fully signed off and
-> recorded. Until then, OzBargain data stays 100% manual (admin-entered) and the
-> static sample fallback continues to serve.
+> Compliance is approved on file (see [decision log](#compliance-decision-log)),
+> so the Phase 1 fetcher and a **secret-gated cron route** now exist — but they
+> stay **off by default**: the master switch `OZB_MONITOR_ENABLED` defaults off,
+> every `feed_sources` row starts disabled, and the cron route additionally
+> re-checks the compliance gate at request time. With any one of those off, no
+> outbound request is made and OzBargain data stays 100% manual (admin-entered)
+> with the static sample fallback serving. The invariants are non-negotiable:
+> feed-only (no scraping/crawling/anti-bot bypass), no user-triggered fetches,
+> writes only to the staging tables (never `ozbargain_signals`), and **admin
+> approval stays mandatory**.
 
 ---
 
@@ -311,8 +316,14 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 - [ ] 5. Admin review queue UI (list / ignore / import), reusing the signal
       form; promote → `pending`.
 - [ ] 6. Auto-expire job (conservative, reversible).
-- [ ] 7. Schedule via Vercel Cron at low cadence — only after manual runs look
-      clean.
+- [x] 7. Schedule via Vercel Cron at low cadence. *(Done —
+      `app/api/cron/monitor-feeds/route.ts` + `vercel.json`, every 12h UTC. The
+      route is secret-gated (`CRON_SECRET` → 503 if unset, 401 on mismatch),
+      flag-gated (`OZB_MONITOR_ENABLED`), and compliance-gated
+      (`isMonitoringApproved`); it runs the shared `runMonitor()` in write mode to
+      the staging tables only — never `ozbargain_signals`. Off by default; enable
+      real feeds only after clean staging dry runs. Gate tests:
+      `tests/monitor/cronRoute.test.ts`.)*
 - [~] 8. Observability + alerts + admin kill-switch toggle. *(Partial — a
       read-only status page exists at `/admin/monitor`
       (`lib/admin/repos/monitorStatus.ts`): master-switch value, compliance
@@ -595,7 +606,7 @@ Behaviour and guarantees (enforced in code, covered by `npm run test:monitor`):
 
 ## Status
 
-**Current phase: Phase 1 — manual dry-run fetcher in place. No cron, no agent.**
+**Current phase: Phase 1 — manual dry-run fetcher + secret-gated cron in place. No agent.**
 On top of the staging schema (`002_feed_import_queue.sql`) and the pure offline
 parser/mapper (`lib/monitor/parseFeed.ts`, `lib/monitor/mapFeedItem.ts`), the
 monitor now has:
@@ -617,11 +628,21 @@ Unit-tested offline (`npm run test:monitor`): parser/mapper, backoff math,
 blocked-body detection, and the orchestrator's kill-switch + "dry run writes
 nothing" + "blocked stops & disables" invariants.
 
-**Still not built (out of scope for Phase 1):** the Vercel Cron route,
-`vercel.json`, the auto-expire job, and any user-triggered fetch. There is **no
-cron and no agent**; the fetcher is reachable only from the manual script. The
-master switch (`OZB_MONITOR_ENABLED`) defaults **off**, and every feed in
-`feed_sources` starts **disabled**, so a fresh deploy makes no outbound requests.
+**Now added (cron Phase 1):** a secret-gated Vercel Cron route
+(`app/api/cron/monitor-feeds/route.ts` + `vercel.json`, `GET`, every 12h UTC) that
+runs the shared `runMonitor()` in **write mode to the staging tables only**. It is
+gated three ways — `CRON_SECRET` (503 when unset, 401 on mismatch — Vercel Cron
+sends the bearer automatically), `OZB_MONITOR_ENABLED` (master kill switch), and
+an approved compliance review — and it **never** writes `ozbargain_signals`, so
+admin review stays mandatory. No page imports the fetcher, so user traffic still
+cannot trigger it. Gate behaviour is unit-tested in
+`tests/monitor/cronRoute.test.ts`.
+
+**Still not built (out of scope):** the auto-expire job and any user-triggered
+fetch. There is **no agent**. The master switch (`OZB_MONITOR_ENABLED`) defaults
+**off**, every feed in `feed_sources` starts **disabled**, and the cron route
+re-checks compliance at request time — so a fresh deploy makes **no** outbound
+requests even with the cron scheduled.
 
 > **Automated scheduling (cron) stays gated** — only enable real feeds and raise
 > cadence after manual dry runs against a staging project look clean.

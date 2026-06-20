@@ -39,6 +39,18 @@ export const supabaseAnonKey = (): string =>
 export const supabaseServiceRoleKey = (): string =>
   requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 
+/**
+ * Shared secret the monitor cron route checks (Authorization: Bearer …). Vercel
+ * Cron sends it automatically when CRON_SECRET is set in the project env. This
+ * is an OPTIONAL, non-throwing read: null when unset/blank, so the route can
+ * refuse to run (503) instead of throwing. SERVER ONLY — never expose the value
+ * in any response, and never prefix with NEXT_PUBLIC_.
+ */
+export const cronSecret = (): string | null => {
+  const value = process.env.CRON_SECRET;
+  return value && value.trim() !== "" ? value : null;
+};
+
 // ── OzBargain feed monitor (SERVER/SCRIPT ONLY) ──────────────────────────────
 // All gated behind the master switch below. These are lazy reads (functions) so
 // importing this module never throws; the monitor only calls them on its own
