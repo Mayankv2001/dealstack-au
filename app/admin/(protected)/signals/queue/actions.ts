@@ -69,3 +69,34 @@ export async function markDuplicate(feedItemId: string): Promise<void> {
   });
   revalidateQueue();
 }
+
+/** Hard cap on a single bulk-ignore call — defensive against a huge payload. */
+const BULK_IGNORE_MAX = 200;
+
+/**
+ * Ignore a scoped set of items in one pass — the IDs the admin can currently see
+ * after filtering. Uses the SAME per-item review-state write as `ignoreItem`
+ * (review_state = 'ignored'); it never imports, never approves, and never touches
+ * ozbargain_signals. The caller passes only the visible/filtered ids, and the set
+ * is deduped and capped here as a backstop.
+ */
+export async function ignoreVisibleItems(feedItemIds: string[]): Promise<void> {
+  const { email } = await requireAdmin();
+  const ids = [...new Set(feedItemIds)]
+    .filter((id): id is string => typeof id === "string" && id.length > 0)
+    .slice(0, BULK_IGNORE_MAX);
+  if (ids.length === 0) return;
+
+  for (const id of ids) {
+    await setFeedItemReviewState(id, "ignored");
+  }
+  await logAudit({
+    actorEmail: email,
+    action: "ignore",
+    tableName: "feed_items",
+    rowId: null,
+    // One summary row for the batch; keep a capped id list for traceability.
+    diff: { bulk: true, count: ids.length, ids: ids.slice(0, 50) },
+  });
+  revalidateQueue();
+}
