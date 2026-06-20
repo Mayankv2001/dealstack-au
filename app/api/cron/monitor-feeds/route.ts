@@ -19,8 +19,8 @@ import {
 /**
  * Secret-gated OzBargain monitor cron route — Phase 1 cron.
  *
- * GET /api/cron/monitor-feeds. Vercel Cron hits this every 12h (see vercel.json)
- * and, when CRON_SECRET is set in the project env, sends
+ * GET /api/cron/monitor-feeds. Vercel Cron hits this once daily at 02:00 UTC
+ * (see vercel.json) and, when CRON_SECRET is set in the project env, sends
  * `Authorization: Bearer ${CRON_SECRET}` automatically.
  *
  * Gate order — NOTHING fetches until every gate passes:

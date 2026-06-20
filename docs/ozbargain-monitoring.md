@@ -317,7 +317,8 @@ Each step is independently shippable and safe. **Do not start step 2 until the
       form; promote → `pending`.
 - [ ] 6. Auto-expire job (conservative, reversible).
 - [x] 7. Schedule via Vercel Cron at low cadence. *(Done —
-      `app/api/cron/monitor-feeds/route.ts` + `vercel.json`, every 12h UTC. The
+      `app/api/cron/monitor-feeds/route.ts` + `vercel.json`, daily at 02:00 UTC
+      (a once-per-day cadence that also fits the Vercel Hobby plan cron limit). The
       route is secret-gated (`CRON_SECRET` → 503 if unset, 401 on mismatch),
       flag-gated (`OZB_MONITOR_ENABLED`), and compliance-gated
       (`isMonitoringApproved`); it runs the shared `runMonitor()` in write mode to
@@ -445,7 +446,7 @@ later).
   route-handler style (`app/admin/auth/callback/route.ts`).
 - `vercel.json`:
   ```json
-  { "crons": [{ "path": "/api/cron/monitor-feeds", "schedule": "0 */12 * * *" }] }
+  { "crons": [{ "path": "/api/cron/monitor-feeds", "schedule": "0 2 * * *" }] }
   ```
 - **Auth:** require `Authorization: Bearer ${CRON_SECRET}` → else `401`. No public
   triggering.
@@ -629,7 +630,7 @@ blocked-body detection, and the orchestrator's kill-switch + "dry run writes
 nothing" + "blocked stops & disables" invariants.
 
 **Now added (cron Phase 1):** a secret-gated Vercel Cron route
-(`app/api/cron/monitor-feeds/route.ts` + `vercel.json`, `GET`, every 12h UTC) that
+(`app/api/cron/monitor-feeds/route.ts` + `vercel.json`, `GET`, daily at 02:00 UTC) that
 runs the shared `runMonitor()` in **write mode to the staging tables only**. It is
 gated three ways — `CRON_SECRET` (503 when unset, 401 on mismatch — Vercel Cron
 sends the bearer automatically), `OZB_MONITOR_ENABLED` (master kill switch), and

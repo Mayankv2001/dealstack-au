@@ -214,7 +214,7 @@ function recommendedAction(status: MonitorStatus): NextAction {
   if (!status.lastSuccessLog) {
     return {
       message:
-        "Configured — waiting for the first successful run. The cron runs every 12h UTC; check Recent fetch runs below.",
+        "Configured — waiting for the first successful run. The cron runs daily at 02:00 UTC; check Recent fetch runs below.",
       tone: "info",
     };
   }
