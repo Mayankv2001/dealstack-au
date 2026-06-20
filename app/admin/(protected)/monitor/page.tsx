@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, Info, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Info,
+  Lightbulb,
+  ListChecks,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   getMonitorStatus,
   type MonitorFetchLogEntry,
+  type MonitorStatus,
 } from "@/lib/admin/repos/monitorStatus";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -105,6 +114,127 @@ function FetchLogSummary({
   );
 }
 
+/** One row of the "Cron ready?" checklist — derived, read-only. */
+interface CronCheck {
+  label: string;
+  ok: boolean;
+  hint: string;
+}
+
+/** The six prerequisites for the scheduled cron to actually do useful work. */
+function cronChecklist(status: MonitorStatus): CronCheck[] {
+  return [
+    {
+      label: "CRON_SECRET configured",
+      ok: status.cronSecretConfigured,
+      hint: status.cronSecretConfigured
+        ? "The cron route can authenticate."
+        : "Without it the cron route returns 503 and never runs.",
+    },
+    {
+      label: "Monitor enabled",
+      ok: status.envEnabled,
+      hint: `OZB_MONITOR_ENABLED = ${status.envEnabledRaw ?? "unset"}.`,
+    },
+    {
+      label: "Compliance approved",
+      ok: status.complianceApproved,
+      hint: status.complianceApproved
+        ? "An approved review is on file."
+        : "Record and approve a review first.",
+    },
+    {
+      label: "At least one feed source enabled",
+      ok: status.feedSourcesEnabled > 0,
+      hint: `${status.feedSourcesEnabled} of ${status.feedSourcesTotal} enabled.`,
+    },
+    {
+      label: "Last successful run exists",
+      ok: status.lastSuccessLog != null,
+      hint: status.lastSuccessLog
+        ? `Last clean run ${formatDate(status.lastSuccessLog.startedAt)}.`
+        : "No successful run recorded yet.",
+    },
+    {
+      label: "Queue has staged items",
+      ok: status.feedQueuePending > 0,
+      hint: `${status.feedQueuePending} awaiting review.`,
+    },
+  ];
+}
+
+type NextActionTone = "ok" | "warn" | "info";
+
+interface NextAction {
+  message: string;
+  tone: NextActionTone;
+  href?: string;
+  hrefLabel?: string;
+}
+
+/**
+ * The single most useful next step, chosen by walking the prerequisites in
+ * dependency order. Purely advisory — it never enables, disables, or runs
+ * anything, and it never suggests arming the monitor before compliance is
+ * approved (compliance is checked first).
+ */
+function recommendedAction(status: MonitorStatus): NextAction {
+  if (!status.complianceApproved) {
+    return {
+      message:
+        "Record and approve a compliance review before enabling anything.",
+      tone: "warn",
+      href: "/admin/compliance",
+      hrefLabel: "Compliance",
+    };
+  }
+  if (!status.cronSecretConfigured) {
+    return {
+      message:
+        "Set CRON_SECRET in your deployment env — the cron route returns 503 until it is configured. (The manual monitor:feeds script does not need it.)",
+      tone: "warn",
+    };
+  }
+  if (!status.envEnabled) {
+    return {
+      message:
+        "Set OZB_MONITOR_ENABLED=true in your deployment env to arm the monitor.",
+      tone: "info",
+    };
+  }
+  if (status.feedSourcesEnabled === 0) {
+    return {
+      message:
+        "Enable at least one feed source so the cron has something to fetch.",
+      tone: "warn",
+      href: "/admin/signals/sources",
+      hrefLabel: "Feed Sources",
+    };
+  }
+  if (!status.lastSuccessLog) {
+    return {
+      message:
+        "Configured — waiting for the first successful run. The cron runs every 12h UTC; check Recent fetch runs below.",
+      tone: "info",
+    };
+  }
+  if (status.feedQueuePending === 0) {
+    return {
+      message:
+        "Running, but nothing is awaiting review right now. No action needed.",
+      tone: "ok",
+    };
+  }
+  return {
+    message: `Ready — review the ${status.feedQueuePending} staged item${
+      status.feedQueuePending === 1 ? "" : "s"
+    } in the queue.`,
+    tone: "ok",
+    href: "/admin/signals/queue",
+    hrefLabel: "Feed import queue",
+  };
+}
+
 export default async function MonitorStatusPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
@@ -112,6 +242,12 @@ export default async function MonitorStatusPage() {
   const status = await getMonitorStatus();
 
   const hasRisk = status.enabledWithoutApproval > 0;
+  const checklist = cronChecklist(status);
+  const nextAction = recommendedAction(status);
+  // Operational warnings called out specifically for cron safety.
+  const enabledNoFeeds = status.envEnabled && status.feedSourcesEnabled === 0;
+  const feedsNoSecret =
+    status.feedSourcesEnabled > 0 && !status.cronSecretConfigured;
 
   return (
     <div className="space-y-6">
@@ -190,6 +326,39 @@ export default async function MonitorStatusPage() {
         </div>
       ) : null}
 
+      {/* Cron op-safety: enabled but nothing to fetch. */}
+      {enabledNoFeeds ? (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p>
+            <span className="font-medium text-foreground">
+              Monitor is enabled but no feed sources are enabled.
+            </span>{" "}
+            The cron will run on schedule and fetch nothing. Enable a feed on{" "}
+            <Link href="/admin/signals/sources" className="underline">
+              Feed Sources
+            </Link>{" "}
+            or set <code className="text-xs">OZB_MONITOR_ENABLED=false</code>.
+          </p>
+        </div>
+      ) : null}
+
+      {/* Cron op-safety: feeds enabled but the cron route can't authenticate. */}
+      {feedsNoSecret ? (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p>
+            <span className="font-medium text-foreground">
+              Feed sources are enabled but <code className="text-xs">CRON_SECRET</code>{" "}
+              appears missing.
+            </span>{" "}
+            The Vercel Cron route will return <code className="text-xs">503</code>{" "}
+            and never run until it is set in the deployment env. (The manual{" "}
+            <code className="text-xs">monitor:feeds</code> script still works.)
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Master switch (OZB_MONITOR_ENABLED)"
@@ -213,6 +382,87 @@ export default async function MonitorStatusPage() {
           hint="Items awaiting review"
         />
       </div>
+
+      {/* Cron readiness — operator checklist + a single recommended next action. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ListChecks className="size-5 text-muted-foreground" />
+            Cron ready?
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Recommended next action (advisory only — never runs anything). */}
+          <div
+            className={cn(
+              "flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm",
+              nextAction.tone === "ok" &&
+                "border-emerald-500/30 bg-emerald-500/10",
+              nextAction.tone === "warn" &&
+                "border-amber-500/30 bg-amber-500/10",
+              nextAction.tone === "info" && "bg-muted/40"
+            )}
+          >
+            <Lightbulb
+              className={cn(
+                "mt-0.5 size-4 shrink-0",
+                nextAction.tone === "ok" &&
+                  "text-emerald-600 dark:text-emerald-400",
+                nextAction.tone === "warn" &&
+                  "text-amber-600 dark:text-amber-400",
+                nextAction.tone === "info" && "text-foreground"
+              )}
+            />
+            <p>
+              <span className="font-medium text-foreground">
+                Recommended next action:
+              </span>{" "}
+              {nextAction.message}
+              {nextAction.href ? (
+                <>
+                  {" "}
+                  <Link href={nextAction.href} className="underline">
+                    {nextAction.hrefLabel}
+                  </Link>
+                </>
+              ) : null}
+            </p>
+          </div>
+
+          {/* Six-point readiness checklist. */}
+          <ul className="space-y-2">
+            {checklist.map((check) => (
+              <li key={check.label} className="flex items-start gap-2.5">
+                <span
+                  className={cn(
+                    "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full",
+                    check.ok
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {check.ok ? (
+                    <Check className="size-3" />
+                  ) : (
+                    <X className="size-3" />
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p
+                    className={cn(
+                      "text-sm",
+                      check.ok ? "font-medium" : "text-muted-foreground"
+                    )}
+                  >
+                    {check.label}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{check.hint}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
 
       {/* Staged feed items by triage state. */}
       <Card>

@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { cronSecret } from "@/lib/env";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
 
 /**
@@ -61,6 +62,8 @@ export interface MonitorStatus {
   envEnabledRaw: string | null;
   /** Interpreted master switch — true only when the value is exactly "true". */
   envEnabled: boolean;
+  /** True when CRON_SECRET is set — the cron route returns 503 without it. */
+  cronSecretConfigured: boolean;
   /** True when a compliance_reviews row has approved_for_monitoring = true. */
   complianceApproved: boolean;
   feedSourcesTotal: number;
@@ -265,6 +268,7 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   return {
     envEnabledRaw,
     envEnabled,
+    cronSecretConfigured: cronSecret() != null,
     complianceApproved,
     feedSourcesTotal,
     feedSourcesEnabled,
