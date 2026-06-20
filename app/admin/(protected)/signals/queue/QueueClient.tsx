@@ -5,9 +5,11 @@ import {
   AlertTriangle,
   Clock,
   ExternalLink,
+  Gauge,
   RefreshCw,
   Rss,
   Search,
+  Store as StoreIcon,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +22,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { stores } from "@/lib/data";
 import type { FeedQueueItem } from "@/lib/admin/repos/feedQueue";
+import { findMerchantIdInText } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 import {
   ignoreItem,
@@ -60,6 +64,99 @@ function safeHost(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+// ── Review-assist heuristics (display only — never auto-import or reject) ──────
+
+const STORE_NAME_BY_ID = new Map(stores.map((s) => [s.id, s.name]));
+
+/** High-value cues: our core deal types + the points programmes we track. */
+const HIGH_RELEVANCE_KEYWORDS = [
+  "gift card",
+  "giftcard",
+  "cashback",
+  "cash back",
+  "points",
+  "qantas",
+  "velocity",
+  "flybuys",
+  "everyday rewards",
+  "frequent flyer",
+];
+
+/** Generic retail/deal cues: relevant category, but not a tracked store/type. */
+const MEDIUM_RELEVANCE_KEYWORDS = [
+  "discount",
+  "deal",
+  "sale",
+  "clearance",
+  "coupon",
+  "promo",
+  "voucher",
+  "bonus",
+  "% off",
+  "percent off",
+  "bundle",
+  "catalogue",
+  "price drop",
+  "rrp",
+];
+
+type Relevance = "high" | "medium" | "low";
+
+const RELEVANCE_META: Record<
+  Relevance,
+  { label: string; className: string }
+> = {
+  high: {
+    label: "High relevance",
+    className:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  },
+  medium: {
+    label: "Medium relevance",
+    className:
+      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  },
+  low: {
+    label: "Low relevance",
+    className: "border-muted-foreground/30 text-muted-foreground",
+  },
+};
+
+/**
+ * A heuristic, read-only review hint for one staged item:
+ *   - suggestedMerchant: the tracked store auto-detected in the TITLE (mirrors
+ *     what the import action would set), via the existing normalise helper;
+ *   - relevance: High when a tracked store is mentioned anywhere or a core
+ *     keyword (gift card / cashback / points / Qantas / Velocity …) is present;
+ *     Medium for generic retail/deal cues; Low otherwise.
+ * It NEVER imports, rejects, or changes any state — it only helps the admin
+ * decide faster.
+ */
+function assessItem(item: FeedQueueItem): {
+  suggestedMerchant: string | null;
+  relevance: Relevance;
+} {
+  const haystack =
+    `${item.rawTitle} ${item.rawSummary} ${item.categories.join(" ")}`.toLowerCase();
+  // Title-only match mirrors the import action's auto-suggested merchant.
+  const titleMerchantId = findMerchantIdInText(item.rawTitle);
+  const suggestedMerchant = titleMerchantId
+    ? STORE_NAME_BY_ID.get(titleMerchantId) ?? null
+    : null;
+  // Relevance considers the whole item (a tracked store mentioned anywhere counts).
+  const mentionsTrackedStore = findMerchantIdInText(haystack) != null;
+
+  let relevance: Relevance;
+  if (mentionsTrackedStore || HIGH_RELEVANCE_KEYWORDS.some((k) => haystack.includes(k))) {
+    relevance = "high";
+  } else if (MEDIUM_RELEVANCE_KEYWORDS.some((k) => haystack.includes(k))) {
+    relevance = "medium";
+  } else {
+    relevance = "low";
+  }
+  return { suggestedMerchant, relevance };
 }
 
 /** Quick keyword presets for the merchants / deal types we care about. */
@@ -273,10 +370,31 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
         <div className="space-y-4">
           {filtered.map((item) => {
             const host = safeHost(item.link);
+            const { suggestedMerchant, relevance } = assessItem(item);
+            const rel = RELEVANCE_META[relevance];
             return (
               <Card key={item.id} className="flex flex-col">
                 <CardHeader className="gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Review-assist hints (heuristic; never auto-import/reject). */}
+                    <Badge
+                      variant="outline"
+                      className={cn("gap-1", rel.className)}
+                      title="Heuristic relevance hint — review assistance only; it never imports or rejects."
+                    >
+                      <Gauge className="size-3" />
+                      {rel.label}
+                    </Badge>
+                    {suggestedMerchant ? (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+                        title="Suggested store match (auto-detected from the title) — confirm on import."
+                      >
+                        <StoreIcon className="size-3" />
+                        {suggestedMerchant}
+                      </Badge>
+                    ) : null}
                     <Badge variant="outline" className="gap-1">
                       <Rss className="size-3" />
                       {item.feedSourceLabel ?? "Unknown feed"}
