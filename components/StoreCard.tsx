@@ -18,6 +18,29 @@ export const providerBadgeClasses: Record<string, string> = {
 
 export const SAMPLE_SPEND = 500;
 
+/** Compact capability pill — the "this store has X" badges shown on each card. */
+function CapabilityPill({
+  icon: Icon,
+  label,
+  className,
+}: {
+  icon: typeof Gift;
+  label: string;
+  className: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+        className
+      )}
+    >
+      <Icon className="size-2.5" />
+      {label}
+    </span>
+  );
+}
+
 function SavingRow({
   icon: Icon,
   iconClass,
@@ -50,9 +73,11 @@ export function StoreCard({ store }: { store: Store }) {
     giftCardDiscountPercent: store.giftCardDiscountPercent,
   });
 
+  const hasPoints = store.pointsProgram !== "—";
+
   return (
     <Link href={`/stores/${store.id}`} className="group block">
-      <Card className="h-full gap-0 py-0 shadow-sm transition-all duration-200 group-hover:-translate-y-1 group-hover:border-emerald-500/50 group-hover:shadow-lg group-hover:shadow-emerald-500/10">
+      <Card className="h-full gap-0 rounded-2xl py-0 shadow-sm ring-foreground/[0.08] transition-all duration-200 group-hover:-translate-y-1 group-hover:ring-emerald-500/50 group-hover:shadow-lg group-hover:shadow-emerald-500/10">
         <CardContent className="flex h-full flex-col gap-3 p-4">
           <div className="flex items-center gap-2.5">
             <StoreLogo store={store} size="sm" />
@@ -64,6 +89,31 @@ export function StoreCard({ store }: { store: Store }) {
                 {store.category}
               </p>
             </div>
+          </div>
+
+          {/* Capability badges: which savings layers this store supports */}
+          <div className="flex flex-wrap gap-1">
+            {store.cashbackPercent > 0 && (
+              <CapabilityPill
+                icon={CreditCard}
+                label="Cashback"
+                className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              />
+            )}
+            {store.giftCardDiscountPercent > 0 && (
+              <CapabilityPill
+                icon={Gift}
+                label="Gift cards"
+                className="border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-400"
+              />
+            )}
+            {hasPoints && (
+              <CapabilityPill
+                icon={Star}
+                label="Points"
+                className="border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+              />
+            )}
           </div>
 
           {/* Headline saving: the discount code */}
@@ -127,15 +177,15 @@ export function StoreCard({ store }: { store: Store }) {
               iconClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             >
               <span className="min-w-0 truncate text-muted-foreground">
-                {store.pointsProgram !== "—"
+                {hasPoints
                   ? `${store.pointsProgram} · ${store.pointsRate}`
                   : store.pointsRate}
               </span>
             </SavingRow>
           </div>
 
-          {/* Effective price preview on a sample spend */}
-          <div className="rounded-lg border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2 dark:from-emerald-500/15 dark:to-emerald-500/5">
+          {/* Estimated stack value on a sample spend */}
+          <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2 dark:from-emerald-500/15 dark:to-emerald-500/5">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Example spend</span>
               <span className="font-medium">{formatAUD(SAMPLE_SPEND)}</span>
