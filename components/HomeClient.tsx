@@ -373,7 +373,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         </section>
 
         {/* Savings layers */}
-        <section id="how-it-works" className="border-t bg-muted/30">
+        <section id="how-it-works" className="scroll-mt-16 border-t bg-muted/30">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
             <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
               The savings layers
@@ -418,7 +418,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         </section>
 
         {/* Popular stores */}
-        <section id="stores" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+        <section id="stores" className="mx-auto max-w-6xl scroll-mt-16 px-4 py-16 sm:px-6 sm:py-20">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
@@ -478,7 +478,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
 
         {/* Worked $500 deal-stack example */}
         {featured && (
-          <section id="example" className="border-y bg-muted/30">
+          <section id="example" className="scroll-mt-16 border-y bg-muted/30">
             <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
@@ -570,7 +570,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         {/* Calculator */}
         <section
           id="calculator"
-          className="mx-auto flex max-w-6xl flex-col items-center px-4 py-16 sm:px-6 sm:py-20"
+          className="mx-auto flex max-w-6xl scroll-mt-16 flex-col items-center px-4 py-16 sm:px-6 sm:py-20"
         >
           <div className="mb-8 text-center">
             <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
@@ -588,7 +588,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         </section>
 
         {/* Trust & safety */}
-        <section id="trust" className="border-y bg-muted/30">
+        <section id="trust" className="scroll-mt-16 border-y bg-muted/30">
           <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.9fr_1.1fr]">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
@@ -717,7 +717,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
             </nav>
           </div>
 
-          <div id="disclaimer" className="mt-10 border-t pt-6">
+          <div id="disclaimer" className="mt-10 scroll-mt-16 border-t pt-6">
             <p className="text-xs leading-relaxed text-muted-foreground">
               <strong>Disclaimer:</strong> All discount codes, cashback rates,
               gift card discounts, points rates and expiry dates shown on
