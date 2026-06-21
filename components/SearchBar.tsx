@@ -63,7 +63,12 @@ export function SearchBar({
   return (
     <form
       onSubmit={handleSubmit}
-      className={cn(split ? "flex items-stretch gap-2" : "relative", className)}
+      className={cn(
+        split
+          ? "flex flex-col gap-2 sm:flex-row sm:items-stretch"
+          : "relative",
+        className
+      )}
     >
       <div className={cn("relative", split && "flex-1")}>
         <Search
