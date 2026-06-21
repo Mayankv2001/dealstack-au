@@ -4,107 +4,117 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgeCheck,
+  BarChart3,
+  CheckCircle2,
+  Clock,
   CreditCard,
-  Gift,
-  Megaphone,
+  Lock,
   Menu,
-  Receipt,
-  RefreshCw,
+  Percent,
   ShieldCheck,
   Sparkles,
-  Star,
   Store as StoreIcon,
   X,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import DealStackCalculator from "@/components/DealStackCalculator";
 import Logo from "@/components/Logo";
 import SearchBar from "@/components/SearchBar";
 import StoreCard, { SAMPLE_SPEND } from "@/components/StoreCard";
-import StoreLogo from "@/components/StoreLogo";
-import { calculateStack, formatAUD } from "@/lib/calculateStack";
+import { calculateStack, formatAUD, type StackResult } from "@/lib/calculateStack";
 import type { Store } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 /**
  * Homepage client island. All interactive UI (search box, live store filtering,
- * mobile nav) lives here; the `stores` list is loaded on the server
- * (app/page.tsx) via the repo layer and passed in as a prop, so the homepage
- * shows live Supabase data while still rendering from the static fallback when
- * the DB is unavailable. No data fetching or business logic lives here — every
- * dollar figure is derived from the passed-in stores via calculateStack().
+ * mobile nav, the worked-example view toggle) lives here; the `stores` list is
+ * loaded on the server (app/page.tsx) via the repo layer and passed in as a
+ * prop, so the homepage shows live Supabase data while still rendering from the
+ * static fallback when the DB is unavailable. No data fetching or business
+ * logic lives here — every dollar figure is derived from the passed-in stores
+ * via calculateStack().
  */
 
 const navLinks = [
-  { label: "Stores", href: "#stores", external: false },
-  { label: "Weekly Deals", href: "/deals", external: true },
   { label: "How it works", href: "#how-it-works", external: false },
-  { label: "Calculator", href: "#calculator", external: false },
-  { label: "Resources", href: "/resources", external: true },
+  { label: "Stores", href: "#stores", external: false },
+  { label: "Deal stacks", href: "/deals", external: true },
+  { label: "Trust & safety", href: "#trust", external: false },
 ];
 
 const savingsLayers = [
   {
-    icon: CreditCard,
+    icon: Percent,
+    iconClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     title: "Cashback",
     description:
-      "Click through ShopBack or TopCashback and a slice of your checkout comes back to you — on top of any discount.",
-    accent: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+      "Earn a percentage back on every eligible purchase, paid out after the store confirms your order.",
+    example: "≈ $18 back on a $300 order",
+    exampleClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   },
   {
-    icon: Gift,
+    icon: CreditCard,
+    iconClass: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
     title: "Discounted gift cards",
     description:
-      "Buy gift cards below face value via RACV, NRMA, RACQ or Suncorp Benefits, then pay with them at checkout.",
-    accent: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+      "Buy store gift cards below face value, then pay with them at checkout for an instant upfront discount.",
+    example: "Up to 6% off before you shop",
+    exampleClass: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
   },
   {
-    icon: Star,
+    icon: Sparkles,
+    iconClass: "bg-amber-500/10 text-amber-600 dark:text-amber-500",
     title: "Points & rewards",
     description:
-      "Scan Flybuys, Everyday Rewards or a store program so points pile up on everything you were already buying.",
-    accent: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    href: "/resources",
-    linkLabel: "Points resources",
+      "Stack loyalty points and card rewards on the same spend, so nothing is left on the table.",
+    example: "+2,400 points on a typical shop",
+    exampleClass: "bg-amber-500/10 text-amber-700 dark:text-amber-500",
   },
   {
-    icon: Megaphone,
+    icon: BarChart3,
+    iconClass: "bg-slate-500/10 text-slate-600 dark:text-slate-300",
     title: "Community deal signals",
     description:
-      "We surface manually curated weekly deals and community signals worth stacking — never auto-published.",
-    accent: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    href: "/deals",
-    linkLabel: "Browse weekly deals",
+      "See which deals the community is finding and verifying right now, ranked by real activity.",
+    example: "Live from the community feed",
+    exampleClass: "bg-slate-500/10 text-slate-700 dark:text-slate-300",
   },
 ];
 
 const trustPoints = [
   {
     icon: ShieldCheck,
-    title: "Manually curated",
+    title: "Manually curated & cached",
     description:
-      "Every store and example stack is reviewed by a human. Nothing is auto-published or scraped on demand.",
+      "Every offer is reviewed and recorded by a person — never blindly auto-scraped from a feed.",
   },
   {
-    icon: RefreshCw,
-    title: "Cached & refreshed",
+    icon: Clock,
+    title: "“Last checked” on every offer",
     description:
-      "Offers are cached and refreshed periodically for speed — not pulled live from retailers each visit.",
+      "See exactly when a deal was last verified, so you can judge how fresh it is.",
   },
   {
-    icon: BadgeCheck,
-    title: "Verify before buying",
+    icon: CheckCircle2,
+    title: "Verify before you buy",
     description:
-      "Rates and codes change fast. Always confirm the current offer with the retailer and provider first.",
+      "Always confirm the rate and terms at the store before checkout. Offers can change.",
+  },
+  {
+    icon: Lock,
+    title: "No automatic publishing",
+    description:
+      "Community feeds are reviewed first — nothing goes public from a raw feed unchecked.",
   },
 ];
 
 export default function HomeClient({ stores }: { stores: Store[] }) {
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [exampleView, setExampleView] = useState<"waterfall" | "receipt">(
+    "waterfall"
+  );
 
   const filteredStores = stores.filter((store) =>
     `${store.name} ${store.category}`
@@ -115,8 +125,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
   // Feature the store with the biggest dollar saving on a sample $500 spend.
   // Used for the hero teaser and the worked $500 example — derived, not stored.
   const featured = useMemo(() => {
-    let best: { store: Store; stack: ReturnType<typeof calculateStack> } | null =
-      null;
+    let best: { store: Store; stack: StackResult } | null = null;
     for (const store of stores) {
       const stack = calculateStack({
         originalPrice: SAMPLE_SPEND,
@@ -132,12 +141,12 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
   }, [stores]);
 
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
+    <div className="min-h-screen bg-background">
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
-          <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
+          <nav className="hidden items-center gap-7 text-sm font-medium text-muted-foreground md:flex">
             {navLinks.map((link) =>
               link.external ? (
                 <Link
@@ -159,12 +168,15 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
             )}
           </nav>
           <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link href="/admin/login">Sign in</Link>
+            </Button>
             <Button
               asChild
               size="sm"
               className="hidden bg-emerald-600 text-white hover:bg-emerald-700 sm:inline-flex"
             >
-              <a href="#calculator">Try the calculator</a>
+              <a href="#stores">Get started</a>
             </Button>
             <Button
               variant="outline"
@@ -203,15 +215,22 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
                   </a>
                 )
               )}
-              <Button
-                asChild
-                size="sm"
-                className="mt-1 bg-emerald-600 text-white hover:bg-emerald-700"
-              >
-                <a href="#calculator" onClick={() => setMenuOpen(false)}>
-                  Try the calculator
-                </a>
-              </Button>
+              <div className="mt-2 flex flex-col gap-2 border-t pt-3">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/admin/login" onClick={() => setMenuOpen(false)}>
+                    Sign in
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  <a href="#stores" onClick={() => setMenuOpen(false)}>
+                    Get started
+                  </a>
+                </Button>
+              </div>
             </nav>
           </div>
         )}
@@ -219,70 +238,62 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
 
       <main>
         {/* Hero */}
-        <section className="relative overflow-hidden border-b">
+        <section className="relative overflow-hidden">
           <div
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-b from-emerald-500/15 via-emerald-500/[0.04] to-transparent"
+            className="absolute inset-0 bg-gradient-to-b from-emerald-500/[0.07] via-transparent to-transparent"
           />
-          <div
-            aria-hidden
-            className="absolute -top-32 left-1/2 size-[28rem] -translate-x-1/2 rounded-full bg-emerald-500/15 blur-3xl"
-          />
-          <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                <Sparkles className="size-3.5" />
-                Codes + cashback + gift cards + points
+          <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr]">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                Australia’s deal-stacking platform
               </span>
-              <h1 className="mt-4 font-serif text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
-                Stack every saving{" "}
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  before you shop
-                </span>
+              <h1 className="mt-5 font-serif text-[2.75rem] font-bold leading-[1.04] tracking-tight sm:text-6xl">
+                Stack every saving before you shop
               </h1>
-              <p className="mt-4 max-w-xl text-base text-muted-foreground sm:text-lg">
-                Find the discount code, cashback, discounted gift cards and
-                points for your favourite Australian stores — combined into one
+              <p className="mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">
+                Combine{" "}
+                <strong className="font-semibold text-foreground">
+                  cashback
+                </strong>
+                ,{" "}
+                <strong className="font-semibold text-foreground">
+                  discounted gift cards
+                </strong>
+                ,{" "}
+                <strong className="font-semibold text-foreground">
+                  loyalty points
+                </strong>{" "}
+                and live{" "}
+                <strong className="font-semibold text-foreground">
+                  community deal signals
+                </strong>{" "}
+                into one stacked discount — so you pay the lowest possible
                 effective price.
               </p>
 
-              <div className="mt-6 max-w-xl">
+              <div className="mt-7 max-w-xl">
                 <SearchBar
                   size="lg"
+                  layout="split"
                   value={query}
                   onValueChange={setQuery}
-                  placeholder="Search a store, e.g. JB Hi-Fi"
+                  placeholder="Search stores or products…"
+                  buttonLabel="Search deals"
                 />
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <Button
-                  asChild
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
-                >
+              <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
+                <Button asChild variant="outline" className="bg-background">
                   <a href="#stores">
-                    Browse popular stores
+                    Browse stores
                     <ArrowRight className="size-4" />
                   </a>
                 </Button>
-                <Button asChild variant="outline" className="bg-background">
-                  <a href="#example">See a $500 stack</a>
-                </Button>
-              </div>
-
-              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                  Manually curated
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <RefreshCw className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                  No scraping
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <BadgeCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                  Verify before buying
-                </span>
+                <p className="text-sm text-muted-foreground">
+                  Manually curated · No scraping · Verify before buying
+                </p>
               </div>
             </div>
 
@@ -291,73 +302,69 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
               <div className="relative">
                 <div
                   aria-hidden
-                  className="absolute -inset-3 -z-10 rounded-[28px] bg-emerald-500/10 blur-2xl"
+                  className="absolute -inset-4 -z-10 rounded-[32px] bg-emerald-500/10 blur-2xl"
                 />
-                <Card className="rounded-3xl border-emerald-500/20 shadow-xl shadow-emerald-900/[0.08]">
-                  <CardContent className="p-5 sm:p-6">
+                <Card className="rounded-3xl shadow-xl shadow-emerald-900/[0.08]">
+                  <CardContent className="p-6 sm:p-7">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        Example stack · {formatAUD(SAMPLE_SPEND)} cart
+                        Your stack · {formatAUD(SAMPLE_SPEND)} cart
                       </span>
-                      <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600">
+                      <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                         Save {featured.stack.totalSavingPercent}%
-                      </Badge>
+                      </span>
                     </div>
 
-                    <div className="mt-4 flex items-center gap-3">
-                      <StoreLogo store={featured.store} size="md" />
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold leading-tight">
-                          {featured.store.name}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {featured.store.category}
-                        </p>
-                      </div>
+                    <div className="mt-4 flex items-baseline gap-2">
+                      <span className="font-serif text-5xl font-bold tracking-tight">
+                        {formatAUD(featured.stack.finalEffectivePrice)}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        effective
+                      </span>
                     </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      down from {formatAUD(SAMPLE_SPEND)}
+                    </p>
 
-                    <div className="mt-5 flex items-end justify-between rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-transparent px-4 py-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">
-                          Effective price
-                        </p>
-                        <p className="text-3xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
-                          {formatAUD(featured.stack.finalEffectivePrice)}
-                        </p>
-                      </div>
-                      <p className="pb-1 text-sm font-medium text-muted-foreground line-through">
-                        {formatAUD(SAMPLE_SPEND)}
-                      </p>
-                    </div>
-
-                    <dl className="mt-4 space-y-1.5 text-sm">
-                      <StackLine
-                        label={`Discount code${
-                          featured.store.discountPercent > 0
-                            ? ` (${featured.store.discountPercent}%)`
-                            : ""
-                        }`}
-                        value={featured.stack.discountSaving}
-                      />
-                      <StackLine
-                        label="Discounted gift cards"
-                        value={featured.stack.giftCardSaving}
-                      />
-                      <StackLine
-                        label="Cashback"
-                        value={featured.stack.estimatedCashback}
-                      />
+                    <dl className="mt-6 space-y-3 text-sm">
+                      {featured.stack.discountSaving > 0 && (
+                        <TeaserLine
+                          dotClass="bg-primary"
+                          label={`Discount code (${featured.store.discountPercent}%)`}
+                          value={featured.stack.discountSaving}
+                        />
+                      )}
+                      {featured.stack.giftCardSaving > 0 && (
+                        <TeaserLine
+                          dotClass="bg-sky-600"
+                          label="Discounted gift card"
+                          value={featured.stack.giftCardSaving}
+                        />
+                      )}
+                      {featured.stack.estimatedCashback > 0 && (
+                        <TeaserLine
+                          dotClass="bg-emerald-500"
+                          label={`Cashback (${featured.store.cashbackPercent}%)`}
+                          value={featured.stack.estimatedCashback}
+                        />
+                      )}
                     </dl>
 
-                    <Button
-                      asChild
-                      className="mt-5 w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                    <div className="mt-5 flex items-center justify-between border-t border-dashed pt-4">
+                      <span className="font-medium">Total saved</span>
+                      <span className="font-serif text-xl font-bold text-emerald-700 dark:text-emerald-400">
+                        {formatAUD(featured.stack.totalSaving)}
+                      </span>
+                    </div>
+
+                    <Link
+                      href={`/stores/${featured.store.id}`}
+                      className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
                     >
-                      <Link href={`/stores/${featured.store.id}`}>
-                        View this stack
-                        <ArrowRight className="size-4" />
-                      </Link>
-                    </Button>
+                      See {featured.store.name}’s full stack
+                      <ArrowRight className="size-3.5" />
+                    </Link>
                   </CardContent>
                 </Card>
               </div>
@@ -366,45 +373,44 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         </section>
 
         {/* Savings layers */}
-        <section id="how-it-works" className="border-b bg-background">
-          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-            <div className="max-w-2xl">
-              <h2 className="font-serif text-2xl font-bold tracking-tight sm:text-3xl">
-                Four savings layers, one checkout
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-                Each layer applies to a different part of your purchase, so they
-                multiply instead of clashing. Combine them and the effective
-                price drops well below the sticker.
-              </p>
-            </div>
-            <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section id="how-it-works" className="border-t bg-muted/30">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+              The savings layers
+            </p>
+            <h2 className="mt-3 max-w-2xl font-serif text-3xl font-bold tracking-tight sm:text-4xl">
+              Four ways to save, stacked on one purchase
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">
+              Each layer works on its own. Stacked together on the same cart,
+              they compound into a meaningfully lower effective price.
+            </p>
+            <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {savingsLayers.map((layer) => (
                 <div
                   key={layer.title}
-                  className="flex flex-col rounded-2xl border bg-card p-5 shadow-sm ring-1 ring-foreground/[0.04] transition-all hover:-translate-y-1 hover:shadow-md"
+                  className="flex flex-col rounded-2xl border bg-card p-6 shadow-sm ring-1 ring-foreground/[0.04] transition-all hover:-translate-y-1 hover:shadow-md"
                 >
                   <span
                     className={cn(
-                      "flex size-10 items-center justify-center rounded-xl",
-                      layer.accent
+                      "flex size-11 items-center justify-center rounded-xl",
+                      layer.iconClass
                     )}
                   >
                     <layer.icon className="size-5" />
                   </span>
-                  <p className="mt-4 font-semibold">{layer.title}</p>
-                  <p className="mt-1.5 flex-1 text-sm leading-relaxed text-muted-foreground">
+                  <p className="mt-5 font-semibold">{layer.title}</p>
+                  <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
                     {layer.description}
                   </p>
-                  {layer.href && (
-                    <Link
-                      href={layer.href}
-                      className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-                    >
-                      {layer.linkLabel}
-                      <ArrowRight className="size-3.5" />
-                    </Link>
-                  )}
+                  <span
+                    className={cn(
+                      "mt-5 inline-flex w-fit rounded-full px-3 py-1 text-xs font-medium",
+                      layer.exampleClass
+                    )}
+                  >
+                    {layer.example}
+                  </span>
                 </div>
               ))}
             </div>
@@ -412,18 +418,17 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         </section>
 
         {/* Popular stores */}
-        <section id="stores" className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <section id="stores" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className="font-serif text-2xl font-bold tracking-tight sm:text-3xl">
+              <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
                 Popular stores
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Example stacks for Australia’s favourite retailers, on a{" "}
-                {formatAUD(SAMPLE_SPEND)} spend.
               </p>
+              <h2 className="mt-3 max-w-xl font-serif text-3xl font-bold tracking-tight sm:text-4xl">
+                Where Australians stack the most
+              </h2>
             </div>
-            {query.trim() && (
+            {query.trim() ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -432,10 +437,19 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
               >
                 Clear search
               </Button>
+            ) : (
+              <Link
+                href="/search"
+                className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+              >
+                View all stores
+                <ArrowRight className="size-4" />
+              </Link>
             )}
           </div>
+
           {filteredStores.length === 0 ? (
-            <Card className="rounded-2xl shadow-sm">
+            <Card className="mt-8 rounded-2xl shadow-sm">
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                 <StoreIcon className="size-8 text-muted-foreground" />
                 <p className="font-medium">No stores match “{query}”</p>
@@ -454,9 +468,9 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {filteredStores.map((store) => (
-                <StoreCard key={store.id} store={store} />
+                <StoreCard key={store.id} store={store} variant="stack" />
               ))}
             </div>
           )}
@@ -464,122 +478,87 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
 
         {/* Worked $500 deal-stack example */}
         {featured && (
-          <section id="example" className="border-y bg-background">
-            <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-2">
-              <div>
-                <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
-                  <Receipt className="size-3.5" />
-                  Worked example
-                </span>
-                <h2 className="mt-4 font-serif text-2xl font-bold tracking-tight sm:text-3xl">
-                  A {formatAUD(SAMPLE_SPEND)} cart at {featured.store.name}
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-                  Watch the sticker price melt as each layer applies in order — a
-                  discount code first, then gift cards bought below face value,
-                  then cashback on what you actually spend.
-                </p>
-
-                {/* Waterfall bar */}
-                <div className="mt-6">
-                  <div className="flex h-3 overflow-hidden rounded-full bg-muted">
-                    <Segment
-                      amount={featured.stack.discountSaving}
-                      className="bg-primary"
-                    />
-                    <Segment
-                      amount={featured.stack.giftCardSaving}
-                      className="bg-violet-500"
-                    />
-                    <Segment
-                      amount={featured.stack.estimatedCashback}
-                      className="bg-emerald-500"
-                    />
-                    <Segment
-                      amount={featured.stack.finalEffectivePrice}
-                      className="bg-foreground/15"
-                    />
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                    <Legend className="bg-primary" label="Discount code" />
-                    <Legend className="bg-violet-500" label="Gift cards" />
-                    <Legend className="bg-emerald-500" label="Cashback" />
-                    <Legend className="bg-foreground/15" label="You pay" />
-                  </div>
+          <section id="example" className="border-y bg-muted/30">
+            <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+                    A worked example
+                  </p>
+                  <h2 className="mt-3 max-w-2xl font-serif text-3xl font-bold tracking-tight sm:text-4xl">
+                    A {formatAUD(SAMPLE_SPEND)} cart, stacked down to{" "}
+                    {formatAUD(featured.stack.finalEffectivePrice)}
+                  </h2>
+                  <p className="mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
+                    Same cart, every layer applied in order. Here’s exactly how
+                    the effective cost comes down.
+                  </p>
+                </div>
+                <div className="inline-flex rounded-full bg-muted p-1 text-sm font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setExampleView("waterfall")}
+                    className={cn(
+                      "rounded-full px-4 py-1.5 transition-colors",
+                      exampleView === "waterfall"
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Waterfall
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExampleView("receipt")}
+                    className={cn(
+                      "rounded-full px-4 py-1.5 transition-colors",
+                      exampleView === "receipt"
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Receipt
+                  </button>
                 </div>
               </div>
 
-              {/* Receipt */}
-              <Card className="rounded-3xl shadow-xl shadow-emerald-900/[0.06]">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <StoreLogo store={featured.store} size="md" />
-                      <div>
-                        <p className="font-semibold leading-tight">
-                          {featured.store.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {featured.store.category}
-                        </p>
-                      </div>
-                    </div>
-                    {featured.store.discountPercent > 0 && (
-                      <code className="rounded bg-muted px-2 py-1 font-mono text-xs font-semibold">
-                        {featured.store.discountCode}
-                      </code>
-                    )}
-                  </div>
+              <Card className="mt-8 rounded-3xl shadow-xl shadow-emerald-900/[0.06]">
+                <CardContent className="p-6 sm:p-8">
+                  {exampleView === "waterfall" ? (
+                    <WaterfallView store={featured.store} stack={featured.stack} />
+                  ) : (
+                    <ReceiptView store={featured.store} stack={featured.stack} />
+                  )}
 
-                  <dl className="mt-5 space-y-2.5 border-t pt-4 text-sm">
-                    <ReceiptRow
-                      label="Cart total"
-                      value={formatAUD(featured.stack.originalPrice)}
-                    />
-                    <ReceiptRow
-                      label={`Discount code${
-                        featured.store.discountPercent > 0
-                          ? ` · ${featured.store.discountPercent}%`
-                          : ""
-                      }`}
-                      value={`− ${formatAUD(featured.stack.discountSaving)}`}
-                      muted
-                    />
-                    <ReceiptRow
-                      label="Checkout price"
-                      value={formatAUD(featured.stack.checkoutPrice)}
-                    />
-                    <ReceiptRow
-                      label="Discounted gift cards"
-                      value={`− ${formatAUD(featured.stack.giftCardSaving)}`}
-                      muted
-                    />
-                    <ReceiptRow
-                      label="Cashback"
-                      value={`− ${formatAUD(featured.stack.estimatedCashback)}`}
-                      muted
-                    />
-                  </dl>
-
-                  <div className="mt-4 flex items-end justify-between border-t border-dashed pt-4">
+                  <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-t border-dashed pt-6">
                     <div>
-                      <p className="text-xs text-muted-foreground">
-                        Effective price
+                      <p className="text-sm text-muted-foreground">
+                        Effective cost
                       </p>
-                      <p className="text-3xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
-                        {formatAUD(featured.stack.finalEffectivePrice)}
+                      <p className="font-serif text-4xl font-bold tracking-tight">
+                        {formatAUD(featured.stack.finalEffectivePrice)}{" "}
+                        <span className="text-lg font-medium text-muted-foreground line-through">
+                          {formatAUD(SAMPLE_SPEND)}
+                        </span>
                       </p>
                     </div>
-                    <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600">
-                      You save {formatAUD(featured.stack.totalSaving)}
-                    </Badge>
+                    <div className="rounded-2xl bg-emerald-500/10 px-5 py-3 text-right">
+                      <p className="font-serif text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                        {formatAUD(featured.stack.totalSaving)}
+                        <span className="ml-1.5 text-sm font-medium">saved</span>
+                      </p>
+                      <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                        {featured.stack.totalSavingPercent}% off
+                      </p>
+                    </div>
                   </div>
 
                   {featured.store.pointsProgram !== "—" && (
-                    <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Star className="size-3.5 text-amber-500" />
+                    <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Sparkles className="size-3.5 text-amber-500" />
                       Plus {featured.store.pointsProgram} points on top (
-                      {featured.store.pointsRate})
+                      {featured.store.pointsRate}) — bonus value not counted
+                      above.
                     </p>
                   )}
                 </CardContent>
@@ -591,13 +570,16 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         {/* Calculator */}
         <section
           id="calculator"
-          className="mx-auto flex max-w-6xl flex-col items-center px-4 py-12 sm:px-6 sm:py-16"
+          className="mx-auto flex max-w-6xl flex-col items-center px-4 py-16 sm:px-6 sm:py-20"
         >
-          <div className="mb-6 text-center">
-            <h2 className="font-serif text-2xl font-bold tracking-tight sm:text-3xl">
+          <div className="mb-8 text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+              Try your own numbers
+            </p>
+            <h2 className="mt-3 font-serif text-3xl font-bold tracking-tight sm:text-4xl">
               See your own stack in dollars
             </h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground sm:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
               Pick a store or enter your own rates to see the real out-of-pocket
               price after every layer.
             </p>
@@ -606,28 +588,39 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         </section>
 
         {/* Trust & safety */}
-        <section className="border-y bg-background">
-          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-            <div className="max-w-2xl">
-              <h2 className="font-serif text-2xl font-bold tracking-tight sm:text-3xl">
-                Built to be trusted, not just clicked
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-                DealStack AU is a reference tool, not a live price feed. Here is
-                how we keep it honest.
+        <section id="trust" className="border-y bg-muted/30">
+          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.9fr_1.1fr]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+                Trust &amp; safety
               </p>
+              <h2 className="mt-3 font-serif text-3xl font-bold leading-[1.1] tracking-tight sm:text-4xl">
+                Curated by people, not scraped by bots
+              </h2>
+              <p className="mt-4 max-w-md text-sm text-muted-foreground sm:text-base">
+                Deals move fast and terms change. We keep things honest: every
+                offer is reviewed and cached by a person, timestamped, and
+                clearly flagged for you to verify before you buy.
+              </p>
+              <a
+                href="#disclaimer"
+                className="mt-6 inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+              >
+                Read our sourcing policy
+                <ArrowRight className="size-4" />
+              </a>
             </div>
-            <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {trustPoints.map((point) => (
                 <div
                   key={point.title}
-                  className="rounded-2xl border bg-card p-5 shadow-sm"
+                  className="rounded-2xl border bg-card p-6 shadow-sm"
                 >
                   <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     <point.icon className="size-5" />
                   </span>
                   <p className="mt-4 font-semibold">{point.title}</p>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {point.description}
                   </p>
                 </div>
@@ -637,28 +630,31 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
         </section>
 
         {/* Final CTA */}
-        <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 to-[#0a1410] px-6 py-12 text-center shadow-xl sm:px-12 sm:py-16">
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-emerald-950 to-[#0a1410] px-6 py-14 text-center shadow-xl sm:px-12 sm:py-20">
             <div
               aria-hidden
-              className="absolute -top-24 left-1/2 size-80 -translate-x-1/2 rounded-full bg-emerald-500/20 blur-3xl"
+              className="absolute -top-24 left-1/2 size-96 -translate-x-1/2 rounded-full bg-emerald-500/20 blur-3xl"
             />
             <div className="relative mx-auto max-w-xl">
-              <h2 className="font-serif text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-emerald-100">
+                No fees · No catch
+              </span>
+              <h2 className="mt-5 font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl">
                 Start stacking smarter
               </h2>
-              <p className="mt-3 text-emerald-100/80">
-                Search a store, stack the savings and see the effective price
-                before you ever hit checkout.
+              <p className="mt-4 text-emerald-100/80">
+                Search any store and see your full stack — cashback, gift cards,
+                points and signals — in seconds.
               </p>
-              <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Button
                   asChild
                   size="lg"
                   className="bg-white text-emerald-900 hover:bg-emerald-50"
                 >
                   <a href="#stores">
-                    Browse stores
+                    Get started
                     <ArrowRight className="size-4" />
                   </a>
                 </Button>
@@ -668,7 +664,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
                   variant="outline"
                   className="border-white/25 bg-white/0 text-white hover:bg-white/10 hover:text-white"
                 >
-                  <a href="#calculator">Try the calculator</a>
+                  <a href="#how-it-works">How it works</a>
                 </Button>
               </div>
             </div>
@@ -678,16 +674,16 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
 
       {/* Footer */}
       <footer className="border-t bg-background">
-        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+          <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-xs">
               <Logo />
               <p className="mt-3 text-sm text-muted-foreground">
-                Stack codes, cashback, discounted gift cards and points into one
-                effective price.
+                Stack cashback, discounted gift cards, points and community
+                signals into one effective price.
               </p>
             </div>
-            <nav className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <nav className="flex flex-wrap gap-x-10 gap-y-2 text-sm">
               <a
                 href="#stores"
                 className="text-muted-foreground transition-colors hover:text-foreground"
@@ -698,7 +694,7 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
                 href="/deals"
                 className="text-muted-foreground transition-colors hover:text-foreground"
               >
-                Weekly Deals
+                Deal stacks
               </Link>
               <a
                 href="#calculator"
@@ -712,10 +708,16 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
               >
                 Resources
               </Link>
+              <a
+                href="#trust"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Trust &amp; safety
+              </a>
             </nav>
           </div>
 
-          <div className="mt-8 border-t pt-6">
+          <div id="disclaimer" className="mt-10 border-t pt-6">
             <p className="text-xs leading-relaxed text-muted-foreground">
               <strong>Disclaimer:</strong> All discount codes, cashback rates,
               gift card discounts, points rates and expiry dates shown on
@@ -735,58 +737,183 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
   );
 }
 
-/** One muted "− $x" line in the hero teaser stack summary. */
-function StackLine({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-foreground">− {formatAUD(value)}</dd>
-    </div>
-  );
-}
-
-/** A row in the worked-example receipt. */
-function ReceiptRow({
+/** One coloured-dot line in the hero stack teaser. */
+function TeaserLine({
+  dotClass,
   label,
   value,
-  muted,
 }: {
+  dotClass: string;
   label: string;
-  value: string;
-  muted?: boolean;
+  value: number;
 }) {
   return (
     <div className="flex items-center justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd
-        className={cn(
-          "font-medium tabular-nums",
-          muted ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"
-        )}
-      >
-        {value}
+      <dt className="flex items-center gap-2.5 text-muted-foreground">
+        <span className={cn("size-2.5 rounded-full", dotClass)} />
+        {label}
+      </dt>
+      <dd className="font-medium tabular-nums text-foreground">
+        − {formatAUD(value)}
       </dd>
     </div>
   );
 }
 
-/** A proportional segment of the waterfall bar (hidden when zero). */
-function Segment({ amount, className }: { amount: number; className: string }) {
-  if (amount <= 0) return null;
+/** Ordered savings steps shared by the waterfall and receipt views. */
+function buildSteps(store: Store, stack: StackResult) {
+  const steps: {
+    key: string;
+    label: string;
+    sub: string;
+    amount: number | null;
+    running: number;
+    barClass: string;
+    amountClass: string;
+  }[] = [
+    {
+      key: "cart",
+      label: "Cart total",
+      sub: "what you’d normally pay",
+      amount: null,
+      running: stack.originalPrice,
+      barClass: "bg-muted text-foreground",
+      amountClass: "text-foreground",
+    },
+  ];
+  let running = stack.originalPrice;
+  if (stack.discountSaving > 0) {
+    running -= stack.discountSaving;
+    steps.push({
+      key: "discount",
+      label: "Discount code",
+      sub: `${store.discountPercent}% off at checkout`,
+      amount: stack.discountSaving,
+      running,
+      barClass: "bg-primary text-primary-foreground",
+      amountClass: "text-primary",
+    });
+  }
+  if (stack.giftCardSaving > 0) {
+    running -= stack.giftCardSaving;
+    steps.push({
+      key: "giftcard",
+      label: "Discounted gift card",
+      sub: `bought at ${store.giftCardDiscountPercent}% off face value`,
+      amount: stack.giftCardSaving,
+      running,
+      barClass: "bg-sky-700 text-white",
+      amountClass: "text-sky-700 dark:text-sky-400",
+    });
+  }
+  if (stack.estimatedCashback > 0) {
+    running -= stack.estimatedCashback;
+    steps.push({
+      key: "cashback",
+      label: "Cashback",
+      sub: `${store.cashbackPercent}% confirmed after purchase`,
+      amount: stack.estimatedCashback,
+      running,
+      barClass: "bg-emerald-600 text-white",
+      amountClass: "text-emerald-700 dark:text-emerald-400",
+    });
+  }
+  return steps;
+}
+
+/** Per-layer running-total waterfall bars. */
+function WaterfallView({ store, stack }: { store: Store; stack: StackResult }) {
+  const steps = buildSteps(store, stack);
   return (
-    <span
-      className={className}
-      style={{ width: `${(amount / SAMPLE_SPEND) * 100}%` }}
-    />
+    <div className="space-y-5">
+      {steps.map((step) => (
+        <div key={step.key}>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="flex min-w-0 items-baseline gap-2">
+              <span className="font-semibold">{step.label}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {step.sub}
+              </span>
+            </span>
+            <span className={cn("shrink-0 font-medium tabular-nums", step.amountClass)}>
+              {step.amount === null
+                ? formatAUD(step.running)
+                : `− ${formatAUD(step.amount)}`}
+            </span>
+          </div>
+          <div className="mt-2 h-9 overflow-hidden rounded-lg bg-muted/50">
+            <div
+              className={cn(
+                "flex h-full items-center justify-end rounded-lg px-3",
+                step.barClass
+              )}
+              style={{ width: `${(step.running / stack.originalPrice) * 100}%` }}
+            >
+              <span className="text-xs font-semibold tabular-nums">
+                {formatAUD(step.running)}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
-/** Colour swatch + label under the waterfall bar. */
-function Legend({ className, label }: { className: string; label: string }) {
+/** Itemised receipt of the same stack. */
+function ReceiptView({ store, stack }: { store: Store; stack: StackResult }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("size-2.5 rounded-full", className)} />
-      {label}
-    </span>
+    <dl className="space-y-3 text-sm">
+      <ReceiptRow label="Cart total" value={formatAUD(stack.originalPrice)} />
+      {stack.discountSaving > 0 && (
+        <ReceiptRow
+          label={`Discount code · ${store.discountPercent}%`}
+          value={`− ${formatAUD(stack.discountSaving)}`}
+          credit
+        />
+      )}
+      <ReceiptRow
+        label="Checkout price"
+        value={formatAUD(stack.checkoutPrice)}
+      />
+      {stack.giftCardSaving > 0 && (
+        <ReceiptRow
+          label={`Discounted gift card · ${store.giftCardDiscountPercent}%`}
+          value={`− ${formatAUD(stack.giftCardSaving)}`}
+          credit
+        />
+      )}
+      {stack.estimatedCashback > 0 && (
+        <ReceiptRow
+          label={`Cashback · ${store.cashbackPercent}%`}
+          value={`− ${formatAUD(stack.estimatedCashback)}`}
+          credit
+        />
+      )}
+    </dl>
+  );
+}
+
+function ReceiptRow({
+  label,
+  value,
+  credit,
+}: {
+  label: string;
+  value: string;
+  credit?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-dashed pb-3 last:border-0 last:pb-0">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          "font-medium tabular-nums",
+          credit ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"
+        )}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }

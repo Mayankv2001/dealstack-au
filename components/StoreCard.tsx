@@ -18,29 +18,6 @@ export const providerBadgeClasses: Record<string, string> = {
 
 export const SAMPLE_SPEND = 500;
 
-/** Compact capability pill — the "this store has X" badges shown on each card. */
-function CapabilityPill({
-  icon: Icon,
-  label,
-  className,
-}: {
-  icon: typeof Gift;
-  label: string;
-  className: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
-        className
-      )}
-    >
-      <Icon className="size-2.5" />
-      {label}
-    </span>
-  );
-}
-
 function SavingRow({
   icon: Icon,
   iconClass,
@@ -65,7 +42,18 @@ function SavingRow({
   );
 }
 
-export function StoreCard({ store }: { store: Store }) {
+/**
+ * "stack" is the minimal homepage card — store name, headline estimated stack
+ * percentage and a row of capability badges. "detailed" (the default, used by
+ * /search) keeps the full breakdown with code, expiry and effective price.
+ */
+export function StoreCard({
+  store,
+  variant = "detailed",
+}: {
+  store: Store;
+  variant?: "detailed" | "stack";
+}) {
   const stack = calculateStack({
     originalPrice: SAMPLE_SPEND,
     discountPercent: store.discountPercent,
@@ -74,6 +62,50 @@ export function StoreCard({ store }: { store: Store }) {
   });
 
   const hasPoints = store.pointsProgram !== "—";
+
+  if (variant === "stack") {
+    return (
+      <Link href={`/stores/${store.id}`} className="group block">
+        <Card className="h-full rounded-2xl py-0 shadow-sm ring-foreground/[0.08] transition-all duration-200 group-hover:-translate-y-1 group-hover:ring-emerald-500/50 group-hover:shadow-lg group-hover:shadow-emerald-500/10">
+          <CardContent className="flex h-full flex-col gap-4 p-5">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-semibold leading-tight">{store.name}</p>
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                AU
+              </span>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Estimated stack
+              </p>
+              <p className="font-serif text-3xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
+                up to {Math.round(stack.totalSavingPercent)}%
+              </p>
+            </div>
+
+            <div className="mt-auto flex flex-wrap gap-1.5">
+              {store.cashbackPercent > 0 && (
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                  {store.cashbackPercent}% cashback
+                </span>
+              )}
+              {store.giftCardDiscountPercent > 0 && (
+                <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-400">
+                  {store.giftCardDiscountPercent}% gift card
+                </span>
+              )}
+              {hasPoints && (
+                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-500">
+                  Points
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+    );
+  }
 
   return (
     <Link href={`/stores/${store.id}`} className="group block">
@@ -89,31 +121,6 @@ export function StoreCard({ store }: { store: Store }) {
                 {store.category}
               </p>
             </div>
-          </div>
-
-          {/* Capability badges: which savings layers this store supports */}
-          <div className="flex flex-wrap gap-1">
-            {store.cashbackPercent > 0 && (
-              <CapabilityPill
-                icon={CreditCard}
-                label="Cashback"
-                className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-              />
-            )}
-            {store.giftCardDiscountPercent > 0 && (
-              <CapabilityPill
-                icon={Gift}
-                label="Gift cards"
-                className="border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-400"
-              />
-            )}
-            {hasPoints && (
-              <CapabilityPill
-                icon={Star}
-                label="Points"
-                className="border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-              />
-            )}
           </div>
 
           {/* Headline saving: the discount code */}

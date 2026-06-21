@@ -18,9 +18,15 @@ interface SearchBarProps {
   value?: string;
   onValueChange?: (value: string) => void;
   placeholder?: string;
+  buttonLabel?: string;
   className?: string;
   /** "lg" is the prominent hero search; "default" the inline results search. */
   size?: "default" | "lg";
+  /**
+   * "attached" tucks the button inside the input (used on /search). "split"
+   * renders the input and button as separate adjacent pills (the hero).
+   */
+  layout?: "attached" | "split";
   autoFocus?: boolean;
 }
 
@@ -29,8 +35,10 @@ export function SearchBar({
   value,
   onValueChange,
   placeholder = "Search a store, e.g. JB Hi-Fi",
+  buttonLabel = "Search",
   className,
   size = "default",
+  layout = "attached",
   autoFocus,
 }: SearchBarProps) {
   const router = useRouter();
@@ -50,38 +58,47 @@ export function SearchBar({
   };
 
   const lg = size === "lg";
+  const split = layout === "split";
 
   return (
-    <form onSubmit={handleSubmit} className={cn("relative", className)}>
-      <Search
-        className={cn(
-          "pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground",
-          lg ? "size-5" : "size-4 left-3"
-        )}
-      />
-      <Input
-        type="search"
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        aria-label="Search stores"
-        className={cn(
-          "bg-background shadow-sm",
-          lg
-            ? "h-14 rounded-2xl pl-11 pr-28 text-base shadow-md shadow-emerald-900/[0.06]"
-            : "h-11 pl-9 pr-24"
-        )}
-      />
+    <form
+      onSubmit={handleSubmit}
+      className={cn(split ? "flex items-stretch gap-2" : "relative", className)}
+    >
+      <div className={cn("relative", split && "flex-1")}>
+        <Search
+          className={cn(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
+            lg ? "left-4 size-5" : "left-3 size-4"
+          )}
+        />
+        <Input
+          type="search"
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search stores"
+          className={cn(
+            "w-full bg-background shadow-sm",
+            lg ? "h-14 rounded-2xl pl-12 text-base" : "h-11 rounded-xl pl-9",
+            split ? (lg ? "pr-4" : "pr-3") : lg ? "pr-32" : "pr-24"
+          )}
+        />
+      </div>
       <Button
         type="submit"
         size={lg ? "default" : "sm"}
         className={cn(
-          "absolute top-1/2 -translate-y-1/2 bg-emerald-600 text-white hover:bg-emerald-700",
-          lg ? "right-2 h-10 px-5" : "right-1.5"
+          "bg-emerald-600 text-white hover:bg-emerald-700",
+          split
+            ? lg
+              ? "h-14 rounded-2xl px-6 text-base"
+              : "rounded-xl px-4"
+            : cn("absolute top-1/2 -translate-y-1/2", lg ? "right-2 h-10 px-5" : "right-1.5")
         )}
       >
-        Search
+        {buttonLabel}
       </Button>
     </form>
   );
