@@ -1,5 +1,6 @@
 import HomeClient from "@/components/HomeClient";
 import { getStores } from "@/lib/repos";
+import { getTopDeals } from "@/lib/repos/topDeals";
 
 /**
  * Homepage — server component. Loads stores from the repository layer (Supabase
@@ -13,6 +14,8 @@ import { getStores } from "@/lib/repos";
 export const revalidate = 300;
 
 export default async function Home() {
-  const stores = await getStores();
-  return <HomeClient stores={stores} />;
+  // Both reads fall back gracefully (stores → static; top deals → []), so the
+  // homepage always renders even without Supabase configured.
+  const [stores, topDeals] = await Promise.all([getStores(), getTopDeals()]);
+  return <HomeClient stores={stores} topDeals={topDeals} />;
 }

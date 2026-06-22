@@ -22,8 +22,10 @@ import DealStackCalculator from "@/components/DealStackCalculator";
 import Logo from "@/components/Logo";
 import SearchBar from "@/components/SearchBar";
 import StoreCard, { SAMPLE_SPEND } from "@/components/StoreCard";
+import TopDealsSection from "@/components/TopDealsSection";
 import { calculateStack, formatAUD, type StackResult } from "@/lib/calculateStack";
 import type { Store } from "@/lib/data";
+import type { TopDeal } from "@/lib/repos/topDealsRanking";
 import { cn } from "@/lib/utils";
 
 /**
@@ -109,7 +111,13 @@ const trustPoints = [
   },
 ];
 
-export default function HomeClient({ stores }: { stores: Store[] }) {
+export default function HomeClient({
+  stores,
+  topDeals,
+}: {
+  stores: Store[];
+  topDeals: TopDeal[];
+}) {
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [exampleView, setExampleView] = useState<"waterfall" | "receipt">(
@@ -475,6 +483,9 @@ export default function HomeClient({ stores }: { stores: Store[] }) {
             </div>
           )}
         </section>
+
+        {/* Today's top OzBargain signals (staged, review-gated, read-only) */}
+        <TopDealsSection deals={topDeals} />
 
         {/* Worked $500 deal-stack example */}
         {featured && (
