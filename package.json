@@ -12,6 +12,7 @@
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "seed:feed-items": "tsx scripts/seed-feed-items.ts",
+    "seed:offer-changes": "tsx scripts/seed-offer-changes.ts",
     "monitor:fixtures": "tsx scripts/monitor-fixtures.ts",
     "monitor:feeds": "tsx scripts/monitor-feeds.ts",
     "test:monitor": "vitest run tests/monitor",
