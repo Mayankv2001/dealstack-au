@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import {
+  FEED_SOURCE_TYPES,
+  isApprovedForFetch,
+  isFeedSourceType,
+  type FeedSourceType,
+} from "@/lib/monitor/offerChanges";
 import type { FeedItemInsert } from "@/lib/monitor/mapFeedItem";
 import type {
   FeedFetchLogEntry,
@@ -26,6 +32,11 @@ import type {
 export const FEED_SOURCE_KINDS = ["front", "store", "category"] as const;
 export type FeedSourceKind = (typeof FEED_SOURCE_KINDS)[number];
 
+// Registry source-type tags live with the (pure) monitor logic; re-export them
+// here so the source admin form/actions have a single import surface.
+export { FEED_SOURCE_TYPES, isFeedSourceType, isApprovedForFetch };
+export type { FeedSourceType };
+
 /** Possible last-run summaries (matches the DB CHECK constraint); null = never. */
 export type FeedSourceStatus = "ok" | "not-modified" | "error" | "blocked";
 
@@ -38,6 +49,8 @@ export interface AdminFeedSource {
   label: string;
   feedUrl: string;
   kind: FeedSourceKind;
+  /** Registry tag (ozbargain, pointhacks, …). Only verified types are fetched. */
+  sourceType: FeedSourceType;
   merchantId: string | null;
   /** Joined store name for display; null when not store-specific. */
   storeName: string | null;
@@ -56,6 +69,7 @@ export interface FeedSourceInput {
   label: string;
   feedUrl: string;
   kind: FeedSourceKind;
+  sourceType: FeedSourceType;
   merchantId: string | null;
   isEnabled: boolean;
 }
@@ -65,6 +79,7 @@ interface FeedSourceRow {
   label: string;
   feed_url: string;
   kind: FeedSourceKind;
+  source_type: FeedSourceType;
   merchant_id: string | null;
   is_enabled: boolean;
   last_status: FeedSourceStatus | null;
@@ -84,6 +99,7 @@ function mapFeedSource(r: FeedSourceRow): AdminFeedSource {
     label: r.label,
     feedUrl: r.feed_url,
     kind: r.kind,
+    sourceType: r.source_type,
     merchantId: r.merchant_id,
     storeName: store?.name ?? null,
     isEnabled: r.is_enabled,
@@ -102,6 +118,7 @@ function toRow(input: FeedSourceInput) {
     label: input.label,
     feed_url: input.feedUrl,
     kind: input.kind,
+    source_type: input.sourceType,
     merchant_id: input.merchantId,
     is_enabled: input.isEnabled,
   };

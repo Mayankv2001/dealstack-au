@@ -7,10 +7,12 @@ import { logAudit } from "@/lib/admin/repos/audit";
 import {
   FEED_SOURCE_KINDS,
   insertFeedSource,
+  isFeedSourceType,
   setFeedSourceEnabled,
   updateFeedSource as persistFeedSource,
   type FeedSourceInput,
   type FeedSourceKind,
+  type FeedSourceType,
 } from "@/lib/admin/repos/feedSources";
 
 /**
@@ -51,6 +53,11 @@ function parseFeedSourceForm(formData: FormData): ParseResult {
     return { ok: false, error: "Choose a valid kind (front, store or category)." };
   }
 
+  const sourceType = String(formData.get("source_type") ?? "").trim();
+  if (!isFeedSourceType(sourceType)) {
+    return { ok: false, error: "Choose a valid source type." };
+  }
+
   // merchant_id is optional — blank means a non-store-specific feed.
   const merchantRaw = String(formData.get("merchant_id") ?? "").trim();
   const merchantId = merchantRaw === "" ? null : merchantRaw;
@@ -61,6 +68,7 @@ function parseFeedSourceForm(formData: FormData): ParseResult {
       label,
       feedUrl,
       kind: kind as FeedSourceKind,
+      sourceType: sourceType as FeedSourceType,
       merchantId,
       isEnabled: parseBool(formData, "is_enabled"),
     },
@@ -107,6 +115,7 @@ export async function createFeedSource(
       label: parsed.input.label,
       feedUrl: parsed.input.feedUrl,
       kind: parsed.input.kind,
+      sourceType: parsed.input.sourceType,
       isEnabled: parsed.input.isEnabled,
     },
   });
@@ -138,6 +147,7 @@ export async function updateFeedSource(
       label: parsed.input.label,
       feedUrl: parsed.input.feedUrl,
       kind: parsed.input.kind,
+      sourceType: parsed.input.sourceType,
       isEnabled: parsed.input.isEnabled,
     },
   });

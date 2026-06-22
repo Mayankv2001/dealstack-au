@@ -26,6 +26,18 @@ const KIND_OPTIONS: { value: string; label: string }[] = [
   { value: "category", label: "Category" },
 ];
 
+// Registry tags. Only "ozbargain" has verified feed support today; the rest are
+// registry-only until they do (the monitor skips them). Mirrors
+// FEED_SOURCE_TYPES in lib/monitor/offerChanges.ts.
+const SOURCE_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "ozbargain", label: "OzBargain (RSS — fetched)" },
+  { value: "pointhacks", label: "Point Hacks (registry only)" },
+  { value: "freepoints", label: "FreePoints (registry only)" },
+  { value: "gcdb", label: "GCDB (registry only)" },
+  { value: "provider-feed", label: "Provider feed/API (registry only)" },
+  { value: "manual-url", label: "Manual public URL (registry only)" },
+];
+
 export interface StoreOption {
   id: string;
   name: string;
@@ -35,6 +47,7 @@ export interface FeedSourceFormDefaults {
   label?: string;
   feedUrl?: string;
   kind?: string;
+  sourceType?: string;
   merchantId?: string | null;
   isEnabled?: boolean;
 }
@@ -125,6 +138,26 @@ export function FeedSourceForm({
           placeholder="https://…"
           defaultValue={defaultValues?.feedUrl ?? ""}
         />
+      </Field>
+
+      <Field
+        label="Source type"
+        htmlFor="source_type"
+        hint="How this source is classified. Only OzBargain (RSS) is fetched today; other types are registry-only until they have verified feed/API support."
+      >
+        <select
+          id="source_type"
+          name="source_type"
+          required
+          defaultValue={defaultValues?.sourceType ?? "manual-url"}
+          className={controlClass}
+        >
+          {SOURCE_TYPE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">

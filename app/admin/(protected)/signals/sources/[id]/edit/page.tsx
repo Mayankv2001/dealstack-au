@@ -82,6 +82,7 @@ export default async function EditFeedSourcePage({
           label: source.label,
           feedUrl: source.feedUrl,
           kind: source.kind,
+          sourceType: source.sourceType,
           merchantId: source.merchantId,
           isEnabled: source.isEnabled,
         }}

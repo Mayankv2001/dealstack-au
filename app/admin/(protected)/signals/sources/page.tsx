@@ -31,6 +31,15 @@ const KIND_LABELS: Record<AdminFeedSource["kind"], string> = {
   category: "Category",
 };
 
+const SOURCE_TYPE_LABELS: Record<AdminFeedSource["sourceType"], string> = {
+  ozbargain: "OzBargain",
+  pointhacks: "Point Hacks",
+  freepoints: "FreePoints",
+  gcdb: "GCDB",
+  "provider-feed": "Provider feed",
+  "manual-url": "Manual URL",
+};
+
 // Deterministic AU-local timestamp (server-only render).
 const DATE_FMT = new Intl.DateTimeFormat("en-AU", {
   day: "numeric",
@@ -115,6 +124,7 @@ export default async function FeedSourcesListPage() {
             <TableRow>
               <TableHead className="min-w-56">Feed source</TableHead>
               <TableHead>Kind</TableHead>
+              <TableHead>Source type</TableHead>
               <TableHead>Store</TableHead>
               <TableHead>Enabled</TableHead>
               <TableHead className="min-w-44">Monitor state</TableHead>
@@ -135,6 +145,9 @@ export default async function FeedSourcesListPage() {
                 </TableCell>
                 <TableCell className="align-top">
                   {KIND_LABELS[source.kind]}
+                </TableCell>
+                <TableCell className="align-top">
+                  {SOURCE_TYPE_LABELS[source.sourceType]}
                 </TableCell>
                 <TableCell className="align-top">
                   {source.storeName ?? (
