@@ -26,12 +26,18 @@ Deal data is **manually entered and curated** by admins; the public site reads
 from Supabase (with a static sample fallback) and never makes external source
 requests on a user's behalf.
 
-OzBargain monitoring is **planned but not implemented**. Any future feed-based
-ingestion must follow the safety, compliance, and review rules — including a
-mandatory compliance review before any automated fetching, plus the detailed
-**Implementation Plan** (feeds, User-Agent, backoff, kill-switch env vars, cron
-route, dry-run, and fixture testing) — documented in
-[docs/ozbargain-monitoring.md](docs/ozbargain-monitoring.md).
+OzBargain monitoring is **built but gated and OFF by default**. A single
+secret-gated cron route (`GET /api/cron/monitor-feeds`) is the only path allowed
+to fetch, and only when `OZB_MONITOR_ENABLED=true`, an approved compliance review
+is on file, and at least one `feed_sources` row is enabled. It stages
+`feed_items` for **mandatory admin review** and never auto-publishes anything.
+
+**Scheduling:** Vercel Cron runs the route **once daily** on the Hobby plan
+(`vercel.json`, kept daily so deploys stay valid). For more frequent polling, an
+**optional external scheduler** (e.g. cron-job.org) can call the same
+secret-gated route every 3 hours with `Authorization: Bearer ${CRON_SECRET}` —
+both paths obey the same gates. See the safety, compliance, review and
+scheduling rules in [docs/ozbargain-monitoring.md](docs/ozbargain-monitoring.md).
 
 ## Learn More
 

@@ -552,6 +552,84 @@ Behaviour and guarantees (enforced in code, covered by `npm run test:monitor`):
   poll-state — **never** `ozbargain_signals`. Imported items still require manual
   admin approval via `/admin/signals/queue`.
 
+## Scheduling the monitor
+
+There are two ways to trigger the **same** secret-gated route
+(`GET /api/cron/monitor-feeds`). Neither changes the route or monitor logic, and
+both pass through every gate below.
+
+### Vercel Cron — once daily (Hobby plan)
+
+`vercel.json` runs the route **once a day** at `02:00 UTC`:
+
+```json
+{ "crons": [{ "path": "/api/cron/monitor-feeds", "schedule": "0 2 * * *" }] }
+```
+
+Keep this **once daily**. The Vercel Hobby plan only permits daily cron, and the
+daily entry is what keeps Vercel deploys valid — **do not** change it to every
+3 hours. When `CRON_SECRET` is set in the project env, Vercel sends
+`Authorization: Bearer ${CRON_SECRET}` automatically.
+
+### Optional external scheduler — every 3 hours
+
+For more frequent polling than once a day, use an **external** scheduler (e.g.
+[cron-job.org](https://cron-job.org)) to call the same route every 3 hours. This
+keeps Vercel's cron on its daily cadence while a third party drives the extra
+runs.
+
+| Setting | Value |
+|---|---|
+| **Method** | `GET` |
+| **URL** | `https://dealstack-au.vercel.app/api/cron/monitor-feeds` |
+| **Header** | `Authorization: Bearer ${CRON_SECRET}` |
+| **Frequency** | every 3 hours (`0 */3 * * *`) |
+
+Rules for the external scheduler:
+
+- It must call **only** the secret-gated cron route above — **never** a public
+  page (`/`, `/deals`, `/search`, `/stores/*`). Public pages must never trigger
+  any fetch.
+- Send the exact `CRON_SECRET` value as a Bearer token. A missing/blank secret
+  returns `503`; a wrong secret returns `401`. The route never runs open.
+- Use `GET` only. Do not retry aggressively; a single call every 3 hours is
+  enough.
+
+The route still obeys **every** gate before it fetches anything — exactly the
+same as the Vercel Cron path:
+
+1. `CRON_SECRET` configured (else `503`).
+2. Valid `Authorization: Bearer` (else `401`).
+3. `OZB_MONITOR_ENABLED=true` (else a no-op `200 { disabled: true }`, zero
+   outbound requests).
+4. An **approved compliance review** on file (else `200 { blockedByCompliance: true }`).
+5. At least one **enabled** `feed_sources` row that is **due**.
+
+Even at a 3-hour trigger cadence, each feed is only actually fetched when it is
+**due** — `next_earliest_fetch_at` is governed by
+`OZB_MONITOR_MIN_INTERVAL_HOURS` (default **12h**). So calling every 3 hours is
+safe and largely idempotent: most calls find nothing due and return quickly.
+Lower `OZB_MONITOR_MIN_INTERVAL_HOURS` only if a feed's published rate limit
+allows it.
+
+A run still stages **only** `feed_items`, `feed_fetch_log` and `feed_sources`
+poll-state — it **never** writes `ozbargain_signals` and **nothing public is
+published automatically**. Admin review via `/admin/signals/queue` remains
+mandatory regardless of which scheduler triggered the run.
+
+#### cron-job.org setup (manual steps)
+
+1. Create an account at cron-job.org and add a new cronjob.
+2. **Title:** `DealStack monitor (every 3h)`.
+3. **URL:** `https://dealstack-au.vercel.app/api/cron/monitor-feeds`.
+4. **Schedule:** every 3 hours (expression `0 */3 * * *`).
+5. **Request method:** `GET`.
+6. Under request **headers**, add:
+   `Authorization: Bearer <your CRON_SECRET value>`.
+7. Save. Confirm the first execution returns HTTP `200`. A `200` with
+   `{ disabled: true }` or `{ blockedByCompliance: true }` means a gate is not
+   satisfied yet (enable the monitor / approve compliance / enable a feed).
+
 ## Testing checklist
 
 - [x] Manual queue test data: `npm run seed:feed-items` inserts a **disabled**
