@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Check,
+  Clock,
   Info,
   Lightbulb,
   ListChecks,
@@ -461,6 +462,57 @@ export default async function MonitorStatusPage() {
               </li>
             ))}
           </ul>
+        </CardContent>
+      </Card>
+
+      {/* Scheduler options — informational only; this page runs nothing and
+          cannot detect whether an external scheduler is configured. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Clock className="size-5 text-muted-foreground" />
+            Scheduler options
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            The same secret-gated route (
+            <code className="text-xs">GET /api/cron/monitor-feeds</code>) can be
+            triggered two ways. Both pass through every gate in “Cron ready?”
+            above, stage only <code className="text-xs">feed_items</code> /
+            fetch-log / poll-state, and never publish anything automatically —
+            admin review stays mandatory.
+          </p>
+          <div className="rounded-md border bg-muted/30 px-3 py-2.5 text-sm">
+            <p className="font-medium">Vercel Cron — once daily</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Runs at 02:00 UTC, configured in{" "}
+              <code className="text-xs">vercel.json</code>. Kept once daily on
+              the Hobby plan so deploys stay valid.
+            </p>
+          </div>
+          <div className="rounded-md border bg-muted/30 px-3 py-2.5 text-sm">
+            <p className="font-medium">
+              External scheduler — every 3 hours{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional, if configured)
+              </span>
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              An external scheduler (e.g. cron-job.org) can call the same route
+              every 3 hours with{" "}
+              <code className="text-xs">Authorization: Bearer ${"{CRON_SECRET}"}</code>
+              . Per-feed polling is still throttled by{" "}
+              <code className="text-xs">OZB_MONITOR_MIN_INTERVAL_HOURS</code>{" "}
+              (default 12h), so most extra calls find nothing due. Setup steps are
+              in <code className="text-xs">docs/ozbargain-monitoring.md</code>.
+            </p>
+          </div>
+          <p className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            This page can’t detect whether an external scheduler is set up — it
+            only reflects the run history below.
+          </p>
         </CardContent>
       </Card>
 
