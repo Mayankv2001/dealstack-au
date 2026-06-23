@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   importFeedItem,
+  setFeedItemHomepageHidden,
   setFeedItemReviewState,
 } from "@/lib/admin/repos/feedQueue";
 
@@ -68,6 +69,43 @@ export async function markDuplicate(feedItemId: string): Promise<void> {
     diff: { reviewState: "duplicate" },
   });
   revalidateQueue();
+}
+
+/**
+ * Hide / show a staged item on the public homepage Top 5 (bound id + flag).
+ *
+ * This ONLY flips hidden_from_homepage; it never changes review_state, so the
+ * item stays in this queue and remains importable — the import workflow is
+ * unaffected. It is not a publish: the homepage already shows already-staged
+ * items, this just curates which of them appear. We also revalidate "/" so the
+ * change is reflected on the homepage promptly.
+ */
+async function setHomepageHidden(
+  feedItemId: string,
+  hidden: boolean
+): Promise<void> {
+  const { email } = await requireAdmin();
+  await setFeedItemHomepageHidden(feedItemId, hidden);
+  await logAudit({
+    actorEmail: email,
+    action: hidden ? "hide-from-homepage" : "show-on-homepage",
+    tableName: "feed_items",
+    rowId: feedItemId,
+    diff: { hiddenFromHomepage: hidden },
+  });
+  revalidateQueue();
+  // Reflect the curation on the public homepage Top 5 (not a publish).
+  revalidatePath("/");
+}
+
+/** Exclude a staged item from the homepage Top 5 (keeps it in the queue). */
+export async function hideFromTopDeals(feedItemId: string): Promise<void> {
+  await setHomepageHidden(feedItemId, true);
+}
+
+/** Restore a previously hidden item to the homepage Top 5. */
+export async function showInTopDeals(feedItemId: string): Promise<void> {
+  await setHomepageHidden(feedItemId, false);
 }
 
 /** Hard cap on a single bulk-ignore call — defensive against a huge payload. */

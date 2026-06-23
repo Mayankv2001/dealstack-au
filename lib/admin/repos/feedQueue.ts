@@ -42,6 +42,12 @@ export interface FeedQueueItem {
   reviewState: FeedReviewState;
   promotedSignalId: string | null;
   /**
+   * Admin-set homepage-visibility flag. When true the item is excluded from the
+   * public homepage Top 5 ONLY — it stays in this queue and remains importable.
+   * Orthogonal to reviewState (see migration 005).
+   */
+  hiddenFromHomepage: boolean;
+  /**
    * A signal that already exists with this source_native_id, if any. When set,
    * importing will LINK to it rather than create a new one (idempotent) — so the
    * admin can treat the item as a likely duplicate / already imported.
@@ -71,6 +77,7 @@ interface FeedItemRow {
   fetched_at: string;
   review_state: FeedReviewState;
   promoted_signal_id: string | null;
+  hidden_from_homepage: boolean;
   // Embedded one-to-one feed source (PostgREST returns an object; type defensively).
   source: { label: string } | { label: string }[] | null;
 }
@@ -94,6 +101,7 @@ function mapItem(
     fetchedAt: r.fetched_at,
     reviewState: r.review_state,
     promotedSignalId: r.promoted_signal_id,
+    hiddenFromHomepage: r.hidden_from_homepage ?? false,
     existingSignal,
   };
 }
@@ -326,4 +334,24 @@ export async function setFeedItemReviewState(
     .update({ review_state: state })
     .eq("id", feedItemId);
   if (error) throw new Error(`setFeedItemReviewState failed: ${error.message}`);
+}
+
+/**
+ * Toggle whether a staged item is excluded from the public homepage Top 5.
+ * This ONLY flips hidden_from_homepage — it deliberately leaves review_state
+ * untouched, so the item stays in the import queue and remains importable. It
+ * never publishes anything (the homepage shows already-staged items either way).
+ */
+export async function setFeedItemHomepageHidden(
+  feedItemId: string,
+  hidden: boolean
+): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("feed_items")
+    .update({ hidden_from_homepage: hidden })
+    .eq("id", feedItemId);
+  if (error) {
+    throw new Error(`setFeedItemHomepageHidden failed: ${error.message}`);
+  }
 }

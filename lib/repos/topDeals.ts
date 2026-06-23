@@ -82,13 +82,17 @@ export async function getTopDeals(limit = TOP_LIMIT): Promise<TopDeal[]> {
 
   try {
     const db = getSupabaseAdmin();
-    // Newest eligible items from ENABLED sources, excluding ignored/duplicate.
+    // Newest eligible items from ENABLED sources, excluding ignored/duplicate and
+    // any item an admin has hidden from the homepage (migration 005). The hidden
+    // flag is independent of review_state, so a hidden item still appears in the
+    // admin import queue and stays importable.
     const { data, error } = await db
       .from("feed_items")
       .select(
         "id, source_native_id, link, raw_title, raw_summary, categories, posted_at, fetched_at, review_state, source:feed_sources!inner(is_enabled)"
       )
       .in("review_state", [...PUBLIC_REVIEW_STATES])
+      .eq("hidden_from_homepage", false)
       .order("fetched_at", { ascending: false })
       .limit(CANDIDATE_LIMIT);
     if (error) throw new Error(error.message);

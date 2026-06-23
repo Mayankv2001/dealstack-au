@@ -4,6 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import {
   AlertTriangle,
   Clock,
+  Eye,
+  EyeOff,
   ExternalLink,
   Gauge,
   RefreshCw,
@@ -27,10 +29,12 @@ import type { FeedQueueItem } from "@/lib/admin/repos/feedQueue";
 import { findMerchantIdInText } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 import {
+  hideFromTopDeals,
   ignoreItem,
   ignoreVisibleItems,
   importItem,
   markDuplicate,
+  showInTopDeals,
 } from "./actions";
 
 /**
@@ -486,6 +490,16 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                     <Badge variant="outline" className="capitalize">
                       {item.reviewState}
                     </Badge>
+                    {item.hiddenFromHomepage ? (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-muted-foreground/40 text-muted-foreground"
+                        title="Excluded from the public homepage Top 5. Still in the queue and importable."
+                      >
+                        <EyeOff className="size-3" />
+                        Hidden from Top 5
+                      </Badge>
+                    ) : null}
                     {item.existingSignal ? (
                       <Badge
                         variant="outline"
@@ -581,6 +595,35 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                       Mark duplicate
                     </Button>
                   </form>
+                  {/* Homepage Top 5 visibility — independent of review state, so
+                      this never imports/ignores and keeps the item in the queue. */}
+                  {item.hiddenFromHomepage ? (
+                    <form action={showInTopDeals.bind(null, item.id)}>
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        title="Show this item in the public homepage Top 5 again."
+                      >
+                        <Eye className="size-3.5" />
+                        Show in Top 5
+                      </Button>
+                    </form>
+                  ) : (
+                    <form action={hideFromTopDeals.bind(null, item.id)}>
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        title="Exclude from the public homepage Top 5. Stays in the queue and remains importable."
+                      >
+                        <EyeOff className="size-3.5" />
+                        Hide from Top 5
+                      </Button>
+                    </form>
+                  )}
                 </CardFooter>
               </Card>
             );
