@@ -8,7 +8,9 @@
  *
  * Ranking order (highest first):
  *   1. tracked-store match (an item that names one of our stores)
- *   2. useful keyword hits (programs / categories / store names)
+ *   2. relevance score = useful keyword hits MINUS broad/unrelated penalties
+ *      (so anime figures, random gaming peripherals, generic fashion and
+ *      unrelated home goods sink below genuine stacking signals)
  *   3. recency (newest posted_at, else fetched_at)
  */
 
@@ -56,6 +58,8 @@ export const TOP_DEAL_KEYWORDS = [
   "velocity",
   "flybuys",
   "everyday rewards",
+  "bonus points",
+  "store credit",
   "gift card",
   "cashback",
   "points",
@@ -67,6 +71,49 @@ export const TOP_DEAL_KEYWORDS = [
   "amazon",
   "myer",
   "chemist warehouse",
+  "kogan",
+] as const;
+
+/**
+ * Broad / unrelated category signals (lowercased). OzBargain surfaces a lot of
+ * anime figures, random gaming peripherals, generic fashion and unrelated home
+ * goods that have nothing to do with stacking AU retail savings. Each match
+ * subtracts from the relevance score so these rank below genuine signals.
+ *
+ * Terms are deliberately specific to avoid false positives against the positive
+ * keywords or store names above (e.g. "gaming chair" not bare "gaming",
+ * "figurine"/"anime" not bare "figure" which is a substring of "configure").
+ * A tracked-store match still wins outright — a real "JB Hi-Fi" deal stays on
+ * top even if the title also mentions a penalised term.
+ */
+export const TOP_DEAL_NEGATIVE_KEYWORDS = [
+  // Collectibles / anime
+  "anime",
+  "manga",
+  "figurine",
+  "funko",
+  "collectible",
+  "plush toy",
+  "trading card",
+  // Random gaming peripherals / digital game keys
+  "gaming chair",
+  "gaming mouse",
+  "gaming keyboard",
+  "gaming headset",
+  "steam key",
+  "nintendo eshop",
+  // Generic fashion
+  "fashion",
+  "clothing",
+  "apparel",
+  "sneakers",
+  "footwear",
+  "activewear",
+  // Unrelated home goods
+  "mattress",
+  "furniture",
+  "bedding",
+  "doona",
 ] as const;
 
 /** Host of a URL without a leading www., or "" when unparseable. */
@@ -95,9 +142,17 @@ export function matchStoreName(
   return null;
 }
 
-/** Count of distinct keywords present in the haystack. */
+/** Count of distinct useful keywords present in the haystack. */
 export function countKeywordHits(haystack: string): number {
   return TOP_DEAL_KEYWORDS.reduce(
+    (n, kw) => (haystack.includes(kw) ? n + 1 : n),
+    0
+  );
+}
+
+/** Count of distinct broad/unrelated category terms present in the haystack. */
+export function countNegativeHits(haystack: string): number {
+  return TOP_DEAL_NEGATIVE_KEYWORDS.reduce(
     (n, kw) => (haystack.includes(kw) ? n + 1 : n),
     0
   );
@@ -115,23 +170,30 @@ interface Scored {
   item: RankableFeedItem;
   matchedStoreName: string | null;
   keywordHits: number;
+  negativeHits: number;
+  /** Net relevance: useful keyword hits minus broad/unrelated penalties. */
+  relevanceScore: number;
   ts: number;
 }
 
 function score(item: RankableFeedItem, stores: StoreRef[]): Scored {
   const haystack = `${item.title} ${item.summary} ${item.categories.join(" ")}`
     .toLowerCase();
+  const keywordHits = countKeywordHits(haystack);
+  const negativeHits = countNegativeHits(haystack);
   return {
     item,
     matchedStoreName: matchStoreName(haystack, stores),
-    keywordHits: countKeywordHits(haystack),
+    keywordHits,
+    negativeHits,
+    relevanceScore: keywordHits - negativeHits,
     ts: recencyMs(item),
   };
 }
 
 function relevanceOf(s: Scored): Relevance {
   if (s.matchedStoreName) return "high";
-  if (s.keywordHits >= 1) return "medium";
+  if (s.relevanceScore >= 1) return "medium";
   return "low";
 }
 
@@ -150,7 +212,9 @@ export function rankTopDeals(
     const aStore = a.matchedStoreName ? 1 : 0;
     const bStore = b.matchedStoreName ? 1 : 0;
     if (aStore !== bStore) return bStore - aStore;
-    if (a.keywordHits !== b.keywordHits) return b.keywordHits - a.keywordHits;
+    if (a.relevanceScore !== b.relevanceScore) {
+      return b.relevanceScore - a.relevanceScore;
+    }
     return b.ts - a.ts;
   });
 
