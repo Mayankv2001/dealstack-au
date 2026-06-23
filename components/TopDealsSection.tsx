@@ -1,4 +1,4 @@
-import { ExternalLink, Radio } from "lucide-react";
+import { Clock, ExternalLink, Radio } from "lucide-react";
 import type { Relevance, TopDeal } from "@/lib/repos/topDealsRanking";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,15 @@ function formatWhen(deal: TopDeal): string {
   return `${label} ${DATE_FMT.format(new Date(ms))}`;
 }
 
+/** Most recent fetched_at across the shown deals, formatted; null if none parse. */
+function formatLastUpdated(deals: TopDeal[]): string | null {
+  const latest = deals.reduce((max, d) => {
+    const ms = Date.parse(d.fetchedAt);
+    return Number.isNaN(ms) ? max : Math.max(max, ms);
+  }, 0);
+  return latest > 0 ? DATE_FMT.format(new Date(latest)) : null;
+}
+
 const RELEVANCE_STYLES: Record<Relevance, string> = {
   high: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   medium: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400",
@@ -42,7 +51,11 @@ const RELEVANCE_LABEL: Record<Relevance, string> = {
 };
 
 export function TopDealsSection({ deals }: { deals: TopDeal[] }) {
+  // No items (or every Top 5 item hidden by an admin — getTopDeals filters
+  // those out, yielding []) → hide the whole section rather than show an empty box.
   if (deals.length === 0) return null;
+
+  const lastUpdated = formatLastUpdated(deals);
 
   return (
     <section
@@ -61,8 +74,14 @@ export function TopDealsSection({ deals }: { deals: TopDeal[] }) {
           Today’s top OzBargain signals
         </h2>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">
-          Feed-derived, staged for review — verify before buying.
+          Updated from staged OzBargain RSS items. Verify before buying.
         </p>
+        {lastUpdated ? (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Clock className="size-3.5" />
+            Last updated {lastUpdated} (AEST)
+          </p>
+        ) : null}
 
         <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {deals.map((deal) => (
@@ -111,8 +130,9 @@ export function TopDealsSection({ deals }: { deals: TopDeal[] }) {
                     target="_blank"
                     rel="noopener noreferrer nofollow"
                     className="inline-flex shrink-0 items-center gap-1 font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                    aria-label={`View “${deal.title}” on OzBargain (opens in a new tab)`}
                   >
-                    Source
+                    View on OzBargain
                     <ExternalLink className="size-3.5" />
                   </a>
                 ) : null}
