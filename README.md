@@ -44,8 +44,8 @@ lib/
   monitor/                Feed monitor logic — pure, tested, no DB side-effects
   stack/                  Deal-stacking calculation helpers
 tests/
-  monitor/                Vitest tests for ranking, feed, and top-deals logic
-  stack/                  Vitest tests for stacking calculations
+  monitor/                Vitest tests for feed parsing, signal ranking, and top-deals logic
+  stack/                  Vitest tests for stacking calculations and source result ranking
 supabase/migrations/      Postgres migrations (apply manually or via Supabase CLI)
 docs/                     Monitoring and architecture documentation
 ```

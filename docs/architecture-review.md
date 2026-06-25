@@ -92,6 +92,27 @@ If any gate fails, no outbound request is made and the run is logged as blocked.
 
 ---
 
+## Test Coverage Summary
+
+145 tests across 12 files — all pure-function, no DB or network mocking.
+
+| Suite | File | What is covered |
+|---|---|---|
+| Monitor | `tests/monitor/normalise.test.ts` | Text normalisation, merchant matching, expiry, confidence, AU date formatting |
+| Monitor | `tests/monitor/topDeals.test.ts` | OzBargain signal ranking, edge cases (empty, null dates, limit=0) |
+| Monitor | `tests/monitor/offerChanges.test.ts` | Offer change candidate staging, deduplication, apply-plan logic |
+| Monitor | `tests/monitor/parseFeed.test.ts` | RSS/Atom feed parsing |
+| Monitor | `tests/monitor/fetchFeed.test.ts` | Feed fetch helpers |
+| Monitor | `tests/monitor/backoff.test.ts` | Exponential backoff logic |
+| Monitor | `tests/monitor/runMonitor.test.ts` | Monitor run orchestration (pure paths) |
+| Monitor | `tests/monitor/cronRoute.test.ts` | Cron route gate validation |
+| Stack | `tests/stack/calculateStack.test.ts` | Layer-by-layer stack arithmetic, edge cases |
+| Stack | `tests/stack/buildStack.test.ts` | Full stack recommendation builder, conflict resolution |
+| Stack | `tests/stack/compatibility.test.ts` | Stacking compatibility rules |
+| Stack | `tests/stack/ranking.test.ts` | Source result scoring and ranking (`lib/sources/ranking.ts`) |
+
+---
+
 ## Known Risks
 
 ### 1. Audit log is best-effort
@@ -131,7 +152,7 @@ If any gate fails, no outbound request is made and the run is logged as blocked.
 
 4. **`formatExpiry` input validation** — add a guard in `formatExpiry` (and `formatDateAU`) to return a safe fallback on unexpected input shapes.
 
-5. **Incremental Static Regeneration for public pages** — add `revalidate` intervals to the homepage and store pages so Vercel serves cached HTML between revalidations, reducing Supabase reads under traffic spikes.
+5. ~~**Incremental Static Regeneration for public pages**~~ — **Already done.** All public routes (`/`, `/deals`, `/search`, `/stores/[slug]`, `/resources`) export `revalidate = 300`.
 
 6. **Graceful degradation banner** — when `getTopDeals()` returns `[]` due to an error (not just empty staging), surface a subtle "signals unavailable" note rather than silently hiding the section.
 
