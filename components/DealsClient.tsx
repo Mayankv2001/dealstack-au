@@ -45,9 +45,6 @@ import { cn } from "@/lib/utils";
  * fallback) and passed in as props — this component imports no data itself.
  */
 
-const WEEK_LABEL = "Week of 8 June 2026";
-/** Mirrors the engine's fixed sample "now". 7-day expiring-soon window. */
-const SAMPLE_NOW = new Date("2026-06-13T12:00:00+10:00");
 const EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
 type FilterId =
@@ -101,8 +98,24 @@ function programTag(program: string | null | undefined): FilterId | null {
 function isExpiringSoon(expiry: string | null): boolean {
   if (!expiry) return false;
   const diff =
-    new Date(`${expiry}T23:59:59+10:00`).getTime() - SAMPLE_NOW.getTime();
+    new Date(`${expiry}T23:59:59+10:00`).getTime() - Date.now();
   return diff >= 0 && diff <= EXPIRY_SOON_MS;
+}
+
+/** "Week of D Mon YYYY" derived from the most recent weekOf date in the deals. */
+function deriveWeekLabel(deals: WeeklyDeal[]): string {
+  const latest = deals
+    .map((d) => d.weekOf)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+  if (!latest) return "Latest deals";
+  const [y, m, d] = latest.split("-").map(Number);
+  const MONTHS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  return y && m && d ? `Week of ${d} ${MONTHS[m - 1]} ${y}` : "Latest deals";
 }
 
 // ─── Points programme quick-guide content (FreePoints-style) ───────────────
@@ -479,7 +492,7 @@ const verificationNotes = [
 
 interface DealsClientProps {
   stackRecommendations: StackRecommendation[];
-  /** Received from the server for forward-compat; not rendered as its own section. */
+  /** Used to derive the week-of badge label shown in the hero. */
   weeklyDeals: WeeklyDeal[];
   stores: Store[];
   giftCardOffers: GiftCardOffer[];
@@ -490,6 +503,7 @@ interface DealsClientProps {
 
 export default function DealsClient({
   stackRecommendations,
+  weeklyDeals,
   stores,
   giftCardOffers,
   cashbackOffers,
@@ -498,6 +512,8 @@ export default function DealsClient({
 }: DealsClientProps) {
   const [active, setActive] = useState<FilterId>("all");
   const [giftSub, setGiftSub] = useState<GiftSub>("all");
+
+  const weekLabel = deriveWeekLabel(weeklyDeals);
 
   // Merchant id → name lookup, derived from the injected stores.
   const storeNameById = useMemo(() => {
@@ -624,7 +640,7 @@ export default function DealsClient({
               className="gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
             >
               <Sparkles className="size-3" />
-              {WEEK_LABEL}
+              {weekLabel}
             </Badge>
             <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
               Weekly{" "}

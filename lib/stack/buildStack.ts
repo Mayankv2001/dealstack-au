@@ -56,12 +56,16 @@ export const STATIC_STACK_DATA: StackData = {
   ozBargainSignals: staticOzBargainSignals,
 };
 
-/** The current sample week. Surfaced on every recommendation. */
-const WEEK_OF = "2026-06-08";
 /** Default example basket used for the dollar estimates. */
 export const DEFAULT_SPEND = 500;
-/** Fixed "now" for deterministic sample output (mid-June 2026). */
-const SAMPLE_NOW = new Date("2026-06-13T12:00:00+10:00");
+
+/** ISO Monday (YYYY-MM-DD) of the week containing `date`. */
+function isoWeekMonday(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun … 6=Sat
+  d.setDate(d.getDate() - ((day + 6) % 7)); // rewind to Monday
+  return d.toISOString().split("T")[0];
+}
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
@@ -124,7 +128,7 @@ function buildForStore(
   spend: number,
   data: StackData
 ): StackRecommendation | null {
-  const now = SAMPLE_NOW;
+  const now = new Date();
   const components: StackComponent[] = [];
   const warnings: StackWarning[] = [];
   const citations: Citation[] = [];
@@ -341,7 +345,7 @@ function buildForStore(
     confidence: worstConfidence(confidences),
     warnings,
     citations: dedupeCitations(citations),
-    weekOf: WEEK_OF,
+    weekOf: isoWeekMonday(now),
   };
 }
 
