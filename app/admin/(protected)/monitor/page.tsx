@@ -7,6 +7,7 @@ import {
   Info,
   Lightbulb,
   ListChecks,
+  PowerOff,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -516,12 +517,62 @@ export default async function MonitorStatusPage() {
         </CardContent>
       </Card>
 
+      {/* How to stop the monitor — always visible so admins can act quickly. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <PowerOff className="size-5 text-muted-foreground" />
+            How to stop monitoring
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            Two ways to disable the monitor. Neither deletes staged items or
+            changes any published offer.
+          </p>
+          <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+            <p className="font-medium">Option 1 — Vercel env var (preferred)</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              In Vercel Dashboard → Project → Settings → Environment Variables,
+              set <code className="text-xs">OZB_MONITOR_ENABLED</code> to{" "}
+              <code className="text-xs">false</code> (or delete it), then
+              redeploy. Takes effect on the next deployment.
+            </p>
+          </div>
+          <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+            <p className="font-medium">Option 2 — disable feed sources (immediate, no redeploy)</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Navigate to{" "}
+              <Link href="/admin/signals/sources" className="underline">
+                Feed Sources
+              </Link>{" "}
+              and toggle all feeds to disabled. The cron will still run on
+              schedule but find no enabled sources and exit immediately.
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Full emergency steps and rollback plan are in{" "}
+            <code className="text-xs">docs/production-readiness.md</code>.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Staged feed items by triage state. */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">
-            Staged feed items ({status.feedItemsTotal})
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-lg">
+              Staged feed items ({status.feedItemsTotal})
+            </CardTitle>
+            {status.feedQueuePending > 0 ? (
+              <Link
+                href="/admin/signals/queue"
+                className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+              >
+                Review queue ({status.feedQueuePending} pending) →
+              </Link>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
