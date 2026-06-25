@@ -197,4 +197,40 @@ describe("topDealsRanking — rankTopDeals", () => {
       matchedStoreName: "JB Hi-Fi",
     });
   });
+
+  it("returns [] for an empty items array", () => {
+    expect(rankTopDeals([], STORES)).toHaveLength(0);
+  });
+
+  it("returns [] when limit is 0", () => {
+    const many = Array.from({ length: 3 }, (_, i) =>
+      item({ id: `i${i}`, nativeId: `ozb:${i}` })
+    );
+    expect(rankTopDeals(many, STORES, 0)).toHaveLength(0);
+  });
+
+  it("falls back to fetchedAt for recency when postedAt is null", () => {
+    const ranked = rankTopDeals(
+      [
+        item({ id: "older", postedAt: null, fetchedAt: "2026-06-01T00:00:00Z" }),
+        item({ id: "newer", postedAt: null, fetchedAt: "2026-06-20T00:00:00Z" }),
+      ],
+      STORES
+    );
+    expect(ranked[0].id).toBe("newer");
+    expect(ranked[1].id).toBe("older");
+  });
+
+  it("does not crash when both postedAt and fetchedAt are unparseable", () => {
+    const ranked = rankTopDeals(
+      [
+        item({ id: "bad-dates", postedAt: "not-a-date", fetchedAt: "also-bad" }),
+        item({ id: "good-dates", postedAt: "2026-06-20T00:00:00Z" }),
+      ],
+      STORES
+    );
+    // bad-dates gets recencyMs=0 and falls behind good-dates — but doesn't throw
+    expect(ranked[0].id).toBe("good-dates");
+    expect(ranked).toHaveLength(2);
+  });
 });
