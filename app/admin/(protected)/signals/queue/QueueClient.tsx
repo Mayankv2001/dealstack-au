@@ -293,9 +293,10 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
     const ids = [...selected];
     if (ids.length === 0) return;
     const ok = window.confirm(
-      `Ignore ${ids.length} selected item${ids.length === 1 ? "" : "s"}? ` +
-        "They'll be moved out of the queue (review_state = ignored). " +
-        "This does not delete anything and nothing is published."
+      `Dismiss ${ids.length} selected item${ids.length === 1 ? "" : "s"}?\n\n` +
+        "They will be marked as ignored and removed from this queue view. " +
+        "Nothing is deleted and nothing is published. " +
+        "Ignored items can be found by changing the review_state filter if you need them again."
     );
     if (!ok) return;
     startTransition(async () => {
@@ -388,11 +389,15 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
         {filtered.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                <span className="font-medium text-foreground tabular-nums">
-                  {selectedCount}
-                </span>{" "}
-                selected
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 font-medium tabular-nums",
+                  selectedCount > 0
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground"
+                )}
+              >
+                {selectedCount} selected
               </span>
               <button
                 type="button"
@@ -581,7 +586,11 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                 <CardFooter className="flex flex-wrap gap-2">
                   {/* POST forms so each bound server action runs on the server. */}
                   <form action={importItem.bind(null, item.id)}>
-                    <Button type="submit" size="sm">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      title="Creates a pending signal in /admin/signals. It is NOT public until you approve it there."
+                    >
                       Import as pending signal
                     </Button>
                   </form>
@@ -604,7 +613,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                         variant="outline"
                         size="sm"
                         className="gap-1.5"
-                        title="Show this item in the public homepage Top 5 again."
+                        title="Allow this item to appear in the homepage 'Today's top OzBargain signals' section. Does not import or publish — it must still be imported first."
                       >
                         <Eye className="size-3.5" />
                         Show in Top 5
@@ -617,7 +626,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                         variant="outline"
                         size="sm"
                         className="gap-1.5"
-                        title="Exclude from the public homepage Top 5. Stays in the queue and remains importable."
+                        title="Prevent this item from appearing in the homepage 'Today's top OzBargain signals' section. Stays in the queue and can still be imported or ignored."
                       >
                         <EyeOff className="size-3.5" />
                         Hide from Top 5

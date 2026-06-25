@@ -34,9 +34,14 @@ export default async function FeedQueuePage() {
       </header>
 
       <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">Staged items only.</span>{" "}
-        This queue contains staged feed items only. Importing creates a pending
-        signal for manual review; nothing is published automatically.
+        <span className="font-medium text-foreground">Two steps to publish.</span>{" "}
+        <strong className="font-medium text-foreground">Import</strong> creates
+        a <em>pending</em> signal — it is not public yet. A second manual step in{" "}
+        <Link href="/admin/signals" className="underline">
+          Signals
+        </Link>{" "}
+        is required to approve and publish it. Ignore and Mark duplicate never
+        touch public data.
       </p>
 
       {items.length === 0 ? (
