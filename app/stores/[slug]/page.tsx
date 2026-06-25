@@ -238,8 +238,8 @@ export default async function StorePage({
           </div>
           <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            We checked example/static results from OzBargain, Point Hacks,
-            FreePoints, GCDB and DealStack manual entries.
+            Results sourced from OzBargain, Point Hacks,
+            FreePoints, GCDB and DealStack-verified entries.
           </p>
         </div>
 
@@ -331,8 +331,9 @@ export default async function StorePage({
           )}
 
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            These are example/static source checks for the MVP. Offers change
-            quickly. Always verify on the original source or provider website.
+            Deal listings are sourced from community feeds and manual curation.
+            Rates and availability change frequently — always verify directly
+            with the retailer or provider before purchasing.
           </p>
         </section>
 

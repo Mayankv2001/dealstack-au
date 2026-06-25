@@ -11,9 +11,19 @@ import type { Store } from "@/lib/data";
 import { getStores } from "@/lib/repos";
 import { searchSourceResults } from "@/lib/repos/sourceResults";
 
-export const metadata: Metadata = {
-  title: "Search stores — DealStack AU",
-};
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string | string[] }>;
+}): Promise<Metadata> {
+  const { q } = await searchParams;
+  const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
+  return {
+    title: query
+      ? `"${query}" — DealStack AU`
+      : "Search stores — DealStack AU",
+  };
+}
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
 // the home and /deals routes. getStores() falls back to static data when
@@ -149,8 +159,9 @@ export default async function SearchPage({
           )}
 
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            These are example/static source checks for the MVP. Offers change
-            quickly. Always verify on the original source or provider website.
+            Deal listings are sourced from community feeds and manual curation.
+            Rates and availability change frequently — always verify directly
+            with the retailer or provider before purchasing.
           </p>
         </section>
       </main>
