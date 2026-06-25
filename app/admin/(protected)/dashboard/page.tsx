@@ -251,9 +251,10 @@ export default async function AdminDashboardPage({
       </header>
 
       <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">Manual admin only.</span>{" "}
-        All deal data is manually entered or curated. No scraping or automated
-        source fetching is running.
+        <span className="font-medium text-foreground">Manual review required.</span>{" "}
+        All published deal data is reviewed and approved by an admin. The feed
+        monitor may stage items for review, but nothing is published without an
+        explicit admin action.
       </p>
 
       {/* Overview — existing per-section count cards. */}

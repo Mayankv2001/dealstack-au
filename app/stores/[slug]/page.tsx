@@ -317,8 +317,8 @@ export default async function StorePage({
                   No source listings for {store.name} right now
                 </p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  The example rates above still apply — check back as sources
-                  are updated.
+                  The deal stack estimates above are based on our curated data —
+                  check back as sources update.
                 </p>
               </CardContent>
             </Card>
