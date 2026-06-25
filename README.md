@@ -1,55 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DealStack AU
 
-## Getting Started
+A deal-stacking platform for Australian shoppers that combines cashback portals, gift cards, points programmes, and OzBargain feed signals into a single research tool. Built as a full-stack portfolio project demonstrating Next.js 16, Supabase, and responsible data-pipeline design.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+### Public Site
+- **Homepage** — Top 5 OzBargain signals (admin-curated), popular stores, and search entry point
+- **Deals directory** — Browse and filter curated deals with AUD pricing
+- **Store pages** — Per-store cashback, gift-card, and points stacking details
+- **Search** — Live cross-entity search across deals and stores
+
+### Admin Portal (`/admin`)
+- **Feed queue** — Review staged OzBargain feed items; import, ignore, or mark duplicates one at a time; no bulk auto-import
+- **Offer changes** — Review detected cashback/gift-card rate changes before applying; full audit trail
+- **Top 5 visibility** — Control which signals appear on the homepage (hidden_from_homepage flag per item)
+- **Compliance controls** — Compliance review gate that must be on file before feed monitoring activates
+- **Audit log** — Append-only log of every admin action
+- **Data quality report** — Surface missing rates, stale data, and coverage gaps
+- **Cron monitor** — Verify the last successful feed run and scheduler health
+
+### Safe Feed Automation
+- OzBargain RSS monitoring is **gated and off by default** — requires `OZB_MONITOR_ENABLED=true` plus a compliance review row in the database
+- Feed items are **staged for mandatory admin review** and never auto-published
+- Offer changes are **staged as candidates** and never auto-applied
+- No Cashrewards data anywhere
+- RSS/Atom parsing only — no HTML scraping, no bypassing robots.txt
+
+---
+
+## Architecture
+
+```
+app/                      Next.js 16 App Router
+  (public)/               Homepage, deals, stores, search — reads Supabase with anon key
+  admin/(protected)/      Admin portal — server components, service-role isolated
+  api/cron/               Secret-gated monitor route (never called client-side)
+components/               Shared React components (shadcn/ui base)
+lib/
+  repos/                  Public data-access (anon key, RLS enforced)
+  admin/repos/            Admin data-access (service-role, server-only)
+  monitor/                Feed monitor logic — pure, tested, no DB side-effects
+  stack/                  Deal-stacking calculation helpers
+tests/
+  monitor/                Vitest tests for ranking, feed, and top-deals logic
+  stack/                  Vitest tests for stacking calculations
+supabase/migrations/      Postgres migrations (apply manually or via Supabase CLI)
+docs/                     Monitoring and architecture documentation
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Key safety boundary:** the Supabase service-role key is only used inside `lib/admin/repos/` and the cron API route — never in client components or public routes.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Local Setup
 
-## Data Sources & Compliance
+```bash
+# Prerequisites: Node 20+, a Supabase project with migrations applied
 
-Deal data is **manually entered and curated** by admins; the public site reads
-from Supabase (with a static sample fallback) and never makes external source
-requests on a user's behalf.
+cp .env.example .env.local
+# Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 
-OzBargain monitoring is **built but gated and OFF by default**. A single
-secret-gated cron route (`GET /api/cron/monitor-feeds`) is the only path allowed
-to fetch, and only when `OZB_MONITOR_ENABLED=true`, an approved compliance review
-is on file, and at least one `feed_sources` row is enabled. It stages
-`feed_items` for **mandatory admin review** and never auto-publishes anything.
+npm install
+npm run dev
+```
 
-**Scheduling:** Vercel Cron runs the route **once daily** on the Hobby plan
-(`vercel.json`, kept daily so deploys stay valid). For more frequent polling, an
-**optional external scheduler** (e.g. cron-job.org) can call the same
-secret-gated route every 3 hours with `Authorization: Bearer ${CRON_SECRET}` —
-both paths obey the same gates. See the safety, compliance, review and
-scheduling rules in [docs/ozbargain-monitoring.md](docs/ozbargain-monitoring.md).
+### Seed data
+```bash
+npm run seed               # base stores/deals
+npm run seed:feed-items    # sample OzBargain feed items
+npm run seed:offer-changes # sample offer change candidates
+```
 
-## Learn More
+### Tests
+```bash
+npm run test:monitor   # monitor/feed/ranking logic
+npm run test:stack     # deal-stacking calculations
+npm run lint           # ESLint
+npm run build          # production build
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Hosted on **Vercel (Hobby plan)**. One cron job per day is the Hobby plan maximum — `vercel.json` keeps the schedule at daily (`0 2 * * *`).
 
-## Deploy on Vercel
+For more frequent feed checks, an **optional external scheduler** (e.g. cron-job.org) can call `GET /api/cron/monitor-feeds` with `Authorization: Bearer $CRON_SECRET` up to every 3 hours. Both paths obey identical safety gates. See [docs/ozbargain-monitoring.md](docs/ozbargain-monitoring.md).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Required Vercel environment variables
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (RLS enforced) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only service-role key |
+| `CRON_SECRET` | Bearer token for the cron route |
+| `OZB_MONITOR_ENABLED` | Set `true` to activate feed monitoring |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Manual Operations Checklist
+
+Before going live:
+- [ ] Apply all Supabase migrations (`supabase db push` or via Dashboard)
+- [ ] Set all env vars in Vercel project settings
+- [ ] Add a compliance review row via the admin compliance page
+- [ ] Enable `OZB_MONITOR_ENABLED=true` in Vercel env if feed monitoring is wanted
+- [ ] Optionally configure cron-job.org to call the monitor route every 3 hours
+- [ ] Review any staged feed items in `/admin/signals/queue` before publishing
