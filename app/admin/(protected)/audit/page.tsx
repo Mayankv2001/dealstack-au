@@ -27,6 +27,7 @@ const TABLE_OPTIONS = [
   "feed_sources",
   "feed_items",
   "compliance_reviews",
+  "offer_change_candidates",
 ];
 
 const ACTION_OPTIONS = [
@@ -40,6 +41,9 @@ const ACTION_OPTIONS = [
   "import",
   "ignore",
   "mark-duplicate",
+  "apply",
+  "hide-from-homepage",
+  "show-on-homepage",
 ];
 
 const controlClass =

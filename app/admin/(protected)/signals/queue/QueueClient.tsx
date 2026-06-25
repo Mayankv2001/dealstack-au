@@ -293,10 +293,10 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
     const ids = [...selected];
     if (ids.length === 0) return;
     const ok = window.confirm(
-      `Dismiss ${ids.length} selected item${ids.length === 1 ? "" : "s"}?\n\n` +
+      `Ignore ${ids.length} selected item${ids.length === 1 ? "" : "s"}?\n\n` +
         "They will be marked as ignored and removed from this queue view. " +
-        "Nothing is deleted and nothing is published. " +
-        "Ignored items can be found by changing the review_state filter if you need them again."
+        "Nothing is deleted and nothing is published — recovering an ignored item " +
+        "requires a database operation, not a filter here."
     );
     if (!ok) return;
     startTransition(async () => {
