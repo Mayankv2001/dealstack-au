@@ -3,7 +3,11 @@ import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listOfferChanges } from "@/lib/admin/repos/offerChanges";
-import { isApplyPlan, planOfferApplication } from "@/lib/monitor/offerChanges";
+import {
+  isApplyPlan,
+  planOfferApplication,
+  type ApplyPlan,
+} from "@/lib/monitor/offerChanges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import OfferChangesClient, { type OfferChangeView } from "./OfferChangesClient";
@@ -11,6 +15,20 @@ import OfferChangesClient, { type OfferChangeView } from "./OfferChangesClient";
 export const metadata: Metadata = {
   title: "Offer changes | DealStack AU admin",
 };
+
+const TABLE_LABELS: Record<string, string> = {
+  cashback_offers: "cashback rate",
+  gift_card_offers: "gift-card discount",
+  points_offers: "points rate",
+  stores: "promo discount",
+};
+
+function humanApplyHint(plan: ApplyPlan): string {
+  const isPercent = ["rate_percent", "discount_percent"].includes(plan.column);
+  const formatted = isPercent ? `${plan.value}%` : String(plan.value);
+  const label = TABLE_LABELS[plan.table] ?? plan.table;
+  return `Will update ${label} to ${formatted} — confirm before applying`;
+}
 
 export default async function OfferChangesPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
@@ -31,9 +49,7 @@ export default async function OfferChangesPage() {
     return {
       ...c,
       canApply: isApplyPlan(plan),
-      applyHint: isApplyPlan(plan)
-        ? `Will set ${plan.table}.${plan.column} = ${plan.value}`
-        : plan.skip,
+      applyHint: isApplyPlan(plan) ? humanApplyHint(plan) : plan.skip,
     };
   });
 

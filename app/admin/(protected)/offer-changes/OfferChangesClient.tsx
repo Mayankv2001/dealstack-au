@@ -49,7 +49,10 @@ function Row({ item }: { item: OfferChangeView }) {
   const onApply = () => {
     if (
       !window.confirm(
-        `Apply this change to the live offer?\n\n${item.applyHint}\n\nThis updates published data immediately.`
+        `Apply this change to the live offer?\n\n` +
+          `${item.applyHint}.\n\n` +
+          `This updates published data immediately and is logged in the audit trail. ` +
+          `Ignore or Mark duplicate if you are unsure.`
       )
     ) {
       return;
@@ -137,7 +140,7 @@ function Row({ item }: { item: OfferChangeView }) {
             size="sm"
             onClick={onApply}
             disabled={isPending || !item.canApply}
-            title={item.canApply ? item.applyHint : item.applyHint}
+            title={item.applyHint}
             className={cn(
               "bg-emerald-600 text-white hover:bg-emerald-700",
               !item.canApply && "cursor-not-allowed"
@@ -164,8 +167,8 @@ function Row({ item }: { item: OfferChangeView }) {
             Mark duplicate
           </Button>
           {!item.canApply ? (
-            <span className="text-xs text-muted-foreground">
-              Apply unavailable — {item.applyHint}
+            <span className="text-xs text-muted-foreground" title={item.applyHint}>
+              Apply unavailable — {item.applyHint}.
             </span>
           ) : null}
         </div>
