@@ -126,9 +126,18 @@ export async function GET(request: Request): Promise<Response> {
       }
     );
 
+    const totalNew = summary.results.reduce((sum, r) => sum + r.itemsNew, 0);
+    const note =
+      summary.feedsConsidered === 0
+        ? "Skipped: No feeds due — all within their minimum polling interval."
+        : summary.feedsProcessed === 0
+        ? "Skipped: No feeds were processed."
+        : `Success: Staged ${totalNew} new item${totalNew === 1 ? "" : "s"} across ${summary.feedsProcessed} feed${summary.feedsProcessed === 1 ? "" : "s"}.`;
+
     return Response.json({
       ok: true,
       ran: true,
+      note,
       enabled: summary.enabled,
       feedsConsidered: summary.feedsConsidered,
       feedsProcessed: summary.feedsProcessed,
