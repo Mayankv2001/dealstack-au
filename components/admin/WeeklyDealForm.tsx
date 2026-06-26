@@ -142,7 +142,7 @@ export function WeeklyDealForm({
         <Field
           label="Week of"
           htmlFor="week_of"
-          hint="The Monday this deal belongs to."
+          hint="Set to the current week's Monday. The DQ report flags this as stale once the week ends."
         >
           <Input
             id="week_of"
@@ -208,7 +208,11 @@ export function WeeklyDealForm({
           </select>
         </Field>
 
-        <Field label="Expiry date" htmlFor="expiry_date" hint="Optional.">
+        <Field
+          label="Expiry date"
+          htmlFor="expiry_date"
+          hint="Optional. When set, the DQ report flags this deal as expired once the date passes."
+        >
           <Input
             id="expiry_date"
             name="expiry_date"
@@ -220,7 +224,7 @@ export function WeeklyDealForm({
         <Field
           label="Source URL"
           htmlFor="source_url"
-          hint="Citation link backing this deal."
+          hint="Citation link backing this deal. Needed to pass the data-quality source check."
         >
           <Input
             id="source_url"
@@ -263,6 +267,14 @@ export function WeeklyDealForm({
           </span>
         </label>
       </fieldset>
+
+      <div className="space-y-1 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+        <p>
+          <span className="font-medium text-foreground">Update Week of each week</span>{" "}
+          — the DQ report flags this card as stale once the week ends.
+        </p>
+        <p>Admin edits take effect on the live site immediately; seed scripts are for demo reset only.</p>
+      </div>
 
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={isPending}>

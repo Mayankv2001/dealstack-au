@@ -216,7 +216,11 @@ export function CashbackForm({
           />
         </Field>
 
-        <Field label="Expiry date" htmlFor="expiry_date" hint="Optional.">
+        <Field
+          label="Expiry date"
+          htmlFor="expiry_date"
+          hint="Optional. When set, the DQ report flags this offer as expired once the date passes."
+        >
           <Input
             id="expiry_date"
             name="expiry_date"
@@ -244,7 +248,7 @@ export function CashbackForm({
         <Field
           label="Source URL"
           htmlFor="source_url"
-          hint="Citation link to the provider's offer page."
+          hint="Citation link to the provider's offer page. Needed to pass the data-quality source check."
         >
           <Input
             id="source_url"
@@ -290,6 +294,14 @@ export function CashbackForm({
           defaultChecked={defaultValues?.isPublished ?? true}
         />
       </fieldset>
+
+      <div className="space-y-1 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+        <p>
+          <span className="font-medium text-foreground">Saving this form</span>{" "}
+          auto-updates Last&nbsp;checked — this clears any stale data-quality flag.
+        </p>
+        <p>Admin edits take effect on the live site immediately; seed scripts are for demo reset only.</p>
+      </div>
 
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={isPending}>
