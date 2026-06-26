@@ -3,8 +3,17 @@
 import type { ReactNode } from "react";
 import { useActionState } from "react";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -92,11 +101,13 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
+      <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
         {label}
       </label>
       {children}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? (
+        <p className="text-[11px] leading-normal text-muted-foreground/80">{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -118,321 +129,354 @@ export function GiftCardForm({
   );
 
   return (
-    <form action={formAction} className="max-w-2xl space-y-6">
-      {state?.error ? (
-        <p
-          role="alert"
-          className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {state.error}
-        </p>
-      ) : null}
+    <Card className="max-w-2xl">
+      {/* display:contents makes the form layout-transparent so Card's flex gap applies
+          between CardHeader / CardContent / CardFooter — form submission is unaffected. */}
+      <form action={formAction} className="contents">
+        <CardHeader>
+          <CardTitle>Gift card offer</CardTitle>
+          <CardDescription>
+            Brand, discount, acceptance, and citations for gift-card stacking.
+          </CardDescription>
+        </CardHeader>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Brand"
-          htmlFor="brand"
-          hint='Gift card brand, e.g. "Coles Group", "Ultimate", "Apple".'
-        >
-          <Input
-            id="brand"
-            name="brand"
-            required
-            defaultValue={defaultValues?.brand ?? ""}
-          />
-        </Field>
+        <CardContent className="space-y-6">
+          {state?.error ? (
+            <p
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {state.error}
+            </p>
+          ) : null}
 
-        <Field
-          label="Source"
-          htmlFor="source"
-          hint='Where the card is bought from, e.g. "RACV Member Benefits".'
-        >
-          <Input
-            id="source"
-            name="source"
-            required
-            defaultValue={defaultValues?.source ?? ""}
-          />
-        </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Brand"
+              htmlFor="brand"
+              hint='Gift card brand, e.g. "Coles Group", "Ultimate", "Apple".'
+            >
+              <Input
+                id="brand"
+                name="brand"
+                required
+                defaultValue={defaultValues?.brand ?? ""}
+              />
+            </Field>
 
-        <Field label="Discount (%)" htmlFor="discount_percent">
-          <Input
-            id="discount_percent"
-            name="discount_percent"
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            defaultValue={defaultValues?.discountPercent ?? 0}
-          />
-        </Field>
+            <Field
+              label="Source"
+              htmlFor="source"
+              hint='Where the card is bought from, e.g. "RACV Member Benefits".'
+            >
+              <Input
+                id="source"
+                name="source"
+                required
+                defaultValue={defaultValues?.source ?? ""}
+              />
+            </Field>
 
-        <Field label="Channel" htmlFor="channel">
-          <select
-            id="channel"
-            name="channel"
-            required
-            defaultValue={defaultValues?.channel ?? ""}
-            className={controlClass}
+            <Field label="Discount (%)" htmlFor="discount_percent">
+              <Input
+                id="discount_percent"
+                name="discount_percent"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                defaultValue={defaultValues?.discountPercent ?? 0}
+                className="max-w-xs"
+              />
+            </Field>
+
+            <Field label="Channel" htmlFor="channel">
+              <select
+                id="channel"
+                name="channel"
+                required
+                defaultValue={defaultValues?.channel ?? ""}
+                className={controlClass}
+              >
+                <option value="" disabled>
+                  Select a channel…
+                </option>
+                {CHANNEL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field
+              label="Cap ($)"
+              htmlFor="cap_dollars"
+              hint="Optional per-offer / per-transaction cap."
+            >
+              <Input
+                id="cap_dollars"
+                name="cap_dollars"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                defaultValue={defaultValues?.capDollars ?? ""}
+                className="max-w-xs"
+              />
+            </Field>
+
+            <Field label="Purchase method" htmlFor="purchase_method">
+              <select
+                id="purchase_method"
+                name="purchase_method"
+                defaultValue={defaultValues?.purchaseMethod ?? ""}
+                className={controlClass}
+              >
+                {PURCHASE_METHOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Start date" htmlFor="start_date" hint="Optional.">
+              <Input
+                id="start_date"
+                name="start_date"
+                type="date"
+                defaultValue={defaultValues?.startDate ?? ""}
+                className="max-w-[200px]"
+              />
+            </Field>
+
+            <Field
+              label="Expiry date"
+              htmlFor="expiry_date"
+              hint="Optional. When set, the DQ report flags this offer as expired once the date passes."
+            >
+              <Input
+                id="expiry_date"
+                name="expiry_date"
+                type="date"
+                defaultValue={defaultValues?.expiryDate ?? ""}
+                className="max-w-[200px]"
+              />
+            </Field>
+
+            <Field label="Confidence" htmlFor="confidence">
+              <select
+                id="confidence"
+                name="confidence"
+                required
+                defaultValue={defaultValues?.confidence ?? "needs-verification"}
+                className={controlClass}
+              >
+                {CONFIDENCE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field
+              label="Limit per customer"
+              htmlFor="limit_per_customer"
+              hint="Optional, human-readable."
+            >
+              <Input
+                id="limit_per_customer"
+                name="limit_per_customer"
+                defaultValue={defaultValues?.limitPerCustomer ?? ""}
+              />
+            </Field>
+          </div>
+
+          <Field
+            label="Accepted at (stores)"
+            htmlFor="accepted_at_merchant_ids"
+            hint="Hold ⌘/Ctrl to select every store where this card can be spent."
           >
-            <option value="" disabled>
-              Select a channel…
-            </option>
-            {CHANNEL_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+            <select
+              id="accepted_at_merchant_ids"
+              name="accepted_at_merchant_ids"
+              multiple
+              defaultValue={defaultValues?.acceptedAtMerchantIds ?? []}
+              className={cn(controlClass, "min-h-40")}
+            >
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-        <Field
-          label="Cap ($)"
-          htmlFor="cap_dollars"
-          hint="Optional per-offer / per-transaction cap."
-        >
-          <Input
-            id="cap_dollars"
-            name="cap_dollars"
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            defaultValue={defaultValues?.capDollars ?? ""}
-          />
-        </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Points program (on purchase)"
+              htmlFor="points_program"
+              hint='Optional. Program earned for buying the card, e.g. "Flybuys".'
+            >
+              <Input
+                id="points_program"
+                name="points_program"
+                defaultValue={defaultValues?.pointsProgram ?? ""}
+              />
+            </Field>
 
-        <Field label="Purchase method" htmlFor="purchase_method">
-          <select
-            id="purchase_method"
-            name="purchase_method"
-            defaultValue={defaultValues?.purchaseMethod ?? ""}
-            className={controlClass}
+            <Field
+              label="Points earn note"
+              htmlFor="points_earn_note"
+              hint="Optional. Short description of the bonus earn."
+            >
+              <Input
+                id="points_earn_note"
+                name="points_earn_note"
+                defaultValue={defaultValues?.pointsEarnNote ?? ""}
+              />
+            </Field>
+          </div>
+
+          <Field
+            label="Purchase location"
+            htmlFor="purchase_location"
+            hint='Optional, e.g. "RACV Member Benefits portal".'
           >
-            {PURCHASE_METHOD_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+            <Input
+              id="purchase_location"
+              name="purchase_location"
+              defaultValue={defaultValues?.purchaseLocation ?? ""}
+            />
+          </Field>
 
-        <Field label="Start date" htmlFor="start_date" hint="Optional.">
-          <Input
-            id="start_date"
-            name="start_date"
-            type="date"
-            defaultValue={defaultValues?.startDate ?? ""}
-          />
-        </Field>
-
-        <Field
-          label="Expiry date"
-          htmlFor="expiry_date"
-          hint="Optional. When set, the DQ report flags this offer as expired once the date passes."
-        >
-          <Input
-            id="expiry_date"
-            name="expiry_date"
-            type="date"
-            defaultValue={defaultValues?.expiryDate ?? ""}
-          />
-        </Field>
-
-        <Field label="Confidence" htmlFor="confidence">
-          <select
-            id="confidence"
-            name="confidence"
-            required
-            defaultValue={defaultValues?.confidence ?? "needs-verification"}
-            className={controlClass}
+          <Field
+            label="Accepted at (retailers)"
+            htmlFor="accepted_at"
+            hint="Optional. One human-readable retailer per line."
           >
-            {CONFIDENCE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+            <textarea
+              id="accepted_at"
+              name="accepted_at"
+              rows={3}
+              defaultValue={lines(defaultValues?.acceptedAt)}
+              className={cn(controlClass, "min-h-16")}
+            />
+          </Field>
 
-        <Field
-          label="Limit per customer"
-          htmlFor="limit_per_customer"
-          hint="Optional, human-readable."
-        >
-          <Input
-            id="limit_per_customer"
-            name="limit_per_customer"
-            defaultValue={defaultValues?.limitPerCustomer ?? ""}
-          />
-        </Field>
-      </div>
+          <Field
+            label="Usage notes"
+            htmlFor="usage_notes"
+            hint="Optional. One note per line, in our own words."
+          >
+            <textarea
+              id="usage_notes"
+              name="usage_notes"
+              rows={3}
+              defaultValue={lines(defaultValues?.usageNotes)}
+              className={cn(controlClass, "min-h-16")}
+            />
+          </Field>
 
-      <Field
-        label="Accepted at (stores)"
-        htmlFor="accepted_at_merchant_ids"
-        hint="Hold ⌘/Ctrl to select every store where this card can be spent."
-      >
-        <select
-          id="accepted_at_merchant_ids"
-          name="accepted_at_merchant_ids"
-          multiple
-          defaultValue={defaultValues?.acceptedAtMerchantIds ?? []}
-          className={cn(controlClass, "min-h-40")}
-        >
-          {stores.map((store) => (
-            <option key={store.id} value={store.id}>
-              {store.name}
-            </option>
-          ))}
-        </select>
-      </Field>
+          <Field
+            label="Stack notes"
+            htmlFor="stack_notes"
+            hint="Optional. How this card stacks with codes / cashback / points — one per line."
+          >
+            <textarea
+              id="stack_notes"
+              name="stack_notes"
+              rows={3}
+              defaultValue={lines(defaultValues?.stackNotes)}
+              className={cn(controlClass, "min-h-16")}
+            />
+          </Field>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Points program (on purchase)"
-          htmlFor="points_program"
-          hint='Optional. Program earned for buying the card, e.g. "Flybuys".'
-        >
-          <Input
-            id="points_program"
-            name="points_program"
-            defaultValue={defaultValues?.pointsProgram ?? ""}
-          />
-        </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Source URL (citation)"
+              htmlFor="source_url"
+              hint="Citation link to the offer page. Needed to pass the data-quality source check."
+            >
+              <Input
+                id="source_url"
+                name="source_url"
+                type="url"
+                placeholder="https://…"
+                defaultValue={defaultValues?.sourceUrl ?? ""}
+              />
+            </Field>
 
-        <Field
-          label="Points earn note"
-          htmlFor="points_earn_note"
-          hint="Optional. Short description of the bonus earn."
-        >
-          <Input
-            id="points_earn_note"
-            name="points_earn_note"
-            defaultValue={defaultValues?.pointsEarnNote ?? ""}
-          />
-        </Field>
-      </div>
+            <Field
+              label="Source detail URL"
+              htmlFor="source_detail_url"
+              hint="Optional link to a fuller offer-detail page."
+            >
+              <Input
+                id="source_detail_url"
+                name="source_detail_url"
+                type="url"
+                placeholder="https://…"
+                defaultValue={defaultValues?.sourceDetailUrl ?? ""}
+              />
+            </Field>
+          </div>
 
-      <Field
-        label="Purchase location"
-        htmlFor="purchase_location"
-        hint='Optional, e.g. "RACV Member Benefits portal".'
-      >
-        <Input
-          id="purchase_location"
-          name="purchase_location"
-          defaultValue={defaultValues?.purchaseLocation ?? ""}
-        />
-      </Field>
+          <fieldset className="space-y-3">
+            <label htmlFor="is_published" className="flex items-start gap-2.5 text-sm">
+              <input
+                id="is_published"
+                name="is_published"
+                type="checkbox"
+                defaultChecked={defaultValues?.isPublished ?? true}
+                className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
+              />
+              <span>
+                <span className="font-medium text-foreground">Published</span>
+                <span className="block text-[11px] leading-normal text-muted-foreground/80">
+                  Visible on /deals. Uncheck to keep it as a draft.
+                </span>
+              </span>
+            </label>
+          </fieldset>
+        </CardContent>
 
-      <Field
-        label="Accepted at (retailers)"
-        htmlFor="accepted_at"
-        hint="Optional. One human-readable retailer per line."
-      >
-        <textarea
-          id="accepted_at"
-          name="accepted_at"
-          rows={3}
-          defaultValue={lines(defaultValues?.acceptedAt)}
-          className={cn(controlClass, "min-h-16")}
-        />
-      </Field>
+        <CardFooter>
+          <div className="flex w-full flex-col gap-4">
+            {/* Freshness callout */}
+            <div className="w-full rounded-r-md border-l-4 border-emerald-500 bg-emerald-50/50 p-3 dark:bg-emerald-950/25">
+              <div className="flex items-start gap-2.5">
+                <RefreshCw className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-400">
+                    Auto-stamps Verification Date
+                  </p>
+                  <p className="text-[11px] leading-normal text-muted-foreground/80">
+                    Saving auto-updates Last&nbsp;checked — clears any stale DQ flag.
+                    Admin edits write instantly to Supabase; seed scripts are for demo reset only.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-      <Field
-        label="Usage notes"
-        htmlFor="usage_notes"
-        hint="Optional. One note per line, in our own words."
-      >
-        <textarea
-          id="usage_notes"
-          name="usage_notes"
-          rows={3}
-          defaultValue={lines(defaultValues?.usageNotes)}
-          className={cn(controlClass, "min-h-16")}
-        />
-      </Field>
-
-      <Field
-        label="Stack notes"
-        htmlFor="stack_notes"
-        hint="Optional. How this card stacks with codes / cashback / points — one per line."
-      >
-        <textarea
-          id="stack_notes"
-          name="stack_notes"
-          rows={3}
-          defaultValue={lines(defaultValues?.stackNotes)}
-          className={cn(controlClass, "min-h-16")}
-        />
-      </Field>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Source URL (citation)"
-          htmlFor="source_url"
-          hint="Citation link to the offer page. Needed to pass the data-quality source check."
-        >
-          <Input
-            id="source_url"
-            name="source_url"
-            type="url"
-            placeholder="https://…"
-            defaultValue={defaultValues?.sourceUrl ?? ""}
-          />
-        </Field>
-
-        <Field
-          label="Source detail URL"
-          htmlFor="source_detail_url"
-          hint="Optional link to a fuller offer-detail page."
-        >
-          <Input
-            id="source_detail_url"
-            name="source_detail_url"
-            type="url"
-            placeholder="https://…"
-            defaultValue={defaultValues?.sourceDetailUrl ?? ""}
-          />
-        </Field>
-      </div>
-
-      <fieldset className="space-y-3">
-        <label htmlFor="is_published" className="flex items-start gap-2.5 text-sm">
-          <input
-            id="is_published"
-            name="is_published"
-            type="checkbox"
-            defaultChecked={defaultValues?.isPublished ?? true}
-            className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
-          />
-          <span>
-            <span className="font-medium">Published</span>
-            <span className="block text-xs text-muted-foreground">
-              Visible on /deals. Uncheck to keep it as a draft.
-            </span>
-          </span>
-        </label>
-      </fieldset>
-
-      <div className="space-y-1 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-        <p>
-          <span className="font-medium text-foreground">Saving this form</span>{" "}
-          auto-updates Last&nbsp;checked — this clears any stale data-quality flag.
-        </p>
-        <p>Admin edits take effect on the live site immediately; seed scripts are for demo reset only.</p>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving…" : submitLabel}
-        </Button>
-        <Button asChild variant="ghost">
-          <Link href="/admin/gift-cards">Cancel</Link>
-        </Button>
-      </div>
-    </form>
+            {/* Submit row */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "Saving…" : submitLabel}
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/admin/gift-cards">Cancel</Link>
+              </Button>
+              <span className="ml-auto hidden text-[11px] text-muted-foreground/70 sm:inline">
+                Changes write instantly to Supabase.
+              </span>
+            </div>
+          </div>
+        </CardFooter>
+      </form>
+    </Card>
   );
 }
 
