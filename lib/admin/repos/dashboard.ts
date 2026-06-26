@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { DbClient } from "@/lib/supabase/server";
+import { weekMondayAU } from "@/lib/admin/dateHelpers";
 
 /**
  * Admin dashboard counts — SERVICE-ROLE ONLY.
@@ -315,12 +316,13 @@ export const DQ_FLAG_LIMIT = 12;
 
 export type DataQualitySeverity = "high" | "medium";
 
-/** The four data-quality checks an item can fail. */
+/** The data-quality checks an item can fail. */
 export type DataQualityIssueCode =
   | "expired"
   | "missing-source"
   | "stale"
-  | "missing-expiry";
+  | "missing-expiry"
+  | "stale-week-of";
 
 /** One failed check on a flagged item. */
 export interface DataQualityIssue {
@@ -350,6 +352,7 @@ export interface DataQualityCounts {
   missingSourceUrl: number;
   missingExpiry: number;
   staleChecked: number;
+  staleWeekOf: number;
 }
 
 export interface DataQualityReport {
@@ -410,6 +413,12 @@ interface SignalDqRow {
   last_checked_at: string | null;
 }
 
+interface WeeklyDealDqRow {
+  id: string;
+  title: string;
+  week_of: string;
+}
+
 /**
  * Read-only data-quality scan of PUBLISHED offers + APPROVED signals (i.e. the
  * rows the public site can actually show). Surfaces:
@@ -427,7 +436,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
   const todayStr = DQ_DAY_FMT.format(now);
   const staleBeforeMs = now.getTime() - STALE_DAYS * 86_400_000;
 
-  const [cashback, giftCards, points, signals] = await Promise.all([
+  const [cashback, giftCards, points, signals, weeklyDeals] = await Promise.all([
     db
       .from("cashback_offers")
       .select(
@@ -448,19 +457,26 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       .from("ozbargain_signals")
       .select("id, title, expiry_date, last_checked_at")
       .eq("status", "approved"),
+    db
+      .from("weekly_deals")
+      .select("id, title, week_of")
+      .eq("is_published", true),
   ]);
 
-  for (const res of [cashback, giftCards, points, signals]) {
+  for (const res of [cashback, giftCards, points, signals, weeklyDeals]) {
     if (res.error) {
       throw new Error(`data quality read failed: ${res.error.message}`);
     }
   }
+
+  const currentWeekMonday = weekMondayAU(now);
 
   const counts: DataQualityCounts = {
     expiredPublished: 0,
     missingSourceUrl: 0,
     missingExpiry: 0,
     staleChecked: 0,
+    staleWeekOf: 0,
   };
   const flags: DataQualityFlag[] = [];
 
@@ -581,6 +597,29 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       checkSource: false,
       checkMissingExpiry: false,
     });
+  }
+
+  // Weekly deals: flag published ones whose week_of is from a prior week.
+  for (const r of weeklyDeals.data as unknown as WeeklyDealDqRow[]) {
+    if (r.week_of < currentWeekMonday) {
+      counts.staleWeekOf += 1;
+      flags.push({
+        type: "weeklyDeals",
+        typeLabel: "Weekly deal",
+        id: r.id,
+        title: r.title,
+        issues: [
+          {
+            code: "stale-week-of",
+            label: `weekOf ${r.week_of} — prior week`,
+          },
+        ],
+        severity: "medium",
+        editHref: `/admin/weekly-deals/${r.id}/edit`,
+        expiryDate: null,
+        lastCheckedAt: null,
+      });
+    }
   }
 
   const severityRank: Record<DataQualitySeverity, number> = {

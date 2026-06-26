@@ -97,6 +97,12 @@ const DQ_ISSUE_INFO: Record<
       "Published offer with no expiry date, so it can never be auto-flagged as expired.",
     tone: "border-muted-foreground/30 bg-muted text-muted-foreground",
   },
+  "stale-week-of": {
+    label: "Stale weekly deal",
+    explanation:
+      "Published weekly deal whose weekOf is from a prior week — update or unpublish it.",
+    tone: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  },
 };
 
 /** Tile order + the count each maps to (typed accessor, no string lookups). */
@@ -108,6 +114,7 @@ const DQ_TILE_ORDER: {
   { code: "missing-source", count: (c) => c.missingSourceUrl },
   { code: "missing-expiry", count: (c) => c.missingExpiry },
   { code: "stale", count: (c) => c.staleChecked },
+  { code: "stale-week-of", count: (c) => c.staleWeekOf },
 ];
 
 export default async function AdminDashboardPage({
@@ -364,7 +371,7 @@ export default async function AdminDashboardPage({
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Per-issue-type summary tiles, each with a plain-English meaning. */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {dataQualityMetrics.map((metric) => (
               <div
                 key={metric.code}
@@ -482,6 +489,45 @@ export default async function AdminDashboardPage({
               ) : null}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* DB data freshness checklist — static read-only guidance. */}
+      <Card id="db-freshness">
+        <CardHeader>
+          <CardTitle>DB data freshness</CardTitle>
+          <CardDescription>
+            How to keep the live site in sync after editing seed data.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground marker:text-foreground">
+            <li>
+              <span className="text-foreground font-medium">Production is DB-first.</span>{" "}
+              The site reads from Supabase even in development — static files (
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">lib/data.ts</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">lib/offers/manualOffers.ts</code>)
+              are a fallback only used when the DB is empty or unreachable.
+            </li>
+            <li>
+              <span className="text-foreground font-medium">After editing seed files, re-seed the DB.</span>{" "}
+              Run{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">nvm use 22 &amp;&amp; npm run seed</code>{" "}
+              (Node 22+ required for native WebSocket). The seed upserts on{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">id</code> — safe to re-run.
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Prefer admin pages for live offer edits.</span>{" "}
+              Edit rates, dates, and expiry directly in the admin portal so changes
+              persist without a re-seed and go through the normal review flow.
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Re-seeding overwrites sample signal rows.</span>{" "}
+              The ~13 sample <code className="rounded bg-muted px-1 py-0.5 text-xs">ozbargain_signals</code>{" "}
+              seeded from static files are replaced on re-seed. Real imported signals (imported via the
+              queue) are separate rows and are not affected.
+            </li>
+          </ol>
         </CardContent>
       </Card>
 
