@@ -2,35 +2,44 @@ import { CalendarClock, ExternalLink, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfidencePill } from "@/components/WeeklyDealCard";
+import { stores } from "@/lib/data";
 import { formatDateAU } from "@/lib/sources/normalise";
 import type { OzBargainSignal } from "@/lib/offers/types";
 
 /**
- * Public "Costco Hot Buys" section.
+ * Public "Hot Buys" section — Costco + OzBargain.
  *
- * Displays ONLY admin-approved signals tagged for Costco. The data is handed in
- * from the page's repo load (`getOzBargainSignals`/`loadStackData`), which under
- * RLS returns `status = 'approved'` rows only — so nothing un-reviewed can ever
- * appear here. There is no fetching, no scraping, and no auto-publish: items
- * reach this surface only after an admin approves them (or as curated samples).
+ * Shows ONLY admin-approved hot-buy signals: a Costco-tagged signal, or any
+ * signal tagged `hot-buys`. The data comes from the page's repo load, which
+ * under RLS returns `status = 'approved'` rows only — so nothing un-reviewed
+ * ever appears here (a defensive status filter is applied on top). No fetching,
+ * no scraping, no auto-publish: items reach this surface only after approval
+ * (or as curated samples that are pre-approved). Curated/approved hot buys flow
+ * to the page automatically; the review gate still guards raw feed data.
  */
 
-const COSTCO_TAGS = new Set(["costco", "hot-buys"]);
+const HOT_BUYS_TAG = "hot-buys";
 
-/** Approved Costco-tagged signals (defensive status filter + tag/merchant match). */
-export function selectCostcoHotBuys(
-  signals: OzBargainSignal[]
-): OzBargainSignal[] {
-  return signals.filter(
-    (s) =>
-      (s.status ?? "approved") === "approved" &&
-      (s.merchantId === "costco" ||
-        (s.tags ?? []).some((t) => COSTCO_TAGS.has(t.toLowerCase())))
-  );
+/** Approved hot-buy signals: Costco, or anything tagged `hot-buys`. */
+export function selectHotBuys(signals: OzBargainSignal[]): OzBargainSignal[] {
+  return signals
+    .filter(
+      (s) =>
+        (s.status ?? "approved") === "approved" &&
+        (s.merchantId === "costco" ||
+          (s.tags ?? []).some((t) => t.toLowerCase() === HOT_BUYS_TAG))
+    )
+    .sort((a, b) => (b.signalScore ?? 0) - (a.signalScore ?? 0));
 }
 
-export function CostcoHotBuys({ signals }: { signals: OzBargainSignal[] }) {
-  const items = selectCostcoHotBuys(signals);
+/** Human source label for a hot-buy card (store name, or OzBargain). */
+function sourceLabel(signal: OzBargainSignal): string {
+  const store = stores.find((s) => s.id === signal.merchantId);
+  return store?.name ?? "OzBargain";
+}
+
+export function HotBuys({ signals }: { signals: OzBargainSignal[] }) {
+  const items = selectHotBuys(signals);
   if (items.length === 0) return null;
 
   return (
@@ -39,30 +48,40 @@ export function CostcoHotBuys({ signals }: { signals: OzBargainSignal[] }) {
         <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500/15 to-rose-500/10">
           <Flame className="size-4 text-amber-600 dark:text-amber-400" />
         </span>
-        <h2 className="text-lg font-bold tracking-tight sm:text-xl">
-          Costco Hot Buys
-        </h2>
+        <h2 className="text-lg font-bold tracking-tight sm:text-xl">Hot Buys</h2>
         <Badge variant="outline" className="text-[10px] font-medium">
           Admin-approved
         </Badge>
       </div>
       <p className="mt-0.5 text-sm text-muted-foreground">
-        Approved member-pricing signals for Costco AU. Stock and prices vary by
-        warehouse — always confirm before travelling.
+        Approved Costco member-pricing and OzBargain hot buys. Stock and prices
+        change fast — always confirm at the source before buying.
       </p>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => {
           const expiry = formatDateAU(item.expiryDate ?? null);
+          const isCostco = item.merchantId === "costco";
           return (
             <Card key={item.id} className="gap-0 py-0 shadow-sm">
               <CardContent className="flex h-full flex-col gap-2 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 text-sm font-semibold leading-snug">
-                    {item.title}
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      isCostco
+                        ? "border-[#005daa]/30 bg-[#005daa]/10 text-[10px] font-medium text-[#005daa] dark:text-sky-300"
+                        : "text-[10px] font-medium"
+                    }
+                  >
+                    {sourceLabel(item)}
+                  </Badge>
                   <ConfidencePill confidence={item.confidence} />
                 </div>
+
+                <p className="text-sm font-semibold leading-snug">
+                  {item.title}
+                </p>
 
                 {item.priceText ? (
                   <p className="text-base font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
@@ -107,4 +126,4 @@ export function CostcoHotBuys({ signals }: { signals: OzBargainSignal[] }) {
   );
 }
 
-export default CostcoHotBuys;
+export default HotBuys;
