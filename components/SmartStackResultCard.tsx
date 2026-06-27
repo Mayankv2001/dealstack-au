@@ -1,5 +1,6 @@
 import { Sparkles, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import SignalDealCard from "@/components/SignalDealCard";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
 import { formatAUD } from "@/lib/calculateStack";
 import type { SmartStackResult } from "@/lib/stack/smartStack";
@@ -7,12 +8,15 @@ import type { SmartStackResult } from "@/lib/stack/smartStack";
 /**
  * Renders one Smart Stack result: a community price signal as the base, with the
  * existing receipt/waterfall StackRecommendationCard showing the synthesised
- * stack (gift card + cashback + points) for that store. Renders nothing when the
- * signal's store has no stackable layer — the caller filters those out.
+ * stack (gift card + cashback + points) for that store.
+ *
+ * When the signal's store has no stackable layer (e.g. Costco Hot Buys), there
+ * is no receipt to show — but the deal should still surface in search, so it
+ * falls back to a compact SignalDealCard instead of disappearing.
  */
 export function SmartStackResultCard({ result }: { result: SmartStackResult }) {
   const { signal, recommendation, signalPrice } = result;
-  if (!recommendation) return null;
+  if (!recommendation) return <SignalDealCard signal={signal} />;
 
   return (
     <div className="space-y-2">

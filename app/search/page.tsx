@@ -65,10 +65,11 @@ export default async function SearchPage({
   // Source checks come from the repository layer (Supabase published/approved
   // rows when configured, static sample pipeline otherwise).
   const sourceResults = await searchSourceResults(query);
-  // Smart Stack: approved signals matching the query, each synthesised into a
-  // stack at the signal's own price. Only those with a real stack are shown.
+  // Smart Stack: approved signals matching the query (incl. Costco Hot Buys and
+  // every other source). Each is stacked at the signal's own price where the
+  // store has an offer; those without a stack still surface as deal cards.
   const smartStackResults = query ? await loadSmartStackResults(query) : [];
-  const smartStacks = smartStackResults.filter((r) => r.recommendation);
+  const stackedCount = smartStackResults.filter((r) => r.recommendation).length;
 
   return (
     <div className="min-h-screen bg-emerald-500/[0.04]">
@@ -107,20 +108,21 @@ export default async function SearchPage({
 
         <SearchBar defaultValue={query} className="mt-3 max-w-md" />
 
-        {/* Smart Stack — approved signals synthesised through the Stack Engine */}
-        {smartStacks.length > 0 ? (
+        {/* Smart Stack — matched signals (incl. Costco Hot Buys) synthesised
+            through the Stack Engine; non-stacking deals show as deal cards. */}
+        {smartStackResults.length > 0 ? (
           <section className="mt-6">
             <div className="flex items-center gap-2">
               <Layers className="size-5 text-emerald-600 dark:text-emerald-400" />
               <h2 className="text-lg font-bold tracking-tight sm:text-xl">
-                Smart Stack
+                Smart Stack &amp; Hot Buys
               </h2>
             </div>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {`${smartStacks.length} ${smartStacks.length === 1 ? "deal" : "deals"} matched a checked signal and stacked instantly — base price combined with the best gift card, cashback and points for that store.`}
+              {`${smartStackResults.length} ${smartStackResults.length === 1 ? "match" : "matches"} across Costco Hot Buys, OzBargain and your stores${stackedCount > 0 ? ` — ${stackedCount} stacked instantly with the best gift card, cashback and points` : ""}.`}
             </p>
             <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {smartStacks.map((result) => (
+              {smartStackResults.map((result) => (
                 <SmartStackResultCard key={result.signal.id} result={result} />
               ))}
             </div>

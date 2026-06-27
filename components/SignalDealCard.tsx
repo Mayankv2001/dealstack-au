@@ -1,0 +1,82 @@
+import { CalendarClock, ExternalLink } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { ConfidencePill } from "@/components/WeeklyDealCard";
+import { stores } from "@/lib/data";
+import { formatDateAU } from "@/lib/sources/normalise";
+import type { OzBargainSignal } from "@/lib/offers/types";
+
+/**
+ * One approved signal rendered as a compact "deal" card — used for Hot Buys
+ * (Costco + OzBargain) and for search matches whose store has no stackable
+ * offer (e.g. Costco), so they still surface prominently. Shows a source label,
+ * price, summary, expiry, and either a live "View signal" link or a muted
+ * "Sample listing" label (sample rows carry placeholder URLs and are never
+ * linked as live posts).
+ */
+
+/** Human source label for a signal (store name, or OzBargain). */
+function sourceLabel(signal: OzBargainSignal): string {
+  const store = stores.find((s) => s.id === signal.merchantId);
+  return store?.name ?? "OzBargain";
+}
+
+export function SignalDealCard({ signal }: { signal: OzBargainSignal }) {
+  const expiry = formatDateAU(signal.expiryDate ?? null);
+  const isCostco = signal.merchantId === "costco";
+
+  return (
+    <Card className="gap-0 py-0 shadow-sm">
+      <CardContent className="flex h-full flex-col gap-2 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <Badge
+            variant="outline"
+            className={
+              isCostco
+                ? "border-[#005daa]/30 bg-[#005daa]/10 text-[10px] font-medium text-[#005daa] dark:text-sky-300"
+                : "text-[10px] font-medium"
+            }
+          >
+            {sourceLabel(signal)}
+          </Badge>
+          <ConfidencePill confidence={signal.confidence} />
+        </div>
+
+        <p className="text-sm font-semibold leading-snug">{signal.title}</p>
+
+        {signal.priceText ? (
+          <p className="text-base font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
+            {signal.priceText}
+          </p>
+        ) : null}
+
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {signal.summary}
+        </p>
+
+        <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-[11px] text-muted-foreground">
+          {expiry ? (
+            <span className="inline-flex items-center gap-1">
+              <CalendarClock className="size-3" />
+              Ends {expiry}
+            </span>
+          ) : null}
+          {signal.isSample ? (
+            <span className="text-muted-foreground/80">Sample listing</span>
+          ) : (
+            <a
+              href={signal.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            >
+              View signal <ExternalLink className="size-3" />
+            </a>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default SignalDealCard;
