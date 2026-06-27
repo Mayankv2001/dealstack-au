@@ -3,6 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import {
+  checkAdminRateLimit,
+  type AdminActionResult,
+} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   FEED_SOURCE_KINDS,
@@ -97,6 +101,9 @@ export async function createFeedSource(
 ): Promise<FeedSourceFormState> {
   const { email } = await requireAdmin();
 
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   const parsed = parseFeedSourceForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -130,6 +137,9 @@ export async function updateFeedSource(
 ): Promise<FeedSourceFormState> {
   const { email } = await requireAdmin();
 
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   const parsed = parseFeedSourceForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -156,8 +166,15 @@ export async function updateFeedSource(
 }
 
 /** Enable / disable toggle invoked from the list view (bound id + next value). */
-export async function setEnabled(id: string, isEnabled: boolean): Promise<void> {
+export async function setEnabled(
+  id: string,
+  isEnabled: boolean
+): Promise<AdminActionResult> {
   const { email } = await requireAdmin();
+
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   await setFeedSourceEnabled(id, isEnabled);
   await logAudit({
     actorEmail: email,
@@ -167,4 +184,5 @@ export async function setEnabled(id: string, isEnabled: boolean): Promise<void> 
     diff: { isEnabled },
   });
   revalidateFeedSources();
+  return { ok: true };
 }

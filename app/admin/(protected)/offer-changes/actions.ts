@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { checkAdminRateLimit } from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   applyOfferChange,
@@ -43,6 +44,10 @@ export async function applyOfferChangeAction(
   id: string
 ): Promise<OfferChangeActionResult> {
   const { email } = await requireAdmin();
+
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   try {
     const result = await applyOfferChange(id, email);
     await logAudit({
@@ -67,6 +72,10 @@ export async function ignoreOfferChangeAction(
   id: string
 ): Promise<OfferChangeActionResult> {
   const { email } = await requireAdmin();
+
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   try {
     await setOfferChangeReviewState(id, "ignored", email);
     await logAudit({
@@ -91,6 +100,10 @@ export async function markDuplicateOfferChangeAction(
   id: string
 ): Promise<OfferChangeActionResult> {
   const { email } = await requireAdmin();
+
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   try {
     await setOfferChangeReviewState(id, "duplicate", email);
     await logAudit({

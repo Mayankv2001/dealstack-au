@@ -15,6 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
+import { ActionButton } from "@/components/admin/ActionButton";
+import type { AdminActionResult } from "@/lib/admin/rate-limit";
 import type { Confidence } from "@/lib/sources/types";
 import { cn } from "@/lib/utils";
 
@@ -49,8 +51,8 @@ export interface AdminColumn {
 }
 
 export interface AdminRowAction {
-  /** Bound server action () => Promise<void> for a POST form button. */
-  action: () => Promise<void>;
+  /** Bound server action returning a typed result (e.g. the rate-limit error). */
+  action: () => Promise<AdminActionResult>;
   label: string;
 }
 
@@ -148,21 +150,33 @@ function CellView({ cell }: { cell: AdminCell | undefined }) {
 }
 
 function RowActions({ row }: { row: AdminRow }) {
+  // One shared error line per row — set when a toggle returns { error }
+  // (e.g. the rate-limit message), so nothing is thrown and no 500 occurs.
+  const [error, setError] = useState<string | null>(null);
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1">
-      {row.editHref ? (
-        <Button asChild variant="ghost" size="sm">
-          <Link href={row.editHref}>Edit</Link>
-        </Button>
-      ) : null}
-      {(row.actions ?? []).map((action) => (
-        // POST form so the bound server action runs on submit.
-        <form key={action.label} action={action.action}>
-          <Button type="submit" variant="outline" size="sm">
-            {action.label}
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-1">
+        {row.editHref ? (
+          <Button asChild variant="ghost" size="sm">
+            <Link href={row.editHref}>Edit</Link>
           </Button>
-        </form>
-      ))}
+        ) : null}
+        {(row.actions ?? []).map((action) => (
+          <ActionButton
+            key={action.label}
+            run={action.action}
+            onStart={() => setError(null)}
+            onError={setError}
+          >
+            {action.label}
+          </ActionButton>
+        ))}
+      </div>
+      {error ? (
+        <span role="alert" className="text-xs text-destructive">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }

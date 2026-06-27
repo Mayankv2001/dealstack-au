@@ -8,6 +8,7 @@ import {
 } from "@/lib/admin/repos/feedSources";
 import { isMonitoringApproved } from "@/lib/admin/repos/compliance";
 import { FEED_ENABLE_WARNING } from "@/components/admin/FeedSourceForm";
+import { ActionButton } from "@/components/admin/ActionButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -195,18 +196,14 @@ export default async function FeedSourcesListPage() {
                         Edit
                       </Link>
                     </Button>
-                    {/* POST form so the bound server action flips the flag. */}
-                    <form
-                      action={setEnabled.bind(
-                        null,
-                        source.id,
-                        !source.isEnabled
-                      )}
+                    {/* Bound server action flips the flag; ActionButton surfaces
+                        a returned { error } (e.g. rate limit) without a 500. */}
+                    <ActionButton
+                      run={setEnabled.bind(null, source.id, !source.isEnabled)}
+                      variant="outline"
                     >
-                      <Button type="submit" variant="outline" size="sm">
-                        {source.isEnabled ? "Disable" : "Enable"}
-                      </Button>
-                    </form>
+                      {source.isEnabled ? "Disable" : "Enable"}
+                    </ActionButton>
                   </div>
                 </TableCell>
               </TableRow>

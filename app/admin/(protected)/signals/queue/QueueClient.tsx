@@ -24,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ActionButton } from "@/components/admin/ActionButton";
 import { stores } from "@/lib/data";
 import type { FeedQueueItem } from "@/lib/admin/repos/feedQueue";
 import { findMerchantIdInText } from "@/lib/sources/normalise";
@@ -183,6 +184,72 @@ const controlClass =
 /** How many items to render per "page" before "Show more". */
 const PAGE_SIZE = 20;
 
+/**
+ * Per-item action row. Each action returns an AdminActionResult, so a returned
+ * { error } (e.g. the rate-limit message) is shown inline below the buttons
+ * instead of being thrown as a 500. Extracted into its own component so the
+ * per-item error state is a valid hook (not called inside a map callback).
+ */
+function QueueItemActions({ item }: { item: FeedQueueItem }) {
+  const [error, setError] = useState<string | null>(null);
+  const clear = () => setError(null);
+  return (
+    <CardFooter className="flex flex-col items-start gap-2">
+      <div className="flex flex-wrap gap-2">
+        <ActionButton
+          run={() => importItem(item.id)}
+          variant="default"
+          title="Creates a pending signal in /admin/signals. It is NOT public until you approve it there."
+          onStart={clear}
+          onError={setError}
+        >
+          Import as pending signal
+        </ActionButton>
+        <ActionButton run={() => ignoreItem(item.id)} onStart={clear} onError={setError}>
+          Ignore
+        </ActionButton>
+        <ActionButton
+          run={() => markDuplicate(item.id)}
+          onStart={clear}
+          onError={setError}
+        >
+          Mark duplicate
+        </ActionButton>
+        {/* Homepage Top 5 visibility — independent of review state, so this
+            never imports/ignores and keeps the item in the queue. */}
+        {item.hiddenFromHomepage ? (
+          <ActionButton
+            run={() => showInTopDeals(item.id)}
+            className="gap-1.5"
+            title="Allow this item to appear in the homepage 'Today's top OzBargain signals' section. Does not import or publish — it must still be imported first."
+            onStart={clear}
+            onError={setError}
+          >
+            <Eye className="size-3.5" />
+            Show in Top 5
+          </ActionButton>
+        ) : (
+          <ActionButton
+            run={() => hideFromTopDeals(item.id)}
+            className="gap-1.5"
+            title="Prevent this item from appearing in the homepage 'Today's top OzBargain signals' section. Stays in the queue and can still be imported or ignored."
+            onStart={clear}
+            onError={setError}
+          >
+            <EyeOff className="size-3.5" />
+            Hide from Top 5
+          </ActionButton>
+        )}
+      </div>
+      {error ? (
+        <span role="alert" className="text-xs text-destructive">
+          {error}
+        </span>
+      ) : null}
+    </CardFooter>
+  );
+}
+
 export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   const [source, setSource] = useState("");
   const [query, setQuery] = useState("");
@@ -190,6 +257,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   const [presets, setPresets] = useState<string[]>([]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Distinct feed sources for the dropdown (id → label), preserving first-seen order.
@@ -299,8 +367,15 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
         "requires a database operation, not a filter here."
     );
     if (!ok) return;
+    setBulkError(null);
     startTransition(async () => {
-      await ignoreVisibleItems(ids);
+      const result = await ignoreVisibleItems(ids);
+      if ("error" in result) {
+        // Rate-limited (or other typed failure): keep the selection so the
+        // admin can retry, and surface the message instead of throwing.
+        setBulkError(result.error);
+        return;
+      }
       setSelected(new Set());
     });
   }
@@ -428,6 +503,11 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                 ? "Ignoring…"
                 : `Ignore selected${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
             </Button>
+            {bulkError ? (
+              <p role="alert" className="basis-full text-xs text-destructive">
+                {bulkError}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -583,57 +663,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                   </div>
                 </CardContent>
 
-                <CardFooter className="flex flex-wrap gap-2">
-                  {/* POST forms so each bound server action runs on the server. */}
-                  <form action={importItem.bind(null, item.id)}>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      title="Creates a pending signal in /admin/signals. It is NOT public until you approve it there."
-                    >
-                      Import as pending signal
-                    </Button>
-                  </form>
-                  <form action={ignoreItem.bind(null, item.id)}>
-                    <Button type="submit" variant="outline" size="sm">
-                      Ignore
-                    </Button>
-                  </form>
-                  <form action={markDuplicate.bind(null, item.id)}>
-                    <Button type="submit" variant="outline" size="sm">
-                      Mark duplicate
-                    </Button>
-                  </form>
-                  {/* Homepage Top 5 visibility — independent of review state, so
-                      this never imports/ignores and keeps the item in the queue. */}
-                  {item.hiddenFromHomepage ? (
-                    <form action={showInTopDeals.bind(null, item.id)}>
-                      <Button
-                        type="submit"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        title="Allow this item to appear in the homepage 'Today's top OzBargain signals' section. Does not import or publish — it must still be imported first."
-                      >
-                        <Eye className="size-3.5" />
-                        Show in Top 5
-                      </Button>
-                    </form>
-                  ) : (
-                    <form action={hideFromTopDeals.bind(null, item.id)}>
-                      <Button
-                        type="submit"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        title="Prevent this item from appearing in the homepage 'Today's top OzBargain signals' section. Stays in the queue and can still be imported or ignored."
-                      >
-                        <EyeOff className="size-3.5" />
-                        Hide from Top 5
-                      </Button>
-                    </form>
-                  )}
-                </CardFooter>
+                <QueueItemActions item={item} />
               </Card>
             );
           })}

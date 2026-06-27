@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import { checkAdminRateLimit } from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   insertComplianceReview,
@@ -73,6 +74,9 @@ export async function createReview(
 ): Promise<ComplianceReviewFormState> {
   const { email } = await requireAdmin();
 
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   const parsed = parseReviewForm(formData, email);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -97,6 +101,9 @@ export async function updateReview(
   formData: FormData
 ): Promise<ComplianceReviewFormState> {
   const { email } = await requireAdmin();
+
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
 
   const parsed = parseReviewForm(formData, email);
   if (!parsed.ok) return { error: parsed.error };

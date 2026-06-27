@@ -3,6 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
+import {
+  checkAdminRateLimit,
+  type AdminActionResult,
+} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
@@ -177,6 +181,9 @@ export async function createGiftCardOffer(
 ): Promise<GiftCardFormState> {
   const { email } = await requireAdmin();
 
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   const parsed = parseGiftCardForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -204,6 +211,9 @@ export async function updateGiftCardOffer(
 ): Promise<GiftCardFormState> {
   const { email } = await requireAdmin();
 
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   const parsed = parseGiftCardForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -228,8 +238,12 @@ export async function updateGiftCardOffer(
 export async function setPublished(
   id: string,
   isPublished: boolean
-): Promise<void> {
+): Promise<AdminActionResult> {
   const { email } = await requireAdmin();
+
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
   await setGiftCardPublished(id, isPublished);
   await logAudit({
     actorEmail: email,
@@ -239,4 +253,5 @@ export async function setPublished(
     diff: { isPublished },
   });
   revalidateGiftCards();
+  return { ok: true };
 }
