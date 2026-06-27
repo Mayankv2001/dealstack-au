@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { StagingFlowViz } from "@/components/monitor/staging-flow-viz";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -384,6 +385,20 @@ export default async function MonitorStatusPage() {
           hint="Items awaiting review"
         />
       </div>
+
+      {/* Staging-flow visualisation — illustrative only. "Live" means the
+          monitor is armed (enabled + compliance-approved + at least one feed),
+          not that a fetch is in flight; this page never fetches. */}
+      <StagingFlowViz
+        isFetching={
+          status.envEnabled &&
+          status.complianceApproved &&
+          status.feedSourcesEnabled > 0
+        }
+        stagedItemCount={status.feedItemsTotal}
+        activeSources={status.feedSourcesEnabled}
+        pendingCount={status.feedQueuePending}
+      />
 
       {/* Cron readiness — operator checklist + a single recommended next action. */}
       <Card>
