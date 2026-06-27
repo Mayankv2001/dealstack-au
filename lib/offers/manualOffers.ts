@@ -756,12 +756,71 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
   },
 ];
 
-// All static signals are samples: stamp isSample: true so the UI shows a muted
-// "Sample OzBargain signal" label instead of opening the placeholder node URL.
-export const ozBargainSignals: OzBargainSignal[] = SAMPLE_SIGNALS.map((s) => ({
-  ...s,
-  isSample: true,
-}));
+// Real, admin-curated Costco Hot Buys (transcribed by hand from data supplied by
+// the operator — NOT scraped). isSample: false, so they render with a live link
+// to Costco's Hot Buys page. Prices change; confidence stays needs-verification.
+const COSTCO_HOT_BUYS_REAL: OzBargainSignal[] = [
+  {
+    id: "costco-hotbuy-airpods4",
+    sourceNativeId: "costco:airpods4",
+    merchantId: "costco",
+    title: "Apple AirPods 4",
+    summary:
+      "Costco Hot Buy: Apple AirPods 4 at member price, delivery included. Trade in an old device for $20+ as a Costco Shop Card. Rated 4.8★.",
+    votesSample: null,
+    commentCount: null,
+    tags: ["costco", "hot-buys", "electronics", "audio", "airpods", "apple"],
+    promoCode: null,
+    priceText: "$144.99 (save $65)",
+    sentiment: "hot",
+    dealKind: "discount-code",
+    sourceUrl: "https://www.costco.com.au/c/hot-buys",
+    merchantUrl: "https://www.costco.com.au",
+    productUrl: "https://www.costco.com.au/c/hot-buys",
+    postedAt: "2026-06-28",
+    expiryDate: null,
+    signalScore: 0.86,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+    isSample: false,
+  },
+  {
+    id: "costco-hotbuy-airpods4-anc",
+    sourceNativeId: "costco:airpods4-anc",
+    merchantId: "costco",
+    title: "Apple AirPods 4 with Active Noise Cancellation",
+    summary:
+      "Costco Hot Buy: Apple AirPods 4 with Active Noise Cancellation at member price, delivery included. Trade-in offer available. Rated 4.7★.",
+    votesSample: null,
+    commentCount: null,
+    tags: ["costco", "hot-buys", "electronics", "audio", "airpods", "apple", "anc"],
+    promoCode: null,
+    priceText: "$264.99 (save $15)",
+    sentiment: "hot",
+    dealKind: "discount-code",
+    sourceUrl: "https://www.costco.com.au/c/hot-buys",
+    merchantUrl: "https://www.costco.com.au",
+    productUrl: "https://www.costco.com.au/c/hot-buys",
+    postedAt: "2026-06-28",
+    expiryDate: null,
+    signalScore: 0.84,
+    status: "approved",
+    confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+    isSample: false,
+  },
+];
+
+// Static sample signals are stamped isSample: true (muted "Sample listing"
+// label, placeholder URLs never linked). Real curated Hot Buys are appended as-is.
+export const ozBargainSignals: OzBargainSignal[] = [
+  ...SAMPLE_SIGNALS.map((s) => ({
+    ...s,
+    isSample: true,
+  })),
+  ...COSTCO_HOT_BUYS_REAL,
+];
 
 // ─── Weekly deals (curated view referencing the offers above) ──────────────
 export const weeklyDeals: WeeklyDeal[] = [
