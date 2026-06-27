@@ -226,4 +226,28 @@ export const stores: Store[] = [
     pointsProgram: "Everyday Rewards",
     pointsRate: "1 point per $1",
   },
+  {
+    id: "costco",
+    name: "Costco",
+    category: "Warehouse Club",
+    logo: "CO",
+    logoText: "Costco",
+    logoTheme: {
+      bg: "linear-gradient(135deg,#005daa,#003a6b)",
+      fg: "#ffffff",
+      accent: "#e31837",
+    },
+    // Costco AU does not run public stacking codes / portal cashback. These
+    // fields reflect that reality (no fabricated stack layers) — the "Costco
+    // Hot Buys" surface is signal-based, not a synthesised stack.
+    discountPercent: 0,
+    discountCode: "Membership required",
+    expiryDate: null,
+    cashbackPercent: 0,
+    cashbackProvider: "—",
+    giftCardDiscountPercent: 0,
+    giftCardSource: "Costco Shop Card (no public discount)",
+    pointsProgram: "—",
+    pointsRate: "No store program",
+  },
 ];

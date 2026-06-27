@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Logo from "@/components/Logo";
+import CostcoHotBuys from "@/components/CostcoHotBuys";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
 import WeeklyDealCard, {
   type WeeklyDealCardData,
@@ -667,6 +668,9 @@ export default function DealsClient({
             </span>
           </p>
         </div>
+
+        {/* Costco Hot Buys — admin-approved Costco-tagged signals only */}
+        <CostcoHotBuys signals={ozBargainSignals} />
 
         {/* 1 — This week's top stacks (always visible, scannable) */}
         <section className="mt-6">

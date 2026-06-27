@@ -22,6 +22,7 @@ const MERCHANT_ALIASES: Record<string, string[]> = {
   myer: ["myer"],
   coles: ["coles", "coles group"],
   kogan: ["kogan"],
+  costco: ["costco", "costco wholesale", "costco au"],
 };
 
 /** alias (normalised) → store id, longest aliases first for substring matching */
