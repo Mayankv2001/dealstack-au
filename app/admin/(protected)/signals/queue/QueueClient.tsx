@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import {
   AlertTriangle,
   Clock,
+  CreditCard,
   Eye,
   EyeOff,
   ExternalLink,
@@ -173,10 +174,22 @@ const PRESETS = [
   "Woolworths",
   "Officeworks",
   "The Good Guys",
+  "Costco",
   "gift card",
   "cashback",
   "points",
 ] as const;
+
+/**
+ * Display-only triage cue: many Costco (and some warehouse-club) items are
+ * gated behind a paid membership, which changes how an admin treats the deal.
+ * Surfacing it as a hint badge saves reading every title. Purely heuristic —
+ * it never imports, rejects, or changes any review state.
+ */
+function mentionsMembership(item: FeedQueueItem): boolean {
+  const haystack = `${item.rawTitle} ${item.rawSummary}`.toLowerCase();
+  return haystack.includes("membership") || haystack.includes("members only");
+}
 
 const controlClass =
   "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
@@ -566,6 +579,16 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                       >
                         <StoreIcon className="size-3" />
                         {suggestedMerchant}
+                      </Badge>
+                    ) : null}
+                    {mentionsMembership(item) ? (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-sky-500/40 bg-sky-500/5 text-sky-700 dark:text-sky-400"
+                        title="The feed text mentions a paid membership (e.g. Costco) — display-only hint; it never imports or rejects."
+                      >
+                        <CreditCard className="size-3" />
+                        Membership required
                       </Badge>
                     ) : null}
                     <Badge variant="outline" className="gap-1">
