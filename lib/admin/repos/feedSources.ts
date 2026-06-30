@@ -7,6 +7,7 @@ import {
   type FeedSourceType,
 } from "@/lib/monitor/offerChanges";
 import type { FeedItemInsert } from "@/lib/monitor/mapFeedItem";
+import { feedItemReviewState } from "@/lib/monitor/feedItemPreference";
 import type {
   FeedFetchLogEntry,
   FeedPollStatePatch,
@@ -248,10 +249,17 @@ export async function listDueEnabledFeeds(opts: {
 }
 
 /**
- * Stage parsed items as `feed_items` (review_state 'new'), ignoring conflicts on
- * source_native_id so re-runs are idempotent and never clobber an admin's triage.
- * Returns the number of NEW rows inserted. Never publishes — promotion to a
- * pending signal stays a separate manual queue action.
+ * Stage parsed items as `feed_items`, ignoring conflicts on source_native_id so
+ * re-runs are idempotent and never clobber an admin's triage. Returns the number
+ * of NEW rows inserted. Never publishes — promotion to a pending signal stays a
+ * separate manual queue action.
+ *
+ * Each new row's INITIAL review_state is chosen by the offline category
+ * classifier (lib/monitor/feedItemPreference): preferred / uncertain items are
+ * staged 'new' (await review); clearly non-preferred categories (alcohol, anime,
+ * gaming pre-orders, snacks, …) are staged 'ignored' — still SAVED for audit,
+ * just hidden from the review queue. Because the upsert ignores conflicts, this
+ * only affects newly-inserted rows; existing items keep their review_state.
  */
 export async function upsertFeedItems(
   feedSourceId: string,
@@ -270,7 +278,8 @@ export async function upsertFeedItems(
     posted_at: item.posted_at,
     content_hash: item.content_hash,
     fetched_at: fetchedAt,
-    review_state: "new",
+    // preferred / uncertain → 'new'; non-preferred categories → 'ignored'.
+    review_state: feedItemReviewState(item),
   }));
   const { data, error } = await db
     .from("feed_items")

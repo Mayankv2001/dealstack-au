@@ -264,6 +264,28 @@ export default async function MonitorStatusPage() {
         </p>
       </header>
 
+      {/* Category auto-ignore note — explains the monitor's initial review_state. */}
+      <div className="flex items-start gap-2.5 rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0" />
+        <p>
+          <span className="font-medium text-foreground">
+            Category-aware staging.
+          </span>{" "}
+          Future RSS items are sorted on arrival by preferred category. Tech,
+          fashion, gift cards, beauty, automotive and household/appliance deals
+          (and anything uncertain) are staged as <code className="text-xs">new</code>{" "}
+          for review in the{" "}
+          <Link href="/admin/signals/queue" className="underline">
+            feed queue
+          </Link>
+          . Clearly off-theme items (alcohol, anime/collectibles, gaming
+          pre-orders, snacks, supplements, pets, travel) are staged as{" "}
+          <code className="text-xs">ignored</code> — still saved for audit, just
+          hidden from the queue. Nothing is deleted, and nothing is ever
+          published without manual approval.
+        </p>
+      </div>
+
       {/* Most severe: the master switch is armed but compliance is NOT approved. */}
       {status.envEnabled && !status.complianceApproved ? (
         <div className="flex items-start gap-2.5 rounded-lg border-2 border-destructive bg-destructive/15 px-4 py-3 text-sm">
