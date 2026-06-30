@@ -15,6 +15,7 @@
     "seed:offer-changes": "tsx scripts/seed-offer-changes.ts",
     "monitor:fixtures": "tsx scripts/monitor-fixtures.ts",
     "monitor:feeds": "tsx scripts/monitor-feeds.ts",
+    "cleanup:old-deals": "tsx scripts/cleanup-old-deals.ts",
     "test:monitor": "vitest run tests/monitor",
     "test:stack": "vitest run tests/stack",
     "test:admin": "vitest run tests/admin"

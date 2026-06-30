@@ -370,6 +370,20 @@ export default async function AdminDashboardPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* How to act on these flags — cleanup is reversible, never destructive. */}
+          <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+            <span className="font-medium text-foreground">Cleaning up old data.</span>{" "}
+            Expired items should be <strong className="font-medium text-foreground">unpublished, not deleted</strong> —
+            use the Edit screen and turn off “Published”. Old staged feed items
+            can be <strong className="font-medium text-foreground">ignored</strong> in the{" "}
+            <Link href="/admin/signals/queue" className="underline">
+              feed queue
+            </Link>
+            . Always use admin edits for production data; nothing here is
+            hard-deleted. A dry-run helper (<code className="font-mono">npm run cleanup:old-deals</code>)
+            previews these same changes before any are applied.
+          </p>
+
           {/* Per-issue-type summary tiles, each with a plain-English meaning. */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {dataQualityMetrics.map((metric) => (
