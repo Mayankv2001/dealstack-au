@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CATEGORY_PRIORITY_KEYWORDS,
   countKeywordHits,
   countNegativeHits,
   matchStoreName,
@@ -52,17 +53,44 @@ describe("topDealsRanking — helpers", () => {
     expect(countKeywordHits("nothing relevant here")).toBe(0);
   });
 
-  it("counts distinct broad/unrelated category terms", () => {
+  it("counts high-priority CATEGORY keywords as positive hits", () => {
+    // tech, fashion, beauty, automotive and home terms are now positive.
+    // (countKeywordHits matches lowercase keywords against its raw input, so the
+    // test strings are lowercase — score() lowercases the haystack for callers.)
+    expect(countKeywordHits("lg 4k tv with soundbar")).toBeGreaterThanOrEqual(2); // tv, soundbar
+    expect(countKeywordHits("nike running sneakers")).toBeGreaterThanOrEqual(1); // sneakers
+    expect(countKeywordHits("designer perfume / fragrance set")).toBeGreaterThanOrEqual(2); // perfume, fragrance
+    expect(countKeywordHits("car tyre and motor oil bundle")).toBeGreaterThanOrEqual(2); // tyre, motor oil
+    expect(countKeywordHits("kitchen cookware set")).toBeGreaterThanOrEqual(2); // kitchen, cookware
+  });
+
+  it("no longer penalises fashion / home categories (now priorities)", () => {
+    // These used to be negative; they must now be neutral for the penalty count.
+    expect(countNegativeHits("generic clothing and footwear sale")).toBe(0);
+    expect(countNegativeHits("furniture and bedding clearance")).toBe(0);
+  });
+
+  it("counts the new de-prioritised terms (collectibles, gaming pre-orders, liquor, snacks)", () => {
     expect(countNegativeHits("rare anime figurine + funko collectible")).toBe(4);
-    expect(countNegativeHits("generic clothing and footwear sale")).toBe(2);
+    expect(countNegativeHits("PS5 pre-order with download code")).toBe(2); // pre-order, download code
+    expect(countNegativeHits("premium whisky and wine mystery box")).toBe(2); // whisky, wine
+    expect(countNegativeHits("chocolate snack multipack")).toBe(2); // chocolate, snack
+    expect(countNegativeHits("in-store only pistachio spread")).toBe(1); // in-store only
     expect(countNegativeHits("qantas points cashback at coles")).toBe(0);
   });
 
   it("does not penalise legit words that merely contain a term", () => {
     // "configure" contains "figure" but must not trip the collectibles penalty.
     expect(countNegativeHits("configure your new laptop")).toBe(0);
-    // bare "gaming" is not penalised — only specific peripherals are.
+    // bare "gaming" is not penalised — gaming peripherals are ordinary electronics now.
     expect(countNegativeHits("nintendo switch gaming console deal")).toBe(0);
+  });
+
+  it("exposes the priority category keywords for reuse in the queue UI", () => {
+    expect(CATEGORY_PRIORITY_KEYWORDS).toContain("electronics");
+    expect(CATEGORY_PRIORITY_KEYWORDS).toContain("fashion");
+    expect(CATEGORY_PRIORITY_KEYWORDS).toContain("perfume");
+    expect(CATEGORY_PRIORITY_KEYWORDS).toContain("automotive");
   });
 });
 
@@ -133,6 +161,29 @@ describe("topDealsRanking — rankTopDeals", () => {
     expect(ranked[0].id).toBe("real");
     expect(ranked[0].relevance).toBe("medium");
     expect(ranked[1].relevance).toBe("low");
+  });
+
+  it("ranks a high-priority category deal above a de-prioritised liquor deal", () => {
+    const ranked = rankTopDeals(
+      [
+        item({ id: "booze", title: "Premium whisky 12-pack mystery box" }),
+        item({ id: "tech", title: "LG 4K TV with soundbar", categories: ["Electrical & Electronics"] }),
+      ],
+      STORES
+    );
+    expect(ranked[0].id).toBe("tech");
+    expect(ranked[0].relevance).toBe("medium");
+    expect(ranked[1].id).toBe("booze");
+    expect(ranked[1].relevance).toBe("low");
+  });
+
+  it("treats a fashion/footwear deal as a genuine (not penalised) signal", () => {
+    const ranked = rankTopDeals(
+      [item({ id: "shoes", title: "Nike running sneakers + apparel sale" })],
+      STORES
+    );
+    // Previously fashion/footwear were penalised to low; now they are priorities.
+    expect(ranked[0].relevance).toBe("medium");
   });
 
   it("nets penalties against keywords so junk-with-a-keyword still sinks", () => {

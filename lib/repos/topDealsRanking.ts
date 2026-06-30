@@ -75,16 +75,103 @@ export const TOP_DEAL_KEYWORDS = [
 ] as const;
 
 /**
- * Broad / unrelated category signals (lowercased). OzBargain surfaces a lot of
- * anime figures, random gaming peripherals, generic fashion and unrelated home
- * goods that have nothing to do with stacking AU retail savings. Each match
- * subtracts from the relevance score so these rank below genuine signals.
+ * High-priority CATEGORY keywords (lowercased) — the deal categories we want to
+ * surface first: tech/electronics, clothing/fashion, gift cards/vouchers,
+ * perfume/beauty, automotive and household/home goods. Each match adds to an
+ * item's relevance score exactly like the loyalty/store keywords above, so a
+ * laptop / sneaker / fragrance / tyre / cookware deal now ranks as a genuine
+ * signal instead of being treated as broad/unrelated.
+ *
+ * Terms are kept specific to avoid false positives (e.g. "home & garden" and
+ * "homeware" rather than bare "home"; "vehicle"/"tyre"/"automotive" rather than
+ * bare "car", which is a substring of "card"/"care"). Many map straight onto the
+ * OzBargain category labels carried on each item ("Electrical & Electronics",
+ * "Fashion & Apparel", "Health & Beauty", "Automotive", "Home & Garden").
+ */
+export const CATEGORY_PRIORITY_KEYWORDS = [
+  // Tech / electronics
+  "electronics",
+  "electrical",
+  "computing",
+  "computer",
+  "laptop",
+  "phone",
+  "iphone",
+  "android",
+  "tv",
+  "soundbar",
+  "headphones",
+  "earbuds",
+  "monitor",
+  "tablet",
+  "camera",
+  "appliance",
+  "appliances",
+  "refrigerator",
+  "fridge",
+  "washing machine",
+  "dryer",
+  "dishwasher",
+  "vacuum",
+  // Clothing / fashion
+  "fashion",
+  "clothing",
+  "apparel",
+  "shoes",
+  "sneakers",
+  "footwear",
+  "jacket",
+  // Gift cards / vouchers (gift card is already a loyalty keyword above)
+  "voucher",
+  // Perfume / beauty
+  "perfume",
+  "fragrance",
+  "beauty",
+  "skincare",
+  "grooming",
+  "cosmetic",
+  "makeup",
+  // Automotive
+  "automotive",
+  "tyre",
+  "tyres",
+  "motor oil",
+  "engine oil",
+  "vehicle",
+  // Household / home goods
+  "home & garden",
+  "household",
+  "homeware",
+  "furniture",
+  "kitchen",
+  "cookware",
+  "dinnerware",
+  "cleaning",
+  "tools",
+] as const;
+
+/** Combined positive keyword set (loyalty/store + priority categories), deduped. */
+const POSITIVE_KEYWORDS: readonly string[] = [
+  ...new Set<string>([...TOP_DEAL_KEYWORDS, ...CATEGORY_PRIORITY_KEYWORDS]),
+];
+
+/**
+ * De-prioritised category signals (lowercased). OzBargain surfaces a lot of
+ * collectibles, random gaming pre-orders / digital keys, liquor, low-value
+ * grocery snacks and in-store-only clearance that are NOT among the categories
+ * we want to surface. Each match subtracts from the relevance score so these
+ * rank below genuine signals.
+ *
+ * Note: generic fashion and home goods are NO LONGER penalised here — they are
+ * now high-priority categories (see CATEGORY_PRIORITY_KEYWORDS). Likewise gaming
+ * PERIPHERALS (headsets etc.) are treated as ordinary electronics; only gaming
+ * PRE-ORDERS / digital game keys are de-prioritised.
  *
  * Terms are deliberately specific to avoid false positives against the positive
- * keywords or store names above (e.g. "gaming chair" not bare "gaming",
- * "figurine"/"anime" not bare "figure" which is a substring of "configure").
- * A tracked-store match still wins outright — a real "JB Hi-Fi" deal stays on
- * top even if the title also mentions a penalised term.
+ * keywords or store names above (e.g. "figurine"/"anime" not bare "figure"
+ * which is a substring of "configure"). A tracked-store match still wins
+ * outright — a real "JB Hi-Fi" deal stays on top even if the title also
+ * mentions a penalised term.
  */
 export const TOP_DEAL_NEGATIVE_KEYWORDS = [
   // Collectibles / anime
@@ -95,25 +182,31 @@ export const TOP_DEAL_NEGATIVE_KEYWORDS = [
   "collectible",
   "plush toy",
   "trading card",
-  // Random gaming peripherals / digital game keys
-  "gaming chair",
-  "gaming mouse",
-  "gaming keyboard",
-  "gaming headset",
+  // Random gaming pre-orders / digital game keys
+  "pre-order",
+  "preorder",
   "steam key",
+  "game key",
+  "download code",
   "nintendo eshop",
-  // Generic fashion
-  "fashion",
-  "clothing",
-  "apparel",
-  "sneakers",
-  "footwear",
-  "activewear",
-  // Unrelated home goods
-  "mattress",
-  "furniture",
-  "bedding",
-  "doona",
+  // Liquor / alcohol
+  "liquor",
+  "alcohol",
+  "whisky",
+  "whiskey",
+  "vodka",
+  "mezcal",
+  "tequila",
+  "wine",
+  "champagne",
+  "spirits",
+  // Low-value grocery snacks
+  "confectionery",
+  "lollies",
+  "chocolate",
+  "snack",
+  // In-store-only clearance
+  "in-store only",
 ] as const;
 
 /** Host of a URL without a leading www., or "" when unparseable. */
@@ -142,9 +235,12 @@ export function matchStoreName(
   return null;
 }
 
-/** Count of distinct useful keywords present in the haystack. */
+/**
+ * Count of distinct useful keywords present in the haystack — across both the
+ * loyalty/store keywords and the high-priority category keywords.
+ */
 export function countKeywordHits(haystack: string): number {
-  return TOP_DEAL_KEYWORDS.reduce(
+  return POSITIVE_KEYWORDS.reduce(
     (n, kw) => (haystack.includes(kw) ? n + 1 : n),
     0
   );

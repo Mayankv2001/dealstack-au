@@ -29,6 +29,9 @@ import { ActionButton } from "@/components/admin/ActionButton";
 import { stores } from "@/lib/data";
 import type { FeedQueueItem } from "@/lib/admin/repos/feedQueue";
 import { findMerchantIdInText } from "@/lib/sources/normalise";
+// Pure (no DB/network) category keyword list, shared with the homepage Top 5
+// ranking so the queue's relevance hint prefers the same priority categories.
+import { CATEGORY_PRIORITY_KEYWORDS } from "@/lib/repos/topDealsRanking";
 import { cn } from "@/lib/utils";
 import {
   hideFromTopDeals,
@@ -155,7 +158,12 @@ function assessItem(item: FeedQueueItem): {
   const mentionsTrackedStore = findMerchantIdInText(haystack) != null;
 
   let relevance: Relevance;
-  if (mentionsTrackedStore || HIGH_RELEVANCE_KEYWORDS.some((k) => haystack.includes(k))) {
+  if (
+    mentionsTrackedStore ||
+    HIGH_RELEVANCE_KEYWORDS.some((k) => haystack.includes(k)) ||
+    // High-priority deal categories (tech, fashion, beauty, automotive, home …)
+    CATEGORY_PRIORITY_KEYWORDS.some((k) => haystack.includes(k))
+  ) {
     relevance = "high";
   } else if (MEDIUM_RELEVANCE_KEYWORDS.some((k) => haystack.includes(k))) {
     relevance = "medium";
@@ -167,6 +175,7 @@ function assessItem(item: FeedQueueItem): {
 
 /** Quick keyword presets for the merchants / deal types we care about. */
 const PRESETS = [
+  // Merchants
   "Qantas",
   "JB Hi-Fi",
   "Amazon",
@@ -175,6 +184,16 @@ const PRESETS = [
   "Officeworks",
   "The Good Guys",
   "Costco",
+  // Priority categories (tech, fashion, beauty, automotive, household)
+  "Tech",
+  "Electronics",
+  "Appliances",
+  "Fashion",
+  "Beauty",
+  "Perfume",
+  "Automotive",
+  "Household",
+  // Deal types
   "gift card",
   "cashback",
   "points",
