@@ -26,9 +26,13 @@ const COLUMNS: AdminColumn[] = [
   { key: "provider", header: "Provider" },
   { key: "card", header: "Card" },
   { key: "type", header: "Offer type" },
+  { key: "terms", header: "Terms" },
   { key: "confidence", header: "Confidence" },
   { key: "status", header: "Status" },
 ];
+
+// AU-local "today" as YYYY-MM-DD so it compares directly to expiry_date.
+const TODAY_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Sydney" });
 
 /** Best available headline value for the offer type, for a compact list view. */
 function bonusHeadline(offer: AdminCardOffer): string {
@@ -49,8 +53,22 @@ function bonusHeadline(offer: AdminCardOffer): string {
   }
 }
 
-function toRow(offer: AdminCardOffer): AdminRow {
+/** Minimum spend + annual fee, so these show for every offer type, not just annual_fee_discount. */
+function termsSummary(offer: AdminCardOffer): string {
+  const parts: string[] = [];
+  if (offer.minimumSpend != null) {
+    parts.push(`$${offer.minimumSpend.toLocaleString()} spend`);
+  }
+  // Already surfaced via the offer-type headline for this type — avoid repeating it.
+  if (offer.annualFee != null && offer.offerType !== "annual_fee_discount") {
+    parts.push(`$${offer.annualFee} p.a.`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+function toRow(offer: AdminCardOffer, todayStr: string): AdminRow {
   const type = OFFER_TYPE_LABELS[offer.offerType];
+  const isExpired = offer.expiryDate != null && offer.expiryDate < todayStr;
   return {
     id: offer.id,
     searchText: `${offer.provider} ${offer.cardName} ${type}`.toLowerCase(),
@@ -60,11 +78,16 @@ function toRow(offer: AdminCardOffer): AdminRow {
       provider: { kind: "text", text: offer.provider, strong: true },
       card: { kind: "text", text: offer.cardName },
       type: { kind: "text", text: `${type} · ${bonusHeadline(offer)}` },
+      terms: { kind: "text", text: termsSummary(offer), muted: true },
       confidence: { kind: "confidence", value: offer.confidence },
       status: {
-        kind: "badge",
-        text: offer.isPublished ? "Published" : "Draft",
-        tone: offer.isPublished ? "secondary" : "outline",
+        kind: "badges",
+        items: [
+          offer.isPublished
+            ? { text: "Published", tone: "secondary" }
+            : { text: "Draft", tone: "outline" },
+          ...(isExpired ? [{ text: "Expired", tone: "amber" as const }] : []),
+        ],
       },
     },
     actions: [
@@ -81,6 +104,7 @@ export default async function CardOfferListPage() {
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
   const offers = await listCardOffers();
+  const todayStr = TODAY_FMT.format(new Date());
 
   return (
     <div className="space-y-6">
@@ -109,7 +133,7 @@ export default async function CardOfferListPage() {
       ) : (
         <AdminListTable
           columns={COLUMNS}
-          rows={offers.map(toRow)}
+          rows={offers.map((offer) => toRow(offer, todayStr))}
           searchPlaceholder="Search provider, card, offer type…"
           filter={{
             label: "Status",

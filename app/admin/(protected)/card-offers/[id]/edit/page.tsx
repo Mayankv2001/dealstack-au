@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/auth";
 import { getCardOffer } from "@/lib/admin/repos/cardOffers";
+import { formatDateAU } from "@/lib/sources/normalise";
 import { CardOfferForm } from "@/components/admin/CardOfferForm";
 import { updateCardOffer } from "../../actions";
 
@@ -28,7 +29,8 @@ export default async function EditCardOfferPage({
       <header className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold">Edit card offer</h1>
         <p className="text-sm text-muted-foreground">
-          {offer.provider} · {offer.cardName}
+          {offer.provider} · {offer.cardName} · Last checked{" "}
+          {formatDateAU(offer.lastCheckedAt) ?? "—"}
         </p>
       </header>
 

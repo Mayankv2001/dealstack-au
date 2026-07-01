@@ -328,13 +328,27 @@ export function CardOfferForm({
             htmlFor="source_url"
             hint="Link to the bank/issuer's own public offer page."
           >
-            <Input
-              id="source_url"
-              name="source_url"
-              type="url"
-              placeholder="https://…"
-              defaultValue={defaultValues?.sourceUrl ?? ""}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="source_url"
+                name="source_url"
+                type="url"
+                placeholder="https://…"
+                defaultValue={defaultValues?.sourceUrl ?? ""}
+                className="flex-1"
+              />
+              {defaultValues?.sourceUrl ? (
+                <Button asChild variant="outline" size="sm" className="shrink-0">
+                  <a
+                    href={defaultValues.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Visit
+                  </a>
+                </Button>
+              ) : null}
+            </div>
           </Field>
 
           <fieldset className="space-y-3">
