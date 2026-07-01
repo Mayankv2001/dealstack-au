@@ -1,10 +1,12 @@
 import {
+  cardOffers as staticCardOffers,
   cashbackOffers as staticCashback,
   giftCardOffers as staticGiftCards,
   ozBargainSignals as staticSignals,
   pointsOffers as staticPoints,
 } from "@/lib/offers/manualOffers";
 import type {
+  CardOffer,
   CashbackOffer,
   GiftCardOffer,
   OzBargainSignal,
@@ -81,6 +83,56 @@ export function getGiftCardOffers(): Promise<GiftCardOffer[]> {
     const { data, error } = await db.from("gift_card_offers").select("*");
     if (error) throw error;
     return ((data ?? []) as unknown as GiftCardRow[]).map(mapGiftCard);
+  });
+}
+
+// ── Card offers (bank / credit-card sign-up bonuses) ─────────────────────────
+interface CardOfferRow {
+  id: string;
+  provider: string;
+  card_name: string;
+  offer_type: CardOffer["offerType"];
+  bonus_points: number | string | null;
+  cashback_amount: number | string | null;
+  statement_credit_amount: number | string | null;
+  minimum_spend: number | string | null;
+  minimum_spend_period: string | null;
+  annual_fee: number | string | null;
+  eligibility_notes: string;
+  offer_summary: string;
+  source_url: string;
+  confidence: Confidence;
+  expiry_date: string | null;
+  last_checked_at: string;
+}
+
+function mapCardOffer(r: CardOfferRow): CardOffer {
+  return {
+    id: r.id,
+    provider: r.provider,
+    cardName: r.card_name,
+    offerType: r.offer_type,
+    bonusPoints: toNumberOrNull(r.bonus_points),
+    cashbackAmount: toNumberOrNull(r.cashback_amount),
+    statementCreditAmount: toNumberOrNull(r.statement_credit_amount),
+    minimumSpend: toNumberOrNull(r.minimum_spend),
+    minimumSpendPeriod: r.minimum_spend_period,
+    annualFee: toNumberOrNull(r.annual_fee),
+    eligibilityNotes: r.eligibility_notes,
+    offerSummary: r.offer_summary,
+    sourceUrl: r.source_url,
+    confidence: r.confidence,
+    expiryDate: r.expiry_date,
+    lastCheckedAt: r.last_checked_at,
+  };
+}
+
+/** RLS on card_offers already restricts anon reads to is_published = true. */
+export function getCardOffers(): Promise<CardOffer[]> {
+  return fromDbOrStatic("card_offers", staticCardOffers, async (db: DbClient) => {
+    const { data, error } = await db.from("card_offers").select("*");
+    if (error) throw error;
+    return ((data ?? []) as unknown as CardOfferRow[]).map(mapCardOffer);
   });
 }
 

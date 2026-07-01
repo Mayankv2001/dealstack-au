@@ -42,6 +42,7 @@ const navLinks = [
   { label: "How it works", href: "#how-it-works", external: false },
   { label: "Stores", href: "#stores", external: false },
   { label: "Deal stacks", href: "/deals", external: true },
+  { label: "Card offers", href: "/cards", external: true },
   { label: "Trust & safety", href: "#trust", external: false },
 ];
 

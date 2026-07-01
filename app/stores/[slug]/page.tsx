@@ -188,6 +188,9 @@ export default async function StorePage({
               <Link href="/deals">Weekly Deals</Link>
             </Button>
             <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+              <Link href="/cards">Cards</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
               <Link href="/resources">Resources</Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="bg-background">

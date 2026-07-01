@@ -259,7 +259,7 @@ export function CitationLinks({
 }
 
 /** Expiry line, tinted amber when expiring soon. */
-function ExpiryLine({
+export function ExpiryLine({
   expiryDate,
   expiringSoon,
   expired,
@@ -286,7 +286,7 @@ function ExpiryLine({
 }
 
 /** "Last checked" line — when this offer's data was last manually verified. */
-function CheckedLine({ lastCheckedAt }: { lastCheckedAt?: string | null }) {
+export function CheckedLine({ lastCheckedAt }: { lastCheckedAt?: string | null }) {
   const checked = formatDateAU(lastCheckedAt ?? null);
   if (!checked) return null;
   return (

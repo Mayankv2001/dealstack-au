@@ -273,6 +273,9 @@ export default function ResourcesPage() {
             <Button asChild size="sm" variant="ghost">
               <Link href="/deals">Weekly Deals</Link>
             </Button>
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+              <Link href="/cards">Cards</Link>
+            </Button>
             <Button asChild size="sm" variant="outline" className="bg-background">
               <Link href="/search">All stores</Link>
             </Button>

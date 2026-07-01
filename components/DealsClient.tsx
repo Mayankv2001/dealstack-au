@@ -619,6 +619,9 @@ export default function DealsClient({
               Deals
             </span>
             <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+              <Link href="/cards">Cards</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
               <Link href="/resources">Resources</Link>
             </Button>
             <Button
