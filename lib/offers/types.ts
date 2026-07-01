@@ -108,6 +108,33 @@ export interface PointsOffer {
   lastCheckedAt: string;
 }
 
+/** Kinds of credit-card / bank offer (matches the card_offers DB CHECK constraint). */
+export type CardOfferType =
+  | "sign_up_bonus"
+  | "cashback"
+  | "statement_credit"
+  | "points_bonus"
+  | "annual_fee_discount";
+
+export interface CardOffer {
+  id: string;
+  provider: string;
+  cardName: string;
+  offerType: CardOfferType;
+  bonusPoints: number | null;
+  cashbackAmount: number | null;
+  statementCreditAmount: number | null;
+  minimumSpend: number | null;
+  minimumSpendPeriod: string | null;
+  annualFee: number | null;
+  eligibilityNotes: string;
+  offerSummary: string;
+  sourceUrl: string;
+  confidence: Confidence;
+  expiryDate: string | null;
+  lastCheckedAt: string;
+}
+
 export interface OzBargainSignal {
   id: string;
   merchantId: string | null;

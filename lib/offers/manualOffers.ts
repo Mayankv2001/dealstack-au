@@ -1,4 +1,5 @@
 import type {
+  CardOffer,
   CashbackOffer,
   GiftCardOffer,
   OzBargainSignal,
@@ -322,6 +323,116 @@ export const pointsOffers: PointsOffer[] = [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
     confidence: "needs-verification",
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+];
+
+// ─── Card offers (bank / credit-card sign-up bonuses) ──────────────────────
+// Demo rows only, hand-typed for the admin CRUD launch — NOT scraped, NOT
+// live-verified. Every figure is illustrative/rounded, not a confirmed rate.
+// confidence is deliberately "needs-verification" and the seed script (see
+// scripts/seed.ts) inserts these as UNPUBLISHED drafts: an admin must open
+// each one, check it against the bank's own current page, and publish by
+// hand before it can appear anywhere public. See docs/bank-card-offer-workflow.md.
+export const cardOffers: CardOffer[] = [
+  {
+    id: "card-amex-qantas-bonus",
+    provider: "American Express",
+    cardName: "Qantas Ultimate Card",
+    offerType: "sign_up_bonus",
+    bonusPoints: 100000,
+    cashbackAmount: null,
+    statementCreditAmount: null,
+    minimumSpend: 3000,
+    minimumSpendPeriod: "3 months",
+    annualFee: 450,
+    eligibilityNotes:
+      "Sample only. Typically new customers, subject to not holding/having held a similar Amex Qantas card recently — check current terms.",
+    offerSummary:
+      "Illustrative sign-up bonus: bonus Qantas Points after meeting a minimum-spend threshold within a set window.",
+    sourceUrl: "https://www.americanexpress.com/en-au/",
+    confidence: "needs-verification",
+    expiryDate: null,
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "card-nab-rewards-bonus",
+    provider: "NAB",
+    cardName: "NAB Rewards Signature Card",
+    offerType: "sign_up_bonus",
+    bonusPoints: 90000,
+    cashbackAmount: null,
+    statementCreditAmount: null,
+    minimumSpend: 4000,
+    minimumSpendPeriod: "3 months",
+    annualFee: 195,
+    eligibilityNotes:
+      "Sample only. Typically new-to-product customers — check current terms before applying.",
+    offerSummary:
+      "Illustrative sign-up bonus: bonus NAB Rewards points after meeting a minimum-spend threshold within a set window.",
+    sourceUrl: "https://www.nab.com.au/personal/credit-cards",
+    confidence: "needs-verification",
+    expiryDate: null,
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "card-cba-statement-credit",
+    provider: "Commonwealth Bank",
+    cardName: "CommBank Low Fee Gold Credit Card",
+    offerType: "statement_credit",
+    bonusPoints: null,
+    cashbackAmount: null,
+    statementCreditAmount: 200,
+    minimumSpend: 1500,
+    minimumSpendPeriod: "60 days",
+    annualFee: 59,
+    eligibilityNotes:
+      "Sample only. Typically new cardholders — check current terms before applying.",
+    offerSummary:
+      "Illustrative statement credit after meeting a minimum-spend threshold within a set window.",
+    sourceUrl: "https://www.commbank.com.au/credit-cards.html",
+    confidence: "needs-verification",
+    expiryDate: null,
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "card-westpac-altitude-bonus",
+    provider: "Westpac",
+    cardName: "Altitude Platinum",
+    offerType: "points_bonus",
+    bonusPoints: 120000,
+    cashbackAmount: null,
+    statementCreditAmount: null,
+    minimumSpend: 3000,
+    minimumSpendPeriod: "90 days",
+    annualFee: 250,
+    eligibilityNotes:
+      "Sample only. Typically new-to-bank or new-to-product customers — check current terms before applying.",
+    offerSummary:
+      "Illustrative bonus Altitude Rewards points after meeting a minimum-spend threshold within a set window.",
+    sourceUrl: "https://www.westpac.com.au/personal-banking/credit-cards/",
+    confidence: "needs-verification",
+    expiryDate: null,
+    lastCheckedAt: SAMPLE_CHECKED_AT,
+  },
+  {
+    id: "card-anz-rewards-bonus",
+    provider: "ANZ",
+    cardName: "ANZ Rewards Black",
+    offerType: "sign_up_bonus",
+    bonusPoints: 100000,
+    cashbackAmount: null,
+    statementCreditAmount: null,
+    minimumSpend: 3000,
+    minimumSpendPeriod: "3 months",
+    annualFee: 375,
+    eligibilityNotes:
+      "Sample only. Typically new-to-product customers — check current terms before applying.",
+    offerSummary:
+      "Illustrative sign-up bonus: bonus ANZ Rewards points after meeting a minimum-spend threshold within a set window.",
+    sourceUrl: "https://www.anz.com.au/personal/credit-cards/",
+    confidence: "needs-verification",
+    expiryDate: null,
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
 ];

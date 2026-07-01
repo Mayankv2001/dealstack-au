@@ -20,6 +20,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { stores } from "../lib/data";
 import {
+  cardOffers,
   cashbackOffers,
   giftCardOffers,
   ozBargainSignals,
@@ -122,6 +123,30 @@ const giftCardRows: Row[] = giftCardOffers.map((o) => ({
   is_published: true,
 }));
 
+// card_offers requires migration 007 to be applied first — see
+// supabase/migrations/007_card_offers.sql. Rows go in UNPUBLISHED (unlike the
+// other offer tables above): an admin must review and publish each one by
+// hand at /admin/card-offers before it can appear anywhere public.
+const cardOfferRows: Row[] = cardOffers.map((o) => ({
+  id: o.id,
+  provider: o.provider,
+  card_name: o.cardName,
+  offer_type: o.offerType,
+  bonus_points: o.bonusPoints,
+  cashback_amount: o.cashbackAmount,
+  statement_credit_amount: o.statementCreditAmount,
+  minimum_spend: o.minimumSpend,
+  minimum_spend_period: o.minimumSpendPeriod,
+  annual_fee: o.annualFee,
+  eligibility_notes: o.eligibilityNotes,
+  offer_summary: o.offerSummary,
+  source_url: o.sourceUrl,
+  confidence: o.confidence,
+  expiry_date: o.expiryDate,
+  last_checked_at: o.lastCheckedAt,
+  is_published: false,
+}));
+
 const cashbackRows: Row[] = cashbackOffers.map((o) => ({
   id: o.id,
   merchant_id: o.merchantId,
@@ -209,6 +234,20 @@ async function main(): Promise<void> {
   await seedTable(supabase, "points_offers", pointsRows);
   await seedTable(supabase, "ozbargain_signals", signalRows);
   await seedTable(supabase, "weekly_deals", weeklyRows);
+
+  // card_offers needs migration 007 applied first (not done automatically —
+  // see supabase/migrations/007_card_offers.sql). Isolated in its own
+  // try/catch, last, so a not-yet-applied migration never aborts the seeding
+  // of every other table above.
+  try {
+    await seedTable(supabase, "card_offers", cardOfferRows);
+  } catch (err) {
+    console.warn(
+      `\n• card_offers: skipped (${err instanceof Error ? err.message : String(err)}). ` +
+        "Apply supabase/migrations/007_card_offers.sql first, then re-run."
+    );
+  }
+
   console.log("\nDone. Re-running is safe (upsert on id).");
 }
 
