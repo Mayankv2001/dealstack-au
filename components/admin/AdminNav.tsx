@@ -23,6 +23,7 @@ const GROUPS: NavLink[][] = [
     { href: "/admin/cashback", label: "Cashback" },
     { href: "/admin/gift-cards", label: "Gift Cards" },
     { href: "/admin/points", label: "Points" },
+    { href: "/admin/card-offers", label: "Card Offers" },
     { href: "/admin/weekly-deals", label: "Weekly Deals" },
   ],
   [
