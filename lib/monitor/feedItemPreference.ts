@@ -20,6 +20,8 @@
  * hyphenated phrases ("motor oil", "pre-order", "jb hi-fi") match literally.
  */
 
+import { DEAL_CATEGORY_KEYWORDS } from "@/lib/dealCategories";
+
 export type FeedItemPreference = "preferred" | "non_preferred" | "uncertain";
 
 /** The minimal shape the classifier needs — a FeedItemInsert satisfies this. */
@@ -122,19 +124,36 @@ export const PREFERRED_CATEGORY_KEYWORDS = [
  * does NOT rescue a genuinely off-theme category — see STRONG_NON_PREFERRED_KEYWORDS.
  */
 export const REWARDS_SIGNAL_KEYWORDS = [
-  "qantas",
-  "velocity",
-  "flybuys",
-  "everyday rewards",
-  "points",
-  "bonus points",
-  "frequent flyer",
-  "cashback",
-  "gift card",
-  "voucher",
-  "store credit",
-  "amex",
-  "american express",
+  ...new Set([
+    "qantas",
+    "velocity",
+    "flybuys",
+    "everyday rewards",
+    "points",
+    "bonus points",
+    "frequent flyer",
+    "cashback",
+    "gift card",
+    "voucher",
+    "store credit",
+    "amex",
+    "american express",
+    // Broader expansion: credit card sign-up bonuses, named bank offers, the
+    // two permitted cashback portals, named dining-delivery platforms and
+    // generic grocery wording — see docs/source-expansion-strategy.md. These
+    // stay in the REWARDS bucket (not PREFERRED_CATEGORY_KEYWORDS) rather
+    // than always-win category signals: OzBargain tags many off-theme items
+    // (e.g. protein supplements) under its generic "Groceries" category, so a
+    // grocery/platform match should rescue a weak negative (dining/travel
+    // wording) but must NOT rescue a genuinely off-theme strong negative like
+    // a supplement or alcohol deal that merely carries a "Groceries" tag.
+    ...DEAL_CATEGORY_KEYWORDS.credit_card_bonus,
+    ...DEAL_CATEGORY_KEYWORDS.bank_offer,
+    ...DEAL_CATEGORY_KEYWORDS.grocery,
+    ...DEAL_CATEGORY_KEYWORDS.dining_delivery,
+    "shopback",
+    "topcashback",
+  ]),
 ] as const;
 
 /**

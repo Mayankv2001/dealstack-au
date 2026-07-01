@@ -251,6 +251,91 @@ describe("classifyFeedItemPreference — rewards/loyalty signals override weak n
   });
 });
 
+describe("classifyFeedItemPreference — broader source expansion categories", () => {
+  it("classifies a credit card sign-up bonus as preferred", () => {
+    expect(
+      classifyFeedItemPreference(
+        item(
+          "NAB Rewards Signature Credit Card: 100,000 bonus points sign-up bonus",
+          { raw_summary: "$3,000 minimum spend in 90 days. $295 annual fee." }
+        )
+      )
+    ).toBe("preferred");
+  });
+
+  it("classifies a named bank offer (CommBank/ANZ/Westpac) as preferred", () => {
+    expect(
+      classifyFeedItemPreference(item("CommBank Yello: exclusive member deal"))
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(
+        item("ANZ: exclusive card member offer at David Jones this month")
+      )
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(
+        item("[Westpac, StG, BoM, BSA] 50% Apple Pay Bonus Statement Credit")
+      )
+    ).toBe("preferred");
+  });
+
+  it("classifies a ShopBack / TopCashback offer as preferred", () => {
+    expect(
+      classifyFeedItemPreference(
+        item("ShopBack: 20% Boost on Booking.com Hotels This Weekend Only")
+      )
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(
+        item("TopCashback: 100% New Customer Bonus on Travel Bookings")
+      )
+    ).toBe("preferred");
+  });
+
+  it("classifies an Uber Eats / DoorDash offer as preferred", () => {
+    expect(
+      classifyFeedItemPreference(item("$10 Ding Dong Deals - Uber Eats"))
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(
+        item("DoorDash: 25% off your first 3 orders, min spend $15")
+      )
+    ).toBe("preferred");
+  });
+
+  it("classifies a generic grocery deal as preferred", () => {
+    expect(
+      classifyFeedItemPreference(item("Weekly grocery specials: half price cereal"))
+    ).toBe("preferred");
+  });
+
+  it("keeps a plain restaurant dining offer with no rewards/platform signal as non_preferred", () => {
+    expect(
+      classifyFeedItemPreference(
+        item("20% off dining at participating restaurants this weekend")
+      )
+    ).toBe("non_preferred");
+  });
+
+  it("still keeps electronics/fashion/beauty/automotive/household preferred", () => {
+    expect(
+      classifyFeedItemPreference(item("Samsung 55\" 4K TV $699 delivered"))
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(item("Nike running shoes 40% off"))
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(item("Dior Sauvage fragrance 100ml"))
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(item("Bridgestone tyres 4-pack deal"))
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(item("Dyson vacuum cleaner $399"))
+    ).toBe("preferred");
+  });
+});
+
 describe("feedItemReviewState — staging decision", () => {
   it("stages a non-preferred item as 'ignored'", () => {
     expect(feedItemReviewState(item("Premium whisky mystery box"))).toBe(

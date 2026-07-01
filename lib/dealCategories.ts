@@ -93,7 +93,12 @@ export const DEAL_CATEGORY_KEYWORDS: Record<DealCategory, readonly string[]> = {
   ],
   cashback: ["cashback", "shopback", "topcashback"],
   gift_card: ["gift card", "voucher", "store credit"],
-  grocery: ["grocery", "groceries", "supermarket", "coles", "woolworths"],
+  // Deliberately generic — "coles"/"woolworths" are tracked as STORE (not
+  // category) keywords in feedItemPreference.ts/topDealsRanking.ts, which
+  // carry weaker override power than a category match. Adding them here too
+  // would let a bare store name rescue an otherwise off-theme deal (e.g.
+  // "Wine @ Coles"), which is deliberately not allowed.
+  grocery: ["grocery", "groceries", "supermarket"],
   automotive: [
     "automotive",
     "tyre",
