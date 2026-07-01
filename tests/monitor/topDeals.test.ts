@@ -92,6 +92,21 @@ describe("topDealsRanking — helpers", () => {
     expect(CATEGORY_PRIORITY_KEYWORDS).toContain("perfume");
     expect(CATEGORY_PRIORITY_KEYWORDS).toContain("automotive");
   });
+
+  it("counts broader-expansion keywords as positive hits (bank offers, card bonuses, cashback portals, dining delivery)", () => {
+    expect(countKeywordHits("nab credit card sign-up bonus")).toBeGreaterThanOrEqual(2); // nab, credit card
+    expect(countKeywordHits("westpac amex statement credit")).toBeGreaterThanOrEqual(2); // westpac, amex
+    // "topcashback" also contains "cashback" as a substring (this file scores
+    // by substring, not whole-word), so this legitimately counts 3 hits.
+    expect(countKeywordHits("shopback and topcashback rates")).toBeGreaterThanOrEqual(2);
+    expect(countKeywordHits("25% off doordash this week")).toBeGreaterThanOrEqual(1); // doordash
+  });
+
+  it("does not score generic 'grocery'/'groceries' wording (OzBargain tags supplements under it too)", () => {
+    // Unlike coles/woolworths (precise store matches), a bare "groceries" tag
+    // is too broad to score — see the comment in topDealsRanking.ts.
+    expect(countKeywordHits("groceries: bodybuilding supplement 50% off")).toBe(0);
+  });
 });
 
 describe("topDealsRanking — rankTopDeals", () => {
@@ -270,6 +285,32 @@ describe("topDealsRanking — rankTopDeals", () => {
     );
     expect(ranked[0].id).toBe("newer");
     expect(ranked[1].id).toBe("older");
+  });
+
+  it("ranks a bank/card offer above a de-prioritised liquor deal", () => {
+    const ranked = rankTopDeals(
+      [
+        item({ id: "booze", title: "Premium whisky 12-pack mystery box" }),
+        item({ id: "card", title: "NAB credit card sign-up bonus 100k points" }),
+      ],
+      STORES
+    );
+    expect(ranked[0].id).toBe("card");
+    expect(ranked[1].id).toBe("booze");
+  });
+
+  it("ranks a ShopBack/TopCashback or dining-delivery deal above a gaming pre-order", () => {
+    const ranked = rankTopDeals(
+      [
+        item({ id: "preorder", title: "[Pre Order, PS5] Some Game (Download Code)" }),
+        item({ id: "cashback", title: "TopCashback: 20% new customer bonus" }),
+        item({ id: "delivery", title: "$10 Ding Dong Deals - Uber Eats" }),
+      ],
+      STORES
+    );
+    const ids = ranked.map((d) => d.id);
+    expect(ids.indexOf("cashback")).toBeLessThan(ids.indexOf("preorder"));
+    expect(ids.indexOf("delivery")).toBeLessThan(ids.indexOf("preorder"));
   });
 
   it("does not crash when both postedAt and fetchedAt are unparseable", () => {

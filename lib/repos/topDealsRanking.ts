@@ -14,6 +14,8 @@
  *   3. recency (newest posted_at, else fetched_at)
  */
 
+import { DEAL_CATEGORY_KEYWORDS } from "@/lib/dealCategories";
+
 export type Relevance = "high" | "medium" | "low";
 
 /** A tracked store, just what ranking needs. */
@@ -54,24 +56,37 @@ export interface TopDeal {
  * big AU retailers people search for. Matching is case-insensitive substring.
  */
 export const TOP_DEAL_KEYWORDS = [
-  "qantas",
-  "velocity",
-  "flybuys",
-  "everyday rewards",
-  "bonus points",
-  "store credit",
-  "gift card",
-  "cashback",
-  "points",
-  "jb hi-fi",
-  "officeworks",
-  "the good guys",
-  "coles",
-  "woolworths",
-  "amazon",
-  "myer",
-  "chemist warehouse",
-  "kogan",
+  ...new Set([
+    "qantas",
+    "velocity",
+    "flybuys",
+    "everyday rewards",
+    "bonus points",
+    "store credit",
+    "gift card",
+    "cashback",
+    "points",
+    "jb hi-fi",
+    "officeworks",
+    "the good guys",
+    "coles",
+    "woolworths",
+    "amazon",
+    "myer",
+    "chemist warehouse",
+    "kogan",
+    // Broader expansion: credit card sign-up bonuses, named bank offers, and
+    // the two permitted cashback portals — see docs/source-expansion-strategy.md.
+    // Deliberately NOT adding a generic "grocery"/"groceries" keyword here:
+    // OzBargain tags many off-theme items (protein supplements, snacks) under
+    // its broad "Groceries" category, so it would over-boost them. Coles/
+    // Woolworths (above) already give grocery deals a strong, precise signal
+    // via the tracked-store match.
+    ...DEAL_CATEGORY_KEYWORDS.credit_card_bonus,
+    ...DEAL_CATEGORY_KEYWORDS.bank_offer,
+    "shopback",
+    "topcashback",
+  ]),
 ] as const;
 
 /**
@@ -148,6 +163,9 @@ export const CATEGORY_PRIORITY_KEYWORDS = [
   "dinnerware",
   "cleaning",
   "tools",
+  // Named dining-delivery platforms (specific brand names, not generic
+  // "dining"/"restaurant" wording — those stay unscored, same as before)
+  ...DEAL_CATEGORY_KEYWORDS.dining_delivery,
 ] as const;
 
 /** Combined positive keyword set (loyalty/store + priority categories), deduped. */
