@@ -193,10 +193,23 @@ const PRESETS = [
   "Perfume",
   "Automotive",
   "Household",
+  "Grocery",
   // Deal types
   "gift card",
   "cashback",
   "points",
+  // Broader source expansion: bank/card offers, loyalty programmes, cashback
+  // portals and dining delivery — see docs/source-expansion-strategy.md. Filter
+  // only — this never changes review_state or imports/approves anything.
+  "Credit cards",
+  "Bank offers",
+  "Velocity",
+  "Flybuys",
+  "Everyday Rewards",
+  "ShopBack",
+  "TopCashback",
+  "Uber Eats",
+  "DoorDash",
 ] as const;
 
 /**
