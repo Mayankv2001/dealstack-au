@@ -1,9 +1,13 @@
 # Public UI Expansion Plan
 
-> **Plan only — no new pages built in this phase**, per this expansion's
-> explicit instruction not to build a large new page yet. This documents
-> where each broader category should surface and in what order, so future
-> phases (gated on the Phase 6 `card_offers` go-ahead) have a concrete spec.
+> **Status: the `/cards` surface below has since shipped.** Migration 007
+> is applied to production, `/cards` is live (`app/cards/page.tsx`,
+> `getCardOffers()` in `lib/repos/offers.ts`), and nav links to it exist on
+> the homepage and every other top-level page. Sequencing steps 1–3 below
+> are done; only the homepage pillar tile / `/resources` cross-link (step 4)
+> remained optional. The rest of this document is kept as the original
+> planning rationale — read "nothing below exists yet" and the "Explicit
+> non-goals" section as describing the state *at planning time*, not today.
 
 ## What's already live (no plan needed — shipped in Phases 3–5)
 
@@ -22,8 +26,9 @@ optionally `dining_delivery_offers` from Phase 8).
 
 ## New surface: credit card / bank offers
 
-This is gated entirely on the Phase 6 (`docs/bank-card-offer-workflow.md`)
-migration being explicitly approved and built — nothing below exists yet.
+This was gated on the Phase 6 (`docs/bank-card-offer-workflow.md`) migration
+being explicitly approved and built — that gate has since cleared and the
+page described below is live (see status note at the top of this document).
 
 ### Recommended: a dedicated `/cards` page, not a `/deals` filter tab
 
@@ -63,12 +68,12 @@ are already separate top-level concerns.
 
 ### Sequencing
 
-1. Phase 6 migration approved and built (own reviewable change).
-2. Admin CRUD + a handful of manually-entered rows (so the page isn't empty
+1. ✅ Phase 6 migration approved and built (own reviewable change).
+2. ✅ Admin CRUD + a handful of manually-entered rows (so the page isn't empty
    on launch).
-3. `getCardOffers()` read path + `/cards` page + nav link — one PR.
-4. Homepage tile + `/resources` cross-link — can ship in the same PR as #3
-   or a small follow-up.
+3. ✅ `getCardOffers()` read path + `/cards` page + nav link — shipped.
+4. Homepage tile + `/resources` cross-link — optional follow-up, not required
+   for launch.
 
 ## New surface: dining delivery (only if the optional table gets built)
 
@@ -85,11 +90,11 @@ Until then — and this covers the vast majority of near-term dining-delivery
 content per Phase 8's decision — these deals already render fine as ordinary
 `ozbargain_signals` under the existing "OzBargain signals" filter.
 
-## Explicit non-goals for this phase
+## Explicit non-goals as of this original planning phase (now superseded — see status note at top)
 
-- ❌ No new route, page, or nav entry created.
-- ❌ No changes to `app/layout.tsx` (root layout untouched, per rule).
-- ❌ No changes to `app/globals.css`.
+- ❌ No new route, page, or nav entry created. *(Since done — see status note.)*
+- ❌ No changes to `app/layout.tsx` (root layout untouched, per rule) — still true today.
+- ❌ No changes to `app/globals.css` — still true today.
 - ❌ No redesign of `/deals`, `/resources`, `/stores/*`, or the homepage —
   everything above is additive (new page, new filter chip, new nav link,
-  new cross-link), not a rework of existing UI.
+  new cross-link), not a rework of existing UI — still true today.

@@ -1,11 +1,16 @@
 # Bank / Credit Card Offer Workflow
 
-> **Design document only.** This proposes an additive migration for review —
-> **no migration file has been created and nothing has been applied to any
-> database.** Per `CLAUDE.md` ("Migrations must be reviewed before applying to
-> production") and this expansion's stop conditions ("a migration is required
-> and might affect production data → stop and ask"), the SQL below is a
-> starting point for that conversation, not a fait accompli.
+> **Status: implemented.** This proposal was approved. The actual migration
+> (`supabase/migrations/007_card_offers.sql`) has been created and applied to
+> production, admin CRUD (`/admin/card-offers`) is live, 5 sample rows are
+> seeded as unpublished drafts pending admin review, and the public read path
+> (`/cards`) has shipped — see `docs/public-ui-expansion-plan.md` for that
+> rollout. The schema below is the **original proposal** and differs from
+> what was actually built (e.g. `provider`/`offer_type` instead of
+> `bank`/`bonus_type`, a plain `source_url` instead of a `citations` jsonb
+> column) — treat `supabase/migrations/007_card_offers.sql` as the source of
+> truth for the current schema, not this document. The rest of this file is
+> kept as a historical record of the design rationale.
 
 ## Why a new table
 
@@ -124,9 +129,9 @@ exactly:
 - **No public UI** is built in this phase — see Phase 9
   (`docs/public-ui-expansion-plan.md`) for where this would surface.
 
-## Next step
+## Next step (historical — superseded, see status note at top)
 
-This design needs your explicit go-ahead before anything is created:
+This design needed explicit go-ahead before anything was created:
 
 1. Confirm the `card_offers` shape above (or request changes).
 2. If approved, the next phase would be: create the actual migration file

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ArrowRight,
   CreditCard,
   ExternalLink,
   Gift,
@@ -346,6 +347,18 @@ export default function ResourcesPage() {
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {section.intro}
                 </p>
+                {section.id === "credit-cards" && (
+                  <Button
+                    asChild
+                    size="sm"
+                    className="mt-3 w-fit bg-emerald-600 text-white hover:bg-emerald-700"
+                  >
+                    <Link href="/cards">
+                      Browse live card offers
+                      <ArrowRight className="size-3.5" />
+                    </Link>
+                  </Button>
+                )}
                 <ul className="mt-3 space-y-2.5">
                   {section.items.map((item) => (
                     <li key={item.title} className="flex gap-2">

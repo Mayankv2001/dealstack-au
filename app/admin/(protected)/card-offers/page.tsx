@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ShieldAlert } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listCardOffers, type AdminCardOffer } from "@/lib/admin/repos/cardOffers";
 import {
@@ -121,6 +122,23 @@ export default async function CardOfferListPage() {
           <Link href="/admin/card-offers/new">New offer</Link>
         </Button>
       </header>
+
+      <div className="w-full rounded-r-md border-l-4 border-amber-500 bg-amber-50/50 p-3 dark:bg-amber-950/25">
+        <div className="flex items-start gap-2.5">
+          <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-400">
+              Verify before publishing
+            </p>
+            <p className="text-[11px] leading-normal text-muted-foreground/80">
+              Publishing does not re-check anything automatically — before you
+              publish a draft, re-open it and confirm the bonus, fee, minimum
+              spend and eligibility still match the bank&rsquo;s own current
+              page.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {offers.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
