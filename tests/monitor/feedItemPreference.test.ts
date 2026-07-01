@@ -186,6 +186,71 @@ describe("classifyFeedItemPreference — uncertain & overrides", () => {
   });
 });
 
+describe("classifyFeedItemPreference — rewards/loyalty signals override weak negatives", () => {
+  it("rescues an AmEx Qantas points card despite 'Travel Fund' wording", () => {
+    expect(
+      classifyFeedItemPreference(
+        item(
+          "American Express Qantas Business Card - up to 190,000 bonus Qantas Points",
+          {
+            raw_summary:
+              "Plus a $500 Travel Fund credit each cardmember year. T&Cs apply.",
+          }
+        )
+      )
+    ).toBe("preferred");
+  });
+
+  it("classifies a Velocity transfer bonus as preferred", () => {
+    expect(
+      classifyFeedItemPreference(
+        item("Velocity Frequent Flyer: 30% transfer bonus from Amex points")
+      )
+    ).toBe("preferred");
+  });
+
+  it("classifies a Flybuys / Everyday Rewards points deal as preferred", () => {
+    expect(
+      classifyFeedItemPreference(
+        item("Flybuys members: earn 10,000 bonus points at Coles this week")
+      )
+    ).toBe("preferred");
+    expect(
+      classifyFeedItemPreference(
+        item("Everyday Rewards bonus points event this weekend")
+      )
+    ).toBe("preferred");
+  });
+
+  it("classifies cashback dining wording as preferred when the deal is cashback", () => {
+    expect(
+      classifyFeedItemPreference(
+        item("15% cashback at participating restaurants this weekend")
+      )
+    ).toBe("preferred");
+  });
+
+  it("keeps a plain airfare/travel deal with no rewards signal as non_preferred", () => {
+    expect(
+      classifyFeedItemPreference(item("Cheap airfares to Bali this July + hotel"))
+    ).toBe("non_preferred");
+  });
+
+  it("keeps alcohol with no rewards signal as non_preferred", () => {
+    expect(
+      classifyFeedItemPreference(item("Ballantine's whisky 700ml $45"))
+    ).toBe("non_preferred");
+  });
+
+  it("keeps a gaming pre-order as non_preferred (rewards wording does not rescue it)", () => {
+    expect(
+      classifyFeedItemPreference(
+        item("[Pre Order, PS5] Grand Theft Auto VI (Download Code in Box)")
+      )
+    ).toBe("non_preferred");
+  });
+});
+
 describe("feedItemReviewState — staging decision", () => {
   it("stages a non-preferred item as 'ignored'", () => {
     expect(feedItemReviewState(item("Premium whisky mystery box"))).toBe(

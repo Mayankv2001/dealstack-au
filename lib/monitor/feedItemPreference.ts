@@ -114,8 +114,54 @@ export const PREFERRED_CATEGORY_KEYWORDS = [
   "diy",
 ] as const;
 
-/** Non-preferred CATEGORIES — to be auto-ignored when no preferred signal wins. */
-export const NON_PREFERRED_KEYWORDS = [
+/**
+ * Strong preferred REWARDS/LOYALTY signals — points, cashback, gift cards and
+ * named loyalty programmes. A match here means the deal is a rewards/savings
+ * deal, so it wins even when incidental travel/dining wording ("Travel Fund",
+ * "dining credit") also appears (see WEAK_NON_PREFERRED_KEYWORDS below). It
+ * does NOT rescue a genuinely off-theme category — see STRONG_NON_PREFERRED_KEYWORDS.
+ */
+export const REWARDS_SIGNAL_KEYWORDS = [
+  "qantas",
+  "velocity",
+  "flybuys",
+  "everyday rewards",
+  "points",
+  "bonus points",
+  "frequent flyer",
+  "cashback",
+  "gift card",
+  "voucher",
+  "store credit",
+  "amex",
+  "american express",
+] as const;
+
+/**
+ * Weak non-preferred wording — travel/dining terms that are only incidental
+ * flavour text on a lot of rewards deals ("$500 Travel Fund", "dining
+ * credit"). A rewards signal overrides these (see REWARDS_SIGNAL_KEYWORDS),
+ * but on their own (a plain airfare/hotel/dining deal) they still ignore.
+ */
+export const WEAK_NON_PREFERRED_KEYWORDS = [
+  // dining / restaurants
+  "restaurant",
+  "dining",
+  "takeaway",
+  // travel
+  "flight",
+  "flights",
+  "airfare",
+  "hotel",
+  "travel",
+] as const;
+
+/**
+ * Strong non-preferred CATEGORIES — genuinely off-theme deals. A rewards
+ * signal does NOT rescue these (e.g. "bonus points" on a Funko figurine is
+ * still a collectible, not a rewards deal).
+ */
+export const STRONG_NON_PREFERRED_KEYWORDS = [
   // alcohol / liquor
   "alcohol",
   "liquor",
@@ -158,20 +204,17 @@ export const NON_PREFERRED_KEYWORDS = [
   "vitamin",
   "vitamins",
   "protein powder",
-  // dining / restaurants
-  "restaurant",
-  "dining",
-  "takeaway",
   // pets
   "pet",
   "pets",
   "dog food",
   "cat food",
-  // travel
-  "flight",
-  "flights",
-  "hotel",
-  "travel",
+] as const;
+
+/** All non-preferred keywords (strong + weak) — kept for callers that just want the full list. */
+export const NON_PREFERRED_KEYWORDS = [
+  ...STRONG_NON_PREFERRED_KEYWORDS,
+  ...WEAK_NON_PREFERRED_KEYWORDS,
 ] as const;
 
 // ── Matching ─────────────────────────────────────────────────────────────────
@@ -186,7 +229,9 @@ function wordMatcher(keyword: string): RegExp {
 
 const STORE_MATCHERS = PREFERRED_STORE_KEYWORDS.map(wordMatcher);
 const CATEGORY_MATCHERS = PREFERRED_CATEGORY_KEYWORDS.map(wordMatcher);
-const NEGATIVE_MATCHERS = NON_PREFERRED_KEYWORDS.map(wordMatcher);
+const REWARDS_MATCHERS = REWARDS_SIGNAL_KEYWORDS.map(wordMatcher);
+const WEAK_NEGATIVE_MATCHERS = WEAK_NON_PREFERRED_KEYWORDS.map(wordMatcher);
+const STRONG_NEGATIVE_MATCHERS = STRONG_NON_PREFERRED_KEYWORDS.map(wordMatcher);
 
 function anyMatch(haystack: string, matchers: RegExp[]): boolean {
   return matchers.some((re) => re.test(haystack));
@@ -204,13 +249,19 @@ function haystackOf(item: PreferenceInput): string {
  *
  * Rules (in order):
  *   1. A preferred CATEGORY match (laptop, sneaker, fragrance, tyre, cookware …)
- *      makes it preferred — even if a weak negative word is also present. This
- *      is the "preferred store/category overrides a weak negative" case.
- *   2. Otherwise, a clear non-preferred match with NO preferred category makes
- *      it non_preferred. A bare preferred STORE does NOT rescue a non-preferred
- *      category item (e.g. "mezcal @ Costco" is still alcohol → non_preferred).
- *   3. A preferred store match with no negatives is preferred.
- *   4. Anything unclear is uncertain (and the monitor keeps it as 'new').
+ *      makes it preferred — even if a negative word is also present. This
+ *      is the "preferred category overrides a negative" case.
+ *   2. A REWARDS/LOYALTY signal (Qantas, Velocity, Flybuys, points, cashback,
+ *      Amex …) makes it preferred, even if weak travel/dining wording is also
+ *      present ("$500 Travel Fund" on an Amex Qantas card is still a points
+ *      deal). It does NOT rescue a genuinely off-theme STRONG negative
+ *      (alcohol/pets/anime/supplements/snacks/gaming pre-orders).
+ *   3. Otherwise, any remaining non-preferred match (strong or weak) with no
+ *      preferred category makes it non_preferred. A bare preferred STORE does
+ *      NOT rescue a non-preferred category item (e.g. "mezcal @ Costco" is
+ *      still alcohol → non_preferred).
+ *   4. A preferred store match with no negatives is preferred.
+ *   5. Anything unclear is uncertain (and the monitor keeps it as 'new').
  */
 export function classifyFeedItemPreference(
   item: PreferenceInput
@@ -218,17 +269,22 @@ export function classifyFeedItemPreference(
   const haystack = haystackOf(item);
   const hasCategory = anyMatch(haystack, CATEGORY_MATCHERS);
   const hasStore = anyMatch(haystack, STORE_MATCHERS);
-  const hasNegative = anyMatch(haystack, NEGATIVE_MATCHERS);
+  const hasRewards = anyMatch(haystack, REWARDS_MATCHERS);
+  const hasStrongNegative = anyMatch(haystack, STRONG_NEGATIVE_MATCHERS);
+  const hasWeakNegative = anyMatch(haystack, WEAK_NEGATIVE_MATCHERS);
 
   // 1. A preferred category always wins (overrides an incidental negative word).
   if (hasCategory) return "preferred";
-  // 2. A clear non-preferred signal with no preferred category → ignore. A bare
-  //    store name does not rescue it (alcohol/anime from a tracked store is
-  //    still off-theme).
-  if (hasNegative) return "non_preferred";
-  // 3. A preferred store with no negatives is worth reviewing.
+  // 2. A rewards/loyalty signal wins over weak travel/dining wording, but not
+  //    over a genuinely off-theme strong negative.
+  if (hasRewards && !hasStrongNegative) return "preferred";
+  // 3. A clear non-preferred signal with no preferred category and no rewards
+  //    rescue → ignore. A bare store name does not rescue it (alcohol/anime
+  //    from a tracked store is still off-theme).
+  if (hasStrongNegative || hasWeakNegative) return "non_preferred";
+  // 4. A preferred store with no negatives is worth reviewing.
   if (hasStore) return "preferred";
-  // 4. No signal either way — keep it for review rather than dropping it.
+  // 5. No signal either way — keep it for review rather than dropping it.
   return "uncertain";
 }
 
