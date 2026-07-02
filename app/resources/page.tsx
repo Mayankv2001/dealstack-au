@@ -265,25 +265,30 @@ export default function ResourcesPage() {
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
           <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/deals">Deals</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/cards">Cards</Link>
+            </Button>
             <span
               aria-current="page"
-              className="hidden h-8 items-center rounded-md bg-emerald-500/10 px-3 text-sm font-medium text-emerald-700 dark:text-emerald-400 sm:inline-flex"
+              className="inline-flex h-8 items-center rounded-md bg-emerald-500/10 px-3 text-sm font-medium text-emerald-700 dark:text-emerald-400"
             >
               Resources
             </span>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Weekly Deals</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-              <Link href="/cards">Cards</Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="bg-background">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="hidden bg-background sm:inline-flex"
+            >
               <Link href="/search">All stores</Link>
             </Button>
             <Button
               asChild
               size="sm"
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              className="hidden bg-emerald-600 text-white hover:bg-emerald-700 sm:inline-flex"
             >
               <Link href="/">Home</Link>
             </Button>

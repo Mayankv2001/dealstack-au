@@ -78,15 +78,20 @@ export default async function SearchPage({
           <Logo />
           <div className="flex items-center gap-2">
             <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Weekly Deals</Link>
+              <Link href="/deals">Deals</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/cards">Cards</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/resources">Resources</Link>
             </Button>
-            <Button asChild size="sm" variant="outline" className="bg-background">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="hidden bg-background sm:inline-flex"
+            >
               <Link href="/">Home</Link>
             </Button>
           </div>

@@ -624,8 +624,8 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
                   Sample OzBargain signal
                 </Button>
                 <p className="text-[10px] leading-snug text-muted-foreground">
-                  Static example — real OzBargain link will appear once source
-                  monitoring is enabled.
+                  Sample entry with no live link — real signals link to the
+                  original OzBargain post.
                 </p>
               </div>
             ) : (

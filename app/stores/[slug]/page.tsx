@@ -185,15 +185,20 @@ export default async function StorePage({
           <Logo />
           <div className="flex items-center gap-2">
             <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Weekly Deals</Link>
+              <Link href="/deals">Deals</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/cards">Cards</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/resources">Resources</Link>
             </Button>
-            <Button asChild size="sm" variant="outline" className="bg-background">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="hidden bg-background sm:inline-flex"
+            >
               <Link href="/search">All stores</Link>
             </Button>
           </div>
@@ -386,10 +391,11 @@ export default async function StorePage({
         <p className="mt-6 border-t pt-5 text-xs leading-relaxed text-muted-foreground">
           <strong>Disclaimer:</strong> The discount code, cashback rate, gift
           card discount, points rate and expiry date shown for {store.name} are
-          illustrative sample data only and change frequently. Always verify
-          current offers directly with {store.name} and providers such as
-          ShopBack and TopCashback before purchasing. DealStack AU is not
-          affiliated with any retailer or rewards program listed.
+          manually curated and served from a cache — offers change or expire
+          without notice, so they may be out of date. Always verify current
+          offers directly with {store.name} and providers such as ShopBack and
+          TopCashback before purchasing. DealStack AU is not affiliated with
+          any retailer or rewards program listed.
         </p>
       </main>
     </div>

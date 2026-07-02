@@ -43,6 +43,7 @@ const navLinks = [
   { label: "Stores", href: "#stores", external: false },
   { label: "Deal stacks", href: "/deals", external: true },
   { label: "Card offers", href: "/cards", external: true },
+  { label: "Resources", href: "/resources", external: true },
   { label: "Trust & safety", href: "#trust", external: false },
 ];
 
@@ -274,7 +275,7 @@ export default function HomeClient({
                 <strong className="font-semibold text-foreground">
                   loyalty points
                 </strong>{" "}
-                and live{" "}
+                and curated{" "}
                 <strong className="font-semibold text-foreground">
                   community deal signals
                 </strong>{" "}
@@ -708,6 +709,12 @@ export default function HomeClient({
               >
                 Deal stacks
               </Link>
+              <Link
+                href="/cards"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Card offers
+              </Link>
               <a
                 href="#calculator"
                 className="text-muted-foreground transition-colors hover:text-foreground"
@@ -732,8 +739,9 @@ export default function HomeClient({
           <div id="disclaimer" className="mt-10 scroll-mt-16 border-t pt-6">
             <p className="text-xs leading-relaxed text-muted-foreground">
               <strong>Disclaimer:</strong> All discount codes, cashback rates,
-              gift card discounts, points rates and expiry dates shown on
-              DealStack AU are illustrative examples only and change frequently.
+              gift card discounts, points rates and expiry dates on DealStack AU
+              are manually curated and served from a cache — offers change or
+              expire without notice, so what you see here may be out of date.
               Always confirm current offers directly with the retailer and
               providers such as ShopBack, TopCashback, Flybuys and Everyday
               Rewards before purchasing. DealStack AU is not affiliated with any

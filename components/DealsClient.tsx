@@ -200,7 +200,7 @@ function giftDateRange(start: string | null, expiry: string | null): string {
   if (from && to) return `${from} → ${to}`;
   if (to) return `Until ${to}`;
   if (from) return `From ${from}`;
-  return "Ongoing (sample)";
+  return "Ongoing — verify current dates";
 }
 
 // "How DealStack checks a stack" steps.
@@ -356,8 +356,8 @@ function buildPointsDeals(
         subject: nameOf(o.merchantId),
         summary:
           o.mechanism === "in-store-boost"
-            ? "Sample activated offer — activate in-app before you shop to earn the bonus."
-            : "Sample base earn rate on eligible spend at this merchant.",
+            ? "Activated offer — activate in-app before you shop to earn the bonus."
+            : "Base earn rate on eligible spend at this merchant.",
         badge: o.earnMultiple
           ? { value: `${o.earnMultiple}×`, caption: "points" }
           : { value: o.earnRateDisplay },
@@ -618,16 +618,16 @@ export default function DealsClient({
             >
               Deals
             </span>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/cards">Cards</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/resources">Resources</Link>
             </Button>
             <Button
               asChild
               size="sm"
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              className="hidden bg-emerald-600 text-white hover:bg-emerald-700 sm:inline-flex"
             >
               <Link href="/#calculator">Calculator</Link>
             </Button>
@@ -766,8 +766,8 @@ export default function DealsClient({
             <p className="font-medium">No {FILTER_LABEL[active]} this week</p>
             <p className="max-w-sm text-sm text-muted-foreground">
               {isProgramFilter
-                ? "No direct offers for this program in the sample data. See Resources for conversion routes (e.g. Everyday Rewards → Qantas, Flybuys → Velocity)."
-                : "Try another filter — new sample offers rotate each week."}
+                ? "No direct offers for this program right now. See Resources for conversion routes (e.g. Everyday Rewards → Qantas, Flybuys → Velocity)."
+                : "Try another filter — offers are updated after manual review, so check back soon."}
             </p>
             <div className="mt-1 flex gap-2">
               <Button size="sm" variant="outline" onClick={() => setActive("all")}>
@@ -908,9 +908,9 @@ export default function DealsClient({
               subtitle="Community-reported activity to corroborate before you act."
             />
             <p className="mb-3 rounded-lg border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-              These are community deal signals. Static examples are shown for the
-              MVP. Real OzBargain links will appear after source monitoring is
-              enabled.
+              Community-reported deal signals, manually reviewed before they
+              appear here. Community reports can expire or change without
+              notice — verify with the retailer before you act.
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visSig.map((d, i) => (

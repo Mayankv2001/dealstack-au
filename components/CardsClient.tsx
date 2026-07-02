@@ -102,7 +102,7 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
             <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
               <Link href="/">Stores</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/deals">Deals</Link>
             </Button>
             <span
@@ -111,7 +111,7 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
             >
               Cards
             </span>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button asChild size="sm" variant="ghost">
               <Link href="/resources">Resources</Link>
             </Button>
           </nav>
@@ -140,8 +140,8 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
               <span className="font-medium text-foreground">
                 manually entered and reviewed by a person
               </span>
-              , never auto-scraped. Confirm current terms with the bank before
-              applying.
+              , never auto-scraped — each card shows when it was last checked.
+              Always confirm current terms with the bank before applying.
             </p>
           </div>
 
