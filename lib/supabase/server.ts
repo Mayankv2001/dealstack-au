@@ -74,6 +74,38 @@ export async function fromDbOrStatic<T>(
   }
 }
 
+/**
+ * Run a DB read where the static array is ONLY a local/demo substitute, never a
+ * production fallback. For datasets (e.g. card_offers) whose static rows are
+ * illustrative demo data that must not be shown as if live:
+ *   - DATA_SOURCE=static or Supabase env absent → demo data (local/demo mode);
+ *   - Supabase configured + query succeeds      → the DB rows, even when EMPTY —
+ *     zero published rows must render the empty state, not resurrect demos;
+ *   - Supabase configured + query throws        → [] (never the demo data).
+ * `deps` exists so tests can inject the mode/client; production callers omit it.
+ */
+export async function fromDbOrDemo<T>(
+  label: string,
+  demoData: T[],
+  query: (supabase: DbClient) => Promise<T[]>,
+  deps: { staticMode?: boolean; client?: DbClient | null } = {}
+): Promise<T[]> {
+  const staticMode = deps.staticMode ?? isStaticDataSource();
+  if (staticMode) return demoData;
+  const supabase = deps.client !== undefined ? deps.client : getSupabaseServer();
+  if (!supabase) return demoData;
+  try {
+    return (await query(supabase)) ?? [];
+  } catch (err) {
+    console.warn(
+      `[repos] ${label}: DB read failed; returning no rows (demo data is never a live fallback). ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+    return [];
+  }
+}
+
 // ── DB value coercion (Postgres `numeric` arrives as a string) ───────────────
 export function toNumber(value: unknown): number {
   return value == null ? 0 : Number(value);

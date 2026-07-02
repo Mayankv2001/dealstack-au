@@ -29,6 +29,14 @@ export function hasSupabaseEnv(): boolean {
   );
 }
 
+/**
+ * Public site origin for absolute URLs (metadata, sitemap, robots). Falls back
+ * to localhost so local/dev builds never throw; set NEXT_PUBLIC_SITE_URL in
+ * production.
+ */
+export const siteUrl = (): string =>
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
+
 export const supabaseUrl = (): string =>
   requireEnv("NEXT_PUBLIC_SUPABASE_URL");
 

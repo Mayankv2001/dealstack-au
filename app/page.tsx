@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import HomeClient from "@/components/HomeClient";
 import { getStores } from "@/lib/repos";
 import { getTopDeals } from "@/lib/repos/topDeals";
+
+export const metadata: Metadata = {
+  title: "DealStack AU — Stack cashback, gift cards & points at Australian stores",
+  description:
+    "See the best way to stack discount codes, cashback, discounted gift cards and points at popular Australian retailers — plus admin-reviewed OzBargain deal signals.",
+};
 
 /**
  * Homepage — server component. Loads stores from the repository layer (Supabase

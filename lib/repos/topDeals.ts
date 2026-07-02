@@ -11,8 +11,14 @@ import {
 /**
  * "Today's top OzBargain signals" — public homepage repo.
  *
- * Reads ALREADY-STAGED feed_items (joined to feed_sources for the enabled
+ * Reads ADMIN-REVIEWED feed_items (joined to feed_sources for the enabled
  * filter) and returns the top 5 ranked deals. SERVER-ONLY.
+ *
+ * Publication is OPT-IN: only items an admin has explicitly imported from the
+ * review queue (review_state = 'imported') are eligible. Raw staged items
+ * (review_state = 'new') are NEVER shown publicly — the monitor staging a feed
+ * item does not publish it, keeping the "external data is reviewed before
+ * publication" rule intact.
  *
  * Why service-role here (and not the public anon client): feed_items /
  * feed_sources are RLS default-deny with NO public policies (migration 002) —
@@ -30,8 +36,13 @@ import {
 const CANDIDATE_LIMIT = 50;
 const TOP_LIMIT = 5;
 
-/** Feed sources we never surface publicly are excluded via this allowlist of states. */
-const PUBLIC_REVIEW_STATES = ["new", "imported"] as const;
+/**
+ * The ONLY review states the homepage may show. Deliberately just 'imported':
+ * an admin must review an item in /admin/signals/queue and import it before it
+ * can appear publicly. 'new' (unreviewed), 'ignored' and 'duplicate' never
+ * surface. Exported so tests pin this opt-in behaviour.
+ */
+export const PUBLIC_REVIEW_STATES = ["imported"] as const;
 
 interface FeedItemRow {
   id: string;
@@ -66,9 +77,9 @@ function toRankable(row: FeedItemRow): RankableFeedItem {
 }
 
 /**
- * Top 5 staged OzBargain signals for the homepage, ranked by tracked-store
- * match, then useful keywords, then recency. Returns [] when Supabase is not
- * configured, in static mode, or on any read error.
+ * Top 5 admin-imported OzBargain signals for the homepage, ranked by
+ * tracked-store match, then useful keywords, then recency. Returns [] when
+ * Supabase is not configured, in static mode, or on any read error.
  */
 export async function getTopDeals(limit = TOP_LIMIT): Promise<TopDeal[]> {
   if (isStaticDataSource()) return [];
@@ -82,10 +93,10 @@ export async function getTopDeals(limit = TOP_LIMIT): Promise<TopDeal[]> {
 
   try {
     const db = getSupabaseAdmin();
-    // Newest eligible items from ENABLED sources, excluding ignored/duplicate and
-    // any item an admin has hidden from the homepage (migration 005). The hidden
-    // flag is independent of review_state, so a hidden item still appears in the
-    // admin import queue and stays importable.
+    // Newest admin-IMPORTED items from ENABLED sources only (opt-in publication;
+    // raw 'new' items are never eligible), excluding any item an admin has hidden
+    // from the homepage (migration 005). The hidden flag is independent of
+    // review_state, so a hidden item still appears in the admin queue views.
     const { data, error } = await db
       .from("feed_items")
       .select(

@@ -14,6 +14,7 @@ import type {
 } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import {
+  fromDbOrDemo,
   fromDbOrStatic,
   toNumber,
   toNumberOrNull,
@@ -127,9 +128,17 @@ function mapCardOffer(r: CardOfferRow): CardOffer {
   };
 }
 
-/** RLS on card_offers already restricts anon reads to is_published = true. */
+/**
+ * RLS on card_offers already restricts anon reads to is_published = true.
+ *
+ * Uses fromDbOrDemo (NOT fromDbOrStatic): the static card offers are hand-typed
+ * demo rows with illustrative figures, so they are only ever shown in local/demo
+ * mode (Supabase unconfigured or DATA_SOURCE=static). With Supabase configured,
+ * zero published rows renders the /cards empty state and a read error returns
+ * no rows — the demo data is never served as if it were live.
+ */
 export function getCardOffers(): Promise<CardOffer[]> {
-  return fromDbOrStatic("card_offers", staticCardOffers, async (db: DbClient) => {
+  return fromDbOrDemo("card_offers", staticCardOffers, async (db: DbClient) => {
     const { data, error } = await db.from("card_offers").select("*");
     if (error) throw error;
     return ((data ?? []) as unknown as CardOfferRow[]).map(mapCardOffer);

@@ -74,7 +74,8 @@ export function TopDealsSection({ deals }: { deals: TopDeal[] }) {
           Today’s top OzBargain signals
         </h2>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">
-          Updated from staged OzBargain RSS items. Verify before buying.
+          Hand-reviewed picks from OzBargain&rsquo;s RSS feed — every item here
+          was checked by an admin first. Verify before buying.
         </p>
         {lastUpdated ? (
           <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">

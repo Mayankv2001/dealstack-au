@@ -180,10 +180,15 @@ export interface ApplyResult {
 /**
  * Apply a candidate to its target offer — the ONLY path that mutates a published
  * offer. Reads the candidate, asks the pure planner what (if anything) to change,
- * and refuses unless it is still 'new' with a resolved, numeric target. Updates
- * exactly one column on exactly one offer row, then marks the candidate
- * 'applied'. Called only from the admin Apply action (after requireAdmin + an
- * explicit confirm).
+ * and refuses unless it is still 'new' with a resolved, numeric target.
+ *
+ * Double-apply guard: the candidate is CLAIMED first with a conditional update
+ * (review_state 'new' → 'applied'). Only the request that wins the claim touches
+ * the offer; a concurrent Apply (second admin, second tab, double-click) updates
+ * zero rows and gets a clear "already reviewed" error with nothing written. If
+ * the offer update then fails, the claim is released (best-effort) so the
+ * candidate can be retried. Called only from the admin Apply action (after
+ * requireAdmin + an explicit confirm).
  */
 export async function applyOfferChange(
   id: string,
@@ -201,7 +206,29 @@ export async function applyOfferChange(
   });
   if (!isApplyPlan(plan)) throw new Error(`Cannot apply: ${plan.skip}.`);
 
-  // 1) Update ONLY the targeted offer row's single numeric field.
+  // 1) Claim the candidate: only a row still in review can move to 'applied'.
+  //    Zero rows updated = someone else reviewed it since we read it — stop
+  //    before anything public is written.
+  const { data: claimed, error: claimErr } = await db
+    .from("offer_change_candidates")
+    .update({
+      review_state: "applied",
+      reviewed_by: reviewerEmail,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("review_state", "new")
+    .select("id");
+  if (claimErr) {
+    throw new Error(`applyOfferChange candidate claim failed: ${claimErr.message}`);
+  }
+  if (!claimed || claimed.length === 0) {
+    throw new Error(
+      "This candidate was already reviewed by someone else — nothing was applied."
+    );
+  }
+
+  // 2) Update ONLY the targeted offer row's single numeric field.
   const offerUpdate: Record<string, unknown> = { [plan.column]: plan.value };
   if (hasLastCheckedAt(plan.table)) {
     offerUpdate.last_checked_at = new Date().toISOString();
@@ -211,20 +238,13 @@ export async function applyOfferChange(
     .update(offerUpdate)
     .eq("id", plan.id);
   if (offerErr) {
+    // Release the claim (best-effort) so the candidate stays actionable.
+    await db
+      .from("offer_change_candidates")
+      .update({ review_state: "new", reviewed_by: null, reviewed_at: null })
+      .eq("id", id)
+      .eq("review_state", "applied");
     throw new Error(`applyOfferChange offer update failed: ${offerErr.message}`);
-  }
-
-  // 2) Mark the candidate applied (record who/when).
-  const { error: candErr } = await db
-    .from("offer_change_candidates")
-    .update({
-      review_state: "applied",
-      reviewed_by: reviewerEmail,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-  if (candErr) {
-    throw new Error(`applyOfferChange candidate update failed: ${candErr.message}`);
   }
 
   return {
@@ -240,6 +260,10 @@ export async function applyOfferChange(
  * Dismiss a candidate as not relevant ('ignored') or already covered
  * ('duplicate'). Touches ONLY the staging row — never a published offer — so
  * reviewing an item away can never change public data.
+ *
+ * An 'applied' candidate can NOT be re-triaged: it is the audit record that a
+ * public offer was changed, so flipping it to ignored/duplicate would make the
+ * history lie. The conditional update below refuses that (zero rows → error).
  */
 export async function setOfferChangeReviewState(
   id: string,
@@ -247,15 +271,22 @@ export async function setOfferChangeReviewState(
   reviewerEmail: string | null
 ): Promise<void> {
   const db = getSupabaseAdmin();
-  const { error } = await db
+  const { data, error } = await db
     .from("offer_change_candidates")
     .update({
       review_state: state,
       reviewed_by: reviewerEmail,
       reviewed_at: new Date().toISOString(),
     })
-    .eq("id", id);
+    .eq("id", id)
+    .neq("review_state", "applied")
+    .select("id");
   if (error) {
     throw new Error(`setOfferChangeReviewState failed: ${error.message}`);
+  }
+  if (!data || data.length === 0) {
+    throw new Error(
+      "Candidate not found, or already applied — applied changes cannot be re-triaged."
+    );
   }
 }

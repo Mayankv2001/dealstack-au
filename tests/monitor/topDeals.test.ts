@@ -9,6 +9,7 @@ import {
   type RankableFeedItem,
   type StoreRef,
 } from "../../lib/repos/topDealsRanking";
+import { PUBLIC_REVIEW_STATES } from "../../lib/repos/topDeals";
 
 const STORES: StoreRef[] = [
   { id: "myer", name: "Myer" },
@@ -30,6 +31,15 @@ function item(over: Partial<RankableFeedItem>): RankableFeedItem {
     ...over,
   };
 }
+
+describe("topDeals — opt-in publication (safety invariant)", () => {
+  it("only admin-imported items are ever public; raw staged 'new' items are not", () => {
+    // Pin the homepage allowlist: publication is opt-in via admin import. If a
+    // change re-adds 'new' here, unreviewed feed content would go public — that
+    // must be a deliberate, reviewed decision, so this test fails loudly.
+    expect([...PUBLIC_REVIEW_STATES]).toEqual(["imported"]);
+  });
+});
 
 describe("topDealsRanking — helpers", () => {
   it("strips www. for the source host", () => {

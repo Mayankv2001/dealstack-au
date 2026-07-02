@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
+  APPROVED_FEED_SOURCE_TYPES,
   FEED_SOURCE_TYPES,
   isApprovedForFetch,
   isFeedSourceType,
@@ -202,6 +203,7 @@ interface CandidateRow {
   id: string;
   label: string;
   feed_url: string;
+  source_type: string;
   etag: string | null;
   last_modified: string | null;
   failure_count: number | string | null;
@@ -209,9 +211,14 @@ interface CandidateRow {
 }
 
 /**
- * Enabled feeds that are DUE (next_earliest_fetch_at null or <= now), least
- * recently fetched first, capped at `limit`. Optionally restricted to one id.
- * Disabled feeds are never returned — the kill switch is enforced at the query.
+ * Enabled feeds of an APPROVED source type that are DUE (next_earliest_fetch_at
+ * null or <= now), least recently fetched first, capped at `limit`. Optionally
+ * restricted to one id. Disabled feeds are never returned — the kill switch is
+ * enforced at the query — and the safe-source gate is enforced here too: only
+ * APPROVED_FEED_SOURCE_TYPES (verified RSS/Atom support, currently 'ozbargain')
+ * are ever fetched. Registry-only types (pointhacks, freepoints, gcdb,
+ * provider-feed, manual-url) are skipped even when enabled — see
+ * isApprovedForFetch in lib/monitor/offerChanges.ts and its tests.
  * Due-ness is filtered in JS to avoid PostgREST `.or()` timestamp escaping.
  */
 export async function listDueEnabledFeeds(opts: {
@@ -223,9 +230,11 @@ export async function listDueEnabledFeeds(opts: {
   let query = db
     .from("feed_sources")
     .select(
-      "id, label, feed_url, etag, last_modified, failure_count, next_earliest_fetch_at"
+      "id, label, feed_url, source_type, etag, last_modified, failure_count, next_earliest_fetch_at"
     )
     .eq("is_enabled", true)
+    // Safe-source gate at the query…
+    .in("source_type", [...APPROVED_FEED_SOURCE_TYPES])
     .order("last_fetched_at", { ascending: true, nullsFirst: true });
   if (opts.sourceId) query = query.eq("id", opts.sourceId);
 
@@ -234,6 +243,8 @@ export async function listDueEnabledFeeds(opts: {
 
   const nowMs = opts.now.getTime();
   const due = ((data ?? []) as unknown as CandidateRow[]).filter((r) => {
+    // …and re-checked in JS (belt and braces, matches the tested pure gate).
+    if (!isApprovedForFetch(r.source_type)) return false;
     const next = r.next_earliest_fetch_at;
     return next == null || Date.parse(next) <= nowMs;
   });

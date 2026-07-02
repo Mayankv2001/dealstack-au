@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  APPROVED_FEED_SOURCE_TYPES,
   buildOfferChangeCandidate,
   buildOfferChangeCandidates,
   dedupeOfferChangeCandidates,
   isApplyPlan,
+  isApprovedForFetch,
   parseRateValue,
   planOfferApplication,
   selectMonitorableSources,
@@ -231,5 +233,30 @@ describe("offerChanges — safe-source gate", () => {
       { id: "ph", sourceType: "pointhacks", isEnabled: true },
     ]);
     expect(safe).toHaveLength(0);
+  });
+
+  // listDueEnabledFeeds (the live monitor fetch path) filters with this same
+  // gate — both via `.in("source_type", APPROVED_FEED_SOURCE_TYPES)` on the
+  // query and isApprovedForFetch() in JS — so these enumerated cases pin what
+  // the cron can ever fetch.
+  it("never fetches a registry-only type, even when enabled (live-path gate)", () => {
+    const registryOnly = [
+      "pointhacks",
+      "freepoints",
+      "gcdb",
+      "provider-feed",
+      "manual-url",
+    ];
+    for (const sourceType of registryOnly) {
+      expect(isApprovedForFetch(sourceType)).toBe(false);
+      expect(
+        selectMonitorableSources([{ id: "x", sourceType, isEnabled: true }])
+      ).toHaveLength(0);
+    }
+  });
+
+  it("approves exactly the verified feed types (currently ozbargain only)", () => {
+    expect([...APPROVED_FEED_SOURCE_TYPES]).toEqual(["ozbargain"]);
+    expect(isApprovedForFetch("ozbargain")).toBe(true);
   });
 });

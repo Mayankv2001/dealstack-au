@@ -101,9 +101,9 @@ export async function markDuplicate(
  *
  * This ONLY flips hidden_from_homepage; it never changes review_state, so the
  * item stays in this queue and remains importable — the import workflow is
- * unaffected. It is not a publish: the homepage already shows already-staged
- * items, this just curates which of them appear. We also revalidate "/" so the
- * change is reflected on the homepage promptly.
+ * unaffected. It is not a publish: the homepage Top 5 only ever shows items an
+ * admin has IMPORTED (review_state 'imported'); this flag further curates which
+ * of those appear. We also revalidate "/" so the change is reflected promptly.
  */
 async function setHomepageHidden(
   feedItemId: string,
