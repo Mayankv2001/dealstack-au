@@ -2,8 +2,18 @@
  * Seed Supabase from the current static data.
  *
  * Reads the existing arrays in lib/data.ts and lib/offers/manualOffers.ts and
- * upserts them into the Supabase tables created by
- * supabase/migrations/001_initial_schema.sql. Safe to re-run (upsert on id).
+ * writes them into the Supabase tables created by
+ * supabase/migrations/001_initial_schema.sql.
+ *
+ * MODES
+ *   default        INSERT-ONLY: adds rows whose id does not exist yet and
+ *                  leaves every existing row completely untouched. Safe to
+ *                  re-run — it can never clobber values or publish states an
+ *                  admin has edited in the panel.
+ *   --overwrite    UPSERT: rows with a matching id are RESET to the static
+ *                  values, including is_published. Any admin edits and any
+ *                  unpublish done by cleanup-old-deals on those rows ARE LOST.
+ *                  Only use this to deliberately restore the static baseline.
  *
  * NO network calls to OzBargain/ShopBack/TopCashback/GCDB/FreePoints — this only
  * talks to your own Supabase project using the service-role key.
@@ -14,7 +24,8 @@
  *
  * Run:
  *   1. Apply supabase/migrations/001_initial_schema.sql to your project first.
- *   2. npm run seed
+ *   2. npm run seed                    # insert-only (existing rows untouched)
+ *      npm run seed -- --overwrite     # reset seeded rows to static values
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -36,6 +47,10 @@ try {
 } catch {
   // .env.local not found — fall back to shell-provided environment variables.
 }
+
+// ── CLI args ─────────────────────────────────────────────────────────────────
+// Insert-only is the DEFAULT; overwriting live rows requires the explicit flag.
+const OVERWRITE = process.argv.slice(2).includes("--overwrite");
 
 type Row = Record<string, unknown>;
 
@@ -64,13 +79,23 @@ async function seedTable(
     console.log(`• ${table}: nothing to seed`);
     return;
   }
-  const { error } = await supabase
+  // Default: ignoreDuplicates leaves existing rows untouched (insert-only).
+  // --overwrite: matching ids are reset to the static values.
+  const { data, error } = await supabase
     .from(table)
-    .upsert(rows, { onConflict: "id", ignoreDuplicates: false });
+    .upsert(rows, { onConflict: "id", ignoreDuplicates: !OVERWRITE })
+    .select("id");
   if (error) {
     throw new Error(`Failed seeding ${table}: ${error.message}`);
   }
-  console.log(`✓ ${table}: upserted ${rows.length}`);
+  const touched = data?.length ?? 0;
+  if (OVERWRITE) {
+    console.log(`✓ ${table}: upserted ${touched} (existing rows OVERWRITTEN)`);
+  } else {
+    console.log(
+      `✓ ${table}: inserted ${touched} new of ${rows.length} (existing rows untouched)`
+    );
+  }
 }
 
 // ── Row mappers (camelCase → snake_case; undefined → null) ───────────────────
@@ -226,7 +251,24 @@ async function main(): Promise<void> {
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
 
-  console.log("Seeding Supabase from static data…\n");
+  if (OVERWRITE) {
+    console.log(
+      [
+        "⚠".repeat(32),
+        "⚠ OVERWRITE MODE (--overwrite):",
+        "⚠ Existing rows with matching ids will be RESET to the static values,",
+        "⚠ including is_published. Admin edits and any cleanup-old-deals",
+        "⚠ unpublishes on those rows WILL BE LOST.",
+        "⚠".repeat(32),
+        "",
+      ].join("\n")
+    );
+  }
+  console.log(
+    `Seeding Supabase from static data (${
+      OVERWRITE ? "OVERWRITE" : "insert-only; pass --overwrite to reset seeded rows"
+    })…\n`
+  );
   // Stores first (other tables reference merchant_id).
   await seedTable(supabase, "stores", storeRows);
   await seedTable(supabase, "gift_card_offers", giftCardRows);
@@ -248,7 +290,11 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log("\nDone. Re-running is safe (upsert on id).");
+  console.log(
+    OVERWRITE
+      ? "\nDone (overwrite mode — seeded rows were reset to static values)."
+      : "\nDone. Insert-only: re-running is always safe; existing rows were not touched."
+  );
 }
 
 main().catch((err) => {

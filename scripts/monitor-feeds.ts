@@ -9,6 +9,10 @@
  * Safety:
  *   - The master kill switch OZB_MONITOR_ENABLED must be exactly "true"; otherwise
  *     this exits immediately with NO fetch.
+ *   - COMPLIANCE GATE (same gate as the cron route): a write-mode run REFUSES to
+ *     start unless an approved compliance review is on file (fail-closed — a
+ *     failed gate read also refuses). A dry run without approval is allowed for
+ *     pre-approval testing, with a loud warning.
  *   - DRY RUN IS THE DEFAULT. Nothing is written unless you pass --write.
  *   - Only enabled feeds are fetched (concurrency 1, max 1 feed/run by default).
  *   - A blocked/HTML/Cloudflare-like response stops the run; no bypass.
@@ -34,6 +38,7 @@ import {
   ozbMonitorMinIntervalHours,
   ozbMonitorUserAgent,
 } from "../lib/env";
+import { isMonitoringApproved } from "../lib/admin/repos/compliance";
 import { fetchFeed } from "../lib/monitor/fetchFeed";
 import {
   runMonitor,
@@ -140,6 +145,42 @@ async function main(): Promise<void> {
   // State the mode up front, before any fetch — so it is obvious even if the
   // run later errors out mid-way.
   console.log(modeBanner(dryRun));
+
+  // Compliance gate — the same gate the cron route enforces. Checked BEFORE any
+  // fetch. Fail-closed: if the gate can't be read (env/table missing), a write
+  // run refuses too.
+  let complianceApproved = false;
+  let complianceError: string | null = null;
+  try {
+    complianceApproved = await isMonitoringApproved();
+  } catch (err) {
+    complianceError = err instanceof Error ? err.message : String(err);
+  }
+  if (!complianceApproved) {
+    const why = complianceError
+      ? `compliance check failed: ${complianceError}`
+      : "no approved compliance review on file";
+    if (!dryRun) {
+      console.error(
+        `\nREFUSING write-mode run — ${why}.\n` +
+          "Record and approve a review at /admin/compliance first (see docs/ozbargain-monitoring.md)."
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.warn(
+      [
+        "",
+        "!".repeat(64),
+        `!! WARNING: ${why}.`,
+        "!! Proceeding ONLY because this is a dry run (fetch + parse, no writes).",
+        "!! A --write run would refuse. Approve the compliance review before",
+        "!! staging anything: /admin/compliance.",
+        "!".repeat(64),
+        "",
+      ].join("\n")
+    );
+  }
 
   let userAgent: string;
   try {

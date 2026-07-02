@@ -149,6 +149,85 @@ describe("checkAdminRateLimit", () => {
   });
 });
 
+describe("checkAdminRateLimit — custom buckets (login throttle)", () => {
+  // The login action uses its own actionKey with a stricter max + longer
+  // window (5 sends / 15 min per submitted email). Pin that the overrides are
+  // honoured and that the bucket is isolated from the default mutation bucket.
+  const LOGIN = {
+    actionKey: "login_magic_link",
+    max: 5,
+    windowSeconds: 15 * 60,
+  };
+
+  it("blocks at the custom max, not the default admin-mutation max", async () => {
+    const { store } = createFakeStore(NOW.getTime());
+
+    for (let i = 0; i < LOGIN.max; i++) {
+      const result = await checkAdminRateLimit({
+        adminEmail: "someone@example.com",
+        now: NOW,
+        store,
+        ...LOGIN,
+      });
+      expect(result).toEqual({ success: true });
+    }
+
+    const blocked = await checkAdminRateLimit({
+      adminEmail: "someone@example.com",
+      now: NOW,
+      store,
+      ...LOGIN,
+    });
+    expect(blocked.success).toBe(false);
+    if (!blocked.success) {
+      expect(blocked.retryAfterSeconds).toBe(LOGIN.windowSeconds);
+    }
+  });
+
+  it("counts attempts across the longer window (older than 60s still block)", async () => {
+    // 5 attempts 10 minutes ago — inside the 15-minute login window even
+    // though far outside the default 60-second mutation window.
+    const tenMinAgo = NOW.getTime() - 10 * 60 * 1000;
+    const { store } = createFakeStore(tenMinAgo);
+    for (let i = 0; i < LOGIN.max; i++) {
+      await checkAdminRateLimit({
+        adminEmail: "someone@example.com",
+        now: new Date(tenMinAgo),
+        store,
+        ...LOGIN,
+      });
+    }
+
+    const blocked = await checkAdminRateLimit({
+      adminEmail: "someone@example.com",
+      now: NOW,
+      store,
+      ...LOGIN,
+    });
+    expect(blocked.success).toBe(false);
+  });
+
+  it("keeps the login bucket separate from the default mutation bucket", async () => {
+    const { store } = createFakeStore(NOW.getTime());
+    // Exhaust the login bucket for this email…
+    for (let i = 0; i < LOGIN.max + 1; i++) {
+      await checkAdminRateLimit({
+        adminEmail: "a@x.au",
+        now: NOW,
+        store,
+        ...LOGIN,
+      });
+    }
+    // …the same email's default admin-mutation bucket is unaffected.
+    const mutation = await checkAdminRateLimit({
+      adminEmail: "a@x.au",
+      now: NOW,
+      store,
+    });
+    expect(mutation).toEqual({ success: true });
+  });
+});
+
 describe("admin action wiring (rate limit runs before the mutation)", () => {
   // Mirrors the real action shape: requireAdmin → rate-limit → mutate.
   async function fakeSaveAction(params: {

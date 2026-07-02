@@ -96,10 +96,18 @@ function supabaseRateLimitStore(): RateLimitStore {
 }
 
 export interface CheckAdminRateLimitParams {
-  /** Authenticated admin email from requireAdmin(). */
+  /**
+   * The email to key the limit on. Usually the authenticated admin email from
+   * requireAdmin(); the login action passes the (unauthenticated) submitted
+   * email instead, with its own actionKey + stricter max/window.
+   */
   adminEmail: string;
   /** Bucket for the limit. Defaults to a single shared per-email bucket. */
   actionKey?: string;
+  /** Attempts allowed per window (defaults to ADMIN_RATE_LIMIT_MAX). */
+  max?: number;
+  /** Rolling window length in seconds (defaults to ADMIN_RATE_LIMIT_WINDOW_SECONDS). */
+  windowSeconds?: number;
   /** Injectable clock (tests). Defaults to the current time. */
   now?: Date;
   /** Injectable store (tests). Defaults to the Supabase-backed store. */
@@ -120,21 +128,21 @@ export async function checkAdminRateLimit(
   if (!adminEmail) return { success: true };
 
   const actionKey = params.actionKey ?? DEFAULT_ADMIN_ACTION_KEY;
+  const max = params.max ?? ADMIN_RATE_LIMIT_MAX;
+  const windowSeconds = params.windowSeconds ?? ADMIN_RATE_LIMIT_WINDOW_SECONDS;
   const now = params.now ?? new Date();
   const store = params.store ?? supabaseRateLimitStore();
 
-  const sinceIso = new Date(
-    now.getTime() - ADMIN_RATE_LIMIT_WINDOW_SECONDS * 1000
-  ).toISOString();
+  const sinceIso = new Date(now.getTime() - windowSeconds * 1000).toISOString();
 
   try {
     const count = await store.countSince({ adminEmail, actionKey, sinceIso });
 
-    if (count >= ADMIN_RATE_LIMIT_MAX) {
+    if (count >= max) {
       return {
         success: false,
         error: RATE_LIMIT_MESSAGE,
-        retryAfterSeconds: ADMIN_RATE_LIMIT_WINDOW_SECONDS,
+        retryAfterSeconds: windowSeconds,
       };
     }
 
