@@ -161,6 +161,16 @@ export default async function AdminDashboardPage({
       ],
     },
     {
+      title: "Card Offers",
+      description: "Bank & credit-card sign-up offers shown on /cards.",
+      href: "/admin/card-offers",
+      total: counts.cardOffers.total,
+      stats: [
+        { label: "Published", value: counts.cardOffers.published },
+        { label: "Draft", value: counts.cardOffers.unpublished },
+      ],
+    },
+    {
       title: "Points",
       description: "Points programs and earn-rate boosts.",
       href: "/admin/points",
@@ -216,6 +226,11 @@ export default async function AdminDashboardPage({
       href: "/admin/gift-cards",
     },
     {
+      label: "Unpublished card offers",
+      value: counts.cardOffers.unpublished,
+      href: "/admin/card-offers",
+    },
+    {
       label: "Unpublished points offers",
       value: counts.points.unpublished,
       href: "/admin/points",
@@ -243,6 +258,7 @@ export default async function AdminDashboardPage({
     { label: "Review Feed Queue", href: "/admin/signals/queue" },
     { label: "Add Cashback Rate", href: "/admin/cashback/new" },
     { label: "Add Gift Card Offer", href: "/admin/gift-cards/new" },
+    { label: "Add Card Offer", href: "/admin/card-offers/new" },
     { label: "Add Points Offer", href: "/admin/points/new" },
     { label: "Add OzBargain Signal", href: "/admin/signals/new" },
     { label: "Compose Weekly Deal", href: "/admin/weekly-deals/new" },

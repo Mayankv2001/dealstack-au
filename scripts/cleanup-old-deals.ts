@@ -142,7 +142,12 @@ let totalApplied = 0;
  * is_published = false. Reports first; only writes when --write is set.
  */
 async function unpublishExpired(
-  table: "cashback_offers" | "gift_card_offers" | "points_offers" | "weekly_deals",
+  table:
+    | "cashback_offers"
+    | "gift_card_offers"
+    | "points_offers"
+    | "weekly_deals"
+    | "card_offers",
   labelFor: (r: Record<string, unknown>) => string
 ): Promise<void> {
   const { data, error } = await db
@@ -276,7 +281,11 @@ async function ignoreStaleFeedItems(): Promise<void> {
  * rates). Surface them so an admin can decide.
  */
 async function flagPublishedNoExpiry(
-  table: "cashback_offers" | "gift_card_offers" | "points_offers",
+  table:
+    | "cashback_offers"
+    | "gift_card_offers"
+    | "points_offers"
+    | "card_offers",
   labelFor: (r: Record<string, unknown>) => string
 ): Promise<void> {
   const { data, error } = await db
@@ -318,6 +327,9 @@ async function main(): Promise<void> {
   await unpublishExpired("cashback_offers", (r) => `${storeLabel(r)} · ${String(r.provider ?? "")}`);
   await unpublishExpired("gift_card_offers", (r) => String(r.brand ?? r.id));
   await unpublishExpired("points_offers", (r) => `${String(r.program ?? "")} · ${storeLabel(r)}`);
+  await unpublishExpired("card_offers", (r) =>
+    `${String(r.provider ?? "")} · ${String(r.card_name ?? r.id)}`
+  );
   await unpublishExpired("weekly_deals", (r) => String(r.title ?? r.id));
   await expireSignals();
   await ignoreStaleFeedItems();
@@ -326,6 +338,9 @@ async function main(): Promise<void> {
   await flagPublishedNoExpiry("cashback_offers", (r) => `${storeLabel(r)} · ${String(r.provider ?? "")}`);
   await flagPublishedNoExpiry("gift_card_offers", (r) => String(r.brand ?? r.id));
   await flagPublishedNoExpiry("points_offers", (r) => `${String(r.program ?? "")} · ${storeLabel(r)}`);
+  await flagPublishedNoExpiry("card_offers", (r) =>
+    `${String(r.provider ?? "")} · ${String(r.card_name ?? r.id)}`
+  );
 
   console.log("\n──────────────────────────────────────────");
   console.log(`  candidates found: ${totalCandidates}`);

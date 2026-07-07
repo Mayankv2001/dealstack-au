@@ -36,6 +36,7 @@ export interface DashboardCounts {
   points: PublishCount;
   signals: SignalCount;
   weeklyDeals: PublishCount;
+  cardOffers: PublishCount;
 }
 
 /** Exact total row count for a table (no rows transferred). */
@@ -85,6 +86,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     giftCards,
     points,
     weeklyDeals,
+    cardOffers,
     signalsTotal,
     signalsApproved,
     signalsPending,
@@ -93,6 +95,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     publishCount(db, "gift_card_offers"),
     publishCount(db, "points_offers"),
     publishCount(db, "weekly_deals"),
+    publishCount(db, "card_offers"),
     countAll(db, "ozbargain_signals"),
     countWhere(db, "ozbargain_signals", "status", "approved"),
     countWhere(db, "ozbargain_signals", "status", "pending"),
@@ -103,6 +106,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     giftCards,
     points,
     weeklyDeals,
+    cardOffers,
     signals: {
       total: signalsTotal,
       approved: signalsApproved,
@@ -119,7 +123,8 @@ export type RecentItemType =
   | "giftCards"
   | "points"
   | "signals"
-  | "weeklyDeals";
+  | "weeklyDeals"
+  | "cardOffers";
 
 /** One row in the "Recent updates" feed, normalised across every table. */
 export interface RecentItem {
@@ -208,6 +213,14 @@ interface WeeklyDealRecentRow {
   updated_at: string;
 }
 
+interface CardOfferRecentRow {
+  id: string;
+  provider: string;
+  card_name: string;
+  is_published: boolean;
+  updated_at: string;
+}
+
 /**
  * Latest `limit` changed items across cashback, gift cards, points, signals and
  * weekly deals. Pulls the newest `limit` rows from each table (so the merged
@@ -217,38 +230,45 @@ interface WeeklyDealRecentRow {
 export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
   const db = getSupabaseAdmin();
 
-  const [cashback, giftCards, points, signals, weeklyDeals] = await Promise.all([
-    queryRecent<CashbackRecentRow>(
-      db,
-      "cashback_offers",
-      "id, provider, merchant_id, is_published, updated_at, store:stores(name)",
-      limit
-    ),
-    queryRecent<GiftCardRecentRow>(
-      db,
-      "gift_card_offers",
-      "id, brand, is_published, updated_at",
-      limit
-    ),
-    queryRecent<PointsRecentRow>(
-      db,
-      "points_offers",
-      "id, program, merchant_id, is_published, updated_at, store:stores(name)",
-      limit
-    ),
-    queryRecent<SignalRecentRow>(
-      db,
-      "ozbargain_signals",
-      "id, title, status, updated_at",
-      limit
-    ),
-    queryRecent<WeeklyDealRecentRow>(
-      db,
-      "weekly_deals",
-      "id, title, is_published, updated_at",
-      limit
-    ),
-  ]);
+  const [cashback, giftCards, points, signals, weeklyDeals, cardOffers] =
+    await Promise.all([
+      queryRecent<CashbackRecentRow>(
+        db,
+        "cashback_offers",
+        "id, provider, merchant_id, is_published, updated_at, store:stores(name)",
+        limit
+      ),
+      queryRecent<GiftCardRecentRow>(
+        db,
+        "gift_card_offers",
+        "id, brand, is_published, updated_at",
+        limit
+      ),
+      queryRecent<PointsRecentRow>(
+        db,
+        "points_offers",
+        "id, program, merchant_id, is_published, updated_at, store:stores(name)",
+        limit
+      ),
+      queryRecent<SignalRecentRow>(
+        db,
+        "ozbargain_signals",
+        "id, title, status, updated_at",
+        limit
+      ),
+      queryRecent<WeeklyDealRecentRow>(
+        db,
+        "weekly_deals",
+        "id, title, is_published, updated_at",
+        limit
+      ),
+      queryRecent<CardOfferRecentRow>(
+        db,
+        "card_offers",
+        "id, provider, card_name, is_published, updated_at",
+        limit
+      ),
+    ]);
 
   const items: RecentItem[] = [
     ...cashback.map((r) => ({
@@ -298,6 +318,15 @@ export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
       ...publishStatus(r.is_published),
       updatedAt: r.updated_at,
       editHref: `/admin/weekly-deals/${r.id}/edit`,
+    })),
+    ...cardOffers.map((r) => ({
+      type: "cardOffers" as const,
+      typeLabel: "Card offer",
+      id: r.id,
+      title: `${r.provider} · ${r.card_name}`,
+      ...publishStatus(r.is_published),
+      updatedAt: r.updated_at,
+      editHref: `/admin/card-offers/${r.id}/edit`,
     })),
   ];
 
@@ -419,6 +448,15 @@ interface WeeklyDealDqRow {
   week_of: string;
 }
 
+interface CardOfferDqRow {
+  id: string;
+  provider: string;
+  card_name: string;
+  expiry_date: string | null;
+  source_url: string;
+  last_checked_at: string | null;
+}
+
 /**
  * Read-only data-quality scan of PUBLISHED offers + APPROVED signals (i.e. the
  * rows the public site can actually show). Surfaces:
@@ -436,34 +474,39 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
   const todayStr = DQ_DAY_FMT.format(now);
   const staleBeforeMs = now.getTime() - STALE_DAYS * 86_400_000;
 
-  const [cashback, giftCards, points, signals, weeklyDeals] = await Promise.all([
-    db
-      .from("cashback_offers")
-      .select(
-        "id, provider, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
-      )
-      .eq("is_published", true),
-    db
-      .from("gift_card_offers")
-      .select("id, brand, expiry_date, citations, last_checked_at")
-      .eq("is_published", true),
-    db
-      .from("points_offers")
-      .select(
-        "id, program, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
-      )
-      .eq("is_published", true),
-    db
-      .from("ozbargain_signals")
-      .select("id, title, expiry_date, last_checked_at")
-      .eq("status", "approved"),
-    db
-      .from("weekly_deals")
-      .select("id, title, week_of")
-      .eq("is_published", true),
-  ]);
+  const [cashback, giftCards, points, signals, weeklyDeals, cardOffers] =
+    await Promise.all([
+      db
+        .from("cashback_offers")
+        .select(
+          "id, provider, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
+        )
+        .eq("is_published", true),
+      db
+        .from("gift_card_offers")
+        .select("id, brand, expiry_date, citations, last_checked_at")
+        .eq("is_published", true),
+      db
+        .from("points_offers")
+        .select(
+          "id, program, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
+        )
+        .eq("is_published", true),
+      db
+        .from("ozbargain_signals")
+        .select("id, title, expiry_date, last_checked_at")
+        .eq("status", "approved"),
+      db
+        .from("weekly_deals")
+        .select("id, title, week_of")
+        .eq("is_published", true),
+      db
+        .from("card_offers")
+        .select("id, provider, card_name, expiry_date, source_url, last_checked_at")
+        .eq("is_published", true),
+    ]);
 
-  for (const res of [cashback, giftCards, points, signals, weeklyDeals]) {
+  for (const res of [cashback, giftCards, points, signals, weeklyDeals, cardOffers]) {
     if (res.error) {
       throw new Error(`data quality read failed: ${res.error.message}`);
     }
@@ -596,6 +639,25 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       // source_url is NOT NULL for signals; expiry is often legitimately absent.
       checkSource: false,
       checkMissingExpiry: false,
+    });
+  }
+  for (const r of cardOffers.data as unknown as CardOfferDqRow[]) {
+    consider({
+      type: "cardOffers",
+      typeLabel: "Card offer",
+      id: r.id,
+      title: `${r.provider} · ${r.card_name}`,
+      editHref: `/admin/card-offers/${r.id}/edit`,
+      expiryDate: r.expiry_date,
+      // card_offers stores a single source_url string; adapt it to the
+      // citations shape hasSourceUrl() expects.
+      citations:
+        typeof r.source_url === "string" && r.source_url.trim() !== ""
+          ? [{ sourceUrl: r.source_url }]
+          : [],
+      lastChecked: r.last_checked_at,
+      checkSource: true,
+      checkMissingExpiry: true,
     });
   }
 
