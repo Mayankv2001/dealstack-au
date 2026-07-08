@@ -7,6 +7,7 @@ import {
   ConfidencePill,
   ExpiryLine,
 } from "@/components/WeeklyDealCard";
+import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { CardOffer, CardOfferType } from "@/lib/offers/types";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +17,6 @@ import { cn } from "@/lib/utils";
  * sourceUrl (the bank's own page), not a Citation[] tied to the closed
  * SourceId union WeeklyDealCard's citation rendering depends on.
  */
-
-const EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
 const OFFER_TYPE_LABELS: Record<CardOfferType, string> = {
   sign_up_bonus: "Sign-up bonus",
@@ -83,22 +82,11 @@ function headline(offer: CardOffer): { value: string; caption?: string } {
   }
 }
 
-function isExpiringSoon(expiry: string | null): boolean {
-  if (!expiry) return false;
-  const diff = new Date(`${expiry}T23:59:59+10:00`).getTime() - Date.now();
-  return diff >= 0 && diff <= EXPIRY_SOON_MS;
-}
-
-function isExpired(expiry: string | null): boolean {
-  if (!expiry) return false;
-  return new Date(`${expiry}T23:59:59+10:00`).getTime() < Date.now();
-}
-
 export function CardOfferCard({ offer }: { offer: CardOffer }) {
   const tone = TONE_BY_TYPE[offer.offerType];
   const { value, caption } = headline(offer);
-  const expired = isExpired(offer.expiryDate);
-  const expiringSoon = isExpiringSoon(offer.expiryDate);
+  const expired = isPastExpiry(offer.expiryDate, todayAU());
+  const expiringSoon = isExpiringSoonAU(offer.expiryDate);
 
   const facts: { label: string; value: string }[] = [];
   if (offer.annualFee != null) {

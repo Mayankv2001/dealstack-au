@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardOfferCard } from "@/components/CardOfferCard";
 import Logo from "@/components/Logo";
+import { isExpiringSoonAU } from "@/lib/offers/expiry";
 import type { CardOffer, CardOfferType } from "@/lib/offers/types";
 import { cn } from "@/lib/utils";
 
@@ -16,8 +17,6 @@ import { cn } from "@/lib/utils";
  * fallback) and passes them in as props. Mirrors components/DealsClient.tsx's
  * server/client split and Chip filter pattern.
  */
-
-const EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
 const OFFER_TYPE_FILTERS: { id: CardOfferType; label: string }[] = [
   { id: "sign_up_bonus", label: "Sign-up bonus" },
@@ -29,16 +28,10 @@ const OFFER_TYPE_FILTERS: { id: CardOfferType; label: string }[] = [
 
 type FilterId = "all" | CardOfferType | "no-fee" | "expiring-soon" | `bank:${string}`;
 
-function isExpiringSoon(expiry: string | null): boolean {
-  if (!expiry) return false;
-  const diff = new Date(`${expiry}T23:59:59+10:00`).getTime() - Date.now();
-  return diff >= 0 && diff <= EXPIRY_SOON_MS;
-}
-
 function matches(offer: CardOffer, active: FilterId): boolean {
   if (active === "all") return true;
   if (active === "no-fee") return offer.annualFee === 0;
-  if (active === "expiring-soon") return isExpiringSoon(offer.expiryDate);
+  if (active === "expiring-soon") return isExpiringSoonAU(offer.expiryDate);
   if (active.startsWith("bank:")) return offer.provider === active.slice(5);
   return offer.offerType === active;
 }

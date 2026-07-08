@@ -35,6 +35,7 @@ import type {
   StackRecommendation,
   WeeklyDeal,
 } from "@/lib/offers/types";
+import { isExpiringSoonAU } from "@/lib/offers/expiry";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +46,6 @@ import { cn } from "@/lib/utils";
  * is loaded on the server by app/deals/page.tsx (Supabase repos with static
  * fallback) and passed in as props — this component imports no data itself.
  */
-
-const EXPIRY_SOON_MS = 7 * 24 * 60 * 60 * 1000;
 
 type FilterId =
   | "all"
@@ -94,13 +93,6 @@ function programTag(program: string | null | undefined): FilterId | null {
   if (p.includes("flybuys")) return "flybuys";
   if (p.includes("everyday")) return "everyday-rewards";
   return null;
-}
-
-function isExpiringSoon(expiry: string | null): boolean {
-  if (!expiry) return false;
-  const diff =
-    new Date(`${expiry}T23:59:59+10:00`).getTime() - Date.now();
-  return diff >= 0 && diff <= EXPIRY_SOON_MS;
 }
 
 /** "Week of D Mon YYYY" derived from the most recent weekOf date in the deals. */
@@ -264,7 +256,7 @@ function buildGiftCardDeals(offers: GiftCardOffer[]): GiftTaggedDeal[] {
     const tags = new Set<FilterId>(["gift-cards"]);
     const prog = programTag(o.pointsOnPurchase?.program);
     if (prog) tags.add(prog);
-    const soon = isExpiringSoon(o.expiryDate);
+    const soon = isExpiringSoonAU(o.expiryDate);
     if (soon) tags.add("expiring-soon");
 
     // GCDB-style offer-type sub-tags.
@@ -339,7 +331,7 @@ function buildPointsDeals(
     const tags = new Set<FilterId>(["points"]);
     const prog = programTag(o.program);
     if (prog) tags.add(prog);
-    const soon = isExpiringSoon(o.expiryDate);
+    const soon = isExpiringSoonAU(o.expiryDate);
     if (soon) tags.add("expiring-soon");
     return {
       tags,
@@ -377,7 +369,7 @@ function buildCashbackDeals(
 ): TaggedDeal[] {
   return offers.map((o): TaggedDeal => {
     const tags = new Set<FilterId>(["cashback"]);
-    if (isExpiringSoon(o.expiryDate)) tags.add("expiring-soon");
+    if (isExpiringSoonAU(o.expiryDate)) tags.add("expiring-soon");
     return {
       tags,
       data: {
@@ -394,7 +386,7 @@ function buildCashbackDeals(
           caption: o.isUpsized ? "upsized rate" : "cashback",
         },
         expiryDate: o.expiryDate,
-        expiringSoon: isExpiringSoon(o.expiryDate),
+        expiringSoon: isExpiringSoonAU(o.expiryDate),
         lastCheckedAt: o.lastCheckedAt,
         confidence: o.confidence,
         citations: o.citations,
@@ -414,7 +406,7 @@ function buildSignalDeals(
   return offers
     .map((o): SignalTaggedDeal => {
       const tags = new Set<FilterId>(["signals"]);
-      const soon = isExpiringSoon(o.expiryDate ?? null);
+      const soon = isExpiringSoonAU(o.expiryDate ?? null);
       if (soon) tags.add("expiring-soon");
       return {
         tags,

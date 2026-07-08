@@ -56,7 +56,11 @@ export function formatExpiry(iso: string | null): string {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
-  const [y, m, d] = iso.split("-").map(Number);
+  // Guarded like formatDateAU (lib/sources/normalise.ts): malformed input
+  // falls back instead of rendering "Expires undefined undefined NaN".
+  const [datePart] = iso.split("T");
+  const [y, m, d] = datePart.split("-").map(Number);
+  if (!y || !m || !d || m > 12) return "Check provider for expiry";
   return `Expires ${d} ${months[m - 1]} ${y}`;
 }
 

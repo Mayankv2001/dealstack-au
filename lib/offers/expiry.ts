@@ -37,3 +37,28 @@ export function filterLive<T extends { expiryDate?: string | null }>(
 ): T[] {
   return items.filter((item) => !isPastExpiry(item.expiryDate, today));
 }
+
+/** Days ahead treated as "expiring soon" on public deal cards. */
+export const EXPIRY_SOON_DAYS = 7;
+
+/** "YYYY-MM-DD" plus N days. UTC arithmetic on the date parts cannot DST-shift. */
+function addDaysToIsoDate(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * True when expiry falls within `soonDays` of today (inclusive) and is not
+ * already past. Compares AU-local CALENDAR DATES via todayAU() — no fixed
+ * +10:00 offset, so AEDT is handled correctly.
+ */
+export function isExpiringSoonAU(
+  expiryDate: string | null | undefined,
+  now: Date = new Date(),
+  soonDays: number = EXPIRY_SOON_DAYS
+): boolean {
+  if (expiryDate == null) return false;
+  const today = todayAU(now);
+  if (expiryDate < today) return false; // already past
+  return expiryDate <= addDaysToIsoDate(today, soonDays);
+}
