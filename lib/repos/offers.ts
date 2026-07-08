@@ -12,6 +12,7 @@ import type {
   OzBargainSignal,
   PointsOffer,
 } from "@/lib/offers/types";
+import { filterLive } from "@/lib/offers/expiry";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import {
   fromDbOrDemo,
@@ -79,12 +80,16 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
   };
 }
 
-export function getGiftCardOffers(): Promise<GiftCardOffer[]> {
-  return fromDbOrStatic("gift_card_offers", staticGiftCards, async (db: DbClient) => {
+export async function getGiftCardOffers(): Promise<GiftCardOffer[]> {
+  // filterLive wraps the fallback result (not the query callback) so expired
+  // rows can't trigger the zero-rows static fallback, and static rows are
+  // themselves guarded. Same pattern for every public getter below.
+  const rows = await fromDbOrStatic("gift_card_offers", staticGiftCards, async (db: DbClient) => {
     const { data, error } = await db.from("gift_card_offers").select("*");
     if (error) throw error;
     return ((data ?? []) as unknown as GiftCardRow[]).map(mapGiftCard);
   });
+  return filterLive(rows);
 }
 
 // ── Card offers (bank / credit-card sign-up bonuses) ─────────────────────────
@@ -137,12 +142,13 @@ function mapCardOffer(r: CardOfferRow): CardOffer {
  * zero published rows renders the /cards empty state and a read error returns
  * no rows — the demo data is never served as if it were live.
  */
-export function getCardOffers(): Promise<CardOffer[]> {
-  return fromDbOrDemo("card_offers", staticCardOffers, async (db: DbClient) => {
+export async function getCardOffers(): Promise<CardOffer[]> {
+  const rows = await fromDbOrDemo("card_offers", staticCardOffers, async (db: DbClient) => {
     const { data, error } = await db.from("card_offers").select("*");
     if (error) throw error;
     return ((data ?? []) as unknown as CardOfferRow[]).map(mapCardOffer);
   });
+  return filterLive(rows);
 }
 
 // ── Cashback (ShopBack / TopCashback only) ───────────────────────────────────
@@ -180,12 +186,13 @@ function mapCashback(r: CashbackRow): CashbackOffer {
   };
 }
 
-export function getCashbackOffers(): Promise<CashbackOffer[]> {
-  return fromDbOrStatic("cashback_offers", staticCashback, async (db: DbClient) => {
+export async function getCashbackOffers(): Promise<CashbackOffer[]> {
+  const rows = await fromDbOrStatic("cashback_offers", staticCashback, async (db: DbClient) => {
     const { data, error } = await db.from("cashback_offers").select("*");
     if (error) throw error;
     return ((data ?? []) as unknown as CashbackRow[]).map(mapCashback);
   });
+  return filterLive(rows);
 }
 
 // ── Points ───────────────────────────────────────────────────────────────────
@@ -219,12 +226,13 @@ function mapPoints(r: PointsRow): PointsOffer {
   };
 }
 
-export function getPointsOffers(): Promise<PointsOffer[]> {
-  return fromDbOrStatic("points_offers", staticPoints, async (db: DbClient) => {
+export async function getPointsOffers(): Promise<PointsOffer[]> {
+  const rows = await fromDbOrStatic("points_offers", staticPoints, async (db: DbClient) => {
     const { data, error } = await db.from("points_offers").select("*");
     if (error) throw error;
     return ((data ?? []) as unknown as PointsRow[]).map(mapPoints);
   });
+  return filterLive(rows);
 }
 
 // ── OzBargain signals (RLS returns status = 'approved' only) ─────────────────
@@ -280,8 +288,8 @@ function mapSignal(r: SignalRow): OzBargainSignal {
   };
 }
 
-export function getOzBargainSignals(): Promise<OzBargainSignal[]> {
-  return fromDbOrStatic("ozbargain_signals", staticSignals, async (db: DbClient) => {
+export async function getOzBargainSignals(): Promise<OzBargainSignal[]> {
+  const rows = await fromDbOrStatic("ozbargain_signals", staticSignals, async (db: DbClient) => {
     const { data, error } = await db
       .from("ozbargain_signals")
       .select("*")
@@ -289,4 +297,5 @@ export function getOzBargainSignals(): Promise<OzBargainSignal[]> {
     if (error) throw error;
     return ((data ?? []) as unknown as SignalRow[]).map(mapSignal);
   });
+  return filterLive(rows);
 }

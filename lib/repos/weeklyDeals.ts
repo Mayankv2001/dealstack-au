@@ -1,3 +1,4 @@
+import { filterLive } from "@/lib/offers/expiry";
 import { weeklyDeals as staticWeeklyDeals } from "@/lib/offers/manualOffers";
 import type { WeeklyDeal, WeeklyHighlight } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
@@ -36,8 +37,10 @@ function mapWeeklyDeal(r: WeeklyDealRow): WeeklyDeal {
   };
 }
 
-export function getWeeklyDeals(): Promise<WeeklyDeal[]> {
-  return fromDbOrStatic("weekly_deals", staticWeeklyDeals, async (db: DbClient) => {
+export async function getWeeklyDeals(): Promise<WeeklyDeal[]> {
+  // filterLive wraps the fallback result so expired rows can't trigger the
+  // zero-rows static fallback, and static rows are themselves guarded.
+  const rows = await fromDbOrStatic("weekly_deals", staticWeeklyDeals, async (db: DbClient) => {
     const { data, error } = await db
       .from("weekly_deals")
       .select("*")
@@ -45,4 +48,5 @@ export function getWeeklyDeals(): Promise<WeeklyDeal[]> {
     if (error) throw error;
     return ((data ?? []) as unknown as WeeklyDealRow[]).map(mapWeeklyDeal);
   });
+  return filterLive(rows);
 }
