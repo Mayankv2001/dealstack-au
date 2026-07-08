@@ -34,6 +34,12 @@ import {
   getRecentUpdates,
 } from "@/lib/admin/repos/dashboard";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
+import {
+  isApprovedForFetch,
+  listFeedSources,
+} from "@/lib/admin/repos/feedSources";
+import { getMonitorStatus } from "@/lib/admin/repos/monitorStatus";
+import { isMonitorStale, MONITOR_STALE_HOURS } from "@/lib/monitor/staleness";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
@@ -126,12 +132,32 @@ export default async function AdminDashboardPage({
   // page verifies independently (proxy is only an optimistic check).
   const { email } = await requireAdmin();
   const { dq } = await searchParams;
-  const [counts, recent, feedQueueCount, dataQuality] = await Promise.all([
-    getDashboardCounts(),
-    getRecentUpdates(5),
-    countNewFeedItems(),
-    getDataQualityReport(),
-  ]);
+  const [counts, recent, feedQueueCount, dataQuality, feedSources, monitor] =
+    await Promise.all([
+      getDashboardCounts(),
+      getRecentUpdates(5),
+      countNewFeedItems(),
+      getDataQualityReport(),
+      listFeedSources(),
+      getMonitorStatus(),
+    ]);
+
+  // Monitor health for the Needs-attention list. Staleness only counts when we
+  // EXPECT fetches: at least one enabled fetch-approved feed AND the env master
+  // switch is on — a deliberately disabled monitor is not an incident.
+  const fetchableEnabledFeedCount = feedSources.filter(
+    (s) => s.isEnabled && isApprovedForFetch(s.sourceType)
+  ).length;
+  const enabledUnfetchableCount = feedSources.filter(
+    (s) => s.isEnabled && !isApprovedForFetch(s.sourceType)
+  ).length;
+  const monitorStale =
+    monitor.envEnabled &&
+    isMonitorStale({
+      fetchableEnabledFeedCount,
+      lastSuccessAt: monitor.lastSuccessLog?.startedAt ?? null,
+      now: new Date(),
+    });
 
   // "Show all" via URL query param (page has no client island).
   const showAllFlags = dq === "all";
@@ -239,6 +265,16 @@ export default async function AdminDashboardPage({
       label: "Unpublished weekly deals",
       value: counts.weeklyDeals.unpublished,
       href: "/admin/weekly-deals",
+    },
+    {
+      label: `Feed monitor: no successful run in ${MONITOR_STALE_HOURS}h+`,
+      value: monitorStale ? 1 : 0,
+      href: "/admin/monitor",
+    },
+    {
+      label: "Enabled feeds the monitor cannot fetch",
+      value: enabledUnfetchableCount,
+      href: "/admin/signals/sources",
     },
   ];
   const attentionTotal = attention.reduce((sum, a) => sum + a.value, 0);

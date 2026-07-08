@@ -143,7 +143,7 @@ export function FeedSourceForm({
       <Field
         label="Source type"
         htmlFor="source_type"
-        hint="How this source is classified. Only OzBargain (RSS) is fetched today; other types are registry-only until they have verified feed/API support."
+        hint="Only ozbargain sources are fetched by the monitor. Other types are registry-only entries and will never be polled."
       >
         <select
           id="source_type"

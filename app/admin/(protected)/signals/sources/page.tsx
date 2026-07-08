@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AlertTriangle, Info } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
+  isApprovedForFetch,
   listFeedSources,
   type AdminFeedSource,
 } from "@/lib/admin/repos/feedSources";
@@ -66,6 +67,11 @@ export default async function FeedSourcesListPage() {
 
   const enabledCount = sources.filter((s) => s.isEnabled).length;
   const enabledWithoutApproval = !complianceApproved && enabledCount > 0;
+  // Enabled feeds whose source type the monitor's safe-source gate skips — they
+  // will never be fetched, which silently starves ingestion.
+  const enabledUnfetchable = sources.filter(
+    (s) => s.isEnabled && !isApprovedForFetch(s.sourceType)
+  );
 
   return (
     <div className="space-y-6">
@@ -93,6 +99,22 @@ export default async function FeedSourcesListPage() {
             Disable {enabledCount === 1 ? "it" : "them"} until an approved review
             is on file — do not run the monitor against{" "}
             {enabledCount === 1 ? "it" : "them"}.
+          </p>
+        </div>
+      ) : null}
+
+      {/* Amber warning: enabled feeds whose source type is never fetched. */}
+      {enabledUnfetchable.length > 0 ? (
+        <div className="flex items-start gap-2.5 rounded-lg border-2 border-amber-500 bg-amber-500/15 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p>
+            <span className="font-semibold text-amber-700 dark:text-amber-400">
+              {enabledUnfetchable.length} enabled feed
+              {enabledUnfetchable.length === 1 ? " has" : "s have"} a source
+              type the monitor will never fetch (only{" "}
+              <code className="text-xs">ozbargain</code> is fetch-approved).
+            </span>{" "}
+            Edit the feed and set its source type, or disable it.
           </p>
         </div>
       ) : null}
@@ -149,6 +171,15 @@ export default async function FeedSourcesListPage() {
                 </TableCell>
                 <TableCell className="align-top">
                   {SOURCE_TYPE_LABELS[source.sourceType]}
+                  {source.isEnabled &&
+                  !isApprovedForFetch(source.sourceType) ? (
+                    <Badge
+                      variant="outline"
+                      className="mt-1 block w-fit border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                    >
+                      Not fetchable
+                    </Badge>
+                  ) : null}
                 </TableCell>
                 <TableCell className="align-top">
                   {source.storeName ?? (
