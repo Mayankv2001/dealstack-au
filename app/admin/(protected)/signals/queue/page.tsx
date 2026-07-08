@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
-import { listNewFeedItems } from "@/lib/admin/repos/feedQueue";
+import {
+  countNewFeedItems,
+  listNewFeedItems,
+  QUEUE_PAGE_LIMIT,
+} from "@/lib/admin/repos/feedQueue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import QueueClient from "./QueueClient";
@@ -15,7 +19,13 @@ export default async function FeedQueuePage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
-  const items = await listNewFeedItems();
+  // The read is capped at QUEUE_PAGE_LIMIT, so also fetch the true backlog
+  // count — the banner below must never let a capped view pass as the whole
+  // queue (the dashboard already reports the same true number).
+  const [items, totalNew] = await Promise.all([
+    listNewFeedItems(QUEUE_PAGE_LIMIT),
+    countNewFeedItems(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -43,6 +53,22 @@ export default async function FeedQueuePage() {
         is required to approve and publish it. Ignore and Mark duplicate never
         touch public data.
       </p>
+
+      {totalNew > items.length ? (
+        <p className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Showing the newest{" "}
+          <strong className="font-medium text-foreground">{items.length}</strong>{" "}
+          of{" "}
+          <strong className="font-medium text-foreground">{totalNew}</strong>{" "}
+          staged items. Older items appear as these are triaged. To clear
+          abandoned items in bulk, use the keyword presets with
+          &ldquo;Ignore visible&rdquo;, or run{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">
+            npm run cleanup:old-deals
+          </code>{" "}
+          locally to ignore items staged more than 60 days ago.
+        </p>
+      ) : null}
 
       {items.length === 0 ? (
         <Card>

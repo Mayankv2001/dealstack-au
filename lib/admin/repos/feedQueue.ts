@@ -19,6 +19,22 @@ import type { DealKind } from "@/lib/sources/types";
 
 export type FeedReviewState = "new" | "imported" | "ignored" | "duplicate";
 
+/**
+ * Cap on rows the queue page loads per render — newest first. Matches
+ * BULK_IGNORE_MAX in signals/queue/actions.ts so "Ignore visible" can
+ * always cover one full page. Older items surface as the newer ones are
+ * triaged; countNewFeedItems() still reports the true backlog.
+ */
+export const QUEUE_PAGE_LIMIT = 200;
+
+/** Splits into runs of `size` (last run may be shorter). Pure, order-preserving. */
+export function chunk<T>(items: T[], size: number): T[][] {
+  if (size <= 0) throw new Error(`chunk size must be positive, got ${size}`);
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 /** An existing signal that already carries this item's source_native_id. */
 export interface ExistingSignalRef {
   id: string;
@@ -111,13 +127,16 @@ const SELECT_WITH_SOURCE = "*, source:feed_sources(label)";
 // ── Reads ────────────────────────────────────────────────────────────────────
 
 /** Staged items still awaiting triage (review_state = 'new'), newest first. */
-export async function listNewFeedItems(): Promise<FeedQueueItem[]> {
+export async function listNewFeedItems(
+  limit: number = QUEUE_PAGE_LIMIT
+): Promise<FeedQueueItem[]> {
   const db = getSupabaseAdmin();
   const { data, error } = await db
     .from("feed_items")
     .select(SELECT_WITH_SOURCE)
     .eq("review_state", "new")
-    .order("fetched_at", { ascending: false });
+    .order("fetched_at", { ascending: false })
+    .limit(limit);
   if (error) throw new Error(`listNewFeedItems failed: ${error.message}`);
   const rows = (data ?? []) as unknown as FeedItemRow[];
 
@@ -131,6 +150,13 @@ export async function listNewFeedItems(): Promise<FeedQueueItem[]> {
   return rows.map((r) => mapItem(r, existingByNativeId.get(r.source_native_id) ?? null));
 }
 
+/**
+ * Max ids per `.in()` call. PostgREST puts the filter in the GET querystring,
+ * so an unbounded id list would eventually exceed URL length limits and fail
+ * the whole read — independent of QUEUE_PAGE_LIMIT, which someone may raise.
+ */
+const SIGNAL_LOOKUP_CHUNK = 100;
+
 /** Map of source_native_id → existing signal, for the items passed in (read-only). */
 async function loadExistingSignals(
   db: AdminDb,
@@ -140,21 +166,25 @@ async function loadExistingSignals(
   const unique = [...new Set(nativeIds)];
   if (unique.length === 0) return out;
 
-  const { data, error } = await db
-    .from("ozbargain_signals")
-    .select("id, status, source_native_id")
-    .in("source_native_id", unique);
-  if (error) {
-    throw new Error(`listNewFeedItems existing-signal lookup failed: ${error.message}`);
-  }
+  // Sequential on purpose: 2 round trips at today's cap, simpler error
+  // semantics than Promise.all, and the admin page is not latency-critical.
+  for (const ids of chunk(unique, SIGNAL_LOOKUP_CHUNK)) {
+    const { data, error } = await db
+      .from("ozbargain_signals")
+      .select("id, status, source_native_id")
+      .in("source_native_id", ids);
+    if (error) {
+      throw new Error(`listNewFeedItems existing-signal lookup failed: ${error.message}`);
+    }
 
-  for (const row of (data ?? []) as {
-    id: string;
-    status: string;
-    source_native_id: string | null;
-  }[]) {
-    if (row.source_native_id && !out.has(row.source_native_id)) {
-      out.set(row.source_native_id, { id: row.id, status: row.status });
+    for (const row of (data ?? []) as {
+      id: string;
+      status: string;
+      source_native_id: string | null;
+    }[]) {
+      if (row.source_native_id && !out.has(row.source_native_id)) {
+        out.set(row.source_native_id, { id: row.id, status: row.status });
+      }
     }
   }
   return out;
