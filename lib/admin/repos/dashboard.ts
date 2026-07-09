@@ -31,6 +31,7 @@ export interface SignalCount {
 }
 
 export interface DashboardCounts {
+  stores: PublishCount;
   cashback: PublishCount;
   giftCards: PublishCount;
   points: PublishCount;
@@ -82,6 +83,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
   const db = getSupabaseAdmin();
 
   const [
+    stores,
     cashback,
     giftCards,
     points,
@@ -91,6 +93,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     signalsApproved,
     signalsPending,
   ] = await Promise.all([
+    publishCount(db, "stores"),
     publishCount(db, "cashback_offers"),
     publishCount(db, "gift_card_offers"),
     publishCount(db, "points_offers"),
@@ -102,6 +105,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
   ]);
 
   return {
+    stores,
     cashback,
     giftCards,
     points,
@@ -119,6 +123,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
 
 /** Which admin section a recent item belongs to. */
 export type RecentItemType =
+  | "stores"
   | "cashback"
   | "giftCards"
   | "points"
@@ -172,6 +177,13 @@ async function queryRecent<R>(
     .limit(limit);
   if (error) throw new Error(`recent ${table} failed: ${error.message}`);
   return (data ?? []) as unknown as R[];
+}
+
+interface StoreRecentRow {
+  id: string;
+  name: string;
+  is_published: boolean;
+  updated_at: string;
 }
 
 interface CashbackRecentRow {
@@ -230,8 +242,14 @@ interface CardOfferRecentRow {
 export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
   const db = getSupabaseAdmin();
 
-  const [cashback, giftCards, points, signals, weeklyDeals, cardOffers] =
+  const [stores, cashback, giftCards, points, signals, weeklyDeals, cardOffers] =
     await Promise.all([
+      queryRecent<StoreRecentRow>(
+        db,
+        "stores",
+        "id, name, is_published, updated_at",
+        limit
+      ),
       queryRecent<CashbackRecentRow>(
         db,
         "cashback_offers",
@@ -271,6 +289,15 @@ export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
     ]);
 
   const items: RecentItem[] = [
+    ...stores.map((r) => ({
+      type: "stores" as const,
+      typeLabel: "Store",
+      id: r.id,
+      title: r.name,
+      ...publishStatus(r.is_published),
+      updatedAt: r.updated_at,
+      editHref: `/admin/stores/${r.id}/edit`,
+    })),
     ...cashback.map((r) => ({
       type: "cashback" as const,
       typeLabel: "Cashback",

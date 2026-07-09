@@ -20,6 +20,7 @@ interface NavLink {
 const GROUPS: NavLink[][] = [
   [{ href: "/admin/dashboard", label: "Dashboard" }],
   [
+    { href: "/admin/stores", label: "Stores" },
     { href: "/admin/cashback", label: "Cashback" },
     { href: "/admin/gift-cards", label: "Gift Cards" },
     { href: "/admin/points", label: "Points" },

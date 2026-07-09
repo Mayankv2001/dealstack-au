@@ -167,6 +167,16 @@ export default async function AdminDashboardPage({
 
   const sections: Section[] = [
     {
+      title: "Stores",
+      description: "Merchant records powering store pages, the grid and stacks.",
+      href: "/admin/stores",
+      total: counts.stores.total,
+      stats: [
+        { label: "Published", value: counts.stores.published },
+        { label: "Unpublished", value: counts.stores.unpublished },
+      ],
+    },
+    {
       title: "Cashback",
       description: "ShopBack & TopCashback offers (no Cashrewards).",
       href: "/admin/cashback",
@@ -242,6 +252,11 @@ export default async function AdminDashboardPage({
       href: "/admin/signals",
     },
     {
+      label: "Unpublished stores",
+      value: counts.stores.unpublished,
+      href: "/admin/stores",
+    },
+    {
       label: "Unpublished cashback offers",
       value: counts.cashback.unpublished,
       href: "/admin/cashback",
@@ -292,6 +307,7 @@ export default async function AdminDashboardPage({
   const quickActions = [
     { label: "Monitor Status", href: "/admin/monitor" },
     { label: "Review Feed Queue", href: "/admin/signals/queue" },
+    { label: "Add Store", href: "/admin/stores/new" },
     { label: "Add Cashback Rate", href: "/admin/cashback/new" },
     { label: "Add Gift Card Offer", href: "/admin/gift-cards/new" },
     { label: "Add Card Offer", href: "/admin/card-offers/new" },
