@@ -147,6 +147,22 @@ describe("scoreResult", () => {
     expect(fresh).toBeGreaterThan(stale);
   });
 
+  it("gives card offers a 60-day recency half-life, same as guides (not the 7-day deal half-life)", () => {
+    // ~30 days old: within a 7-day half-life this decays hard (recency ≈ 0.06),
+    // within a 60-day half-life it barely decays (recency ≈ 0.7). Assert via
+    // relative ordering against an identical cashback-kind result, not exact floats.
+    const checkedAt = "2026-05-21T12:00:00Z"; // 30 days before NOW
+    const card = scoreResult(
+      result({ kind: "card", lastCheckedAt: checkedAt }),
+      { queryMerchantId: null, now: NOW }
+    );
+    const cashback = scoreResult(
+      result({ kind: "cashback", lastCheckedAt: checkedAt }),
+      { queryMerchantId: null, now: NOW }
+    );
+    expect(card).toBeGreaterThan(cashback);
+  });
+
   it("returns 0 for recency when lastCheckedAt is not parseable", () => {
     const badDate = scoreResult(
       result({ lastCheckedAt: "not-a-date" }),

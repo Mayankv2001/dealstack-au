@@ -59,8 +59,9 @@ function recencyScore(result: RankedDealResult, now: Date): number {
   const checked = new Date(result.lastCheckedAt).getTime();
   if (Number.isNaN(checked)) return 0;
   const ageDays = Math.max(0, (now.getTime() - checked) / DAY_MS);
-  // Half-life: guides stay relevant for months, deals go stale in a week
-  const halfLifeDays = result.kind === "guide" ? 60 : 7;
+  // Half-life: guides and card offers stay relevant for months (bank timelines,
+  // not deal timelines); other deals go stale in a week.
+  const halfLifeDays = result.kind === "guide" || result.kind === "card" ? 60 : 7;
   return Math.exp((-Math.LN2 * ageDays) / halfLifeDays);
 }
 
