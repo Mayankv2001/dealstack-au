@@ -36,6 +36,7 @@ import type {
   WeeklyDeal,
 } from "@/lib/offers/types";
 import { isExpiringSoonAU } from "@/lib/offers/expiry";
+import { buildWeeklyPickCards } from "@/lib/offers/weeklyPicks";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
@@ -519,6 +520,18 @@ export default function DealsClient({
     [storeNameById]
   );
 
+  const weeklyPicks = useMemo(
+    () =>
+      buildWeeklyPickCards(weeklyDeals, {
+        giftCards: giftCardOffers,
+        cashback: cashbackOffers,
+        points: pointsOffers,
+        signals: ozBargainSignals,
+        storeNameById: nameOf,
+      }),
+    [weeklyDeals, giftCardOffers, cashbackOffers, pointsOffers, ozBargainSignals, nameOf]
+  );
+
   // Derived view data (recomputed only when the underlying props change).
   const topStacks = useMemo(
     () => stackRecommendations.slice(0, 3),
@@ -686,6 +699,23 @@ export default function DealsClient({
             ))}
           </div>
         </section>
+
+        {/* This week's picks — admin-curated weekly_deals rows, made visible */}
+        {weeklyPicks.length > 0 && (
+          <section className="mt-8">
+            <SectionHeading
+              icon={Sparkles}
+              iconClass="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              title="This week's picks"
+              subtitle="Hand-picked stacks and offers, curated after manual review — each pick lists the layers it combines."
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {weeklyPicks.map((pick) => (
+                <WeeklyDealCard key={pick.id} data={pick.data} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Points programme quick guide (FreePoints-style) */}
         <section className="mt-8">
