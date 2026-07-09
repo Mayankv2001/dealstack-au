@@ -102,3 +102,13 @@ export const ozbMonitorMaxFeedsPerRun = (): number =>
 /** Floor on per-feed polling interval, in hours (default 12). */
 export const ozbMonitorMinIntervalHours = (): number =>
   optionalPositiveNumber("OZB_MONITOR_MIN_INTERVAL_HOURS", 12);
+
+/**
+ * Offer-change DETECTION switch. Independent of, and additional to, the monitor
+ * kill switch: this gates the post-run step that scans already-staged feed items
+ * and stages `offer_change_candidates` for admin review. Defaults to FALSE — true
+ * only when the value is exactly "true". Off means zero detection code runs and
+ * the monitor behaves byte-identically to before. Never auto-applies anything.
+ */
+export const ozbOfferDetectEnabled = (): boolean =>
+  process.env.OZB_OFFER_DETECT_ENABLED === "true";

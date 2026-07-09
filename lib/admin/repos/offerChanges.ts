@@ -8,6 +8,11 @@ import {
   type OfferChangeReviewState,
   type OfferSourceType,
 } from "@/lib/monitor/offerChanges";
+import type { FeedItemView } from "@/lib/monitor/detectOffers";
+import type {
+  DetectionPersistence,
+  ResolvedTarget,
+} from "@/lib/monitor/runDetection";
 
 /**
  * Admin-side offer-change-candidates repository — SERVICE-ROLE ONLY.
@@ -165,6 +170,170 @@ export async function insertOfferChangeCandidates(
     throw new Error(`insertOfferChangeCandidates failed: ${error.message}`);
   }
   return data?.length ?? 0;
+}
+
+// ── Detection persistence (SERVICE-ROLE; used by runDetection) ────────────────
+// These back the runDetection orchestrator's DetectionPersistence contract. They
+// READ our own staged feed_items and published offer rows, and WRITE only to
+// offer_change_candidates via insertOfferChangeCandidates. No fetching, scraping,
+// or external calls — everything runs against our own Supabase project, and
+// nothing here ever mutates a published offer (that stays admin-Apply only).
+
+interface FeedItemViewRow {
+  raw_title: string;
+  raw_summary: string;
+  link: string;
+  categories: string[] | null;
+}
+
+/**
+ * Recently-staged feed items still in the 'new' review queue, newest first,
+ * bounded by BOTH a time window (sinceIso) AND a row limit. Ignored items are
+ * excluded (their category was already judged off-theme); applied/duplicate
+ * states don't exist for feed_items. The bound stops the first enabled run from
+ * scanning the whole backlog and flooding review.
+ */
+export async function listRecentNewFeedItems(
+  sinceIso: string,
+  limit: number
+): Promise<FeedItemView[]> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("feed_items")
+    .select("raw_title, raw_summary, link, categories")
+    .eq("review_state", "new")
+    .gte("fetched_at", sinceIso)
+    .order("fetched_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`listRecentNewFeedItems failed: ${error.message}`);
+  return ((data ?? []) as unknown as FeedItemViewRow[]).map((r) => ({
+    rawTitle: r.raw_title,
+    rawSummary: r.raw_summary,
+    link: r.link,
+    categories: r.categories ?? [],
+  }));
+}
+
+/**
+ * content_hash + detected_url of ALL candidates, regardless of review_state.
+ * Deduping against every row (not just 'new') keeps an ignored candidate from
+ * resurrecting on later runs. It's a small table, so one unbounded select is fine.
+ */
+export async function listKnownCandidateKeys(): Promise<{
+  hashes: string[];
+  urls: string[];
+}> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("offer_change_candidates")
+    .select("content_hash, detected_url");
+  if (error) throw new Error(`listKnownCandidateKeys failed: ${error.message}`);
+  const rows = (data ?? []) as { content_hash: string; detected_url: string }[];
+  return {
+    hashes: rows.map((r) => r.content_hash).filter(Boolean),
+    urls: rows.map((r) => r.detected_url).filter(Boolean),
+  };
+}
+
+/**
+ * Cashback offer for a merchant + provider. (merchant_id, provider) is unique in
+ * practice (verified), so a single row resolves the target; anything else (none,
+ * or an unexpected duplicate) returns null and the Apply flow refuses it safely.
+ */
+export async function resolveCashbackTarget(
+  merchantId: string,
+  provider: string
+): Promise<ResolvedTarget | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("cashback_offers")
+    .select("id, rate_percent")
+    .eq("merchant_id", merchantId)
+    .ilike("provider", provider)
+    .limit(2);
+  if (error) throw new Error(`resolveCashbackTarget failed: ${error.message}`);
+  const rows = (data ?? []) as { id: string; rate_percent: number | null }[];
+  if (rows.length !== 1) return null;
+  return { id: rows[0].id, currentValue: `${Number(rows[0].rate_percent)}%` };
+}
+
+/** Whole-word, case-insensitive test — brand names must not match as substrings. */
+function containsWord(haystack: string, word: string): boolean {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, "i").test(haystack);
+}
+
+/**
+ * Gift-card offer whose brand appears in the detected title. Gift cards key on
+ * brand text (there is no merchant_id column), which does NOT reliably equal a
+ * merchant name, so we match against gift_card_offers.brand and demand EXACTLY
+ * one brand present in the title; zero or ambiguous → null.
+ */
+export async function resolveGiftCardTarget(
+  detectedTitle: string
+): Promise<ResolvedTarget | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("gift_card_offers")
+    .select("id, brand, discount_percent");
+  if (error) throw new Error(`resolveGiftCardTarget failed: ${error.message}`);
+  const rows = (data ?? []) as {
+    id: string;
+    brand: string;
+    discount_percent: number | null;
+  }[];
+  const hits = rows.filter((r) => r.brand && containsWord(detectedTitle, r.brand));
+  if (hits.length !== 1) return null;
+  return {
+    id: hits[0].id,
+    currentValue: `${Number(hits[0].discount_percent)}%`,
+  };
+}
+
+/**
+ * Points offer for a merchant. merchant_id is unique per points offer in practice
+ * (verified); a single row resolves the target, anything else → null. Current
+ * value prefers the human display string, falling back to the "Nx" multiple.
+ */
+export async function resolvePointsTarget(
+  merchantId: string
+): Promise<ResolvedTarget | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("points_offers")
+    .select("id, earn_multiple, earn_rate_display")
+    .eq("merchant_id", merchantId)
+    .limit(2);
+  if (error) throw new Error(`resolvePointsTarget failed: ${error.message}`);
+  const rows = (data ?? []) as {
+    id: string;
+    earn_multiple: number | null;
+    earn_rate_display: string | null;
+  }[];
+  if (rows.length !== 1) return null;
+  const row = rows[0];
+  const currentValue =
+    row.earn_rate_display && row.earn_rate_display.length > 0
+      ? row.earn_rate_display
+      : `${Number(row.earn_multiple)}x`;
+  return { id: row.id, currentValue };
+}
+
+/**
+ * Assemble the production DetectionPersistence for runDetection. Bundles the
+ * reads/resolvers above with insertOfferChangeCandidates (which adds
+ * review_state 'new' and is idempotent on content_hash). Colocated with the
+ * other service-role code, exactly like runMonitor's persistence.
+ */
+export function createDetectionPersistence(): DetectionPersistence {
+  return {
+    listRecentNewFeedItems,
+    listKnownCandidateKeys,
+    resolveCashbackTarget,
+    resolveGiftCardTarget,
+    resolvePointsTarget,
+    insertCandidates: insertOfferChangeCandidates,
+  };
 }
 
 // ── Review actions ─────────────────────────────────────────────────────────────

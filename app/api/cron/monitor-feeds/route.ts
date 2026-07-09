@@ -5,6 +5,7 @@ import {
   ozbMonitorMaxFeedsPerRun,
   ozbMonitorMinIntervalHours,
   ozbMonitorUserAgent,
+  ozbOfferDetectEnabled,
 } from "@/lib/env";
 import { isMonitoringApproved } from "@/lib/admin/repos/compliance";
 import { fetchFeed } from "@/lib/monitor/fetchFeed";
@@ -134,7 +135,7 @@ export async function GET(request: Request): Promise<Response> {
         ? "Skipped: No feeds were processed."
         : `Success: Staged ${totalNew} new item${totalNew === 1 ? "" : "s"} across ${summary.feedsProcessed} feed${summary.feedsProcessed === 1 ? "" : "s"}.`;
 
-    return Response.json({
+    const body: Record<string, unknown> = {
       ok: true,
       ran: true,
       note,
@@ -151,7 +152,31 @@ export async function GET(request: Request): Promise<Response> {
         itemsNew: r.itemsNew,
         error: r.error,
       })),
-    });
+    };
+
+    // 6 ── Offer-change detection — OFF by default, additive, staging-only.
+    // Runs AFTER the monitor over already-staged feed_items, no network. A
+    // failure here is logged and reported but must NEVER fail the monitor run,
+    // so it is fully wrapped and only touched when the flag is exactly 'true'.
+    // When the flag is off, zero detection code executes and `body` is unchanged.
+    if (ozbOfferDetectEnabled()) {
+      try {
+        const { runDetection } = await import("@/lib/monitor/runDetection");
+        const { createDetectionPersistence } = await import(
+          "@/lib/admin/repos/offerChanges"
+        );
+        const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        body.detection = await runDetection(createDetectionPersistence(), {
+          sinceIso,
+          dryRun: false,
+        });
+      } catch (err) {
+        console.error("Offer-change detection failed:", errMessage(err));
+        body.detection = { error: errMessage(err) };
+      }
+    }
+
+    return Response.json(body);
   } catch (err) {
     // A failure must not 500 the page or leak secrets — return a JSON summary.
     return Response.json(

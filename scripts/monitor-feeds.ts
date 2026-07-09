@@ -37,7 +37,9 @@ import {
   ozbMonitorMaxFeedsPerRun,
   ozbMonitorMinIntervalHours,
   ozbMonitorUserAgent,
+  ozbOfferDetectEnabled,
 } from "../lib/env";
+import type { DetectionSummary } from "../lib/monitor/runDetection";
 import { isMonitoringApproved } from "../lib/admin/repos/compliance";
 import { fetchFeed } from "../lib/monitor/fetchFeed";
 import {
@@ -132,6 +134,29 @@ function printSummary(summary: MonitorRunSummary): void {
   console.log(modeBanner(summary.dryRun));
 }
 
+/** Print the offer-change detection summary (mirrors the monitor mode banner). */
+function printDetection(detection: DetectionSummary, dryRun: boolean): void {
+  console.log("\n" + "=".repeat(64));
+  console.log(" Offer-change detection (post-run, staging-only)");
+  console.log(` ${modeBanner(dryRun)}`);
+  console.log("=".repeat(64));
+  console.log(`Feed items scanned:     ${detection.scanned}`);
+  console.log(`Raw detections:         ${detection.detected}`);
+  console.log(`Unique after dedupe:    ${detection.deduped}`);
+  const verb = dryRun ? "would stage" : "staged";
+  console.log(`Candidates ${verb}: ${detection.inserted}`);
+  if (dryRun) {
+    console.log(
+      "\nDRY RUN — nothing was written to offer_change_candidates. " +
+        `${detection.deduped} candidate(s) WOULD be staged in a --write run.`
+    );
+  } else {
+    console.log(
+      `\nStaged ${detection.inserted} new offer_change_candidate(s) for review at /admin/offer-changes.`
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const { dryRun, sourceId } = parseArgs(process.argv);
 
@@ -218,6 +243,30 @@ async function main(): Promise<void> {
   );
 
   printSummary(summary);
+
+  // Offer-change detection — OFF by default, additive, staging-only. Runs AFTER
+  // the monitor over already-staged feed_items (no network). Honours --dry-run:
+  // a dry run prints what WOULD be staged and inserts nothing. A failure here is
+  // reported but never fails the monitor run itself.
+  if (ozbOfferDetectEnabled()) {
+    try {
+      const { runDetection } = await import("../lib/monitor/runDetection");
+      const { createDetectionPersistence } = await import(
+        "../lib/admin/repos/offerChanges"
+      );
+      const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const detection = await runDetection(createDetectionPersistence(), {
+        sinceIso,
+        dryRun,
+      });
+      printDetection(detection, dryRun);
+    } catch (err) {
+      console.error(
+        "\nOffer-change detection failed (monitor run unaffected):",
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
 }
 
 main().catch((err) => {
