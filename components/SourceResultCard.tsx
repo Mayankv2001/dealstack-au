@@ -40,6 +40,7 @@ const kindIcons = {
   "gift-card": Gift,
   points: Star,
   guide: StoreIcon,
+  card: CreditCard,
 } as const;
 
 function SourceBadge({ source }: { source: SourceId }) {

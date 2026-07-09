@@ -137,6 +137,7 @@ const kindIcons: Record<DealKind, LucideIcon> = {
   "gift-card": Gift,
   points: Star,
   guide: StoreIcon,
+  card: CreditCard,
 };
 
 /** Subtle per-source tints so citations are recognisable at a glance. */

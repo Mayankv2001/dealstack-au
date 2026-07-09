@@ -1,3 +1,5 @@
+import { cardOffers } from "@/lib/offers/manualOffers";
+import { cardOfferToSourceResult } from "./cardResults";
 import type { DealSourceResult } from "./types";
 
 /**
@@ -348,6 +350,9 @@ export const manualResults: DealSourceResult[] = [
   },
 ];
 
+// ─── Card offers — demo bank/credit-card rows (Illustrative, needs-verification) ─
+export const cardResults: DealSourceResult[] = cardOffers.map(cardOfferToSourceResult);
+
 /** Every static sample result across all sources */
 export const allSourceResults: DealSourceResult[] = [
   ...ozbargainResults,
@@ -355,4 +360,5 @@ export const allSourceResults: DealSourceResult[] = [
   ...freePointsResults,
   ...gcdbResults,
   ...manualResults,
+  ...cardResults,
 ];

@@ -22,6 +22,7 @@ const DEAL_KIND_LABELS: Record<AdminSignal["dealKind"], string> = {
   "gift-card": "Gift card",
   points: "Points",
   guide: "Guide",
+  card: "Card",
 };
 
 const STATUS_TONES: Record<AdminSignal["status"], CellTone> = {

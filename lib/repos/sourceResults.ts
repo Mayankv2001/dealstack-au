@@ -1,3 +1,4 @@
+import { cardOfferToSourceResult, type CardOfferSourceInput } from "@/lib/sources/cardResults";
 import {
   rankSourceResults,
   rankSourceResultsForStore,
@@ -15,6 +16,7 @@ import {
   getSupabaseServer,
   isStaticDataSource,
   toNumber,
+  toNumberOrNull,
   type DbClient,
 } from "@/lib/supabase/server";
 
@@ -95,6 +97,21 @@ interface PointsResultRow {
   merchant_id: string | null;
   program: string;
   earn_rate_display: string;
+  expiry_date: string | null;
+  last_checked_at: string;
+  confidence: Confidence;
+}
+
+interface CardOfferResultRow {
+  id: string;
+  provider: string;
+  card_name: string;
+  offer_type: string;
+  bonus_points: number | string | null;
+  cashback_amount: number | string | null;
+  statement_credit_amount: number | string | null;
+  offer_summary: string;
+  source_url: string;
   expiry_date: string | null;
   last_checked_at: string;
   confidence: Confidence;
@@ -214,6 +231,22 @@ function pointsToResult(r: PointsResultRow, nameOf: NameOf): DealSourceResult {
   };
 }
 
+function cardOfferRowToInput(r: CardOfferResultRow): CardOfferSourceInput {
+  return {
+    id: r.id,
+    provider: r.provider,
+    cardName: r.card_name,
+    bonusPoints: toNumberOrNull(r.bonus_points),
+    cashbackAmount: toNumberOrNull(r.cashback_amount),
+    statementCreditAmount: toNumberOrNull(r.statement_credit_amount),
+    offerSummary: r.offer_summary,
+    sourceUrl: r.source_url,
+    expiryDate: r.expiry_date,
+    lastCheckedAt: r.last_checked_at,
+    confidence: r.confidence,
+  };
+}
+
 function signalToResult(r: SignalResultRow, nameOf: NameOf): DealSourceResult {
   return {
     id: `sig:${r.id}`,
@@ -279,6 +312,16 @@ async function queryPoints(db: DbClient): Promise<PointsResultRow[]> {
   return (data ?? []) as unknown as PointsResultRow[];
 }
 
+async function queryCardOffers(db: DbClient): Promise<CardOfferResultRow[]> {
+  const { data, error } = await db
+    .from("card_offers")
+    .select(
+      "id, provider, card_name, offer_type, bonus_points, cashback_amount, statement_credit_amount, offer_summary, source_url, expiry_date, last_checked_at, confidence"
+    );
+  if (error) throw error;
+  return (data ?? []) as unknown as CardOfferResultRow[];
+}
+
 async function querySignals(db: DbClient): Promise<SignalResultRow[]> {
   const { data, error } = await db
     .from("ozbargain_signals")
@@ -299,18 +342,21 @@ export async function loadDbSourceResults(): Promise<DealSourceResult[] | null> 
   if (!db) return null;
 
   try {
-    const [storeRows, cashback, giftCards, points, signals] = await Promise.all([
-      queryStoreNames(db),
-      queryCashback(db),
-      queryGiftCards(db),
-      queryPoints(db),
-      querySignals(db),
-    ]);
+    const [storeRows, cashback, giftCards, points, cardOffers, signals] =
+      await Promise.all([
+        queryStoreNames(db),
+        queryCashback(db),
+        queryGiftCards(db),
+        queryPoints(db),
+        queryCardOffers(db),
+        querySignals(db),
+      ]);
     const nameOf = buildNameMap(storeRows);
     const results: DealSourceResult[] = [
       ...cashback.map((r) => cashbackToResult(r, nameOf)),
       ...giftCards.flatMap((r) => giftCardToResults(r, nameOf)),
       ...points.map((r) => pointsToResult(r, nameOf)),
+      ...cardOffers.map((r) => cardOfferToSourceResult(cardOfferRowToInput(r))),
       ...signals.map((r) => signalToResult(r, nameOf)),
     ];
     // An empty pool means the DB has no public source data yet — fall back to

@@ -10,7 +10,8 @@ export type DealKind =
   | "cashback"
   | "gift-card"
   | "points"
-  | "guide";
+  | "guide"
+  | "card";
 
 export type Confidence = "confirmed" | "needs-verification" | "expired-unknown";
 
