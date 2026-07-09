@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listOfferChanges } from "@/lib/admin/repos/offerChanges";
+import { ozbOfferDetectEnabled } from "@/lib/env";
 import {
   isApplyPlan,
   planOfferApplication,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/monitor/offerChanges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import DetectionPreviewClient from "./DetectionPreviewClient";
 import OfferChangesClient, { type OfferChangeView } from "./OfferChangesClient";
 
 export const metadata: Metadata = {
@@ -76,6 +78,8 @@ export default async function OfferChangesPage() {
         only after you confirm; Ignore and Mark duplicate never change public
         data.
       </p>
+
+      <DetectionPreviewClient initialFlagEnabled={ozbOfferDetectEnabled()} />
 
       {items.length === 0 ? (
         <Card>

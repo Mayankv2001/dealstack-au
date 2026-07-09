@@ -150,6 +150,19 @@ function printDetection(detection: DetectionSummary, dryRun: boolean): void {
       "\nDRY RUN — nothing was written to offer_change_candidates. " +
         `${detection.deduped} candidate(s) WOULD be staged in a --write run.`
     );
+    if (detection.candidates && detection.candidates.length > 0) {
+      console.log("");
+      detection.candidates.forEach((c, i) => {
+        const merchant = c.merchant_id ?? "—";
+        const from = c.previous_value ?? "?";
+        const target = c.target_id ? "linked" : "unresolved (Apply will refuse)";
+        console.log(
+          `  ${i + 1}. [${c.source_type}] ${c.source_name} @ ${merchant}   ${from} → ${c.proposed_value}   target: ${target}`
+        );
+        console.log(`     title: ${c.detected_title}`);
+        console.log(`     url:   ${c.detected_url}`);
+      });
+    }
   } else {
     console.log(
       `\nStaged ${detection.inserted} new offer_change_candidate(s) for review at /admin/offer-changes.`
@@ -258,6 +271,7 @@ async function main(): Promise<void> {
       const detection = await runDetection(createDetectionPersistence(), {
         sinceIso,
         dryRun,
+        includeCandidates: dryRun,
       });
       printDetection(detection, dryRun);
     } catch (err) {

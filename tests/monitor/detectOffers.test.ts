@@ -216,3 +216,37 @@ describe("runDetection — dedupe and dry-run", () => {
     expect(staged[0].proposed_value).toBe("15%");
   });
 });
+
+describe("runDetection — includeCandidates (dry-run preview visibility)", () => {
+  it("dryRun + includeCandidates: summary.candidates has the deduped rows, insert not called", async () => {
+    const one = item({ rawTitle: "15% Cashback at Myer via ShopBack" });
+    const { deps, insert } = fakePersistence({ items: [one] });
+    const summary = await runDetection(deps, {
+      sinceIso: SINCE,
+      dryRun: true,
+      includeCandidates: true,
+    });
+    expect(summary.candidates).toHaveLength(1);
+    expect(summary.candidates?.[0].proposed_value).toBe("15%");
+    expect(summary.inserted).toBe(0);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("write mode + includeCandidates: summary.candidates deep-equals the insert payload", async () => {
+    const one = item({ rawTitle: "10% off Ultimate Gift Cards @ Coles" });
+    const { deps, insert } = fakePersistence({ items: [one] });
+    const summary = await runDetection(deps, {
+      sinceIso: SINCE,
+      dryRun: false,
+      includeCandidates: true,
+    });
+    expect(summary.candidates).toEqual(insert.mock.calls[0][0]);
+  });
+
+  it("includeCandidates absent: summary.candidates is undefined (cron-path hygiene)", async () => {
+    const one = item({ rawTitle: "15% Cashback at Myer via ShopBack" });
+    const { deps } = fakePersistence({ items: [one] });
+    const summary = await runDetection(deps, { sinceIso: SINCE, dryRun: false });
+    expect(summary.candidates).toBeUndefined();
+  });
+});
