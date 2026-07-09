@@ -18,6 +18,10 @@
  * because those need a human decision — see the project rule "missing expiry +
  * stale → flag, do not auto-delete".
  *
+ * It also REPORTS (never modifies) published rows whose text still carries
+ * demo/illustrative wording (see lib/admin/placeholderCopy.ts) — replacing
+ * that copy with verified real offer details is a human admin task.
+ *
  * SAFETY
  *   - Default is DRY-RUN: it prints exactly what it would change and writes
  *     nothing. Pass --write to apply.
@@ -43,6 +47,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseServiceRoleKey, supabaseUrl } from "../lib/env";
+import { findPlaceholderMarkers } from "../lib/admin/placeholderCopy";
 
 // Load .env.local for standalone runs (Next loads it for the app, scripts don't).
 type WithLoadEnv = { loadEnvFile?: (path?: string) => void };
@@ -302,6 +307,39 @@ async function flagPublishedNoExpiry(
   }
 }
 
+/**
+ * REPORT ONLY — never modifies. Published rows whose text still carries
+ * demo/illustrative wording (e.g. "Illustrative sign-up bonus: …") need a
+ * human to replace the copy with verified real offer details — see
+ * lib/admin/placeholderCopy.ts and the "Placeholder copy" dashboard check
+ * this mirrors.
+ */
+async function flagPlaceholderCopy(
+  table:
+    | "cashback_offers"
+    | "gift_card_offers"
+    | "points_offers"
+    | "card_offers"
+    | "weekly_deals",
+  labelFor: (r: Record<string, unknown>) => string,
+  textsFor: (r: Record<string, unknown>) => (string | null)[]
+): Promise<void> {
+  const { data, error } = await db
+    .from(table)
+    .select("*")
+    .eq("is_published", true);
+  if (error) throw new Error(`read ${table} failed: ${error.message}`);
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const hits = rows
+    .map((r) => ({ r, markers: findPlaceholderMarkers(textsFor(r)) }))
+    .filter(({ markers }) => markers.length > 0);
+  if (hits.length === 0) return;
+  console.log(`\n⚑ ${table}: published with placeholder copy (review manually, not changed):`);
+  for (const { r, markers } of hits) {
+    console.log(`    · ${String(r.id)} — ${labelFor(r)} — "${markers.join('", "')}"`);
+  }
+}
+
 function printSection(title: string, candidates: Candidate[]): void {
   console.log(`\n▸ ${title}`);
   if (candidates.length === 0) {
@@ -340,6 +378,39 @@ async function main(): Promise<void> {
   await flagPublishedNoExpiry("points_offers", (r) => `${String(r.program ?? "")} · ${storeLabel(r)}`);
   await flagPublishedNoExpiry("card_offers", (r) =>
     `${String(r.provider ?? "")} · ${String(r.card_name ?? r.id)}`
+  );
+
+  await flagPlaceholderCopy(
+    "cashback_offers",
+    (r) => `${storeLabel(r)} · ${String(r.provider ?? "")}`,
+    (r) => [r.terms_summary as string | null]
+  );
+  await flagPlaceholderCopy(
+    "gift_card_offers",
+    (r) => String(r.brand ?? r.id),
+    (r) => [
+      ...((r.usage_notes as string[] | null) ?? []),
+      ...((r.stack_notes as string[] | null) ?? []),
+    ]
+  );
+  await flagPlaceholderCopy(
+    "points_offers",
+    (r) => `${String(r.program ?? "")} · ${storeLabel(r)}`,
+    (r) => [r.earn_rate_display as string | null]
+  );
+  await flagPlaceholderCopy(
+    "card_offers",
+    (r) => `${String(r.provider ?? "")} · ${String(r.card_name ?? r.id)}`,
+    (r) => [
+      r.offer_summary as string | null,
+      r.eligibility_notes as string | null,
+      r.card_name as string | null,
+    ]
+  );
+  await flagPlaceholderCopy(
+    "weekly_deals",
+    (r) => String(r.title ?? r.id),
+    (r) => [r.title as string | null, r.summary as string | null]
   );
 
   console.log("\n──────────────────────────────────────────");

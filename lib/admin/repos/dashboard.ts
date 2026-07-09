@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { DbClient, PublicTable } from "@/lib/supabase/server";
 import { weekMondayAU } from "@/lib/admin/dateHelpers";
+import { findPlaceholderMarkers } from "@/lib/admin/placeholderCopy";
 
 /**
  * Admin dashboard counts — SERVICE-ROLE ONLY.
@@ -378,7 +379,8 @@ export type DataQualityIssueCode =
   | "missing-source"
   | "stale"
   | "missing-expiry"
-  | "stale-week-of";
+  | "stale-week-of"
+  | "placeholder-copy";
 
 /** One failed check on a flagged item. */
 export interface DataQualityIssue {
@@ -409,6 +411,7 @@ export interface DataQualityCounts {
   missingExpiry: number;
   staleChecked: number;
   staleWeekOf: number;
+  placeholderCopy: number;
 }
 
 export interface DataQualityReport {
@@ -445,6 +448,7 @@ interface CashbackDqRow {
   citations: unknown;
   last_checked_at: string | null;
   store: { name: string } | { name: string }[] | null;
+  terms_summary: string | null;
 }
 interface GiftCardDqRow {
   id: string;
@@ -452,6 +456,8 @@ interface GiftCardDqRow {
   expiry_date: string | null;
   citations: unknown;
   last_checked_at: string | null;
+  usage_notes: string[] | null;
+  stack_notes: string[] | null;
 }
 interface PointsDqRow {
   id: string;
@@ -461,6 +467,7 @@ interface PointsDqRow {
   citations: unknown;
   last_checked_at: string | null;
   store: { name: string } | { name: string }[] | null;
+  earn_rate_display: string | null;
 }
 interface SignalDqRow {
   id: string;
@@ -473,6 +480,7 @@ interface WeeklyDealDqRow {
   id: string;
   title: string;
   week_of: string;
+  summary: string | null;
 }
 
 interface CardOfferDqRow {
@@ -482,6 +490,8 @@ interface CardOfferDqRow {
   expiry_date: string | null;
   source_url: string;
   last_checked_at: string | null;
+  offer_summary: string | null;
+  eligibility_notes: string | null;
 }
 
 /**
@@ -506,17 +516,19 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       db
         .from("cashback_offers")
         .select(
-          "id, provider, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
+          "id, provider, merchant_id, expiry_date, citations, last_checked_at, store:stores(name), terms_summary"
         )
         .eq("is_published", true),
       db
         .from("gift_card_offers")
-        .select("id, brand, expiry_date, citations, last_checked_at")
+        .select(
+          "id, brand, expiry_date, citations, last_checked_at, usage_notes, stack_notes"
+        )
         .eq("is_published", true),
       db
         .from("points_offers")
         .select(
-          "id, program, merchant_id, expiry_date, citations, last_checked_at, store:stores(name)"
+          "id, program, merchant_id, expiry_date, citations, last_checked_at, store:stores(name), earn_rate_display"
         )
         .eq("is_published", true),
       db
@@ -525,11 +537,13 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         .eq("status", "approved"),
       db
         .from("weekly_deals")
-        .select("id, title, week_of")
+        .select("id, title, week_of, summary")
         .eq("is_published", true),
       db
         .from("card_offers")
-        .select("id, provider, card_name, expiry_date, source_url, last_checked_at")
+        .select(
+          "id, provider, card_name, expiry_date, source_url, last_checked_at, offer_summary, eligibility_notes"
+        )
         .eq("is_published", true),
     ]);
 
@@ -547,6 +561,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     missingExpiry: 0,
     staleChecked: 0,
     staleWeekOf: 0,
+    placeholderCopy: 0,
   };
   const flags: DataQualityFlag[] = [];
 
@@ -563,6 +578,8 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     /** Offers cite sources + should have an expiry; signals do neither here. */
     checkSource: boolean;
     checkMissingExpiry: boolean;
+    /** Text columns to scan for demo/illustrative wording (undefined = skip). */
+    placeholderTexts?: (string | null)[];
   }): void {
     const issues: DataQualityIssue[] = [];
     let severity: DataQualitySeverity | null = null;
@@ -574,6 +591,17 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         label: `Expired ${opts.expiryDate} but still live`,
       });
       severity = "high";
+    }
+    if (opts.placeholderTexts != null) {
+      const markers = findPlaceholderMarkers(opts.placeholderTexts);
+      if (markers.length > 0) {
+        counts.placeholderCopy += 1;
+        issues.push({
+          code: "placeholder-copy",
+          label: `Placeholder copy: "${markers.join('", "')}"`,
+        });
+        severity = "high";
+      }
     }
     if (opts.checkSource && !hasSourceUrl(opts.citations)) {
       counts.missingSourceUrl += 1;
@@ -623,6 +651,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       lastChecked: r.last_checked_at,
       checkSource: true,
       checkMissingExpiry: true,
+      placeholderTexts: [r.terms_summary],
     });
   }
   for (const r of giftCards.data as unknown as GiftCardDqRow[]) {
@@ -637,6 +666,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       lastChecked: r.last_checked_at,
       checkSource: true,
       checkMissingExpiry: true,
+      placeholderTexts: [...(r.usage_notes ?? []), ...(r.stack_notes ?? [])],
     });
   }
   for (const r of points.data as unknown as PointsDqRow[]) {
@@ -652,6 +682,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       lastChecked: r.last_checked_at,
       checkSource: true,
       checkMissingExpiry: true,
+      placeholderTexts: [r.earn_rate_display],
     });
   }
   for (const r of signals.data as unknown as SignalDqRow[]) {
@@ -666,6 +697,11 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       // source_url is NOT NULL for signals; expiry is often legitimately absent.
       checkSource: false,
       checkMissingExpiry: false,
+      // Sample signals are marked by the structured is_sample column and are
+      // rendered with an explicit "Sample signal —" label everywhere public
+      // (lib/repos/sourceResults.ts:259); the launch checklist explicitly
+      // allows "clearly labelled samples". Text-sniffing them would only add
+      // noise, so signals are deliberately excluded from this check.
     });
   }
   for (const r of cardOffers.data as unknown as CardOfferDqRow[]) {
@@ -685,10 +721,12 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       lastChecked: r.last_checked_at,
       checkSource: true,
       checkMissingExpiry: true,
+      placeholderTexts: [r.offer_summary, r.eligibility_notes, r.card_name],
     });
   }
 
-  // Weekly deals: flag published ones whose week_of is from a prior week.
+  // Weekly deals: flag published ones whose week_of is from a prior week, and
+  // (separately) any whose title/summary still carries placeholder wording.
   for (const r of weeklyDeals.data as unknown as WeeklyDealDqRow[]) {
     if (r.week_of < currentWeekMonday) {
       counts.staleWeekOf += 1;
@@ -704,6 +742,26 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
           },
         ],
         severity: "medium",
+        editHref: `/admin/weekly-deals/${r.id}/edit`,
+        expiryDate: null,
+        lastCheckedAt: null,
+      });
+    }
+    const markers = findPlaceholderMarkers([r.title, r.summary]);
+    if (markers.length > 0) {
+      counts.placeholderCopy += 1;
+      flags.push({
+        type: "weeklyDeals",
+        typeLabel: "Weekly deal",
+        id: r.id,
+        title: r.title,
+        issues: [
+          {
+            code: "placeholder-copy",
+            label: `Placeholder copy: "${markers.join('", "')}"`,
+          },
+        ],
+        severity: "high",
         editHref: `/admin/weekly-deals/${r.id}/edit`,
         expiryDate: null,
         lastCheckedAt: null,

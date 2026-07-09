@@ -139,7 +139,7 @@ Applied to `/:path*` via `next.config.ts` — confirm present on a prod response
 ## 11. Manual content verification
 
 - [ ] Published cashback / gift-card / points / card offers have correct rates and current terms (verify against source before relying on any figure — the site is a research tool, not a checkout).
-- [ ] No placeholder / "Illustrative" copy remains on published rows.
+- [ ] No placeholder / "Illustrative" copy remains on published rows. **Automated:** the "Placeholder copy" tile on `/admin/dashboard` (and the matching `⚑` section in `npm run cleanup:old-deals`) must read 0 — it currently flags the 5 `card_offers` rows published 2026-07-08.
 - [ ] AUD amounts and Australian spelling throughout user-facing copy.
 - [ ] OzBargain signals shown are either real approved signals or clearly labelled samples; nothing misleading is public.
 - [ ] Store logos/aliases resolve; featured/popular stores on the homepage look correct.

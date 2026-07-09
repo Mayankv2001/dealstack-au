@@ -79,6 +79,12 @@ const DQ_ISSUE_INFO: Record<
   DataQualityIssueCode,
   { label: string; explanation: string; tone: string }
 > = {
+  "placeholder-copy": {
+    label: "Placeholder copy",
+    explanation:
+      "Published row still contains demo/illustrative wording — replace it with verified real offer details before relying on it.",
+    tone: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
   expired: {
     label: "Expired but still live",
     explanation:
@@ -116,6 +122,7 @@ const DQ_TILE_ORDER: {
   code: DataQualityIssueCode;
   count: (c: DataQualityCounts) => number;
 }[] = [
+  { code: "placeholder-copy", count: (c) => c.placeholderCopy },
   { code: "expired", count: (c) => c.expiredPublished },
   { code: "missing-source", count: (c) => c.missingSourceUrl },
   { code: "missing-expiry", count: (c) => c.missingExpiry },
