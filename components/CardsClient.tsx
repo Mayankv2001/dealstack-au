@@ -93,7 +93,7 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
           <Logo />
           <nav className="flex items-center gap-1 sm:gap-2">
             <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-              <Link href="/">Stores</Link>
+              <Link href="/stores">Stores</Link>
             </Button>
             <Button asChild size="sm" variant="ghost">
               <Link href="/deals">Deals</Link>

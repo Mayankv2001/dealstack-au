@@ -113,6 +113,7 @@ const PUBLIC_ROUTES: { path: string; marker: string }[] = [
   { path: "/", marker: "DealStack" },
   { path: "/deals", marker: "DealStack" },
   { path: "/search?q=myer", marker: "Myer" },
+  { path: "/stores", marker: "All stores" },
   { path: "/cards", marker: "DealStack" },
   { path: "/resources", marker: "DealStack" },
   { path: "/stores/myer", marker: "Myer" },
@@ -138,8 +139,6 @@ async function expectPublicRoute(path: string, marker: string): Promise<void> {
 
 // ── §7 auth boundaries + §4 cron gate ────────────────────────────────────────
 
-// Note: /stores (no slug) is 404 by design (checklist §7) — do not add it
-// here as a 200 expectation.
 const ADMIN_ROUTES = ["/admin/dashboard", "/admin/card-offers", "/admin/signals/queue"];
 
 async function expectAdminRedirect(path: string): Promise<void> {

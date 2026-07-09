@@ -81,6 +81,9 @@ export default async function SearchPage({
               <Link href="/deals">Deals</Link>
             </Button>
             <Button asChild size="sm" variant="ghost">
+              <Link href="/stores">Stores</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost">
               <Link href="/cards">Cards</Link>
             </Button>
             <Button asChild size="sm" variant="ghost">

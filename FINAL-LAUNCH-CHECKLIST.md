@@ -92,7 +92,8 @@
 Verify each returns 200 with real content (spot-checked green 2026-07-09):
 - [ ] `/` homepage (hero + live stack calculator) — automated: `npm run smoke`
 - [ ] `/deals` (filters work: All / Best stacks / Gift cards / Points / Cashback / OzBargain signals / Expiring soon) — automated: `npm run smoke` (route renders; filter interactions are still manual)
-- [ ] `/stores/[slug]` for major stores (e.g. `/stores/myer`, `/stores/jb-hifi`, `/stores/woolworths`) — note there is **no `/stores` index** (404 by design; nothing links to it) — automated: `npm run smoke`
+- [ ] `/stores/[slug]` for major stores (e.g. `/stores/myer`, `/stores/jb-hifi`, `/stores/woolworths`) — automated: `npm run smoke`
+- [ ] `/stores` index returns 200, grouped by category, linked from every public page's nav — automated: `npm run smoke`
 - [ ] `/search?q=myer` returns results — automated: `npm run smoke`
 - [ ] `/cards` lists published card offers (no empty state) — automated: `npm run smoke`
 - [ ] `/resources` — automated: `npm run smoke`

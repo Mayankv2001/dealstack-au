@@ -615,7 +615,7 @@ export default function DealsClient({
           <Logo />
           <nav className="flex items-center gap-1 sm:gap-2">
             <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-              <Link href="/">Stores</Link>
+              <Link href="/stores">Stores</Link>
             </Button>
             <span
               aria-current="page"
