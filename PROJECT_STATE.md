@@ -18,7 +18,7 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 - **Live/working:** Public site (homepage, `/deals`, `/stores`, `/search`, `/cards`, `/resources`), admin portal, feed monitor, stacking calculator. Card offers are live (5/5 published by admin).
 - **In progress / partial:** Offer-change detection is wired but **behind a default-off flag (staging-only)** — not live in production.
 - **Backlog:** 10 execution-ready `PLAN-*.md` files in repo root; most executed, 2–3 remain (see §6).
-- **Build/lint/tests:** Expected to pass, **except** one known stale-fixture test failure in `buildStack.test.ts` (see §10). Verify before relying on green.
+- **Build/lint/tests:** All green — `npm run lint`, `npm run build`, and `test:stack` / `test:monitor` / `test:admin` pass. (The former `buildStack.test.ts` stale-fixture failure is resolved — see §10.)
 
 ## 3. Repository / File Structure
 
@@ -155,7 +155,7 @@ Most recent commits (newest first):
 **While working:**
 - Keep changes small and reviewable; one PLAN/phase at a time. The `/phase` skill runs a controlled phase end-to-end (scope → implement → lint/build/test → commit → push → stop).
 - Never violate §8 constraints (no scraping, no auto-publish, one cron/day, don't touch layout/globals.css, no service-role key leakage).
-- Run the §9 commit checklist before every commit. Expect the `buildStack.test.ts` failure (§10) — confirm it's pre-existing, not yours.
+- Run the §9 commit checklist before every commit. All suites should be green; a red test is a real regression to investigate, not expected noise.
 
 **When done:**
 - Update this file: §2 Current Status, §4 Completed Work (with commit hash), §5 Current Task, §6 Next 3 Tasks, §11 Latest Changes.

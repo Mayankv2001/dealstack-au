@@ -10,7 +10,7 @@ A deal-stacking platform for Australian shoppers that combines cashback portals,
 - **Homepage** — Top 5 OzBargain signals (admin-curated), popular stores, and search entry point
 - **Deals directory** — Browse and filter curated deals with AUD pricing
 - **Store pages** — Per-store cashback, gift-card, and points stacking details
-- **Search** — Live cross-entity search across deals and stores
+- **Search** — Live cross-entity search across deals, stores, and card offers
 - **Card offers** — compare bank & credit-card sign-up offers at /cards (manually verified, admin-published)
 
 ### Admin Portal (`/admin`)

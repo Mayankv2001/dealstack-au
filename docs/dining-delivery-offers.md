@@ -2,10 +2,12 @@
 
 ## Decision: existing `ozbargain_signals` is enough for now
 
-Phase 1 research confirmed `weekly_deals` is not usable as a bundle mechanism
-(its `component_ids` field is written by the admin form but never
-dereferenced by any renderer). `ozbargain_signals`, by contrast, already fits
-a one-off, publicly-posted dining-delivery promo code with **zero schema
+Phase 1 research judged `weekly_deals` a poor fit for a one-off dining-delivery
+promo (it is a curated weekly-bundle model, not a per-signal one). Note that
+`weekly_deals` is no longer inert: as of commit `2835137` its `component_ids`
+are resolved and rendered as the "This week's picks" section on `/deals` (see
+`lib/offers/weeklyPicks.ts`). `ozbargain_signals`, by contrast, already fits a
+one-off, publicly-posted dining-delivery promo code with **zero schema
 change**:
 
 | Need | Existing `ozbargain_signals` field |

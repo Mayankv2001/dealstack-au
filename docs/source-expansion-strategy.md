@@ -125,7 +125,7 @@ raw OzBargain community posts in the current `feed_items` table.*
 
 | | |
 |---|---|
-| **Existing table** | `ozbargain_signals` already fits a one-off, publicly-posted promo-code dining deal with zero schema change — e.g. "$10 Ding Dong Deals - Uber Eats" is already present as a raw `feed_items` row today. `weekly_deals` was investigated and rejected: its `component_ids` field is written by the admin form but never dereferenced anywhere in the app, so it renders nothing — not a usable bundle mechanism as it stands. |
+| **Existing table** | `ozbargain_signals` already fits a one-off, publicly-posted promo-code dining deal with zero schema change — e.g. "$10 Ding Dong Deals - Uber Eats" is already present as a raw `feed_items` row today. `weekly_deals` was investigated and set aside for _this_ use case as the wrong shape (a curated weekly-bundle model, not a per-signal one), not because it is inert — as of commit `2835137` its `component_ids` are resolved and rendered as the "This week's picks" section on `/deals` (`lib/offers/weeklyPicks.ts`). |
 | **New table needed?** | **Optional, not required for MVP.** A dedicated `dining_delivery_offers` table (platform, discount/code, minimum spend, new-vs-existing-customer flag, expiry) is only justified if structured fields become necessary — proposed as an optional additive migration in Phase 8, deferred until there's real content volume to justify it. |
 | **Admin workflow** | Existing signals queue today (zero new work); a dedicated CRUD only if the optional table is built later. |
 | **Public UI** | Already live via `/deals`/`/search` signal cards; a dedicated section only if the optional table is built. |
