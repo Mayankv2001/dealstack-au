@@ -90,25 +90,25 @@
 ## 7. Public route QA
 
 Verify each returns 200 with real content (spot-checked green 2026-07-09):
-- [ ] `/` homepage (hero + live stack calculator)
-- [ ] `/deals` (filters work: All / Best stacks / Gift cards / Points / Cashback / OzBargain signals / Expiring soon)
-- [ ] `/stores/[slug]` for major stores (e.g. `/stores/myer`, `/stores/jb-hifi`, `/stores/woolworths`) — note there is **no `/stores` index** (404 by design; nothing links to it)
-- [ ] `/search?q=myer` returns results
-- [ ] `/cards` lists published card offers (no empty state)
-- [ ] `/resources`
-- [ ] 404 page (any unknown path) renders branded not-found
+- [ ] `/` homepage (hero + live stack calculator) — automated: `npm run smoke`
+- [ ] `/deals` (filters work: All / Best stacks / Gift cards / Points / Cashback / OzBargain signals / Expiring soon) — automated: `npm run smoke` (route renders; filter interactions are still manual)
+- [ ] `/stores/[slug]` for major stores (e.g. `/stores/myer`, `/stores/jb-hifi`, `/stores/woolworths`) — note there is **no `/stores` index** (404 by design; nothing links to it) — automated: `npm run smoke`
+- [ ] `/search?q=myer` returns results — automated: `npm run smoke`
+- [ ] `/cards` lists published card offers (no empty state) — automated: `npm run smoke`
+- [ ] `/resources` — automated: `npm run smoke`
+- [ ] 404 page (any unknown path) renders branded not-found — automated: `npm run smoke`
 - [ ] Error boundary (`app/error.tsx`) present with retry + back-to-home
 - [ ] Mobile 375px: no horizontal overflow on `/`, `/deals`, `/cards`, `/stores/*`, `/search`, `/resources`
 - [ ] Desktop layout clean
-- [ ] All `/admin/*` routes 307-redirect to `/admin/login` when unauthenticated (no data leak)
+- [ ] All `/admin/*` routes 307-redirect to `/admin/login` when unauthenticated (no data leak) — automated: `npm run smoke`
 
 ---
 
 ## 8. SEO / sitemap / robots / metadata
 
-- [ ] `https://<prod-domain>/robots.txt` — `Disallow: /admin` and `/api`; `Sitemap:` line points to the **prod** host (not localhost).
-- [ ] `https://<prod-domain>/sitemap.xml` — `<loc>` entries use the prod host; store URLs are `/stores/<id>`.
-- [ ] `/opengraph-image` returns a valid PNG; homepage `og:image` / canonical use the prod host.
+- [ ] `https://<prod-domain>/robots.txt` — `Disallow: /admin` and `/api`; `Sitemap:` line points to the **prod** host (not localhost). — automated: `npm run smoke` (checks `Disallow: /admin` and the host/no-localhost assertion on the Sitemap line)
+- [ ] `https://<prod-domain>/sitemap.xml` — `<loc>` entries use the prod host; store URLs are `/stores/<id>`. — automated: `npm run smoke` (checks `<loc>`/`/stores/`/`/cards` presence and no-localhost leakage)
+- [ ] `/opengraph-image` returns a valid PNG; homepage `og:image` / canonical use the prod host. — automated: `npm run smoke` (checks 200 + `image/*` content-type; PNG-bytes/canonical-tag verification is still manual)
 - [ ] JSON-LD present (site-level + store breadcrumb) and emits absolute prod URLs.
 - [ ] Root cause to double-check: all of the above derive from `NEXT_PUBLIC_SITE_URL` (§1) — one wrong/missing value breaks every item here.
 
@@ -117,11 +117,11 @@ Verify each returns 200 with real content (spot-checked green 2026-07-09):
 ## 9. Security headers
 
 Applied to `/:path*` via `next.config.ts` — confirm present on a prod response:
-- [ ] `X-Content-Type-Options: nosniff`
-- [ ] `X-Frame-Options: DENY`
-- [ ] `Referrer-Policy: strict-origin-when-cross-origin`
-- [ ] `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-- [ ] `Strict-Transport-Security` (HSTS) is present in production — **injected by Vercel at the edge**, not by `next.config.ts` (verified on the live deployment: `max-age=63072000; includeSubDomains; preload`).
+- [ ] `X-Content-Type-Options: nosniff` — automated: `npm run smoke`
+- [ ] `X-Frame-Options: DENY` — automated: `npm run smoke`
+- [ ] `Referrer-Policy: strict-origin-when-cross-origin` — automated: `npm run smoke`
+- [ ] `Permissions-Policy: camera=(), microphone=(), geolocation=()` — automated: `npm run smoke`
+- [ ] `Strict-Transport-Security` (HSTS) is present in production — **injected by Vercel at the edge**, not by `next.config.ts` (verified on the live deployment: `max-age=63072000; includeSubDomains; preload`). — automated: `npm run smoke` (warns rather than fails when absent, since it's edge-injected and legitimately missing locally)
 - [ ] CSP is intentionally **not** set (documented decision) — do not add during launch without review.
 
 ---

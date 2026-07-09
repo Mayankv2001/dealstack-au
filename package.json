@@ -16,6 +16,7 @@
     "monitor:fixtures": "tsx scripts/monitor-fixtures.ts",
     "monitor:feeds": "tsx scripts/monitor-feeds.ts",
     "cleanup:old-deals": "tsx scripts/cleanup-old-deals.ts",
+    "smoke": "tsx scripts/smoke-routes.ts",
     "types:gen": "supabase gen types typescript --project-id numgsivlrglflsnqehac --schema public",
     "test:monitor": "vitest run tests/monitor",
     "test:stack": "vitest run tests/stack",
