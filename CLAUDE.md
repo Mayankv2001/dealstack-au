@@ -25,6 +25,8 @@ npm run seed:feed-items       # seed OzBargain feed items
 npm run seed:offer-changes    # seed offer change candidates
 npm run monitor:fixtures      # generate test fixtures
 npm run monitor:feeds         # run feed monitor locally
+npm run test:admin     # tests for admin rate-limit/db-fallback logic
+npm run cleanup:old-deals  # dry-run unpublish/expire pass (-- --write to apply)
 ```
 
 ## Architecture
@@ -90,4 +92,5 @@ Before every commit:
 2. `npm run build` — must pass
 3. `npm run test:monitor` — if monitor/feed/top-deals/ranking logic changed
 4. `npm run test:stack` — if stack/calculation logic changed
-5. `git status` — confirm only intended files are staged
+5. `npm run test:admin` — if admin action/rate-limit/fallback logic changed
+6. `git status` — confirm only intended files are staged

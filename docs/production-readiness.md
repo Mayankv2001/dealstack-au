@@ -25,6 +25,8 @@ supabase db push
 | 003 | `supabase/migrations/003_compliance_review.sql` | `compliance_reviews` (monitor gate) |
 | 004 | `supabase/migrations/004_offer_change_candidates.sql` | `offer_change_candidates` (offer mutation staging) |
 | 005 | `supabase/migrations/005_feed_item_homepage_hidden.sql` | `hidden_from_homepage` column on `feed_items` |
+| 006 | `supabase/migrations/006_admin_rate_limits.sql` | `admin_rate_limits` (per-admin mutation rate-limit ledger) |
+| 007 | `supabase/migrations/007_card_offers.sql` | `card_offers` (bank/credit-card offers shown on `/cards`) |
 
 **Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled.
 
@@ -46,6 +48,8 @@ ON CONFLICT (email) DO NOTHING;
 ```
 
 **Why:** `requireAdmin()` does a two-step check — valid session **and** email in the `admins` table. A valid login without an `admins` row still gets a 403.
+
+**Note:** Magic-link sign-in is configured with `shouldCreateUser: false`, so a **new** admin's Supabase Auth user must be created by hand (step 2a, above) *before* their first login attempt — adding the email to the `admins` table alone is not enough; the magic link will silently fail for an email with no pre-existing Auth user.
 
 ---
 
@@ -159,6 +163,8 @@ For each staged item:
 - **Mark duplicate** — moves item to `review_state = duplicate`. Nothing published.
 - **Hide from Top 5** — sets `hidden_from_homepage = true`. Item stays in the queue and remains importable, but will not appear in the public homepage Top 5 section.
 
+To narrow a long queue before acting, use the keyword **presets** to filter the visible list to specific merchants/deal types. **Ignore visible** then bulk-ignores every item currently matching the filter in one pass (capped per call) — it uses the same per-item `review_state = ignored` write as **Ignore**, so it never imports and never publishes. Import stays one-at-a-time; nothing is ever bulk-imported or auto-published.
+
 To make a pending signal **public**, navigate to **Signals** (`/admin/signals`) and approve it there.
 
 ---
@@ -224,7 +230,7 @@ vercel rollback
 
 ## 13. Pre-launch verification checklist
 
-- [ ] All 5 migrations applied and verified in Supabase Dashboard
+- [ ] All 7 migrations applied and verified in Supabase Dashboard
 - [ ] Admin user created and email inserted into `admins` table
 - [ ] All required Vercel env vars set (no placeholder values)
 - [ ] `npm run build` passes locally with production env vars
@@ -239,3 +245,5 @@ vercel rollback
 - [ ] Feed source enabled at `/admin/signals/sources`
 - [ ] First cron run verified at `/admin/monitor → Recent fetch runs`
 - [ ] Queue items reviewed at `/admin/signals/queue`
+- [ ] Card offers verified and published at `/admin/card-offers`
+- [ ] `/cards` renders published offers

@@ -1,5 +1,12 @@
 # DealStack AU — Architecture Review
 
+> **Status note (2026-07-07):** written 2026-06-25, kept as a historical
+> record. Since then: migrations 006 (`admin_rate_limits`) and 007
+> (`card_offers`) shipped and are applied to production, so the "Key tables"
+> list and the "`001` → `005`" migration checklist item below describe the
+> 2026-06-25 state, not the current 7-migration schema. The runtime boundary
+> map and safety-model findings elsewhere in this review are unaffected.
+>
 > Senior-review pass conducted on 2026-06-25.
 > Covers safety boundaries, data flow, known risks, and recommended improvements.
 > No production code was changed as part of this review.

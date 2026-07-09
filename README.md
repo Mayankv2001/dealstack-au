@@ -11,11 +11,14 @@ A deal-stacking platform for Australian shoppers that combines cashback portals,
 - **Deals directory** — Browse and filter curated deals with AUD pricing
 - **Store pages** — Per-store cashback, gift-card, and points stacking details
 - **Search** — Live cross-entity search across deals and stores
+- **Card offers** — compare bank & credit-card sign-up offers at /cards (manually verified, admin-published)
 
 ### Admin Portal (`/admin`)
-- **Feed queue** — Review staged OzBargain feed items; import, ignore, or mark duplicates one at a time; no bulk auto-import
+- **Feed queue** — Review staged OzBargain feed items; import is one-at-a-time and nothing is ever bulk-imported or auto-published; a scoped bulk **ignore** exists for keyword-filtered items
 - **Offer changes** — Review detected cashback/gift-card rate changes before applying; full audit trail
 - **Top 5 visibility** — Control which signals appear on the homepage (hidden_from_homepage flag per item)
+- **Card offers CRUD** — Create, edit, publish/unpublish bank & credit-card offers shown at `/cards`
+- **Admin rate limiting** — A per-admin mutation budget (rolling window, backed by a Postgres ledger) throttles admin Server Actions so a runaway script or fat-fingered bulk action can't hammer the database
 - **Compliance controls** — Compliance review gate that must be on file before feed monitoring activates
 - **Audit log** — Append-only log of every admin action
 - **Data quality report** — Surface missing rates, stale data, and coverage gaps
@@ -71,12 +74,14 @@ npm run dev
 npm run seed               # base stores/deals
 npm run seed:feed-items    # sample OzBargain feed items
 npm run seed:offer-changes # sample offer change candidates
+npm run cleanup:old-deals  # dry-run expiry cleanup (add -- --write to apply)
 ```
 
 ### Tests
 ```bash
 npm run test:monitor   # monitor/feed/ranking logic
 npm run test:stack     # deal-stacking calculations
+npm run test:admin     # admin rate-limit & DB-fallback logic
 npm run lint           # ESLint
 npm run build          # production build
 ```

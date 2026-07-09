@@ -1,5 +1,14 @@
 # DealStack AU — Final Senior Review
 
+> **Status note (2026-07-07):** written 2026-06-25, kept as a historical
+> record. Since then: migrations 006 (admin rate limits) and 007
+> (card_offers) shipped and are applied to production — "Next 5
+> Improvements" item 3 (admin action rate limiting) is done; the `/cards`
+> public page and card-offers admin CRUD shipped; the test suite has grown
+> past the 145 tests counted here; `npm run test:admin` and
+> `npm run cleanup:old-deals` now exist. Figures and file lists below
+> describe the 2026-06-25 state.
+
 > Review conducted: 2026-06-25.
 > This is a no-code review. No production logic was changed.
 
