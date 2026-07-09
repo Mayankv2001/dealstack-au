@@ -119,8 +119,8 @@ export function giftCardCashbackConflictWarning(
 }
 
 /**
- * Cap-reached check. Placeholder for Phase 1A: the dollar value applied to a
- * capped layer should never exceed its cap. Returns a warning when it would.
+ * Gift-card (spend) cap check: `capDollars` caps the ELIGIBLE SPEND the
+ * discount applies to. Fires when the checkout price exceeds that cap.
  */
 export function capReachedWarning(
   capDollars: number | null,
@@ -132,6 +132,21 @@ export function capReachedWarning(
   return {
     level: "caution",
     code: "cap-reached",
-    message: `${label} is capped at $${capDollars} — savings above the cap do not apply.`,
+    message: `${label} only applies to the first $${capDollars} of spend — savings above that do not apply.`,
+  };
+}
+
+/** Cashback cap: fires when the UNCAPPED saving exceeds the dollar cap. */
+export function cashbackCapReachedWarning(
+  capDollars: number | null,
+  rawSavingDollars: number,
+  label: string
+): StackWarning | null {
+  if (capDollars === null) return null;
+  if (rawSavingDollars <= capDollars) return null;
+  return {
+    level: "caution",
+    code: "cap-reached",
+    message: `${label} is capped at $${capDollars} — cashback above the cap does not accrue.`,
   };
 }

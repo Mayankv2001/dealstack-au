@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   capReachedWarning,
+  cashbackCapReachedWarning,
   cashbackConflictsWithGiftCard,
   expirySoonWarning,
   giftCardCashbackConflictWarning,
@@ -146,6 +147,22 @@ describe("capReachedWarning", () => {
 
   it("warns once the applied amount exceeds the cap", () => {
     const w = capReachedWarning(50, 51, "The offer");
+    expect(w?.code).toBe("cap-reached");
+    expect(w?.level).toBe("caution");
+  });
+});
+
+describe("cashbackCapReachedWarning", () => {
+  it("returns null for an uncapped offer", () => {
+    expect(cashbackCapReachedWarning(null, 1000, "X")).toBeNull();
+  });
+
+  it("returns null when the raw saving is within the cap", () => {
+    expect(cashbackCapReachedWarning(50, 50, "X")).toBeNull();
+  });
+
+  it("warns once the raw saving exceeds the cap", () => {
+    const w = cashbackCapReachedWarning(50, 51, "The offer");
     expect(w?.code).toBe("cap-reached");
     expect(w?.level).toBe("caution");
   });

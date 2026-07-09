@@ -212,7 +212,7 @@ export function GiftCardForm({
             <Field
               label="Cap ($)"
               htmlFor="cap_dollars"
-              hint="Optional per-offer / per-transaction cap."
+              hint="Maximum spend the discount applies to per order (e.g. enter 500 for 'up to $500 of gift cards'). Leave blank when uncapped."
             >
               <Input
                 id="cap_dollars"

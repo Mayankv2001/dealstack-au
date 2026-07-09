@@ -50,7 +50,7 @@ export interface GiftCardOffer {
   acceptedAtMerchantIds: string[];
   /** Points earned for buying the card itself (a key stacking trick), if any. */
   pointsOnPurchase: { program: string; earnNote: string } | null;
-  /** Per-transaction or per-offer dollar cap, null if uncapped/unknown. */
+  /** Max SPEND the discount applies to per order/transaction (e.g. "up to $500 of gift cards"); null = uncapped. */
   capDollars: number | null;
   expiryDate: string | null;
   startDate: string | null;
@@ -79,6 +79,7 @@ export interface CashbackOffer {
   provider: CashbackProvider;
   ratePercent: number;
   flatAmount: number | null;
+  /** Max cashback DOLLARS for one transaction (e.g. "capped at $30"); null = uncapped. */
   capDollars: number | null;
   /** Limited-time boosted rate — flagged in the UI later. */
   isUpsized: boolean;

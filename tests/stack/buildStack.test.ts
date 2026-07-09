@@ -153,13 +153,33 @@ describe("buildStackRecommendations", () => {
     expect(earlyCodes).not.toContain("stale-data");
   });
 
-  // CHARACTERIZATION TEST — documents CURRENT cap behavior, not necessarily the
-  // intended one. `cappedSaving` computes min(base, cap) * pct, i.e. it treats
-  // capDollars as a cap on the ELIGIBLE SPEND, while the admin form labels the
-  // field as a "cashback cap" (a cap on the saving dollars). This mismatch is
-  // flagged for a product decision; update this test if/when the semantics are
-  // fixed.
-  it("currently treats capDollars as an eligible-spend cap", () => {
+  // ─── Cap semantics: cashback caps the SAVING, gift-card caps the SPEND ───
+
+  it("cashback cap binds: saving is capped at capDollars, not min(spend,cap)*pct", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 0 })],
+      cashbackOffers: [makeCashback({ ratePercent: 10, capDollars: 25 })],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const cashback = rec.components.find((c) => c.layer === "cashback");
+    // raw = 500 * 10% = 50, capped at $25 (not min(500,25)*10% = 2.50).
+    expect(cashback?.valueDollars).toBe(25);
+    expect(rec.effectivePrice).toBe(475);
+    expect(rec.warnings.some((w) => w.code === "cap-reached")).toBe(true);
+  });
+
+  it("cashback cap with slack: raw saving under the cap, no warning", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 0 })],
+      cashbackOffers: [makeCashback({ ratePercent: 10, capDollars: 100 })],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const cashback = rec.components.find((c) => c.layer === "cashback");
+    expect(cashback?.valueDollars).toBe(50);
+    expect(rec.warnings.some((w) => w.code === "cap-reached")).toBe(false);
+  });
+
+  it("gift-card spend cap (behaviour preserved): caps the eligible spend, not the saving", () => {
     const data = makeStackData({
       stores: [makeStore({ id: "myer", discountPercent: 0 })],
       giftCardOffers: [
@@ -172,8 +192,33 @@ describe("buildStackRecommendations", () => {
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     const giftCard = rec.components.find((c) => c.layer === "gift-card");
-    // min(500, 200) * 10% = 20  (a "max $200 saving" reading would give $50).
+    // min(500, 200) * 10% = 20 — unchanged from before this fix.
     expect(giftCard?.valueDollars).toBe(20);
     expect(rec.warnings.some((w) => w.code === "cap-reached")).toBe(true);
+  });
+
+  it("conflict resolution uses the corrected numbers: a capped cashback now competes on its true value", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 0 })],
+      giftCardOffers: [
+        makeGiftCard({ discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
+      ],
+      cashbackOffers: [
+        makeCashback({
+          ratePercent: 10,
+          capDollars: 30,
+          excludesGiftCardPayment: true,
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const giftCard = rec.components.find((c) => c.layer === "gift-card");
+    const cashback = rec.components.find((c) => c.layer === "cashback");
+    // Gift card: 5% uncapped = $25. Cashback: raw 10% = $50, capped at $30.
+    // Under the old (pre-fix) maths cashback would have been min(500,30)*10% = $3
+    // and lost to the gift card's $25 — this is the regression tripwire.
+    expect(giftCard?.optional).toBe(true);
+    expect(cashback?.optional).toBe(false);
+    expect(rec.effectivePrice).toBe(470); // only the $30 cashback is deducted
   });
 });

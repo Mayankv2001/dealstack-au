@@ -229,7 +229,7 @@ export function CashbackForm({
             <Field
               label="Cap ($)"
               htmlFor="cap_dollars"
-              hint="Optional per-offer cashback cap."
+              hint="Maximum cashback dollars for one transaction (e.g. enter 30 for 'capped at $30 cashback'). Leave blank when uncapped."
             >
               <Input
                 id="cap_dollars"
