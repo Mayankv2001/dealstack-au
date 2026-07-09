@@ -18,6 +18,7 @@ import type {
 } from "@/lib/offers/types";
 import {
   capReachedWarning,
+  cashbackCapReachedWarning,
   expirySoonWarning,
   giftCardCashbackConflictWarning,
   needsVerificationWarning,
@@ -109,14 +110,24 @@ function bestPoints(
   );
 }
 
-/** Dollar saving from a percentage layer, limited by an optional dollar cap. */
-function cappedSaving(
+/** Gift-card layer: capDollars caps the ELIGIBLE SPEND ("up to $X per order"). */
+function spendCappedSaving(
+  base: number,
+  percent: number,
+  capDollars: number | null
+): number {
+  const eligible = capDollars === null ? base : Math.min(base, capDollars);
+  return eligible * (percent / 100);
+}
+
+/** Cashback layer: capDollars caps the SAVING ITSELF ("capped at $X cashback"). */
+function dollarCappedSaving(
   base: number,
   percent: number,
   capDollars: number | null
 ): number {
   const raw = base * (percent / 100);
-  return capDollars === null ? raw : Math.min(raw, capDollars * (percent / 100));
+  return capDollars === null ? raw : Math.min(raw, capDollars);
 }
 
 /**
@@ -167,10 +178,10 @@ function buildForStore(
   const cashback = bestCashback(data.cashbackOffers, store.id);
 
   const giftCardSaving = giftCard
-    ? round(cappedSaving(checkoutPrice, giftCard.discountPercent, giftCard.capDollars))
+    ? round(spendCappedSaving(checkoutPrice, giftCard.discountPercent, giftCard.capDollars))
     : 0;
   const cashbackSaving = cashback
-    ? round(cappedSaving(checkoutPrice, cashback.ratePercent, cashback.capDollars))
+    ? round(dollarCappedSaving(checkoutPrice, cashback.ratePercent, cashback.capDollars))
     : 0;
 
   // If both exist and cashback excludes gift card payment, keep the larger.
@@ -269,6 +280,12 @@ function buildForStore(
       `The ${cashback.provider} cashback offer`
     );
     if (cbVerify) warnings.push(cbVerify);
+    const cbCap = cashbackCapReachedWarning(
+      cashback.capDollars,
+      checkoutPrice * (cashback.ratePercent / 100), // raw, UNCAPPED saving
+      `The ${cashback.provider} cashback offer`
+    );
+    if (cbCap) warnings.push(cbCap);
   } else if (cashback) {
     components.push({
       layer: "cashback",
