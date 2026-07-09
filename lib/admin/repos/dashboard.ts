@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import type { DbClient } from "@/lib/supabase/server";
+import type { DbClient, PublicTable } from "@/lib/supabase/server";
 import { weekMondayAU } from "@/lib/admin/dateHelpers";
 
 /**
@@ -41,7 +41,7 @@ export interface DashboardCounts {
 }
 
 /** Exact total row count for a table (no rows transferred). */
-async function countAll(db: DbClient, table: string): Promise<number> {
+async function countAll(db: DbClient, table: PublicTable): Promise<number> {
   const { count, error } = await db
     .from(table)
     .select("*", { count: "exact", head: true });
@@ -52,7 +52,7 @@ async function countAll(db: DbClient, table: string): Promise<number> {
 /** Exact row count for a table filtered to a single column value. */
 async function countWhere(
   db: DbClient,
-  table: string,
+  table: PublicTable,
   column: string,
   value: string | boolean
 ): Promise<number> {
@@ -69,7 +69,7 @@ async function countWhere(
 /** Builds a {total, published, unpublished} triple for an is_published table. */
 async function publishCount(
   db: DbClient,
-  table: string
+  table: PublicTable
 ): Promise<PublishCount> {
   const [total, published] = await Promise.all([
     countAll(db, table),
@@ -166,7 +166,7 @@ function embeddedStoreName(
 /** Shared query: newest-edited rows for one table (only the columns we need). */
 async function queryRecent<R>(
   db: DbClient,
-  table: string,
+  table: PublicTable,
   select: string,
   limit: number
 ): Promise<R[]> {

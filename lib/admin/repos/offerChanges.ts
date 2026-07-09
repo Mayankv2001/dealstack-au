@@ -404,7 +404,10 @@ export async function applyOfferChange(
   }
   const { error: offerErr } = await db
     .from(plan.table)
-    .update(offerUpdate)
+    // plan.table/plan.column span 4 different offer tables' Update shapes; the
+    // typed client can't express "one dynamic column on one of these 4 tables"
+    // as a static type, so this one write site is a deliberate escape hatch.
+    .update(offerUpdate as never)
     .eq("id", plan.id);
   if (offerErr) {
     // Release the claim (best-effort) so the candidate stays actionable.

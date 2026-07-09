@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { toNumberOrNull } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
 import type { PointsOffer } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
 
@@ -111,7 +112,7 @@ function toRow(input: PointsOfferInput) {
     point_value_cents: input.pointValueCents,
     mechanism: input.mechanism,
     expiry_date: input.expiryDate,
-    citations: input.citations,
+    citations: input.citations as unknown as Json,
     confidence: input.confidence,
     is_published: input.isPublished,
     // The admin is hand-verifying the data on every save, so stamp it now.

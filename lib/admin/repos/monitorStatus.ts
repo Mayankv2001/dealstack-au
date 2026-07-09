@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { PublicTable } from "@/lib/supabase/server";
 import { cronSecret } from "@/lib/env";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
 
@@ -89,7 +90,7 @@ type AdminDb = ReturnType<typeof getSupabaseAdmin>;
 
 async function countRows(
   db: AdminDb,
-  table: string,
+  table: PublicTable,
   filter?: { column: string; value: string | boolean }
 ): Promise<number> {
   let query = db.from(table).select("*", { count: "exact", head: true });

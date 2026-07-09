@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { supabaseAnonKey, supabaseUrl } from "@/lib/env";
-import type { LooseDB } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * Per-request Supabase client bound to the request cookies — for AUTH only.
@@ -18,7 +18,7 @@ import type { LooseDB } from "@/lib/supabase/server";
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
-  return createServerClient<LooseDB>(supabaseUrl(), supabaseAnonKey(), {
+  return createServerClient<Database>(supabaseUrl(), supabaseAnonKey(), {
     cookies: {
       getAll() {
         return cookieStore.getAll();

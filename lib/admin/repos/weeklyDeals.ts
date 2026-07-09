@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 import type { WeeklyDeal, WeeklyHighlight } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
 
@@ -114,7 +115,7 @@ function toRow(input: WeeklyDealInput) {
     summary: input.summary,
     highlight: input.highlight,
     component_ids: input.componentIds,
-    citations: input.citations,
+    citations: input.citations as unknown as Json,
     expiry_date: input.expiryDate,
     confidence: input.confidence,
     is_published: input.isPublished,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { toNumber, toNumberOrNull } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
 import type { GiftCardOffer } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
 
@@ -137,7 +138,7 @@ function toRow(input: GiftCardOfferInput) {
     channel: input.channel,
     source: input.source,
     accepted_at_merchant_ids: input.acceptedAtMerchantIds,
-    points_on_purchase: input.pointsOnPurchase,
+    points_on_purchase: input.pointsOnPurchase as Json | null,
     cap_dollars: input.capDollars,
     start_date: input.startDate,
     expiry_date: input.expiryDate,
@@ -148,7 +149,7 @@ function toRow(input: GiftCardOfferInput) {
     usage_notes: input.usageNotes,
     stack_notes: input.stackNotes,
     source_detail_url: input.sourceDetailUrl,
-    citations: input.citations,
+    citations: input.citations as unknown as Json,
     confidence: input.confidence,
     is_published: input.isPublished,
     // The admin is hand-verifying the data on every save, so stamp it now.

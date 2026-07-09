@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { TablesUpdate } from "@/lib/supabase/database.types";
 import {
   APPROVED_FEED_SOURCE_TYPES,
   FEED_SOURCE_TYPES,
@@ -305,7 +306,7 @@ export async function recordFeedPollState(
   feedSourceId: string,
   patch: FeedPollStatePatch
 ): Promise<void> {
-  const update: Record<string, unknown> = {};
+  const update: TablesUpdate<"feed_sources"> = {};
   if ("etag" in patch) update.etag = patch.etag;
   if ("lastModified" in patch) update.last_modified = patch.lastModified;
   if ("lastFetchedAt" in patch) update.last_fetched_at = patch.lastFetchedAt;

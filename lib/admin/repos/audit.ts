@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 
 /**
  * Admin audit log — SERVICE-ROLE ONLY.
@@ -70,7 +71,7 @@ export async function logAudit(event: AuditEvent): Promise<void> {
       action: event.action,
       table_name: event.tableName,
       row_id: event.rowId ?? null,
-      diff: event.diff ?? null,
+      diff: (event.diff ?? null) as Json,
     });
     if (error) {
       console.warn(`[audit] write failed: ${error.message}`);

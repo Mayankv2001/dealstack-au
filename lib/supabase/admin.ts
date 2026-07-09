@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { supabaseServiceRoleKey, supabaseUrl } from "@/lib/env";
-import type { DbClient, LooseDB } from "@/lib/supabase/server";
+import type { DbClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * Service-role Supabase client for ADMIN writes and privileged reads.
@@ -27,7 +28,7 @@ export function getSupabaseAdmin(): DbClient {
     );
   }
   if (!cached) {
-    cached = createClient<LooseDB>(supabaseUrl(), supabaseServiceRoleKey(), {
+    cached = createClient<Database>(supabaseUrl(), supabaseServiceRoleKey(), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }

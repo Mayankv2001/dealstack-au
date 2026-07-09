@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { toNumber } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
 import type { CashbackProvider, StoreLogoTheme } from "@/lib/data";
 
 /**
@@ -161,7 +162,7 @@ function toRow(input: StoreInput) {
     logo_path: input.logoPath,
     logo_text: input.logoText,
     logo_subtext: input.logoSubtext,
-    logo_theme: input.logoTheme,
+    logo_theme: input.logoTheme as Json | null,
     discount_percent: input.discountPercent,
     discount_code: input.discountCode,
     expiry_date: input.expiryDate,

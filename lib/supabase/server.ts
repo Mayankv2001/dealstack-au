@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "@/lib/env";
+import type { Database } from "@/lib/supabase/database.types";
 
 /**
  * Server-side Supabase access for PUBLIC reads.
@@ -9,23 +10,10 @@ import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "@/lib/env";
  * service-role key here (that stays in scripts/admin actions).
  */
 
-// Permissive schema so dynamic table names type-check without generated types.
-// Exported so the service-role (./admin.ts) and SSR auth (./ssr.ts) clients
-// share one loose schema type — no behaviour change to public reads here.
-type Row = Record<string, unknown>;
-export type LooseDB = {
-  public: {
-    Tables: Record<
-      string,
-      { Row: Row; Insert: Row; Update: Row; Relationships: [] }
-    >;
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
-  };
-};
-export type DbClient = SupabaseClient<LooseDB>;
+export type DbClient = SupabaseClient<Database>;
+
+/** Every public table name — lets helpers take a table name as a plain string param. */
+export type PublicTable = keyof Database["public"]["Tables"] & string;
 
 let cached: DbClient | null = null;
 
@@ -33,7 +21,7 @@ let cached: DbClient | null = null;
 export function getSupabaseServer(): DbClient | null {
   if (!hasSupabaseEnv()) return null;
   if (!cached) {
-    cached = createClient<LooseDB>(supabaseUrl(), supabaseAnonKey(), {
+    cached = createClient<Database>(supabaseUrl(), supabaseAnonKey(), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }
