@@ -69,7 +69,8 @@ function signalMatchesQuery(signal: OzBargainSignal, query: string): boolean {
 /** Build Smart Stack results from an injected data bundle (testable, pure). */
 export function buildSmartStackResults(
   query: string,
-  data: StackData
+  data: StackData,
+  now: Date = new Date()
 ): SmartStackResult[] {
   const q = query.trim();
   if (!q) return [];
@@ -87,7 +88,8 @@ export function buildSmartStackResults(
     if (merchantId) {
       const spend = signalPrice ?? DEFAULT_SPEND;
       // Engine resolves merchantId → that single store; empty when no layer.
-      recommendation = buildStackRecommendations(merchantId, spend, data)[0] ?? null;
+      recommendation =
+        buildStackRecommendations(merchantId, spend, data, now)[0] ?? null;
     }
     return { signal, recommendation, signalPrice };
   });

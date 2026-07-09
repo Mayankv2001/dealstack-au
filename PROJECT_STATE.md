@@ -118,7 +118,7 @@ npm run cleanup:old-deals
 
 ## 10. Known Issues / Risks
 
-- **`tests/stack/buildStack.test.ts` — stale-fixture failure since ~2026-07-04.** Clock-triggered: fixtures reference dates that have since expired, so an expiry filter drops them. Pre-existing, **not caused by new work**. Don't treat as a regression from your change; verify by checking if it fails on a clean `main`.
+- **`tests/stack/buildStack.test.ts` — stale-fixture failure (RESOLVED).** The stack engine now takes an injectable `now` clock (`buildStackRecommendations(input, spend, data, now)`, default `new Date()`); the stack tests pass a fixed `TEST_NOW` (see `tests/stack/factories.ts`), so time-based expiry/stale warnings no longer drift as the real clock advances.
 - **Preview server (Node/Turbopack):** `preview_start` running `next dev` needs a zsh `-c` PATH-prefix to Node 20 or Turbopack workers panic. After a panicked run, `rm -rf .next/dev` — the cache stays poisoned otherwise.
 - **Prod migration drift:** Some migrations were applied by hand and are untracked. Migration 005 (`hidden_from_homepage`) was found NOT applied to prod on 2026-07-08. **Verify prod schema via `information_schema.columns`, not just table existence.**
 - **Seed signals gotcha:** Full `npm run seed` fails on `ozbargain_signals` (source_native_id unique constraint + diverged prod data). Insert new signals **individually**, not via full seed.

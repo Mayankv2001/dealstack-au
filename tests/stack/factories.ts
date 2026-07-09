@@ -15,6 +15,18 @@ import type { StackData } from "@/lib/stack/buildStack";
  * imports are type-only, so this module pulls in no runtime `@/` code.
  */
 
+/**
+ * Deterministic "now" for the stack engine tests.
+ *
+ * The stack engine flags offers as stale/expiring relative to a clock. Passing
+ * this fixed Date (rather than letting the engine call `new Date()`) keeps the
+ * fixtures' `lastCheckedAt` / `expiryDate` at a constant offset from "now", so
+ * warning assertions never drift as real wall-clock time passes. It sits a few
+ * days after the default fixture `lastCheckedAt` (2026-06-12) and well within
+ * STALE_DATA_DAYS, so unmodified fixtures produce no stale-data warning.
+ */
+export const TEST_NOW = new Date("2026-06-15T00:00:00+10:00");
+
 export function makeStore(over: Partial<Store> = {}): Store {
   return {
     id: "myer",

@@ -164,4 +164,4 @@ npm run test:monitor   # if monitor/feed/ranking logic changed
 npm run test:stack     # if stack/calculation logic changed
 npm run test:admin     # if admin action/rate-limit/fallback logic changed
 ```
-> Known pre-existing test debt: `tests/stack/buildStack.test.ts` has one clock-triggered stale-fixture failure (hard-coded `lastCheckedAt: 2026-06-12` vs real-clock `STALE_DATA_DAYS`), not a product bug — do not treat it as a launch blocker.
+> Resolved: the former clock-triggered stale-fixture failure in `tests/stack/buildStack.test.ts` is fixed — the stack engine now accepts an injectable `now` clock and the tests pass a fixed `TEST_NOW`, so `npm run test:stack` is deterministic regardless of the real date.
