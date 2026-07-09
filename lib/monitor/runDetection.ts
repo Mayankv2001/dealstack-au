@@ -55,6 +55,8 @@ export interface DetectionSummary {
   deduped: number;
   /** Rows actually inserted (0 on a dry run). */
   inserted: number;
+  /** Present ONLY when includeCandidates was set — the deduped would-be inserts. */
+  candidates?: OfferChangeCandidateInsert[];
 }
 
 export interface DetectionOptions {
@@ -62,6 +64,9 @@ export interface DetectionOptions {
   sinceIso: string;
   /** When true, report counts but insert nothing. */
   dryRun: boolean;
+  /** When true, the summary carries the deduped would-be inserts. Leave unset
+   *  on the cron path — raw titles must not enter the route JSON. */
+  includeCandidates?: boolean;
 }
 
 /** Hard cap on items scanned per run — see edge case 7 (bound the scan window). */
@@ -127,5 +132,6 @@ export async function runDetection(
     detected: detected.length,
     deduped: deduped.length,
     inserted,
+    ...(opts.includeCandidates ? { candidates: deduped } : {}),
   };
 }

@@ -8,6 +8,8 @@ import {
   applyOfferChange,
   setOfferChangeReviewState,
 } from "@/lib/admin/repos/offerChanges";
+import { ozbOfferDetectEnabled } from "@/lib/env";
+import type { OfferChangeCandidateInsert } from "@/lib/monitor/offerChanges";
 
 /**
  * Offer-change review server actions.
@@ -92,6 +94,52 @@ export async function ignoreOfferChangeAction(
       error:
         err instanceof Error ? err.message : "Could not ignore this change.",
     };
+  }
+}
+
+export type DetectionPreviewResult =
+  | {
+      ok: true;
+      flagEnabled: boolean;
+      scanned: number;
+      detected: number;
+      deduped: number;
+      candidates: OfferChangeCandidateInsert[];
+    }
+  | { error: string };
+
+/**
+ * Read-only preview of what detection WOULD stage — for reviewing precision
+ * before flipping OZB_OFFER_DETECT_ENABLED. Deliberately does NOT gate on the
+ * flag (the flag gates the write hooks; this exists precisely for pre-enable
+ * review) and does NOT consume the admin rate limiter (that budget is for
+ * mutations — a read here must never starve real Apply/Ignore actions; the
+ * client debounces instead via a pending transition). Nothing is written and
+ * nothing is logged, since nothing changed.
+ */
+export async function previewDetectionAction(): Promise<DetectionPreviewResult> {
+  await requireAdmin();
+  try {
+    const { runDetection } = await import("@/lib/monitor/runDetection");
+    const { createDetectionPersistence } = await import(
+      "@/lib/admin/repos/offerChanges"
+    );
+    const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const summary = await runDetection(createDetectionPersistence(), {
+      sinceIso,
+      dryRun: true,
+      includeCandidates: true,
+    });
+    return {
+      ok: true,
+      flagEnabled: ozbOfferDetectEnabled(),
+      scanned: summary.scanned,
+      detected: summary.detected,
+      deduped: summary.deduped,
+      candidates: summary.candidates ?? [],
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Preview failed." };
   }
 }
 
