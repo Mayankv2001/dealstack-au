@@ -121,7 +121,8 @@ Applied to `/:path*` via `next.config.ts` — confirm present on a prod response
 - [ ] `X-Frame-Options: DENY`
 - [ ] `Referrer-Policy: strict-origin-when-cross-origin`
 - [ ] `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-- [ ] CSP and HSTS are intentionally **not** set (documented decision) — do not add during launch without review.
+- [ ] `Strict-Transport-Security` (HSTS) is present in production — **injected by Vercel at the edge**, not by `next.config.ts` (verified on the live deployment: `max-age=63072000; includeSubDomains; preload`).
+- [ ] CSP is intentionally **not** set (documented decision) — do not add during launch without review.
 
 ---
 
