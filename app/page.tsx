@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import HomeClient from "@/components/HomeClient";
+import { JsonLd } from "@/components/JsonLd";
+import { siteUrl } from "@/lib/env";
 import { getStores } from "@/lib/repos";
 import { getTopDeals } from "@/lib/repos/topDeals";
+import {
+  buildOrganizationJsonLd,
+  buildWebSiteJsonLd,
+} from "@/lib/structuredData";
 
 export const metadata: Metadata = {
   title: "DealStack AU — Stack cashback, gift cards & points at Australian stores",
@@ -24,5 +30,14 @@ export default async function Home() {
   // Both reads fall back gracefully (stores → static; top deals → []), so the
   // homepage always renders even without Supabase configured.
   const [stores, topDeals] = await Promise.all([getStores(), getTopDeals()]);
-  return <HomeClient stores={stores} topDeals={topDeals} />;
+  // Site-level JSON-LD alongside (not inside) the client island — server
+  // components render script tags fine, and this keeps HomeClient untouched.
+  const site = siteUrl();
+  return (
+    <>
+      <JsonLd data={buildWebSiteJsonLd(site)} />
+      <JsonLd data={buildOrganizationJsonLd(site)} />
+      <HomeClient stores={stores} topDeals={topDeals} />
+    </>
+  );
 }

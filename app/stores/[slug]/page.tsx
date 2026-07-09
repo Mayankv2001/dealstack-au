@@ -20,14 +20,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import DealStackCalculator from "@/components/DealStackCalculator";
+import { JsonLd } from "@/components/JsonLd";
 import Logo from "@/components/Logo";
 import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
 import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, stores as staticStores, type Store } from "@/lib/data";
+import { siteUrl } from "@/lib/env";
 import { getStores } from "@/lib/repos";
 import { storeSourceResults } from "@/lib/repos/sourceResults";
+import { buildStoreBreadcrumbJsonLd } from "@/lib/structuredData";
 import { cn } from "@/lib/utils";
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
@@ -179,7 +182,11 @@ export default async function StorePage({
   ];
 
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
+    <>
+      {/* Breadcrumb JSON-LD (Home → store). Only rendered for a real store —
+          this is after the notFound() guard — so it never describes a 404. */}
+      <JsonLd data={buildStoreBreadcrumbJsonLd(siteUrl(), store)} />
+      <div className="min-h-screen bg-emerald-500/[0.04]">
       <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
@@ -398,6 +405,7 @@ export default async function StorePage({
           any retailer or rewards program listed.
         </p>
       </main>
-    </div>
+      </div>
+    </>
   );
 }
