@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildStackRecommendations } from "../../lib/stack/buildStack";
 import {
+  TEST_NOW,
   makeCashback,
   makeGiftCard,
   makePoints,
@@ -20,7 +21,7 @@ describe("buildStackRecommendations", () => {
         makeCashback({ ratePercent: 4, excludesGiftCardPayment: false }),
       ],
     });
-    const [rec] = buildStackRecommendations(undefined, 500, data);
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     // 500 → gift card 5% (25) → cashback 4% (20) → 455 out of pocket.
     expect(rec.effectivePrice).toBe(455);
     expect(rec.totalSaving).toBe(45);
@@ -34,7 +35,7 @@ describe("buildStackRecommendations", () => {
     const data = makeStackData({
       stores: [makeStore({ discountPercent: 10, discountCode: "SAVE10" })],
     });
-    const [rec] = buildStackRecommendations(undefined, 500, data);
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     expect(rec.effectivePrice).toBe(450); // 500 - 10%
     expect(rec.totalSaving).toBe(50);
     expect(rec.components[0].layer).toBe("discount");
@@ -52,7 +53,7 @@ describe("buildStackRecommendations", () => {
         makeCashback({ ratePercent: 4, excludesGiftCardPayment: true }),
       ],
     });
-    const [rec] = buildStackRecommendations(undefined, 500, data);
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     const giftCard = rec.components.find((c) => c.layer === "gift-card");
     const cashback = rec.components.find((c) => c.layer === "cashback");
     // Gift card (5% = $25) beats cashback (4% = $20): gift card kept, cashback optional.
@@ -69,7 +70,7 @@ describe("buildStackRecommendations", () => {
     const data = makeStackData({
       stores: [makeStore({ id: "empty", discountPercent: 0 })],
     });
-    expect(buildStackRecommendations(undefined, 500, data)).toEqual([]);
+    expect(buildStackRecommendations(undefined, 500, data, TEST_NOW)).toEqual([]);
   });
 
   it("filters to a single store when the input resolves to a merchant id", () => {
@@ -79,7 +80,7 @@ describe("buildStackRecommendations", () => {
         makeStore({ id: "coles", name: "Coles", discountPercent: 5, discountCode: "C" }),
       ],
     });
-    const recs = buildStackRecommendations("coles", 500, data);
+    const recs = buildStackRecommendations("coles", 500, data, TEST_NOW);
     expect(recs).toHaveLength(1);
     expect(recs[0].merchantId).toBe("coles");
   });
@@ -91,7 +92,7 @@ describe("buildStackRecommendations", () => {
         makeStore({ id: "myer", discountPercent: 10, discountCode: "M" }),
       ],
     });
-    const recs = buildStackRecommendations(undefined, 500, data);
+    const recs = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     expect(recs.map((r) => r.merchantId)).toEqual(["myer", "coles"]);
   });
 
@@ -102,7 +103,7 @@ describe("buildStackRecommendations", () => {
         makePoints({ earnMultiple: 2, pointValueCents: 1, merchantId: "myer" }),
       ],
     });
-    const [rec] = buildStackRecommendations(undefined, 500, data);
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     expect(rec.pointsEarned).toBe(1000); // 500 * 2
     expect(rec.pointsValueDollars).toBe(10); // 1000 points * 1c
     expect(rec.effectivePrice).toBe(500); // points are NOT subtracted
@@ -117,11 +118,39 @@ describe("buildStackRecommendations", () => {
         makeSignal({ merchantId: "myer", sourceUrl: "https://example.com/s1" }),
       ],
     });
-    const [rec] = buildStackRecommendations(undefined, 500, data);
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     expect(rec.citations).toContainEqual({
       source: "ozbargain",
       sourceUrl: "https://example.com/s1",
     });
+  });
+
+  it("drives expiry-soon and stale-data warnings off the injected clock", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 0 })],
+      giftCardOffers: [
+        makeGiftCard({
+          discountPercent: 5,
+          acceptedAtMerchantIds: ["myer"],
+          // 45 days before TEST_NOW (> STALE_DATA_DAYS) → stale at TEST_NOW.
+          lastCheckedAt: "2026-05-01T00:00:00+10:00",
+          // 3 days after TEST_NOW (< EXPIRY_SOON_DAYS) → expiry-soon at TEST_NOW.
+          expiryDate: "2026-06-18",
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const codes = rec.warnings.map((w) => w.code);
+    expect(codes).toContain("expiry-soon");
+    expect(codes).toContain("stale-data");
+
+    // Same fixtures, a clock inside both thresholds → neither warning fires.
+    // 14 days after lastCheckedAt (not yet stale); 34 days before expiry.
+    const early = new Date("2026-05-15T00:00:00+10:00");
+    const [recEarly] = buildStackRecommendations(undefined, 500, data, early);
+    const earlyCodes = recEarly.warnings.map((w) => w.code);
+    expect(earlyCodes).not.toContain("expiry-soon");
+    expect(earlyCodes).not.toContain("stale-data");
   });
 
   // CHARACTERIZATION TEST — documents CURRENT cap behavior, not necessarily the
@@ -141,7 +170,7 @@ describe("buildStackRecommendations", () => {
         }),
       ],
     });
-    const [rec] = buildStackRecommendations(undefined, 500, data);
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     const giftCard = rec.components.find((c) => c.layer === "gift-card");
     // min(500, 200) * 10% = 20  (a "max $200 saving" reading would give $50).
     expect(giftCard?.valueDollars).toBe(20);

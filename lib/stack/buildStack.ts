@@ -126,9 +126,9 @@ function cappedSaving(
 function buildForStore(
   store: Store,
   spend: number,
-  data: StackData
+  data: StackData,
+  now: Date
 ): StackRecommendation | null {
-  const now = new Date();
   const components: StackComponent[] = [];
   const warnings: StackWarning[] = [];
   const citations: Citation[] = [];
@@ -370,11 +370,15 @@ function dedupeCitations(citations: Citation[]): Citation[] {
  * @param spend  Example basket size. Defaults to DEFAULT_SPEND ($500).
  * @param data   Injected data bundle. Defaults to the static bundle so existing
  *               callers keep working; pass repo-loaded data for the DB path.
+ * @param now    Injected clock. Defaults to the real wall clock so callers keep
+ *               working; pass a fixed Date in tests for deterministic expiry and
+ *               stale-data warnings.
  */
 export function buildStackRecommendations(
   input?: string,
   spend: number = DEFAULT_SPEND,
-  data: StackData = STATIC_STACK_DATA
+  data: StackData = STATIC_STACK_DATA,
+  now: Date = new Date()
 ): StackRecommendation[] {
   const basket = Number.isFinite(spend) && spend > 0 ? spend : DEFAULT_SPEND;
 
@@ -389,7 +393,7 @@ export function buildStackRecommendations(
   }
 
   return targets
-    .map((store) => buildForStore(store, basket, data))
+    .map((store) => buildForStore(store, basket, data, now))
     .filter((r): r is StackRecommendation => r !== null)
     .sort((a, b) => b.totalSaving - a.totalSaving);
 }
@@ -397,7 +401,8 @@ export function buildStackRecommendations(
 /** Explicit static wrapper — identical output to the pre-DB behaviour. */
 export function buildStackRecommendationsFromStatic(
   input?: string,
-  spend: number = DEFAULT_SPEND
+  spend: number = DEFAULT_SPEND,
+  now: Date = new Date()
 ): StackRecommendation[] {
-  return buildStackRecommendations(input, spend, STATIC_STACK_DATA);
+  return buildStackRecommendations(input, spend, STATIC_STACK_DATA, now);
 }
