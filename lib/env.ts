@@ -59,6 +59,17 @@ export const cronSecret = (): string | null => {
   return value && value.trim() !== "" ? value : null;
 };
 
+/**
+ * Optional ops webhook (e.g. Slack incoming webhook) that server-error reports
+ * are POSTed to — see lib/observability/report-server-error.ts. Unset means
+ * errors go to the function logs only. SERVER ONLY — never expose the URL and
+ * never prefix with NEXT_PUBLIC_.
+ */
+export const alertWebhookUrl = (): string | null => {
+  const value = process.env.ALERT_WEBHOOK_URL;
+  return value && value.trim() !== "" ? value : null;
+};
+
 // ── OzBargain feed monitor (SERVER/SCRIPT ONLY) ──────────────────────────────
 // All gated behind the master switch below. These are lazy reads (functions) so
 // importing this module never throws; the monitor only calls them on its own
