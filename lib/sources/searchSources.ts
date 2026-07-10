@@ -117,9 +117,9 @@ function latest(a: string, b: string): string {
  */
 export function rankSourceResults(
   results: DealSourceResult[],
-  query: string
+  query: string,
+  now: Date = new Date()
 ): RankedDealResult[] {
-  const now = new Date();
   const terms = normaliseText(query).split(" ").filter(Boolean);
   const queryMerchantId = findMerchantIdInText(query);
 
@@ -146,9 +146,9 @@ export function rankSourceResults(
 /** Core: every result in `results` for one store, deduped + derived + ranked. */
 export function rankSourceResultsForStore(
   results: DealSourceResult[],
-  storeId: string
+  storeId: string,
+  now: Date = new Date()
 ): RankedDealResult[] {
-  const now = new Date();
   const matches = results.filter((r) => r.merchantId === storeId);
   const deduped = dedupeResults(matches).map((result) => ({
     ...result,

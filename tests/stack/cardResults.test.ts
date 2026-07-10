@@ -5,6 +5,10 @@ import {
   type CardOfferSourceInput,
 } from "../../lib/sources/cardResults";
 import { rankSourceResults } from "../../lib/sources/searchSources";
+import {
+  buildSourceResultPool,
+  type CardOfferResultRow,
+} from "../../lib/repos/sourceResults";
 
 function makeCardInput(
   over: Partial<CardOfferSourceInput> = {}
@@ -104,5 +108,78 @@ describe("card results in the search pipeline", () => {
     );
     const found = rankSourceResults([cardResult], "myer");
     expect(found.map((r) => r.id)).not.toContain(cardResult.id);
+  });
+});
+
+describe("card offers in the Supabase-backed public source pool", () => {
+  const NOW = new Date("2026-07-10T00:00:00+10:00");
+
+  function makeCardOfferRow(
+    over: Partial<CardOfferResultRow> = {}
+  ): CardOfferResultRow {
+    return {
+      id: "card-1",
+      provider: "American Express",
+      card_name: "Qantas Ultimate Card",
+      offer_type: "points_bonus",
+      bonus_points: 100000,
+      cashback_amount: null,
+      statement_credit_amount: null,
+      annual_fee: 450,
+      eligibility_notes: "New customers only.",
+      offer_summary: "Earn 100,000 bonus points on sign-up.",
+      source_url: "https://www.americanexpress.com/en-au/",
+      expiry_date: "2026-12-31",
+      last_checked_at: "2026-07-01T00:00:00+10:00",
+      confidence: "confirmed",
+      ...over,
+    };
+  }
+
+  it("surfaces a public-ready card offer with no merchant", () => {
+    const pool = buildSourceResultPool(
+      {
+        stores: [],
+        cashback: [],
+        giftCards: [],
+        points: [],
+        cardOffers: [makeCardOfferRow()],
+        signals: [],
+      },
+      NOW
+    );
+    expect(pool).toHaveLength(1);
+    expect(pool[0].kind).toBe("card");
+    expect(pool[0].merchantId).toBeNull();
+  });
+
+  it("never surfaces a card offer that fails the public-readiness gate (e.g. still needs-verification)", () => {
+    const pool = buildSourceResultPool(
+      {
+        stores: [],
+        cashback: [],
+        giftCards: [],
+        points: [],
+        cardOffers: [makeCardOfferRow({ confidence: "needs-verification" })],
+        signals: [],
+      },
+      NOW
+    );
+    expect(pool).toEqual([]);
+  });
+
+  it("never surfaces a card offer whose expiry date has passed", () => {
+    const pool = buildSourceResultPool(
+      {
+        stores: [],
+        cashback: [],
+        giftCards: [],
+        points: [],
+        cardOffers: [makeCardOfferRow({ expiry_date: "2020-01-01" })],
+        signals: [],
+      },
+      NOW
+    );
+    expect(pool).toEqual([]);
   });
 });

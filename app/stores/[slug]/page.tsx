@@ -313,7 +313,7 @@ export default async function StorePage({
           ))}
         </div>
 
-        {/* Source checks (static/mock pipeline — no live fetching) */}
+        {/* Source checks (Supabase-backed when configured; static demo pool otherwise — no live fetching) */}
         <section className="mt-6">
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-5 text-emerald-600 dark:text-emerald-400" />

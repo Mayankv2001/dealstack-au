@@ -66,10 +66,21 @@ If `PLAN-card-offer-public-readiness-gate.md` has not shipped yet, do it first. 
 
 ## Acceptance Criteria
 
-- [ ] In configured Supabase mode, a query error in one source-results table logs a warning and `/search` still renders with zero checked-source results, not static samples.
-- [ ] In configured Supabase mode, if all DB source rows are expired or card-not-ready, `/search?q=qantas` and `/stores/myer` show checked-source empty states.
-- [ ] In `DATA_SOURCE=static` mode, existing static search/source examples still render.
-- [ ] Expired DB rows do not appear in `SourceResultCard` output on `/search` or `/stores/[slug]`.
-- [ ] Card offers still appear in `/search` only when public-ready and query-matched; they never appear on store pages.
-- [ ] `npm run test:stack`, `npm run test:monitor`, `npm run lint`, and `npm run build` pass.
+- [x] In configured Supabase mode, a query error in one source-results table logs a warning and `/search` still renders with zero checked-source results, not static samples.
+- [x] In configured Supabase mode, if all DB source rows are expired or card-not-ready, `/search?q=qantas` and `/stores/myer` show checked-source empty states.
+- [x] In `DATA_SOURCE=static` mode, existing static search/source examples still render.
+- [x] Expired DB rows do not appear in `SourceResultCard` output on `/search` or `/stores/[slug]`.
+- [x] Card offers still appear in `/search` only when public-ready and query-matched; they never appear on store pages.
+- [x] `npm run test:stack`, `npm run test:monitor`, `npm run lint`, and `npm run build` pass.
+
+## Status: Shipped 2026-07-10
+
+`loadDbSourceResults()` now returns `null` only for demo mode (static/no Supabase
+env); a configured project always returns an array (`[]` on query error or when
+every row is filtered). Filtering happens in the new pure `buildSourceResultPool()`
+(exported from `lib/repos/sourceResults.ts`) — hard-expired rows are dropped before
+mapping, and `card_offers` rows go through the same `cardOfferReadiness()` gate as
+`/cards`. `rankSourceResults`/`rankSourceResultsForStore` take an optional `now` for
+deterministic tests. New tests: `tests/stack/sourceResultsTrust.test.ts` plus a
+regression block in `tests/stack/cardResults.test.ts`.
 
