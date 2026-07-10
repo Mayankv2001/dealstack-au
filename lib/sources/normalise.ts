@@ -1,4 +1,5 @@
 import { stores } from "@/lib/data";
+import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { Confidence, DealSourceResult } from "./types";
 
 /** Lowercase, collapse all non-alphanumerics to single spaces */
@@ -65,9 +66,9 @@ export function findMerchantIdInText(text: string): string | null {
 }
 
 export function isExpired(result: DealSourceResult, now: Date): boolean {
-  if (!result.expiryDate) return false;
-  // Expiry is inclusive of the stated day (AU offers usually end at midnight)
-  return new Date(`${result.expiryDate}T23:59:59+10:00`).getTime() < now.getTime();
+  // Inclusive of the stated day, by AU-local calendar date (Australia/Sydney,
+  // DST-correct) — same convention as the public read guard in lib/offers/expiry.
+  return isPastExpiry(result.expiryDate, todayAU(now));
 }
 
 /**

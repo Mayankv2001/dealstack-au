@@ -200,23 +200,25 @@ grep -rn "T23:59:59+10:00" lib   # must print nothing
 
 ## Acceptance criteria
 
-- [ ] `grep -rn "T23:59:59+10:00" lib` returns nothing (the two logic sites
+- [x] `grep -rn "T23:59:59+10:00" lib` returns nothing (the two logic sites
       are gone; data-file `lastCheckedAt` literals in
       `manualData.ts`/`manualOffers.ts` are untouched and don't match this
       pattern).
-- [ ] `nvm use 20 && npm run lint && npm run build` pass.
-- [ ] `npm run test:monitor` and `npm run test:stack` pass with **zero
+- [x] `nvm use 20 && npm run lint && npm run build` pass.
+- [x] `npm run test:monitor` and `npm run test:stack` pass with **zero
       modifications to pre-existing test cases** (additions only —
       `git diff tests/` shows only added lines), plus `test:admin` still
       green.
-- [ ] The four new pins pass: AEDT-midnight expiry (×2), AEDT no-warning on
+- [x] The four new pins pass: AEDT-midnight expiry (×2), AEDT no-warning on
       expired, 7-calendar-day unification.
-- [ ] `EXPIRY_SOON_DAYS` is defined once (`lib/offers/expiry.ts:42`) and
+- [x] `EXPIRY_SOON_DAYS` is defined once (`lib/offers/expiry.ts:42`) and
       re-exported by `compatibility.ts`; `grep -rn "EXPIRY_SOON_DAYS = 7" lib`
       matches exactly one line.
-- [ ] `staleDataWarning` and its tests are byte-identical
+- [x] `staleDataWarning` and its tests are byte-identical
       (`git diff` shows no hunk touching it).
-- [ ] `git diff --stat` touches exactly the four listed files.
+- [x] `git diff --stat` touches exactly the four listed files.
+
+## Status: Shipped 2026-07-10
 
 ## Commit
 

@@ -106,6 +106,17 @@ describe("isExpired", () => {
       isExpired(makeResult("2026-06-29"), new Date("2026-06-30T00:00:00+10:00"))
     ).toBe(true);
   });
+
+  it("AEDT regression pin: expired at AU midnight, not at +10:00 midnight", () => {
+    // 2026-01-15T13:30Z = 2026-01-16 00:30 AEDT (Sydney is UTC+11 in January).
+    // The old fixed +10:00 end-of-day (13:59:59Z) said "still live" here.
+    expect(isExpired(makeResult("2026-01-15"), new Date("2026-01-15T13:30:00Z"))).toBe(true);
+  });
+
+  it("AEDT: still live for the whole AU-local expiry day", () => {
+    // 2026-01-15T12:59Z = 2026-01-15 23:59 AEDT — same calendar day, live.
+    expect(isExpired(makeResult("2026-01-15"), new Date("2026-01-15T12:59:00Z"))).toBe(false);
+  });
 });
 
 // ── deriveConfidence ─────────────────────────────────────────────────────────

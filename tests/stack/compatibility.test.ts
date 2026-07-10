@@ -72,6 +72,19 @@ describe("expirySoonWarning", () => {
   it("ignores an already-passed expiry (handled elsewhere)", () => {
     expect(expirySoonWarning("2026-06-10", NOW, "X")).toBeNull();
   });
+
+  it("AEDT regression pin: no warning for an offer already expired in AU time", () => {
+    // Old code: end-of-day at +10:00 (13:59:59Z) > now (13:30Z) → warned on an
+    // expired offer. Calendar compare: 2026-01-16 (AEDT today) > 2026-01-15 → null.
+    expect(expirySoonWarning("2026-01-15", new Date("2026-01-15T13:30:00Z"), "X")).toBeNull();
+  });
+
+  it("warns across the full 7-calendar-day window (unified with public cards)", () => {
+    // NOW is 2026-06-13 AU time; 2026-06-20 is exactly 7 calendar days out.
+    // The old ms-window said null here while the public card already showed
+    // "expiring soon" via isExpiringSoonAU — this pin locks the unification.
+    expect(expirySoonWarning("2026-06-20", NOW, "X")).not.toBeNull();
+  });
 });
 
 describe("staleDataWarning", () => {

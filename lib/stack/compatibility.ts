@@ -1,3 +1,4 @@
+import { EXPIRY_SOON_DAYS, isExpiringSoonAU } from "@/lib/offers/expiry";
 import type { Confidence } from "@/lib/sources/types";
 import type {
   CashbackOffer,
@@ -15,7 +16,7 @@ import type {
  */
 
 /** Days within which an upcoming expiry is flagged as "expiry-soon". */
-export const EXPIRY_SOON_DAYS = 7;
+export { EXPIRY_SOON_DAYS };
 /** Age beyond which an offer's last check is flagged as "stale-data". */
 export const STALE_DATA_DAYS = 21;
 
@@ -57,17 +58,13 @@ export function cashbackConflictsWithGiftCard(
 
 // ─── Warning builders (return a StackWarning or null) ───────────────────────
 
-/** Flags an expiry that lands within EXPIRY_SOON_DAYS of `now` (and not past). */
+/** Flags an expiry within EXPIRY_SOON_DAYS AU-local calendar days of `now` (and not past). */
 export function expirySoonWarning(
   expiryDate: string | null,
   now: Date,
   label: string
 ): StackWarning | null {
-  if (!expiryDate) return null;
-  const end = new Date(`${expiryDate}T23:59:59+10:00`).getTime();
-  const diff = end - now.getTime();
-  if (diff < 0) return null; // already expired — handled by needs-verification path
-  if (diff > EXPIRY_SOON_DAYS * MS_PER_DAY) return null;
+  if (!isExpiringSoonAU(expiryDate, now, EXPIRY_SOON_DAYS)) return null;
   return {
     level: "caution",
     code: "expiry-soon",
