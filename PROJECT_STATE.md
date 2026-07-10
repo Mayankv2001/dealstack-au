@@ -66,10 +66,11 @@ Verified from git history and memory. Commit hashes in parentheses.
 - **Tooling:** `/phase` skill for controlled-phase workflow (`c6daf99`), `npm run verify:schema` read-only migration-drift probe (`49086d0`), `npm run smoke` route/SEO/security-header test (`90a21f6`), stack engine's injectable `now` clock for deterministic tests (`9560080`), docs/runbook refresh to match migrations 006/007 (`c77919d`).
 - **Data quality:** placeholder-copy guard flagging "Illustrative" demo text on published rows (`7d2f293`); cashback cap-maths fix, was understating capped cashback ~10× (`c6e31ed`); weekly picks surfaced on `/deals` (`2835137`); generated Supabase types replacing `LooseDB` (`8d2d219`); one-click "Mark re-checked" to clear stale-data flags without a full edit round-trip (`1c8a20c`).
 - **2026-07-10 backlog (4/5 shipped):** feed queue relevance filter/sort/select-all-filtered (`8269bc9`); detection ops status card + go-live runbook (`d499d7e`, listed above); `/admin/cleanup` — reviewed one-click apply for expiry hygiene, ported from the CLI script (`919f3d6`); dashboard mark-rechecked (`1c8a20c`, listed above). This file (`state-truthing`) is the 5th, completing now.
+- **CI quality gate:** `.github/workflows/ci.yml` — GitHub Actions runs lint, `test:monitor`, `test:stack`, `test:admin`, `build`, and `start`+`smoke` on every PR and every push to `main`, with zero repository secrets (static-fallback demo data covers build/smoke without Supabase env). First structural fix from the 2026-07-10 follow-on backlog, ranked first because two-account direct pushes to `main` had no gate at all.
 
 ## 5. Current Task
 
-**None in progress.** A full codebase re-audit on 2026-07-10 (after the 2026-07-10 backlog shipped) produced a **fresh ranked backlog of 5 execution-ready plans** — this commit adds them and banner-stamps the five shipped 2026-07-10 plans. Next action = execute `PLAN-ci-quality-gates.md` (§6), or work one of the three human-only ops steps.
+**None in progress.** `PLAN-ci-quality-gates.md` (rank 1 of the 2026-07-10 follow-on backlog) just shipped — see §4. Next action = one of the remaining 4 follow-on plans in §6, or one of the three human-only ops steps.
 
 ## 6. Next 3 Tasks
 
@@ -147,7 +148,8 @@ npm run cleanup:old-deals
 Most recent commits (newest first):
 
 ```
-1c8a20c  Add one-click Mark re-checked to dashboard data-quality flags   <- HEAD
+(pending)  Add GitHub Actions CI workflow — lint/tests/build/smoke gate on every PR + push to main   <- HEAD
+1c8a20c  Add one-click Mark re-checked to dashboard data-quality flags
 919f3d6  Add /admin/cleanup — reviewed one-click apply for expiry hygiene
 d499d7e  Add detection ops status to /admin/monitor + go-live runbook
 8269bc9  Add relevance filter, sort and select-all-filtered to feed queue triage

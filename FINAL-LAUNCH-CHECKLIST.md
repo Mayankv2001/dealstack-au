@@ -166,3 +166,5 @@ npm run test:stack     # if stack/calculation logic changed
 npm run test:admin     # if admin action/rate-limit/fallback logic changed
 ```
 > Resolved: the former clock-triggered stale-fixture failure in `tests/stack/buildStack.test.ts` is fixed — the stack engine now accepts an injectable `now` clock and the tests pass a fixed `TEST_NOW`, so `npm run test:stack` is deterministic regardless of the real date.
+
+> CI: this same gate (lint, three Vitest suites, build, smoke) now also runs automatically in GitHub Actions on every PR and every push to `main` — no repository secrets required. The local run above stays the fast path; CI is the backstop that catches a skipped or forgotten step.
