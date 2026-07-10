@@ -12,7 +12,6 @@ import {
   Star,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -21,7 +20,7 @@ import {
 } from "@/components/ui/card";
 import DealStackCalculator from "@/components/DealStackCalculator";
 import { JsonLd } from "@/components/JsonLd";
-import Logo from "@/components/Logo";
+import SiteHeader from "@/components/SiteHeader";
 import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
 import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
@@ -183,33 +182,7 @@ export default async function StorePage({
           this is after the notFound() guard — so it never describes a 404. */}
       <JsonLd data={buildStoreBreadcrumbJsonLd(siteUrl(), store)} />
       <div className="min-h-screen bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Deals</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/stores">Stores</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/cards">Cards</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/resources">Resources</Link>
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="hidden bg-background sm:inline-flex"
-            >
-              <Link href="/search">All stores</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
         <Link

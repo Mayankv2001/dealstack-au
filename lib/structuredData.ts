@@ -95,6 +95,39 @@ export function buildStoreBreadcrumbJsonLd(
 }
 
 /**
+ * schema.org BreadcrumbList for a deal detail page: Home → Weekly Deals →
+ * <deal title>. Three levels are safe here (unlike stores) because /deals is
+ * a real index route. Both `item` URLs are absolute. NOTE: breadcrumbs only —
+ * the no-Offer/Product scope wall in this file's header applies to deal pages
+ * too.
+ */
+export function buildDealBreadcrumbJsonLd(
+  siteUrl: string,
+  deal: { title: string; path: string }
+): Record<string, unknown> {
+  const base = trimTrailingSlash(siteUrl);
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: base },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Weekly Deals",
+        item: `${base}/deals`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: deal.title,
+        item: `${base}${deal.path}`,
+      },
+    ],
+  };
+}
+
+/**
  * Serialize a JSON-LD object for embedding inside a
  * `<script type="application/ld+json">` tag.
  *

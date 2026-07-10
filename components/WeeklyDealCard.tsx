@@ -15,6 +15,7 @@ import {
   Star,
   Store as StoreIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,6 +56,8 @@ export interface WeeklyDealCardData {
   kind: DealKind;
   category: string;
   title: string;
+  /** Internal detail-page path (e.g. /deals/…); the title links there when set. */
+  titleHref?: string | null;
   summary: string;
   /** Merchant name or gift card source. */
   subject?: string | null;
@@ -499,7 +502,18 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
           </div>
 
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-snug">{data.title}</p>
+            <p className="text-sm font-semibold leading-snug">
+              {data.titleHref ? (
+                <Link
+                  href={data.titleHref}
+                  className="rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  {data.title}
+                </Link>
+              ) : (
+                data.title
+              )}
+            </p>
             {data.subject && (
               <p className="mt-0.5 inline-flex items-center gap-1 truncate text-xs text-muted-foreground">
                 <StoreIcon className="size-3 shrink-0" />
@@ -712,7 +726,18 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
             <Icon className="size-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-snug">{data.title}</p>
+            <p className="text-sm font-semibold leading-snug">
+              {data.titleHref ? (
+                <Link
+                  href={data.titleHref}
+                  className="rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  {data.title}
+                </Link>
+              ) : (
+                data.title
+              )}
+            </p>
             {data.subject && (
               <p className="mt-0.5 inline-flex items-center gap-1 truncate text-xs text-muted-foreground">
                 <StoreIcon className="size-3 shrink-0" />

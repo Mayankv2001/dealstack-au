@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/env";
+import { weeklyDealPath } from "@/lib/offers/dealSlug";
 import { getStores } from "@/lib/repos";
+import { getWeeklyDeals } from "@/lib/repos/weeklyDeals";
 
 /**
  * Public routes only. Store pages come from the repository layer (Supabase
@@ -22,11 +24,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "daily",
   }));
 
-  const stores = await getStores();
+  const [stores, weeklyDeals] = await Promise.all([
+    getStores(),
+    getWeeklyDeals(),
+  ]);
   const storeRoutes: MetadataRoute.Sitemap = stores.map((store) => ({
     url: `${base}/stores/${store.id}`,
     changeFrequency: "daily",
   }));
+  // Live deals only (getWeeklyDeals is expiry-filtered) — expired permalinks
+  // still render for inbound links, but we do not advertise them.
+  const dealRoutes: MetadataRoute.Sitemap = weeklyDeals.map((deal) => ({
+    url: `${base}${weeklyDealPath(deal)}`,
+    changeFrequency: "daily",
+  }));
 
-  return [...staticRoutes, ...storeRoutes];
+  return [...staticRoutes, ...storeRoutes, ...dealRoutes];
 }

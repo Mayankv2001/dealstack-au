@@ -1,6 +1,7 @@
 import type { WeeklyDealCardData, WeeklyDealTone } from "@/components/WeeklyDealCard";
 import type { Citation, DealKind } from "@/lib/sources/types";
 import { safePublicHref } from "@/lib/security/urlPolicy";
+import { weeklyDealPath } from "./dealSlug";
 import { isExpiringSoonAU } from "./expiry";
 import type {
   CashbackOffer,
@@ -143,6 +144,7 @@ export function buildWeeklyPickCard(
     kind,
     tone,
     title: deal.title,
+    titleHref: weeklyDealPath(deal),
     summary: deal.summary,
     subject: lookups.storeNameById(deal.merchantId),
     highlight: labels.length > 0 ? labels.join(" + ") : undefined,

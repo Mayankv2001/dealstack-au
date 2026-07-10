@@ -52,3 +52,28 @@ export async function getWeeklyDeals(): Promise<WeeklyDeal[]> {
   );
   return filterLive(rows);
 }
+
+/**
+ * One deal by id, for the /deals/[slug] detail page. Deliberately NOT
+ * filtered by expiry: a permalinked deal that has ended should render an
+ * explicit expired state (and keep its inbound links working) rather than
+ * 404. Missing id → null.
+ */
+export async function getWeeklyDealById(
+  id: string
+): Promise<WeeklyDeal | null> {
+  const rows = await fromDbOrDemo(
+    "weekly_deals",
+    staticWeeklyDeals,
+    async (db: DbClient) => {
+      const { data, error } = await db
+        .from("weekly_deals")
+        .select("*")
+        .eq("id", id)
+        .limit(1);
+      if (error) throw error;
+      return ((data ?? []) as unknown as WeeklyDealRow[]).map(mapWeeklyDeal);
+    }
+  );
+  return rows.find((deal) => deal.id === id) ?? null;
+}
