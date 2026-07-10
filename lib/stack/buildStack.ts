@@ -1,4 +1,5 @@
 import { stores as staticStores, type Store } from "@/lib/data";
+import { weekMondayAU } from "@/lib/admin/dateHelpers";
 import { findMerchantIdInText } from "@/lib/sources/normalise";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import {
@@ -59,14 +60,6 @@ export const STATIC_STACK_DATA: StackData = {
 
 /** Default example basket used for the dollar estimates. */
 export const DEFAULT_SPEND = 500;
-
-/** ISO Monday (YYYY-MM-DD) of the week containing `date`. */
-function isoWeekMonday(date: Date): string {
-  const d = new Date(date);
-  const day = d.getDay(); // 0=Sun … 6=Sat
-  d.setDate(d.getDate() - ((day + 6) % 7)); // rewind to Monday
-  return d.toISOString().split("T")[0];
-}
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
@@ -362,7 +355,9 @@ function buildForStore(
     confidence: worstConfidence(confidences),
     warnings,
     citations: dedupeCitations(citations),
-    weekOf: isoWeekMonday(now),
+    // AU-calendar Monday (DST-correct) — same helper the weekly-deal staleness
+    // check uses, so a stack's weekOf can never disagree with isWeekOfStale.
+    weekOf: weekMondayAU(now),
   };
 }
 

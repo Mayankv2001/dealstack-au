@@ -221,4 +221,20 @@ describe("buildStackRecommendations", () => {
     expect(cashback?.optional).toBe(false);
     expect(rec.effectivePrice).toBe(470); // only the $30 cashback is deducted
   });
+
+  it("stamps weekOf with the AU-calendar Monday, not the server-TZ week", () => {
+    // TEST_NOW is Monday 2026-06-15 00:00 AEST — still Sunday in UTC. The old
+    // server-local isoWeekMonday stamped the PREVIOUS week ("2026-06-08") on a
+    // UTC host; the AU-calendar helper must yield the AU Monday.
+    const data = makeStackData({
+      stores: [makeStore({ discountPercent: 10 })],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    expect(rec.weekOf).toBe("2026-06-15");
+
+    // Same week later in AU time resolves to the same Monday.
+    const thursday = new Date("2026-06-18T12:00:00+10:00");
+    const [recLater] = buildStackRecommendations(undefined, 500, data, thursday);
+    expect(recLater.weekOf).toBe("2026-06-15");
+  });
 });

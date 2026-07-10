@@ -153,6 +153,27 @@ async function handleFeed(
     feedUrl: feed.feedUrl,
   };
 
+  // Parse up front: a body can pass the fetcher's sniff yet still crash the XML
+  // parser (e.g. truncated mid-CDATA / mid-tag). Degrading that to a normal
+  // fetch failure keeps the backoff + fetch-log + auto-disable accounting
+  // intact instead of aborting the run with nothing recorded for the feed.
+  let prepared: { itemsSeen: number; mapped: FeedItemInsert[] } | null = null;
+  if (outcome.kind === "ok") {
+    try {
+      const parsed = parseFeed(outcome.body);
+      prepared = { itemsSeen: parsed.length, mapped: mapFeedItems(parsed) };
+    } catch (err) {
+      outcome = {
+        kind: "error",
+        httpStatus: outcome.httpStatus,
+        reason: `feed XML parse failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        retryAfterSeconds: null,
+      };
+    }
+  }
+
   if (outcome.kind === "not-modified") {
     if (!dryRun && persistence) {
       const ts = now();
@@ -188,10 +209,8 @@ async function handleFeed(
     };
   }
 
-  if (outcome.kind === "ok") {
-    const parsed = parseFeed(outcome.body);
-    const mapped = mapFeedItems(parsed);
-    const itemsSeen = parsed.length;
+  if (outcome.kind === "ok" && prepared) {
+    const { itemsSeen, mapped } = prepared;
     const sampleItems = mapped.slice(0, SAMPLE_LIMIT).map((m) => ({
       sourceNativeId: m.source_native_id,
       rawTitle: m.raw_title,
@@ -234,6 +253,11 @@ async function handleFeed(
   }
 
   // error | blocked — back off, log, and (live) auto-disable on block/threshold.
+  // An ok outcome either returned above or was rewritten to an error by the
+  // parse guard; this narrows the union for the failure handling below.
+  if (outcome.kind === "ok") {
+    throw new Error("handleFeed: unhandled ok outcome");
+  }
   const blocked = outcome.kind === "blocked";
   const status: FeedStatus = blocked ? "blocked" : "error";
   const failureCount = feed.failureCount + 1;
