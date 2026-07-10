@@ -1,5 +1,8 @@
 # PLAN-ci-quality-gates — Make the commit checklist structural, not ritual
 
+> **STATUS (2026-07-10): SHIPPED** in `106a5d3`/`34d0fe4`. Kept as
+> historical reference — do not re-execute.
+
 > **Rank: 1 of 5 (2026-07-10 follow-on backlog — do this first).** This repo
 > has **no CI at all** — no `.github/` directory exists (verified against
 > `origin/main` @ `4217595`). The entire quality gate (lint, build, three
