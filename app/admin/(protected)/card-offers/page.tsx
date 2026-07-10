@@ -131,10 +131,10 @@ export default async function CardOfferListPage() {
               Verify before publishing
             </p>
             <p className="text-[11px] leading-normal text-muted-foreground/80">
-              Publishing does not re-check anything automatically — before you
-              publish a draft, re-open it and confirm the bonus, fee, minimum
-              spend and eligibility still match the bank&rsquo;s own current
-              page.
+              Publishing checks confidence, expiry, source, headline value and
+              placeholder copy. Re-open the draft and confirm the bonus, fee,
+              minimum spend and eligibility still match the bank&rsquo;s own current
+              page before publishing.
             </p>
           </div>
         </div>

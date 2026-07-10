@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import {
+  cardOfferPublishErrorMessage,
+  type CardOfferReadinessInput,
+} from "@/lib/offers/cardReadiness";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { toNumberOrNull } from "@/lib/supabase/server";
 import type { Confidence } from "@/lib/sources/types";
@@ -75,6 +79,11 @@ export interface CardOfferInput {
   expiryDate: string | null;
   isPublished: boolean;
 }
+
+export type CardOfferMutationResult = { ok: true } | { ok: false; error: string };
+export type CardOfferInsertResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
 
 // ── Row mapping ──────────────────────────────────────────────────────────────
 interface CardOfferRow {
@@ -157,6 +166,14 @@ function slugify(value: string): string {
   );
 }
 
+/** Expected validation failure for a write that would leave the row published. */
+function publicationError(
+  offer: CardOfferReadinessInput,
+  isPublished: boolean
+): string | null {
+  return isPublished ? cardOfferPublishErrorMessage(offer) : null;
+}
+
 // ── Reads ────────────────────────────────────────────────────────────────────
 
 /** Every card offer, published or not, newest-edited first. */
@@ -185,35 +202,54 @@ export async function getCardOffer(id: string): Promise<AdminCardOffer | null> {
 
 // ── Writes ───────────────────────────────────────────────────────────────────
 
-/** Inserts a new offer and returns its generated id. */
-export async function insertCardOffer(input: CardOfferInput): Promise<string> {
+/** Inserts an offer, unless it would create a non-ready published row. */
+export async function insertCardOffer(
+  input: CardOfferInput
+): Promise<CardOfferInsertResult> {
+  const publishError = publicationError(input, input.isPublished);
+  if (publishError) return { ok: false, error: publishError };
+
   const db = getSupabaseAdmin();
   // Readable, collision-proof text PK: card-<provider>-<short uuid>.
   const id = `card-${slugify(input.provider)}-${randomUUID().slice(0, 8)}`;
   const { error } = await db.from("card_offers").insert({ id, ...toRow(input) });
   if (error) throw new Error(`insertCardOffer failed: ${error.message}`);
-  return id;
+  return { ok: true, id };
 }
 
 /** Updates every editable field of an existing offer. */
 export async function updateCardOffer(
   id: string,
   input: CardOfferInput
-): Promise<void> {
+): Promise<CardOfferMutationResult> {
+  const publishError = publicationError(input, input.isPublished);
+  if (publishError) return { ok: false, error: publishError };
+
   const db = getSupabaseAdmin();
   const { error } = await db.from("card_offers").update(toRow(input)).eq("id", id);
   if (error) throw new Error(`updateCardOffer failed: ${error.message}`);
+  return { ok: true };
 }
 
-/** Flips just the published flag (publish / unpublish from the list view). */
+/** Flips the published flag; publishing first checks the persisted row. */
 export async function setCardOfferPublished(
   id: string,
   isPublished: boolean
-): Promise<void> {
+): Promise<CardOfferMutationResult> {
+  if (isPublished) {
+    const offer = await getCardOffer(id);
+    if (!offer) {
+      return { ok: false, error: "Cannot publish: card offer was not found." };
+    }
+    const publishError = publicationError(offer, true);
+    if (publishError) return { ok: false, error: publishError };
+  }
+
   const db = getSupabaseAdmin();
   const { error } = await db
     .from("card_offers")
     .update({ is_published: isPublished })
     .eq("id", id);
   if (error) throw new Error(`setCardOfferPublished failed: ${error.message}`);
+  return { ok: true };
 }

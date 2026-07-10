@@ -172,7 +172,11 @@ export function CardOfferForm({
               </select>
             </Field>
 
-            <Field label="Confidence" htmlFor="confidence">
+            <Field
+              label="Confidence"
+              htmlFor="confidence"
+              hint="Published card offers must be Confirmed."
+            >
               <select
                 id="confidence"
                 name="confidence"
@@ -283,7 +287,7 @@ export function CardOfferForm({
             <Field
               label="Expiry date"
               htmlFor="expiry_date"
-              hint="Optional. When set, the offer is flagged as expired once the date passes."
+              hint="Required before publishing; cards without an expiry stay draft-only."
             >
               <Input
                 id="expiry_date"
@@ -326,7 +330,7 @@ export function CardOfferForm({
           <Field
             label="Source URL"
             htmlFor="source_url"
-            hint="Link to the bank/issuer's own public offer page."
+            hint="Use the issuer's HTTPS offer or card page."
           >
             <div className="flex items-center gap-2">
               <Input
@@ -363,7 +367,8 @@ export function CardOfferForm({
               <span>
                 <span className="font-medium text-foreground">Published</span>
                 <span className="block text-[11px] leading-normal text-muted-foreground/80">
-                  Defaults to off — a new card offer must be explicitly published.
+                  Requires Confirmed confidence, a current expiry, an issuer HTTPS
+                  source, a matching headline value and clean copy.
                 </span>
               </span>
             </label>

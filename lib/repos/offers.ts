@@ -12,11 +12,14 @@ import type {
   OzBargainSignal,
   PointsOffer,
 } from "@/lib/offers/types";
-import { filterLive } from "@/lib/offers/expiry";
+import { filterLive, todayAU } from "@/lib/offers/expiry";
+import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import {
   fromDbOrDemo,
   fromDbOrStatic,
+  getSupabaseServer,
+  isStaticDataSource,
   toNumber,
   toNumberOrNull,
   type DbClient,
@@ -142,13 +145,42 @@ function mapCardOffer(r: CardOfferRow): CardOffer {
  * zero published rows renders the /cards empty state and a read error returns
  * no rows — the demo data is never served as if it were live.
  */
-export async function getCardOffers(): Promise<CardOffer[]> {
-  const rows = await fromDbOrDemo("card_offers", staticCardOffers, async (db: DbClient) => {
-    const { data, error } = await db.from("card_offers").select("*");
-    if (error) throw error;
-    return ((data ?? []) as unknown as CardOfferRow[]).map(mapCardOffer);
-  });
-  return filterLive(rows);
+interface CardOfferReadDeps {
+  /** Test-only mode/client injection, mirroring fromDbOrDemo. */
+  staticMode?: boolean;
+  client?: DbClient | null;
+  today?: string;
+}
+
+export async function getCardOffers(
+  deps: CardOfferReadDeps = {}
+): Promise<CardOffer[]> {
+  const staticMode = deps.staticMode ?? isStaticDataSource();
+  const client =
+    deps.client !== undefined
+      ? deps.client
+      : staticMode
+        ? null
+        : getSupabaseServer();
+  const demoMode = staticMode || client == null;
+  const today = deps.today ?? todayAU();
+  const rows = await fromDbOrDemo(
+    "card_offers",
+    staticCardOffers,
+    async (db: DbClient) => {
+      const { data, error } = await db.from("card_offers").select("*");
+      if (error) throw error;
+      return ((data ?? []) as unknown as CardOfferRow[]).map(mapCardOffer);
+    },
+    { staticMode, client }
+  );
+  const liveRows = filterLive(rows, today);
+
+  // Illustrative manual rows are useful in local/demo mode. Once Supabase is
+  // configured, only independently public-ready DB rows may reach /cards.
+  return demoMode
+    ? liveRows
+    : liveRows.filter((offer) => isPublicReadyCardOffer(offer, today));
 }
 
 // ── Cashback (ShopBack / TopCashback only) ───────────────────────────────────

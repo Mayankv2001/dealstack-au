@@ -25,10 +25,10 @@ import type { Confidence } from "@/lib/sources/types";
  * SECURITY: every action calls requireAdmin() first (a valid session is not
  * enough — the email must be in the admins allowlist). The service-role
  * writes live in the admin repo; nothing here is reachable from the public
- * site. After any change we revalidate the admin list AND the public /cards
- * page (which only ever renders is_published rows via RLS — a draft edit
- * revalidates harmlessly). No external source calls: this is manual entry
- * only, and nothing here publishes without the admin's explicit flag/toggle.
+ * site. After any change we revalidate every public/admin surface that consumes
+ * card offers. RLS removes drafts and the public repository adds a readiness
+ * gate. No external source calls: this is manual entry only, and nothing here
+ * publishes without the admin's explicit flag/toggle and a readiness check.
  */
 
 /** Returned to the form via useActionState. Empty object means "no error yet". */
@@ -174,7 +174,10 @@ function parseCardOfferForm(formData: FormData): ParseResult {
  */
 function revalidateCardOffers(): void {
   revalidatePath("/admin/card-offers");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/cleanup");
   revalidatePath("/cards");
+  revalidatePath("/search");
 }
 
 /** Friendly message for a failed repo write (details stay in server logs). */
@@ -199,7 +202,9 @@ export async function createCardOffer(
 
   let id: string;
   try {
-    id = await insertCardOffer(parsed.input);
+    const result = await insertCardOffer(parsed.input);
+    if (!result.ok) return { error: result.error };
+    id = result.id;
   } catch (err) {
     return { error: writeFailed(err, "create") };
   }
@@ -233,7 +238,8 @@ export async function updateCardOffer(
   if (!parsed.ok) return { error: parsed.error };
 
   try {
-    await persistCardOffer(id, parsed.input);
+    const result = await persistCardOffer(id, parsed.input);
+    if (!result.ok) return { error: result.error };
   } catch (err) {
     return { error: writeFailed(err, "update") };
   }
@@ -264,7 +270,8 @@ export async function setPublished(
   if (!rateLimit.success) return { error: rateLimit.error };
 
   try {
-    await setCardOfferPublished(id, isPublished);
+    const result = await setCardOfferPublished(id, isPublished);
+    if (!result.ok) return { error: result.error };
   } catch (err) {
     return { error: writeFailed(err, isPublished ? "publish" : "unpublish") };
   }
