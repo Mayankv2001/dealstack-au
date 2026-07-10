@@ -1,6 +1,17 @@
 import type { Metadata } from "next";
-import HomeClient from "@/components/HomeClient";
 import { JsonLd } from "@/components/JsonLd";
+import TopDealsSection from "@/components/TopDealsSection";
+import { pickFeaturedStack } from "@/components/home/featured";
+import HomeNav from "@/components/home/HomeNav";
+import HomeSearchSections from "@/components/home/HomeSearchSections";
+import {
+  CalculatorSection,
+  FinalCTASection,
+  HomeFooter,
+  SavingsLayersSection,
+  TrustSection,
+} from "@/components/home/HomeStaticSections";
+import WorkedExample from "@/components/home/WorkedExample";
 import { siteUrl } from "@/lib/env";
 import { getStores } from "@/lib/repos";
 import { getTopDeals } from "@/lib/repos/topDeals";
@@ -16,10 +27,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * Homepage — server component. Loads stores from the repository layer (Supabase
- * when configured, static fallback otherwise) and hands them to the interactive
- * HomeClient island. getStores() itself swallows DB failures and missing env and
- * returns the static `stores` array, so the page always renders.
+ * Homepage — server component. Loads stores from the repository layer
+ * (Supabase when configured, static fallback otherwise), derives the featured
+ * stack, and composes the page from server-rendered sections around three
+ * small client islands (nav menu, hero-search + stores grid, worked-example
+ * toggle) — see components/home/. getStores() itself swallows DB failures and
+ * missing env and returns the static `stores` array, so the page always
+ * renders.
  */
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
@@ -30,14 +44,32 @@ export default async function Home() {
   // Both reads fall back gracefully (stores → static; top deals → []), so the
   // homepage always renders even without Supabase configured.
   const [stores, topDeals] = await Promise.all([getStores(), getTopDeals()]);
-  // Site-level JSON-LD alongside (not inside) the client island — server
-  // components render script tags fine, and this keeps HomeClient untouched.
+  const featured = pickFeaturedStack(stores);
   const site = siteUrl();
+
   return (
     <>
       <JsonLd data={buildWebSiteJsonLd(site)} />
       <JsonLd data={buildOrganizationJsonLd(site)} />
-      <HomeClient stores={stores} topDeals={topDeals} />
+      <div className="min-h-screen bg-background">
+        <HomeNav />
+        <main>
+          <HomeSearchSections
+            stores={stores}
+            featured={featured}
+            savingsSlot={<SavingsLayersSection />}
+          />
+
+          {/* Today's top OzBargain signals (staged, review-gated, read-only) */}
+          <TopDealsSection deals={topDeals} />
+
+          <WorkedExample featured={featured} />
+          <CalculatorSection stores={stores} />
+          <TrustSection />
+          <FinalCTASection />
+        </main>
+        <HomeFooter />
+      </div>
     </>
   );
 }
