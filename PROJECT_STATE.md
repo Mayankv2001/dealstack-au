@@ -21,7 +21,7 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 - **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
 - **Recent trust/ops sequence:** public source-result guard (`fbd570a`), final AU expiry unification (`14db2d6`), strict public-content smoke (`e29c1c9`), and audited feed-source emergency stop (`f65c951`) are shipped on `main` after the card readiness gate (`2f2db1d`).
 - **Current ranked backlog:** empty — the schema-drift watchdog (`483bd86`) closed the last code task; what remains is human ops/config. See §6.
-- **Known prod hygiene (see §10):** two published-but-expired gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish` from 2026-07-11) — clear via the new `/admin/cleanup` page (or the CLI `npm run cleanup:old-deals -- --write`).
+- **Prod hygiene: CLEAN as of 2026-07-11.** The two expired-published gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish`) were unpublished via `npm run cleanup:old-deals -- --write` (user-authorised, 2 audited `auto-unpublish-expired` rows); re-run dry-run reports 0 candidates.
 - **Build/lint/tests:** Full Node 20 gate green at `483bd86`: lint, production build, 165 stack tests, 201 monitor tests, 114 admin tests, `git diff --check`, and the structural egress greps (no `URL.canParse` in app/lib, no auto-follow redirects in the monitor, no `fromDbOrStatic` anywhere).
 
 ## 3. Repository / File Structure
@@ -87,7 +87,7 @@ None — second backlog and audit complete, schema-drift watchdog shipped. Next 
 **Also open — two ops steps only a human can perform** (verifying real-world data / making a production judgement call):
 
 1. **Flip `OZB_OFFER_DETECT_ENABLED` live.** Run the precision review in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) on ≥2 different days via `/admin/offer-changes` → Preview, then set the env var in Vercel and redeploy. `/admin/monitor`'s new detection card shows the result. Zero candidates on preview is a healthy, expected outcome — not a blocker.
-2. **Clear the two expired-published gift cards.** `gc-tcn-jbhifi` (expired 2026-07-02) and `gc-woolworths-wish` (expires 2026-07-10, so expired from the 11th) — click Unpublish on `/admin/cleanup` (or run `npm run cleanup:old-deals -- --write`). Harmless, one-click, audited.
+2. ~~Clear the two expired-published gift cards.~~ **DONE 2026-07-11** — unpublished via the audited CLI write; dry-run now reports 0 candidates.
 
 > New implementation work belongs in `docs/launch-management/`; completed
 > root-level plans were removed on 2026-07-10.
@@ -143,7 +143,7 @@ npm run cleanup:old-deals
 - **Prod migration drift:** Some migrations were applied by hand and are untracked. Migration 005 (`hidden_from_homepage`) was found NOT applied to prod on 2026-07-08. **Verify prod schema via `information_schema.columns`, not just table existence.**
 - **Seed signals unique-key divergence (RESOLVED):** full seed now skips and reports rows whose `source_native_id` belongs to a different production id, then continues to later tables.
 - **Card offers (RESOLVED 2026-07-10):** all 5 DB rows were checked against issuer sources and stripped of illustrative copy. Amex Qantas Ultimate is the sole published row because it has a fixed expiry; corrected NAB, Westpac and ANZ rows have no issuer-stated fixed expiry and remain unpublished; the obsolete CommBank promotion remains unpublished. `/cards`, `/search` and store source cards enforce the same trust contract.
-- **Two published-but-expired gift cards (prod-verified 2026-07-10):** `gc-tcn-jbhifi` (TCN, expired 2026-07-02) and `gc-woolworths-wish` (Woolworths WISH, expires 2026-07-10 — expired from the 11th). The public read-guard already hides expired offers from actionable listings, so this is DB hygiene, not a live lie. Clear via `/admin/cleanup` (see §6 human ops item 2).
+- **Two published-but-expired gift cards (RESOLVED 2026-07-11):** `gc-tcn-jbhifi` and `gc-woolworths-wish` unpublished via the audited cleanup CLI (`auto-unpublish-expired` audit rows); re-run dry-run reports 0 candidates. The public read-guard had already hidden them from actionable listings throughout.
 - **Two-account coordination risk:** Both accounts share `main`. Pull/rebase before working; commit small; push promptly to avoid divergence (git workflow is autonomous through to `origin/main`).
 
 ## 11. Latest Changes

@@ -26,17 +26,15 @@ The codebase, tests, security boundaries, CI, and the live production deployment
 
 ## Conditions to reach READY TO LAUNCH
 
-Card-offer condition #1 was completed on 2026-07-10: all five rows were checked against current issuer pages, all illustrative copy was removed, one fixed-expiry Amex offer was published, and four rows without a publishable fixed-expiry offer were left unpublished. Five audit entries record the user-authorised update.
+**Completed conditions:** #1 (2026-07-10) — card offers issuer-checked, one fixed-expiry Amex published, four withheld, five audit entries. #2 (2026-07-11) — the 2 expired gift cards unpublished via the audited cleanup CLI (dry-run reviewed first; re-run reports **0 candidates**). #6 (2026-07-11) — post-cleanup strict smoke against live prod: **28/28, 0 warned**.
 
-Every remaining condition names its owner and its verification. These are the *only* open items.
+Every remaining condition names its owner and its verification. These are the *only* open items — all three need dashboards only the human operator has.
 
 | # | Unmet action | Owner | Verification step |
 |---|---|---|---|
-| 2 | Unpublish the 2 expired-published gift cards via `/admin/cleanup` (or `npm run cleanup:old-deals -- --write`, Node 22) | Mayank | Dry-run `npm run cleanup:old-deals` reports 0 expired-published |
 | 3 | Create GitHub Actions secrets `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`; run one manual "Schema drift" dispatch to green | Mayank | Workflow run green (exit 0) |
 | 4 | Configure external uptime alert on `GET /api/health/monitor` (Bearer `CRON_SECRET`, every 3h); test alert delivery once with a wrong token | Mayank | One received alert from the wrong-token test |
 | 5 | Confirm Supabase automatic backups / PITR enabled for the prod project | Mayank | Dashboard confirmation noted here |
-| 6 | Re-run `npm run smoke -- --strict-content --base-url=https://dealstack-au.vercel.app` after #1–2 and record the result | Mayank or manager | 28/28 pass recorded here |
 
 Recommended (not gating): complete TASK-001/002/003 (see backlog); enable Supabase leaked-password protection while in the dashboard for #5.
 
@@ -57,3 +55,4 @@ These are known, documented, and deliberately NOT fixed pre-launch. Launching me
 | 2026-07-10 | CONDITIONALLY READY | Card-offer condition #1 complete: five issuer checks, one fixed-expiry offer published, four deliberately withheld, and five audit entries recorded. Conditions #2–6 remain. |
 | 2026-07-11 | CONDITIONALLY READY | All three recommended worker tasks APPROVED after manager review (TASK-002 `8213003`, TASK-001 `37854b0`, TASK-003 `6845117`). Fresh strict smoke against live prod: 28/28, 0 warned. Status unchanged — remaining items are ops conditions #2–6 plus the human-authorised prod application of migration 008 (repo-approved, not yet applied; `pg_proc.proconfig` verified NULL). |
 | 2026-07-11 | CONDITIONALLY READY | Migration 008 applied to prod on user authorisation ("do it"), by the manager via the Supabase API using the exact reviewed SQL. Verified: `proconfig` = `search_path=""`; advisor re-run shows `function_search_path_mutable` WARN cleared; ledger entry `008_pin_function_search_path` recorded. All code-side launch work is now complete **and live**. Only ops conditions #2–6 remain. |
+| 2026-07-11 | CONDITIONALLY READY | Conditions #2 and #6 completed on user authorisation: expired gift cards unpublished (dry-run reviewed → `--write` → 2 audited rows → re-run dry-run 0 candidates) and post-cleanup strict smoke against live prod **28/28, 0 warned**. The cleanup UPDATEs also exercised the newly-pinned `set_updated_at` trigger in prod — behaviour confirmed intact. **Remaining: conditions #3, #4, #5 only** (GitHub secrets + watchdog dispatch, external health alert, backups/PITR confirmation) — all require the operator's dashboards; nothing further is executable from the repo. |
