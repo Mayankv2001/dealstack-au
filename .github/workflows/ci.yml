@@ -36,3 +36,10 @@ jobs:
             sleep 2
           done
           npm run smoke
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser smoke tests (static-fallback data)
+        # No Supabase env in CI, so pages serve deterministic static data.
+        # Reuses the build from the step above; Playwright starts its own
+        # `next start` on a dedicated port (playwright.config.ts).
+        run: npm run test:e2e
