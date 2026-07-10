@@ -83,7 +83,7 @@
 
 - [ ] `/admin/dashboard` loads; data-quality stats render (missing rates, stale data, coverage gaps).
 - [ ] Repair every **Unsafe URL** data-quality flag before launch; unsafe public links are hidden and unsafe monitor targets are never fetched.
-- [ ] `/admin/card-offers` — offers verified and published (currently 5 published).
+- [x] `/admin/card-offers` — all 5 rows issuer-verified on 2026-07-10; 1 fixed-expiry offer published, 3 current no-fixed-expiry offers withheld, and 1 obsolete promotion withheld.
 - [ ] `/admin/stores` — store metadata correct; remember store `id` is immutable (edit is unpublish-only, no rename).
 - [ ] `/admin/signals/queue` — staged items reviewed; use keyword presets + **Ignore visible** for bulk triage (bulk **ignore** only — import is one-at-a-time, nothing auto-publishes).
 - [ ] Homepage Top 5 state matrix in staging: import a test item (pending → absent), approve its linked signal (present unless the feed item is hidden), edit the approved title (edited copy appears), then hide/expire the signal (absent). Disable all feed sources, confirm the already-approved card remains present, then restore the reviewed source enablement.
@@ -100,7 +100,7 @@ Verify each returns 200 with real content (spot-checked green 2026-07-09):
 - [ ] `/stores/[slug]` for major stores (e.g. `/stores/myer`, `/stores/jb-hifi`, `/stores/woolworths`) — automated: `npm run smoke`
 - [ ] `/stores` index returns 200, grouped by category, linked from every public page's nav — automated: `npm run smoke`
 - [ ] `/search?q=myer` returns results — automated: `npm run smoke`
-- [ ] `/cards` lists published card offers (no empty state) — automated: `npm run smoke`
+- [x] `/cards` lists the verified, fixed-expiry Amex offer (unready rows stay absent) — automated: `npm run smoke`
 - [ ] `/resources` — automated: `npm run smoke`
 - [ ] 404 page (any unknown path) renders branded not-found — automated: `npm run smoke`
 - [ ] Error boundary (`app/error.tsx`) present with retry + back-to-home
@@ -146,7 +146,7 @@ Applied to `/:path*` via `next.config.ts` — confirm present on a prod response
 ## 11. Manual content verification
 
 - [ ] Published cashback / gift-card / points / card offers have correct rates and current terms (verify against source before relying on any figure — the site is a research tool, not a checkout).
-- [ ] No placeholder / "Illustrative" copy remains on published rows. **Automated:** the "Placeholder copy" tile on `/admin/dashboard` (and the matching `⚑` section in `npm run cleanup:old-deals`) must read 0 — it currently flags the 5 `card_offers` rows published 2026-07-08. Confirm nothing reaches the public pages themselves with the strict smoke gate below (§7).
+- [x] No placeholder / "Illustrative" copy remains on card-offer rows. The sole published row is confirmed and public-ready; strict smoke confirms banned trust markers do not reach public pages (§7).
 - [ ] AUD amounts and Australian spelling throughout user-facing copy.
 - [ ] Homepage OzBargain signals are approved, non-sample and live; cards use the edited signal title/summary/source, never raw `feed_items` copy.
 - [ ] Store logos/aliases resolve; featured/popular stores on the homepage look correct.

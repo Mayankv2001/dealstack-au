@@ -17,6 +17,7 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 
 - **Live/working:** Public site (homepage, `/deals`, `/stores`, `/search`, `/cards`, `/resources`), admin portal (incl. `/admin/cleanup`), feed monitor, feed queue with relevance triage, stacking calculator, CI quality gate, card-offer readiness gate, source-result trust guard, strict production-content smoke, and the audited monitor emergency stop.
 - **Current audit:** Top Deals requires approved signal copy; configured Supabase is authoritative; public URL and monitor egress boundaries fail closed; monitor health is externally observable; signal seeding tolerates diverged native ids.
+- **Card-offer production state:** All 5 rows were checked against current issuer pages on 2026-07-10. Amex Qantas Ultimate is confirmed, has a fixed 2026-07-28 expiry, and is published. NAB, Westpac and ANZ were corrected and confirmed but remain unpublished because the issuer pages provide no fixed expiry; the obsolete CommBank Low Fee Gold promotion remains unpublished. Five `direct-card-offer-verification` audit entries record the user-authorised update.
 - **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
 - **Recent trust/ops sequence:** public source-result guard (`fbd570a`), final AU expiry unification (`14db2d6`), strict public-content smoke (`e29c1c9`), and audited feed-source emergency stop (`f65c951`) are shipped on `main` after the card readiness gate (`2f2db1d`).
 - **Current ranked backlog:** empty — the schema-drift watchdog (`483bd86`) closed the last code task; what remains is human ops/config. See §6.
@@ -45,8 +46,6 @@ scripts/                 Seed / fixture / cleanup scripts
 tests/  monitor/ stack/ admin/ fixtures/      Vitest suites
 supabase/                Migrations + seed SQL
 docs/                    Architecture & monitoring docs
-PLAN-cards-go-live.md    The only retained root plan; code steps shipped, but
-                          issuer-by-issuer production verification remains open.
 docs/launch-management/ Current launch backlog, tasks, prompts and decisions.
 vercel.json              Cron: one/day at 02:00 (Hobby limit)
 ```
@@ -57,7 +56,7 @@ Verified from git history and memory. Commit hashes in parentheses.
 
 - **Feed / monitor:** feed-ingestion-recovery (`53c4a50`), monitor staleness + unfetchable-feed warnings, feed-queue-scalability — cap read at 200, chunk lookups, true backlog (`6c62d04`).
 - **Public hardening:** security headers on every response (`07d8049`), branded 404 + error boundary (`831b99e`), public read-path expiry guard AU-timezone (`5f952e7`), unified DST-correct expiring-soon helper (`59a754c`). Range `07d8049..59a754c`.
-- **Card offers (LIVE):** migration, admin CRUD, public `/cards` page, seed data (Amex/NAB/CBA/Westpac/ANZ), wired into admin dashboard + data quality + cleanup (`2f0a9fb`). **5/5 published by admin 2026-07-08.**
+- **Card offers (LIVE):** migration, admin CRUD, public `/cards` page, seed data (Amex/NAB/CBA/Westpac/ANZ), wired into admin dashboard + data quality + cleanup (`2f0a9fb`). The 2026-07-10 issuer review replaced all illustrative copy and figures: 1 fixed-expiry offer is published and 4 rows are deliberately withheld by the readiness policy.
 - **Admin stores CRUD:** immutable id, unpublish-only (`3a2282f`).
 - **Offer-change detection:** wired **behind default-off flag, staging-only** (`89c8c26`), dry-run preview panel (`8404c27`), and an `/admin/monitor` ops status card + written go-live/rollback runbook (`d499d7e`) — still NOT live (flag flip is a human step).
 - **SEO:** site-level JSON-LD + generated OG images (`54fe741`), sitemap/robots, `/stores` index hub (`aff00df`), published card offers surfaced in cross-entity search (`36f5434`).
@@ -66,7 +65,7 @@ Verified from git history and memory. Commit hashes in parentheses.
 - **Data quality:** placeholder-copy guard flagging "Illustrative" demo text on published rows (`7d2f293`); cashback cap-maths fix, was understating capped cashback ~10× (`c6e31ed`); weekly picks surfaced on `/deals` (`2835137`); generated Supabase types replacing `LooseDB` (`8d2d219`); one-click "Mark re-checked" to clear stale-data flags without a full edit round-trip (`1c8a20c`).
 - **2026-07-10 backlog (5/5 shipped):** feed queue relevance filter/sort/select-all-filtered (`8269bc9`); detection ops status card + go-live runbook (`d499d7e`, listed above); `/admin/cleanup` — reviewed one-click apply for expiry hygiene, ported from the CLI script (`919f3d6`); dashboard mark-rechecked (`1c8a20c`, listed above); project-state truthing (`4217595`).
 - **CI quality gate:** `.github/workflows/ci.yml` — GitHub Actions runs lint, `test:monitor`, `test:stack`, `test:admin`, `build`, and `start`+`smoke` on every PR and every push to `main`, with zero repository secrets (static-fallback demo data covers build/smoke without Supabase env). First structural fix from the 2026-07-10 follow-on backlog, ranked first because two-account direct pushes to `main` had no gate at all. Verified working on its first real PR (#2, below) — `quality` check passed in 1m12s (`106a5d3`, `34d0fe4`).
-- **Card offer public-readiness gate:** `lib/offers/cardReadiness.ts` — one pure rule (confirmed confidence, unexpired date, HTTPS issuer source, positive headline value for the offer type, no placeholder wording) enforced on both the public `/cards` read path (`lib/repos/offers.ts`) and admin insert/update/publish actions (`lib/admin/repos/cardOffers.ts`, card-offers `actions.ts`). Reviewed, verified, and shipped via PR #2, squash `2f2db1d` (branch commit `ea7d3fe`). **Effect: `/cards` now shows its empty state in production** until the 5 illustrative rows are re-verified — see §6 human ops item 3 and §10.
+- **Card offer public-readiness gate:** `lib/offers/cardReadiness.ts` — one pure rule (confirmed confidence, unexpired date, HTTPS issuer source, positive headline value for the offer type, no placeholder wording) enforced on both the public `/cards` read path (`lib/repos/offers.ts`) and admin insert/update/publish actions (`lib/admin/repos/cardOffers.ts`, card-offers `actions.ts`). Reviewed, verified, and shipped via PR #2, squash `2f2db1d` (branch commit `ea7d3fe`). The issuer review completed 2026-07-10: `/cards` exposes only the confirmed Amex offer with a fixed expiry; current offers without a fixed issuer expiry remain unpublished.
 - **Public trust follow-through:** source cards now fail closed on configured DB errors/empty results and enforce expiry/card readiness (`fbd570a`); the last fixed-offset expiry checks use the shared AU calendar (`14db2d6`); strict smoke catches public placeholder/demo leakage (`e29c1c9`).
 - **Monitor emergency stop:** `/admin/monitor` can disable all enabled feed sources immediately with rate limiting and an audit record; staged and public content are preserved (`f65c951`).
 - **Production trust + monitor ops hardening (`05cc339`, audit report `f01162b` / `AUDIT_REPORT.md`):** the second-backlog bundle, all four plans in one reviewed commit. (a) Homepage Top 5 approval boundary — imported feed state is no longer enough; `lib/repos/topDeals.ts` joins the promoted signal, requires approved/non-sample/live state, maps moderated signal copy, preserves the independent homepage-hidden veto, and ignores feed-source enablement for publication; signal changes revalidate `/`. (b) Live-data trust — `fromDbOrStatic` deleted; configured Supabase is authoritative for every public dataset (empty/error reads stay empty, never demo rows), expired store discount codes suppressed at read time (`guardStoreDiscount`), calculator takes repository-loaded stores as props. (c) URL trust — `lib/security/urlPolicy.ts` enforced at admin writes, public reads, final renders, and monitor egress (manual same-host redirects, 3-hop cap, bounded response bodies); unsafe persisted URLs surface as data-quality flags. (d) Monitor health endpoint (`app/api/health/`, `lib/monitor/health.ts`) for external uptime polling, plus seed tolerance for diverged signal native ids.
@@ -85,15 +84,13 @@ None — second backlog and audit complete, schema-drift watchdog shipped. Next 
 2. Create the two GitHub Actions secrets for the schema-drift watchdog (checklist §3) and run its first manual dispatch to green.
 3. Complete the human production-data checks below.
 
-**Also open — three ops steps only a human can perform** (verifying real-world data / making a production judgement call):
+**Also open — two ops steps only a human can perform** (verifying real-world data / making a production judgement call):
 
 1. **Flip `OZB_OFFER_DETECT_ENABLED` live.** Run the precision review in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) on ≥2 different days via `/admin/offer-changes` → Preview, then set the env var in Vercel and redeploy. `/admin/monitor`'s new detection card shows the result. Zero candidates on preview is a healthy, expected outcome — not a blocker.
 2. **Clear the two expired-published gift cards.** `gc-tcn-jbhifi` (expired 2026-07-02) and `gc-woolworths-wish` (expires 2026-07-10, so expired from the 11th) — click Unpublish on `/admin/cleanup` (or run `npm run cleanup:old-deals -- --write`). Harmless, one-click, audited.
-3. **Replace the 5 illustrative card-offer rows with verified real data — now blocking, not just cosmetic.** Since the readiness gate shipped (§4), these rows are hidden from `/cards` entirely, not just labelled "Illustrative." For each offer: confirm the bonus/fee/eligibility against the issuer's own HTTPS page, set a real `expiry_date`, flip `confidence` to `confirmed`, remove any placeholder wording, then republish from `/admin/card-offers` — the form will now reject the save with a specific reason if any requirement is still unmet. Genuinely needs a human to read the issuer's terms page.
 
-> New implementation work belongs in `docs/launch-management/`; root-level
-> shipped plans were removed on 2026-07-10. The retained card plan is an
-> operator verification checklist, not a request to rerun its shipped code.
+> New implementation work belongs in `docs/launch-management/`; completed
+> root-level plans were removed on 2026-07-10.
 
 ## 7. Important Decisions
 
@@ -102,7 +99,7 @@ None — second backlog and audit complete, schema-drift watchdog shipped. Next 
 - **Prod serves the Supabase DB**, not the static fallback files — re-seed after editing static offer data.
 - **No Cashrewards references** anywhere.
 - **Offer-change detection ships dark first** (flag default-off) before going live.
-- **Card offers rows** still say "Illustrative" with null expiry despite being published — but as of `2f2db1d` a code-level readiness gate hides them from `/cards` and blocks re-publishing until an admin fixes the data (see §6 human ops item 3). No longer just a documented caveat; it's now enforced.
+- **Card offers fail closed.** A row is public only when it is confirmed, current, sourced to an HTTPS issuer page, free of placeholder copy, has a positive headline value, and has a fixed expiry. Current issuer offers without a fixed expiry stay unpublished rather than receiving an invented date.
 
 ## 8. Constraints
 
@@ -145,7 +142,7 @@ npm run cleanup:old-deals
 - **Preview server (Node/Turbopack):** `preview_start` running `next dev` needs a zsh `-c` PATH-prefix to Node 20 or Turbopack workers panic. After a panicked run, `rm -rf .next/dev` — the cache stays poisoned otherwise.
 - **Prod migration drift:** Some migrations were applied by hand and are untracked. Migration 005 (`hidden_from_homepage`) was found NOT applied to prod on 2026-07-08. **Verify prod schema via `information_schema.columns`, not just table existence.**
 - **Seed signals unique-key divergence (RESOLVED):** full seed now skips and reports rows whose `source_native_id` belongs to a different production id, then continues to later tables.
-- **Card offers:** the 5 DB rows remain published but marked "Illustrative" with `confidence='needs-verification'` and null expiry. They are not real offer data and are hidden from `/cards` by `2f2db1d`; `/search` and store source cards enforce the same trust contract as of `fbd570a`. Human verification/republication is still required (see §6 human ops item 3).
+- **Card offers (RESOLVED 2026-07-10):** all 5 DB rows were checked against issuer sources and stripped of illustrative copy. Amex Qantas Ultimate is the sole published row because it has a fixed expiry; corrected NAB, Westpac and ANZ rows have no issuer-stated fixed expiry and remain unpublished; the obsolete CommBank promotion remains unpublished. `/cards`, `/search` and store source cards enforce the same trust contract.
 - **Two published-but-expired gift cards (prod-verified 2026-07-10):** `gc-tcn-jbhifi` (TCN, expired 2026-07-02) and `gc-woolworths-wish` (Woolworths WISH, expires 2026-07-10 — expired from the 11th). The public read-guard already hides expired offers from actionable listings, so this is DB hygiene, not a live lie. Clear via `/admin/cleanup` (see §6 human ops item 2).
 - **Two-account coordination risk:** Both accounts share `main`. Pull/rebase before working; commit small; push promptly to avoid divergence (git workflow is autonomous through to `origin/main`).
 
@@ -189,7 +186,6 @@ daa2653  Add next 5-plan backlog (ranked): placeholder guard, schema verify, smo
 1. `git pull --rebase` on `main` — the other account may have pushed. Working tree should be clean.
 2. `nvm use 20` (Node 22 only for `npm run seed`).
 3. Use `docs/launch-management/LAUNCH-BACKLOG.md` as the task source of truth.
-   `PLAN-cards-go-live.md` remains only for its unfinished human verification.
 
 **While working:**
 - Keep changes small and reviewable; one PLAN/phase at a time. The `/phase` skill runs a controlled phase end-to-end (scope → implement → lint/build/test → commit → push → stop).

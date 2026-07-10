@@ -26,11 +26,12 @@ The codebase, tests, security boundaries, CI, and the live production deployment
 
 ## Conditions to reach READY TO LAUNCH
 
-Every condition names its owner and its verification. These are the *only* open items.
+Card-offer condition #1 was completed on 2026-07-10: all five rows were checked against current issuer pages, all illustrative copy was removed, one fixed-expiry Amex offer was published, and four rows without a publishable fixed-expiry offer were left unpublished. Five audit entries record the user-authorised update.
+
+Every remaining condition names its owner and its verification. These are the *only* open items.
 
 | # | Unmet action | Owner | Verification step |
 |---|---|---|---|
-| 1 | Card-offer data decision: verify the 5 illustrative `card_offers` rows against issuer HTTPS pages and republish, **or** record explicit acceptance of launching with `/cards` in its (honest, already-live) empty state | Mayank | `/admin/dashboard` placeholder tile = 0; `/cards` shows verified offers **or** a dated acceptance note added below |
 | 2 | Unpublish the 2 expired-published gift cards via `/admin/cleanup` (or `npm run cleanup:old-deals -- --write`, Node 22) | Mayank | Dry-run `npm run cleanup:old-deals` reports 0 expired-published |
 | 3 | Create GitHub Actions secrets `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`; run one manual "Schema drift" dispatch to green | Mayank | Workflow run green (exit 0) |
 | 4 | Configure external uptime alert on `GET /api/health/monitor` (Bearer `CRON_SECRET`, every 3h); test alert delivery once with a wrong token | Mayank | One received alert from the wrong-token test |
@@ -53,3 +54,4 @@ These are known, documented, and deliberately NOT fixed pre-launch. Launching me
 | Date | Status | Note |
 |---|---|---|
 | 2026-07-10 | CONDITIONALLY READY | Initial assessment at `1fae4ed`. Code verified launch-grade (local gate + live prod strict smoke 28/28 + read-only prod DB verification). Blocked solely on operational conditions 1–6 above. |
+| 2026-07-10 | CONDITIONALLY READY | Card-offer condition #1 complete: five issuer checks, one fixed-expiry offer published, four deliberately withheld, and five audit entries recorded. Conditions #2–6 remain. |
