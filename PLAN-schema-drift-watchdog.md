@@ -1,5 +1,11 @@
 # PLAN-schema-drift-watchdog - Detect production schema drift automatically
 
+> **STATUS (2026-07-10): SHIPPED in `483bd86` — do not re-execute.** Kept for
+> reference. One deliberate deviation: the workflow pins Node 22 instead of
+> `.nvmrc` (20) — supabase-js crashes on Node 20 before probing, and the crash
+> exits 1, which would misreport a broken runner as drift (reproduced during
+> implementation). Human setup still outstanding: the two Actions secrets.
+
 > **Rank: 5 of 5.** Revalidated against `main` at `f65c951`. Production has a
 > documented history of hand-applied migration drift; migration 005 was missing
 > until a manual check found it. `npm run verify:schema` is read-only and useful,

@@ -19,9 +19,9 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 - **Current audit:** Top Deals requires approved signal copy; configured Supabase is authoritative; public URL and monitor egress boundaries fail closed; monitor health is externally observable; signal seeding tolerates diverged native ids.
 - **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
 - **Recent trust/ops sequence:** public source-result guard (`fbd570a`), final AU expiry unification (`14db2d6`), strict public-content smoke (`e29c1c9`), and audited feed-source emergency stop (`f65c951`) are shipped on `main` after the card readiness gate (`2f2db1d`).
-- **Current ranked backlog:** schema-drift watchdog remains the next code task. See §6.
+- **Current ranked backlog:** empty — the schema-drift watchdog (`483bd86`) closed the last code task; what remains is human ops/config. See §6.
 - **Known prod hygiene (see §10):** two published-but-expired gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish` from 2026-07-11) — clear via the new `/admin/cleanup` page (or the CLI `npm run cleanup:old-deals -- --write`).
-- **Build/lint/tests:** Full Node 20 gate is green in this working tree: lint, production build, 158 stack tests, 182 monitor tests, 76 admin tests, and `git diff --check`.
+- **Build/lint/tests:** Full Node 20 gate green at `483bd86`: lint, production build, 165 stack tests, 201 monitor tests, 114 admin tests, `git diff --check`, and the structural egress greps (no `URL.canParse` in app/lib, no auto-follow redirects in the monitor, no `fromDbOrStatic` anywhere).
 
 ## 3. Repository / File Structure
 
@@ -72,7 +72,7 @@ Verified from git history and memory. Commit hashes in parentheses.
 - **Public trust follow-through:** source cards now fail closed on configured DB errors/empty results and enforce expiry/card readiness (`fbd570a`); the last fixed-offset expiry checks use the shared AU calendar (`14db2d6`); strict smoke catches public placeholder/demo leakage (`e29c1c9`).
 - **Monitor emergency stop:** `/admin/monitor` can disable all enabled feed sources immediately with rate limiting and an audit record; staged and public content are preserved (`f65c951`).
 - **Production trust + monitor ops hardening (`05cc339`, audit report `f01162b` / `AUDIT_REPORT.md`):** the second-backlog bundle, all four plans in one reviewed commit. (a) Homepage Top 5 approval boundary — imported feed state is no longer enough; `lib/repos/topDeals.ts` joins the promoted signal, requires approved/non-sample/live state, maps moderated signal copy, preserves the independent homepage-hidden veto, and ignores feed-source enablement for publication; signal changes revalidate `/`. (b) Live-data trust — `fromDbOrStatic` deleted; configured Supabase is authoritative for every public dataset (empty/error reads stay empty, never demo rows), expired store discount codes suppressed at read time (`guardStoreDiscount`), calculator takes repository-loaded stores as props. (c) URL trust — `lib/security/urlPolicy.ts` enforced at admin writes, public reads, final renders, and monitor egress (manual same-host redirects, 3-hop cap, bounded response bodies); unsafe persisted URLs surface as data-quality flags. (d) Monitor health endpoint (`app/api/health/`, `lib/monitor/health.ts`) for external uptime polling, plus seed tolerance for diverged signal native ids.
-- **Schema-drift watchdog (shipped with this commit — see §11 for hash):** `scripts/schema-manifest.ts` (per-column migration ownership: a drift report names the migration that ADDED the column, e.g. 005 for `hidden_from_homepage`) + `tests/admin/schemaManifest.test.ts` (a committed migration missing from the manifest fails `test:admin` — the self-audit that keeps a green probe honest) + `.github/workflows/schema-drift.yml` (weekly Monday 21:00 UTC + manual dispatch, read-only, `main`-only, secrets scoped to the probe step, **Node 22** — supabase-js crashes on Node 20 before probing, reproduced 2026-07-10). Human setup: create the two Actions secrets (checklist §3). Refactored probe verified against live prod: 15/15 tables OK, exit 0.
+- **Schema-drift watchdog (`483bd86`):** `scripts/schema-manifest.ts` (per-column migration ownership: a drift report names the migration that ADDED the column, e.g. 005 for `hidden_from_homepage`) + `tests/admin/schemaManifest.test.ts` (a committed migration missing from the manifest fails `test:admin` — the self-audit that keeps a green probe honest) + `.github/workflows/schema-drift.yml` (weekly Monday 21:00 UTC + manual dispatch, read-only, `main`-only, secrets scoped to the probe step, **Node 22** — supabase-js crashes on Node 20 before probing, reproduced 2026-07-10). Human setup: create the two Actions secrets (checklist §3). Refactored probe verified against live prod: 15/15 tables OK, exit 0.
 
 ## 5. Current Task
 
@@ -151,7 +151,10 @@ npm run cleanup:old-deals
 Most recent commits (newest first):
 
 ```
-f65c951  Add admin monitor actions and feed source updates                                  <- base/HEAD
+483bd86  Add scheduled schema-drift watchdog with self-auditing manifest                    <- HEAD
+f01162b  Document production readiness audit
+05cc339  Harden production trust and monitor operations
+f65c951  Add admin monitor actions and feed source updates
 e29c1c9  Add --strict-content mode to npm run smoke for public trust regressions
 14db2d6  Unify last two expiry checks onto DST-correct AU calendar helpers
 fbd570a  Apply public trust guard to source results
