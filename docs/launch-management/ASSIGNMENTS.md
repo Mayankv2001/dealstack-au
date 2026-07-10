@@ -9,7 +9,7 @@
 |---|---|---|---|---|---|---|
 | TASK-001 pin `set_updated_at` search_path | Claude Sonnet | sequential on `main` | APPROVED | — | `37854b0` | [APPROVED](reviews/REVIEW-TASK-001.md) 2026-07-11 — prod application still pending (human step) |
 | TASK-002 operator env docs accuracy | Claude Sonnet (actual; Haiku recommended) | sequential on `main` | APPROVED | — | `8213003` | [APPROVED](reviews/REVIEW-TASK-002.md) 2026-07-10 |
-| TASK-003 `/deals` disclaimer wording | Claude Haiku | `task/003-deals-copy` (or sequential on `main`) | READY | — | — | pending |
+| TASK-003 `/deals` disclaimer wording | Claude Sonnet (actual; Haiku recommended) | sequential on `main` | IMPLEMENTED | — | `6845117` | pending |
 
 ## Dispatch order and parallelism
 
@@ -32,3 +32,4 @@
 | 2026-07-10 | Backlog created at commit `1fae4ed`; TASK-001/002/003 authored and READY; no work dispatched yet. |
 | 2026-07-10 | TASK-002 implemented by worker (Claude Sonnet, commit `8213003`, sequential on `main`). Manager review: all 5 acceptance criteria PASS, verification re-run, scope clean → **APPROVED** ([REVIEW-TASK-002](reviews/REVIEW-TASK-002.md)). TASK-001 and TASK-003 remain READY; next dispatch per recommended sequence: TASK-001 (Claude Sonnet, `PROMPT-TASK-001.md`). |
 | 2026-07-11 | TASK-001 implemented by worker (Claude Sonnet, commit `37854b0`, sequential on `main`). Manager review: all 6 acceptance criteria PASS; full gate re-run (lint, 114+203+166 tests, build); read-only prod probe confirms `set_updated_at.proconfig` still NULL — worker made no production write → **APPROVED** ([REVIEW-TASK-001](reviews/REVIEW-TASK-001.md)). Follow-up: human-authorised prod application of migration 008. Remaining dispatch: TASK-003 (Claude Haiku, `PROMPT-TASK-003.md`). |
+| 2026-07-11 | TASK-003 implemented by worker (Claude Sonnet, commit `6845117`, sequential on `main`). Disclaimer sentence changed from "manually curated, cached examples — not live data" to "manually curated and served from a cache — not live data"; rest of paragraph unchanged. Verified: lint clean, build clean, `npm run smoke -- --strict-content` 27/27 pass 0 warned against local production build, `git status`/`git diff` confirm single-file copy-only change. Pushed to `origin/main`. Awaiting manager review. |
