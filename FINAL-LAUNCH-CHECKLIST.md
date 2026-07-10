@@ -62,7 +62,7 @@
 - [ ] Feed source added + enabled at `/admin/signals/sources`; source type is `ozbargain` (not `manual-url`, or `listDueEnabledFeeds` skips it and `last_fetched_at` never advances).
 - [ ] After first run: `/admin/monitor` → Recent fetch runs shows a fetch; `last_fetched_at` advanced.
 - [ ] (Optional) external scheduler (cron-job.org) GETs `/api/cron/monitor-feeds` with `Authorization: Bearer $CRON_SECRET` ≤ every 3h.
-- [ ] Keep `OZB_OFFER_DETECT_ENABLED` off until you have reviewed a few `npm run monitor:feeds -- --dry-run` outputs with it on — detection only stages candidates for `/admin/offer-changes`, never auto-applies.
+- [ ] Keep `OZB_OFFER_DETECT_ENABLED` off until precision is reviewed, then follow the **go-live runbook** in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) — detection only stages candidates for `/admin/offer-changes`, never auto-applies. Post-enable status (flag, per-state counts, last-staged time) is visible on `/admin/monitor`.
 
 ---
 

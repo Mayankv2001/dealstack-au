@@ -8,6 +8,7 @@ import {
   Lightbulb,
   ListChecks,
   PowerOff,
+  Radar,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -17,6 +18,8 @@ import {
   type MonitorFetchLogEntry,
   type MonitorStatus,
 } from "@/lib/admin/repos/monitorStatus";
+import { getDetectionOpsStatus } from "@/lib/admin/repos/offerChanges";
+import { ozbOfferDetectEnabled } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -242,7 +245,13 @@ export default async function MonitorStatusPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
-  const status = await getMonitorStatus();
+  // Fetch both read-only snapshots together (no waterfall). The flag is read
+  // per-request via the env accessor — never inline process.env.
+  const [status, detection] = await Promise.all([
+    getMonitorStatus(),
+    getDetectionOpsStatus(),
+  ]);
+  const detectionEnabled = ozbOfferDetectEnabled();
 
   const hasRisk = status.enabledWithoutApproval > 0;
   const checklist = cronChecklist(status);
@@ -617,6 +626,76 @@ export default async function MonitorStatusPage() {
             <CountPill label="Imported" value={status.feedItemCounts.imported} />
             <CountPill label="Ignored" value={status.feedItemCounts.ignored} />
             <CountPill label="Duplicate" value={status.feedItemCounts.duplicate} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Offer-change detection — read-only ops status. This page never runs
+          detection; the flag gates the post-run staging hook in the cron route,
+          reviewed and flipped by a human per the go-live runbook. */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Radar className="size-5 text-muted-foreground" />
+              Offer-change detection
+            </CardTitle>
+            <Badge
+              variant="outline"
+              className={cn(
+                "gap-1",
+                detectionEnabled
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-muted-foreground/30 text-muted-foreground"
+              )}
+            >
+              {detectionEnabled ? "Enabled" : "Disabled"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            <code className="text-xs">OZB_OFFER_DETECT_ENABLED</code> ={" "}
+            <code className="text-xs">{detectionEnabled ? "true" : "false"}</code>.
+            Gates the post-run staging hook only — the{" "}
+            <Link href="/admin/offer-changes" className="underline">
+              preview panel
+            </Link>{" "}
+            works regardless.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <CountPill label="Total" value={detection.totalCandidates} />
+            <CountPill label="New" value={detection.byReviewState.new} />
+            <CountPill label="Applied" value={detection.byReviewState.applied} />
+            <CountPill label="Ignored" value={detection.byReviewState.ignored} />
+            <CountPill
+              label="Duplicate"
+              value={detection.byReviewState.duplicate}
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">
+              Last candidate staged:
+            </span>{" "}
+            {detection.latestStagedAt ? (
+              <span className="tabular-nums">
+                {formatDate(detection.latestStagedAt)}
+              </span>
+            ) : (
+              "Never — detection has not run in write mode."
+            )}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <Link
+              href="/admin/offer-changes"
+              className="font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+            >
+              Review candidates / run a preview →
+            </Link>
+            <span className="text-xs text-muted-foreground">
+              Go-live runbook:{" "}
+              <code className="text-xs">docs/ozbargain-monitoring.md</code>
+            </span>
           </div>
         </CardContent>
       </Card>

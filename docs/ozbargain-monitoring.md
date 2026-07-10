@@ -725,3 +725,50 @@ requests even with the cron scheduled.
 
 > **Automated scheduling (cron) stays gated** — only enable real feeds and raise
 > cadence after manual dry runs against a staging project look clean.
+
+## Offer-change detection: go-live runbook
+
+Offer-change detection scans already-staged feed items and stages
+`offer_change_candidates` for admin review. It is **built but dark**: the pure
+pipeline (`lib/monitor/detectOffers.ts`, `lib/monitor/runDetection.ts`), the
+post-run cron hook (`app/api/cron/monitor-feeds/route.ts`), and the admin
+preview panel (`app/admin/(protected)/offer-changes/DetectionPreviewClient.tsx`)
+all exist and are tested, but `OZB_OFFER_DETECT_ENABLED` has never been flipped —
+so `offer_change_candidates` has zero rows. Detection **never auto-applies**:
+even once enabled, a candidate only changes a published offer when an admin
+clicks **Apply** on `/admin/offer-changes`. Post-enable status is visible on
+[`/admin/monitor`](../app/admin/(protected)/monitor/page.tsx) in the
+**Offer-change detection** card (flag state, per-review-state counts, last-staged
+time).
+
+Follow these four steps to take it live safely.
+
+1. **Precision review (repeat on ≥2 different days).** Open
+   `/admin/offer-changes` → **Preview detection (dry run)** → run it. The preview
+   scans the last **7 days** of staged items, capped at 200
+   (`DETECTION_SCAN_LIMIT`, `lib/monitor/runDetection.ts`). Judge every
+   candidate: is the provider right, the merchant right, the value real?
+   **Zero candidates is a plausible, healthy result** — the heuristics demand a
+   provider *and* a parseable value *and* a resolvable merchant (precision over
+   recall), so an empty preview is not a bug and does not block go-live. Review
+   on two separate days so a quiet day is not mistaken for a broken detector.
+
+2. **Flip the flag.** Vercel → Settings → Environment Variables → add
+   `OZB_OFFER_DETECT_ENABLED=true` (Production) → **redeploy**. The flag is
+   already documented in `.env.example`. Nothing else changes: the monitor
+   fetch, gates, and cadence are untouched.
+
+3. **Verify within a day.** The daily Vercel Cron (02:00 UTC), or an external
+   scheduler run, now returns a `detection` block in its JSON summary. Once
+   anything stages, `/admin/monitor` shows a non-null "Last candidate staged"
+   time, and candidates appear on `/admin/offer-changes` as
+   `review_state = 'new'` for normal human review. **Nothing auto-applies** —
+   Apply remains the only path to public data. Note the preview scans **7 days**
+   but the live cron hook scans only the last **24 hours**, so a preview showing
+   5 candidates does **not** mean the first live run stages 5; expect fewer.
+
+4. **Rollback.** Remove the env var (or set it to `false`) and **redeploy**. No
+   code revert is needed. A detection failure can **never** fail the monitor
+   run — the post-run hook is fully wrapped in try/catch
+   (`app/api/cron/monitor-feeds/route.ts`), so on error the monitor completes
+   normally and the failure is recorded in the run's `detection` block only.

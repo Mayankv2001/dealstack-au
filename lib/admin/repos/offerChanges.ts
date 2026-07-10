@@ -3,6 +3,7 @@ import {
   hasLastCheckedAt,
   isApplyPlan,
   planOfferApplication,
+  OFFER_CHANGE_REVIEW_STATES,
   type OfferChangeCandidateInsert,
   type OfferChangeConfidence,
   type OfferChangeReviewState,
@@ -129,6 +130,73 @@ export async function countNewOfferChanges(): Promise<number> {
     .eq("review_state", "new");
   if (error) throw new Error(`countNewOfferChanges failed: ${error.message}`);
   return count ?? 0;
+}
+
+/**
+ * Read-only ops snapshot for the /admin/monitor detection status card:
+ * total candidate count, exact per-review-state counts, and when the most
+ * recent candidate was staged (null when the table has never had a row — the
+ * day-one prod state). Counts use head:true so no candidate content crosses the
+ * wire — the card needs numbers, not raw feed titles.
+ */
+export interface DetectionOpsStatus {
+  totalCandidates: number;
+  /** Exact counts keyed by review_state (the canonical states from migration 004). */
+  byReviewState: Record<OfferChangeReviewState, number>;
+  /** ISO of the most recently staged candidate, or null if none ever. */
+  latestStagedAt: string | null;
+}
+
+async function countOfferChangesWhere(
+  db: ReturnType<typeof getSupabaseAdmin>,
+  reviewState: OfferChangeReviewState
+): Promise<number> {
+  const { count, error } = await db
+    .from("offer_change_candidates")
+    .select("id", { count: "exact", head: true })
+    .eq("review_state", reviewState);
+  if (error) {
+    throw new Error(
+      `getDetectionOpsStatus count ${reviewState} failed: ${error.message}`
+    );
+  }
+  return count ?? 0;
+}
+
+export async function getDetectionOpsStatus(): Promise<DetectionOpsStatus> {
+  const db = getSupabaseAdmin();
+  const [total, latest, ...stateCounts] = await Promise.all([
+    (async () => {
+      const { count, error } = await db
+        .from("offer_change_candidates")
+        .select("id", { count: "exact", head: true });
+      if (error) {
+        throw new Error(`getDetectionOpsStatus total count failed: ${error.message}`);
+      }
+      return count ?? 0;
+    })(),
+    (async () => {
+      const { data, error } = await db
+        .from("offer_change_candidates")
+        .select("created_at")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        throw new Error(`getDetectionOpsStatus latest failed: ${error.message}`);
+      }
+      return (data as { created_at: string } | null)?.created_at ?? null;
+    })(),
+    ...OFFER_CHANGE_REVIEW_STATES.map((state) =>
+      countOfferChangesWhere(db, state)
+    ),
+  ]);
+
+  const byReviewState = Object.fromEntries(
+    OFFER_CHANGE_REVIEW_STATES.map((state, i) => [state, stateCounts[i]])
+  ) as Record<OfferChangeReviewState, number>;
+
+  return { totalCandidates: total, byReviewState, latestStagedAt: latest };
 }
 
 /** A single candidate by id, or null when it does not exist. */

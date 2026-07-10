@@ -1,5 +1,9 @@
 # PLAN: Turn on offer-change detection — the built-but-never-wired half of the monitor
 
+> **STATUS (2026-07-10): SUPERSEDED.** The build this plan describes shipped
+> dark in 89c8c26 (pipeline + flag hook) and 8404c27 (preview panel). Do not
+> re-execute. Go-live is covered by PLAN-detection-go-live.md.
+
 > **Rank: 9 of 10. Prerequisite: PLAN-feed-ingestion-recovery must be done
 > and verified first** (feeds fetching again, `source_type='ozbargain'`).
 > The offer-changes feature is 80% built and 0% running: the pure detection
