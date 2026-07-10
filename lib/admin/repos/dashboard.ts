@@ -2,6 +2,13 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { DbClient, PublicTable } from "@/lib/supabase/server";
 import { weekMondayAU } from "@/lib/admin/dateHelpers";
 import { findPlaceholderMarkers } from "@/lib/admin/placeholderCopy";
+import {
+  isApprovedFeedUrl,
+  safeHttpsUrl,
+  safeLogoPath,
+  safePublicHref,
+} from "@/lib/security/urlPolicy";
+import { isApprovedForFetch } from "@/lib/monitor/offerChanges";
 
 /**
  * Admin dashboard counts — SERVICE-ROLE ONLY.
@@ -130,7 +137,8 @@ export type RecentItemType =
   | "points"
   | "signals"
   | "weeklyDeals"
-  | "cardOffers";
+  | "cardOffers"
+  | "feedSources";
 
 /** One row in the "Recent updates" feed, normalised across every table. */
 export interface RecentItem {
@@ -380,7 +388,8 @@ export type DataQualityIssueCode =
   | "stale"
   | "missing-expiry"
   | "stale-week-of"
-  | "placeholder-copy";
+  | "placeholder-copy"
+  | "unsafe-url";
 
 /** One failed check on a flagged item. */
 export interface DataQualityIssue {
@@ -412,6 +421,7 @@ export interface DataQualityCounts {
   staleChecked: number;
   staleWeekOf: number;
   placeholderCopy: number;
+  unsafeUrl: number;
 }
 
 export interface DataQualityReport {
@@ -423,13 +433,18 @@ export interface DataQualityReport {
 }
 
 /** True when a jsonb citations value has at least one usable source URL. */
-function hasSourceUrl(citations: unknown): boolean {
-  if (!Array.isArray(citations)) return false;
-  return citations.some((c) => {
-    if (c == null || typeof c !== "object") return false;
+function citationUrls(citations: unknown): string[] {
+  if (!Array.isArray(citations)) return [];
+  return citations.flatMap((c) => {
+    if (c == null || typeof c !== "object") return [];
     const url = (c as { sourceUrl?: unknown }).sourceUrl;
-    return typeof url === "string" && url.trim() !== "";
+    return typeof url === "string" && url.trim() !== "" ? [url] : [];
   });
+}
+
+/** True when a jsonb citations value has at least one safe source URL. */
+function hasSourceUrl(citations: unknown): boolean {
+  return citationUrls(citations).some((url) => safePublicHref(url) !== null);
 }
 
 // AU-local "today" as YYYY-MM-DD so it compares directly to a date column string.
@@ -458,6 +473,7 @@ interface GiftCardDqRow {
   last_checked_at: string | null;
   usage_notes: string[] | null;
   stack_notes: string[] | null;
+  source_detail_url: string | null;
 }
 interface PointsDqRow {
   id: string;
@@ -474,6 +490,9 @@ interface SignalDqRow {
   title: string;
   expiry_date: string | null;
   last_checked_at: string | null;
+  source_url: string;
+  merchant_url: string | null;
+  product_url: string | null;
 }
 
 interface WeeklyDealDqRow {
@@ -481,6 +500,7 @@ interface WeeklyDealDqRow {
   title: string;
   week_of: string;
   summary: string | null;
+  citations: unknown;
 }
 
 interface CardOfferDqRow {
@@ -492,6 +512,19 @@ interface CardOfferDqRow {
   last_checked_at: string | null;
   offer_summary: string | null;
   eligibility_notes: string | null;
+}
+
+interface StoreDqRow {
+  id: string;
+  name: string;
+  logo_path: string | null;
+}
+
+interface FeedSourceDqRow {
+  id: string;
+  label: string;
+  feed_url: string;
+  source_type: string;
 }
 
 /**
@@ -511,7 +544,16 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
   const todayStr = DQ_DAY_FMT.format(now);
   const staleBeforeMs = now.getTime() - STALE_DAYS * 86_400_000;
 
-  const [cashback, giftCards, points, signals, weeklyDeals, cardOffers] =
+  const [
+    cashback,
+    giftCards,
+    points,
+    signals,
+    weeklyDeals,
+    cardOffers,
+    stores,
+    feedSources,
+  ] =
     await Promise.all([
       db
         .from("cashback_offers")
@@ -522,7 +564,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       db
         .from("gift_card_offers")
         .select(
-          "id, brand, expiry_date, citations, last_checked_at, usage_notes, stack_notes"
+          "id, brand, expiry_date, citations, last_checked_at, usage_notes, stack_notes, source_detail_url"
         )
         .eq("is_published", true),
       db
@@ -533,11 +575,11 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         .eq("is_published", true),
       db
         .from("ozbargain_signals")
-        .select("id, title, expiry_date, last_checked_at")
+        .select("id, title, expiry_date, last_checked_at, source_url, merchant_url, product_url")
         .eq("status", "approved"),
       db
         .from("weekly_deals")
-        .select("id, title, week_of, summary")
+        .select("id, title, week_of, summary, citations")
         .eq("is_published", true),
       db
         .from("card_offers")
@@ -545,9 +587,23 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
           "id, provider, card_name, expiry_date, source_url, last_checked_at, offer_summary, eligibility_notes"
         )
         .eq("is_published", true),
+      db
+        .from("stores")
+        .select("id, name, logo_path")
+        .eq("is_published", true),
+      db.from("feed_sources").select("id, label, feed_url, source_type"),
     ]);
 
-  for (const res of [cashback, giftCards, points, signals, weeklyDeals, cardOffers]) {
+  for (const res of [
+    cashback,
+    giftCards,
+    points,
+    signals,
+    weeklyDeals,
+    cardOffers,
+    stores,
+    feedSources,
+  ]) {
     if (res.error) {
       throw new Error(`data quality read failed: ${res.error.message}`);
     }
@@ -562,6 +618,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     staleChecked: 0,
     staleWeekOf: 0,
     placeholderCopy: 0,
+    unsafeUrl: 0,
   };
   const flags: DataQualityFlag[] = [];
 
@@ -580,6 +637,8 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     checkMissingExpiry: boolean;
     /** Text columns to scan for demo/illustrative wording (undefined = skip). */
     placeholderTexts?: (string | null)[];
+    /** Persisted URLs checked independently of whether a source is required. */
+    urls?: (string | null)[];
   }): void {
     const issues: DataQualityIssue[] = [];
     let severity: DataQualitySeverity | null = null;
@@ -602,6 +661,18 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         });
         severity = "high";
       }
+    }
+    const persistedUrls = [
+      ...(opts.urls ?? []),
+      ...citationUrls(opts.citations),
+    ].filter((url): url is string => Boolean(url));
+    if (persistedUrls.some((url) => safePublicHref(url) === null)) {
+      counts.unsafeUrl += 1;
+      issues.push({
+        code: "unsafe-url",
+        label: "Contains an unsafe or non-HTTPS public URL",
+      });
+      severity = "high";
     }
     if (opts.checkSource && !hasSourceUrl(opts.citations)) {
       counts.missingSourceUrl += 1;
@@ -667,6 +738,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       checkSource: true,
       checkMissingExpiry: true,
       placeholderTexts: [...(r.usage_notes ?? []), ...(r.stack_notes ?? [])],
+      urls: [r.source_detail_url],
     });
   }
   for (const r of points.data as unknown as PointsDqRow[]) {
@@ -697,6 +769,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       // source_url is NOT NULL for signals; expiry is often legitimately absent.
       checkSource: false,
       checkMissingExpiry: false,
+      urls: [r.source_url, r.merchant_url, r.product_url],
       // Sample signals are marked by the structured is_sample column and are
       // rendered with an explicit "Sample signal —" label everywhere public
       // (lib/repos/sourceResults.ts:259); the launch checklist explicitly
@@ -722,7 +795,51 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       checkSource: true,
       checkMissingExpiry: true,
       placeholderTexts: [r.offer_summary, r.eligibility_notes, r.card_name],
+      urls: [r.source_url],
     });
+  }
+
+  for (const r of stores.data as unknown as StoreDqRow[]) {
+    if (r.logo_path && !safeLogoPath(r.logo_path)) {
+      counts.unsafeUrl += 1;
+      flags.push({
+        type: "stores",
+        typeLabel: "Store",
+        id: r.id,
+        title: r.name,
+        issues: [{ code: "unsafe-url", label: "Unsafe store logo path" }],
+        severity: "high",
+        editHref: `/admin/stores/${r.id}/edit`,
+        expiryDate: null,
+        lastCheckedAt: null,
+      });
+    }
+  }
+
+  for (const r of feedSources.data as unknown as FeedSourceDqRow[]) {
+    if (
+      !safeHttpsUrl(r.feed_url) ||
+      (isApprovedForFetch(r.source_type) &&
+        !isApprovedFeedUrl(r.source_type, r.feed_url))
+    ) {
+      counts.unsafeUrl += 1;
+      flags.push({
+        type: "feedSources",
+        typeLabel: "Feed source",
+        id: r.id,
+        title: r.label,
+        issues: [
+          {
+            code: "unsafe-url",
+            label: "Feed URL is not approved for its source type",
+          },
+        ],
+        severity: "high",
+        editHref: `/admin/signals/sources/${r.id}/edit`,
+        expiryDate: null,
+        lastCheckedAt: null,
+      });
+    }
   }
 
   // Weekly deals: flag published ones whose week_of is from a prior week, and
@@ -767,17 +884,50 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         lastCheckedAt: null,
       });
     }
+    if (citationUrls(r.citations).some((url) => !safePublicHref(url))) {
+      counts.unsafeUrl += 1;
+      flags.push({
+        type: "weeklyDeals",
+        typeLabel: "Weekly deal",
+        id: r.id,
+        title: r.title,
+        issues: [{ code: "unsafe-url", label: "Contains an unsafe source URL" }],
+        severity: "high",
+        editHref: `/admin/weekly-deals/${r.id}/edit`,
+        expiryDate: null,
+        lastCheckedAt: null,
+      });
+    }
   }
 
+  // Weekly checks are independent and can flag the same row more than once.
+  // Merge by entity so flaggedItems remains the documented distinct count.
+  const merged = new Map<string, DataQualityFlag>();
+  for (const flag of flags) {
+    const key = `${flag.type}:${flag.id}`;
+    const prior = merged.get(key);
+    if (!prior) {
+      merged.set(key, flag);
+      continue;
+    }
+    prior.issues.push(
+      ...flag.issues.filter(
+        (issue) => !prior.issues.some((existing) => existing.code === issue.code)
+      )
+    );
+    if (flag.severity === "high") prior.severity = "high";
+  }
+
+  const mergedFlags = [...merged.values()];
   const severityRank: Record<DataQualitySeverity, number> = {
     high: 0,
     medium: 1,
   };
-  flags.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+  mergedFlags.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
 
   return {
     counts,
-    flaggedItems: flags.length,
-    flags,
+    flaggedItems: mergedFlags.length,
+    flags: mergedFlags,
   };
 }

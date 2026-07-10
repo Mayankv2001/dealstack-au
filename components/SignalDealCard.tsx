@@ -2,9 +2,10 @@ import { CalendarClock, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfidencePill } from "@/components/WeeklyDealCard";
-import { stores } from "@/lib/data";
+import type { Store } from "@/lib/data";
 import { formatDateAU } from "@/lib/sources/normalise";
 import type { OzBargainSignal } from "@/lib/offers/types";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * One approved signal rendered as a compact "deal" card — used for Hot Buys
@@ -16,14 +17,21 @@ import type { OzBargainSignal } from "@/lib/offers/types";
  */
 
 /** Human source label for a signal (store name, or OzBargain). */
-function sourceLabel(signal: OzBargainSignal): string {
+function sourceLabel(signal: OzBargainSignal, stores: Store[]): string {
   const store = stores.find((s) => s.id === signal.merchantId);
   return store?.name ?? "OzBargain";
 }
 
-export function SignalDealCard({ signal }: { signal: OzBargainSignal }) {
+export function SignalDealCard({
+  signal,
+  stores,
+}: {
+  signal: OzBargainSignal;
+  stores: Store[];
+}) {
   const expiry = formatDateAU(signal.expiryDate ?? null);
   const isCostco = signal.merchantId === "costco";
+  const sourceHref = safeHttpsUrl(signal.sourceUrl);
 
   return (
     <Card className="gap-0 py-0 shadow-sm">
@@ -37,7 +45,7 @@ export function SignalDealCard({ signal }: { signal: OzBargainSignal }) {
                 : "text-[10px] font-medium"
             }
           >
-            {sourceLabel(signal)}
+            {sourceLabel(signal, stores)}
           </Badge>
           <ConfidencePill confidence={signal.confidence} />
         </div>
@@ -61,11 +69,13 @@ export function SignalDealCard({ signal }: { signal: OzBargainSignal }) {
               Ends {expiry}
             </span>
           ) : null}
-          {signal.isSample ? (
-            <span className="text-muted-foreground/80">Sample listing</span>
+          {signal.isSample || !sourceHref ? (
+            <span className="text-muted-foreground/80">
+              {signal.isSample ? "Sample listing" : "Source unavailable"}
+            </span>
           ) : (
             <a
-              href={signal.sourceUrl}
+              href={sourceHref}
               target="_blank"
               rel="noopener noreferrer nofollow"
               className="inline-flex items-center gap-1 font-medium text-primary hover:underline"

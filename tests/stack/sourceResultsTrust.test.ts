@@ -212,3 +212,24 @@ describe("buildSourceResultPool — empty pool", () => {
     expect(buildSourceResultPool(rows, NOW)).toEqual([]);
   });
 });
+
+describe("buildSourceResultPool — URL trust", () => {
+  it("excludes a real signal whose required source URL is unsafe", () => {
+    const rows = emptyRows();
+    rows.signals = [makeSignal({ source_url: "javascript:alert(1)" })];
+    expect(buildSourceResultPool(rows, NOW)).toEqual([]);
+  });
+
+  it("keeps a gift-card result but replaces an unsafe optional detail URL", () => {
+    const rows = emptyRows();
+    rows.giftCards = [
+      makeGiftCard({
+        accepted_at_merchant_ids: [],
+        source_detail_url: "file:///etc/passwd",
+      }),
+    ];
+    const pool = buildSourceResultPool(rows, NOW);
+    expect(pool).toHaveLength(1);
+    expect(pool[0].sourceUrl).toBe("https://www.gcdb.com.au");
+  });
+});

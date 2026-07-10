@@ -678,7 +678,7 @@ export default function DealsClient({
         </div>
 
         {/* Hot Buys — admin-approved Costco + OzBargain hot-buy signals only */}
-        <HotBuys signals={ozBargainSignals} />
+        <HotBuys signals={ozBargainSignals} stores={stores} />
 
         {/* 1 — This week's top stacks (always visible, scannable) */}
         <section className="mt-6">
@@ -693,6 +693,7 @@ export default function DealsClient({
               <StackRecommendationCard
                 key={rec.merchantId}
                 recommendation={rec}
+                stores={stores}
                 compact
                 rank={i + 1}
               />
@@ -818,6 +819,7 @@ export default function DealsClient({
                 <StackRecommendationCard
                   key={rec.merchantId}
                   recommendation={rec}
+                  stores={stores}
                 />
               ))}
             </div>

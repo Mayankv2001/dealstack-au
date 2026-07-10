@@ -18,6 +18,7 @@ import {
   type OfferType,
 } from "@/lib/admin/repos/cardOffers";
 import type { Confidence } from "@/lib/sources/types";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Card-offer admin server actions.
@@ -131,9 +132,11 @@ function parseCardOfferForm(formData: FormData): ParseResult {
     return { ok: false, error: "Annual fee must be a non-negative number." };
   }
 
+  const isPublished = parseBool(formData, "is_published");
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
-  if (sourceUrl !== "" && !URL.canParse(sourceUrl)) {
-    return { ok: false, error: "Source URL must be a valid URL (including https://)." };
+  const safeSourceUrl = sourceUrl === "" ? "" : safeHttpsUrl(sourceUrl);
+  if (safeSourceUrl === null && !isPublished) {
+    return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
   }
 
   const expiryDate = parseOptionalDate(formData.get("expiry_date"));
@@ -158,10 +161,12 @@ function parseCardOfferForm(formData: FormData): ParseResult {
       annualFee: annualFee.value,
       eligibilityNotes: String(formData.get("eligibility_notes") ?? "").trim(),
       offerSummary: String(formData.get("offer_summary") ?? "").trim(),
-      sourceUrl,
+      // Published submissions reach the repository readiness gate so it can
+      // return all publish failures together; that gate blocks the write.
+      sourceUrl: safeSourceUrl ?? sourceUrl,
       confidence: confidence as Confidence,
       expiryDate: expiryDate.value,
-      isPublished: parseBool(formData, "is_published"),
+      isPublished,
     },
   };
 }

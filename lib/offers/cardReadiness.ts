@@ -2,6 +2,7 @@ import { findPlaceholderMarkers } from "@/lib/content/placeholderCopy";
 import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { CardOfferType } from "@/lib/offers/types";
 import type { Confidence } from "@/lib/sources/types";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /** The card fields needed to decide whether an offer is safe to publish. */
 export interface CardOfferReadinessInput {
@@ -52,15 +53,6 @@ function headlineFailure(offer: CardOfferReadinessInput): string | null {
   }
 }
 
-function hasHttpsSourceUrl(sourceUrl: string): boolean {
-  try {
-    const url = new URL(sourceUrl);
-    return url.protocol === "https:" && url.hostname.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 /** Returns every reason an offer is not ready, in stable display order. */
 export function cardOfferReadiness(
   offer: CardOfferReadinessInput,
@@ -87,7 +79,7 @@ export function cardOfferReadiness(
 
   if (!offer.sourceUrl.trim()) {
     reasons.push("an issuer HTTPS source URL is required");
-  } else if (!hasHttpsSourceUrl(offer.sourceUrl)) {
+  } else if (!safeHttpsUrl(offer.sourceUrl)) {
     reasons.push("source URL must be a valid HTTPS URL");
   }
 

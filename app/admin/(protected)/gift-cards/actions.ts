@@ -20,6 +20,7 @@ import {
   type PurchaseMethod,
 } from "@/lib/admin/repos/giftCards";
 import type { Citation, Confidence } from "@/lib/sources/types";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Gift-card admin server actions.
@@ -127,15 +128,19 @@ function parseGiftCardForm(formData: FormData): ParseResult {
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   const citations: Citation[] = [];
   if (sourceUrl !== "") {
-    if (!URL.canParse(sourceUrl)) {
-      return { ok: false, error: "Source URL must be a valid URL (including https://)." };
+    const safeSourceUrl = safeHttpsUrl(sourceUrl);
+    if (!safeSourceUrl) {
+      return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
     }
-    citations.push({ source: "manual", sourceUrl });
+    citations.push({ source: "manual", sourceUrl: safeSourceUrl });
   }
 
-  const sourceDetailUrl = parseOptionalText(formData.get("source_detail_url"));
-  if (sourceDetailUrl !== null && !URL.canParse(sourceDetailUrl)) {
-    return { ok: false, error: "Source detail URL must be a valid URL (including https://)." };
+  const rawSourceDetailUrl = parseOptionalText(formData.get("source_detail_url"));
+  const sourceDetailUrl = rawSourceDetailUrl
+    ? safeHttpsUrl(rawSourceDetailUrl)
+    : null;
+  if (rawSourceDetailUrl !== null && !sourceDetailUrl) {
+    return { ok: false, error: "Source detail URL must be a safe HTTPS URL without credentials." };
   }
 
   return {

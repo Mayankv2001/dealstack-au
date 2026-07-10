@@ -29,6 +29,7 @@ import { ActionButton } from "@/components/admin/ActionButton";
 import type { FeedQueueItem } from "@/lib/admin/repos/feedQueue";
 import { assessFeedItem, type Relevance } from "@/lib/admin/queueRelevance";
 import { cn } from "@/lib/utils";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 import {
   hideFromTopDeals,
   ignoreItem,
@@ -64,11 +65,8 @@ function formatDate(iso: string | null): string {
 
 /** Hostname of an external link, for a safer "where does this go" display. */
 function safeHost(url: string): string | null {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
-  }
+  const safeUrl = safeHttpsUrl(url);
+  return safeUrl ? new URL(safeUrl).hostname : null;
 }
 
 // ── Review-assist heuristics (display only — never auto-import or reject) ──────
@@ -183,13 +181,13 @@ function QueueItemActions({ item }: { item: FeedQueueItem }) {
         >
           Mark duplicate
         </ActionButton>
-        {/* Homepage Top 5 visibility — independent of review state, so this
-            never imports/ignores and keeps the item in the queue. */}
+        {/* Homepage Top 5 eligibility is independent of review state, so this
+            never imports/approves and keeps the item in the queue. */}
         {item.hiddenFromHomepage ? (
           <ActionButton
             run={() => showInTopDeals(item.id)}
             className="gap-1.5"
-            title="Allow this item to appear in the homepage 'Today's top OzBargain signals' section. Does not import or publish — it must still be imported first."
+            title="Make this item eligible for the homepage Top 5 after it is imported and its linked signal is approved. This action does not import, approve or publish it."
             onStart={clear}
             onError={setError}
           >
@@ -200,7 +198,7 @@ function QueueItemActions({ item }: { item: FeedQueueItem }) {
           <ActionButton
             run={() => hideFromTopDeals(item.id)}
             className="gap-1.5"
-            title="Prevent this item from appearing in the homepage 'Today's top OzBargain signals' section. Stays in the queue and can still be imported or ignored."
+            title="Prevent this item from appearing in the homepage Top 5 even after import and signal approval. It stays in the queue and can still be imported or ignored."
             onStart={clear}
             onError={setError}
           >
@@ -588,6 +586,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
         <div className="space-y-4">
           {paged.map((item) => {
             const host = safeHost(item.link);
+            const sourceHref = safeHttpsUrl(item.link);
             const { suggestedMerchant, relevance: itemRelevance } =
               relevanceById.get(item.id)!;
             const rel = RELEVANCE_META[itemRelevance];
@@ -651,7 +650,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                       <Badge
                         variant="outline"
                         className="gap-1 border-muted-foreground/40 text-muted-foreground"
-                        title="Excluded from the public homepage Top 5. Still in the queue and importable."
+                        title="Excluded from the public homepage Top 5 even if its linked signal is later approved. Still in the queue and importable."
                       >
                         <EyeOff className="size-3" />
                         Hidden from Top 5
@@ -697,14 +696,18 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                         {host ?? "unknown / unparseable"}
                       </span>
                     </span>
-                    <a
-                      href={item.link}
-                      target="_blank"
-                      rel="nofollow noopener noreferrer"
-                      className="w-fit break-all underline-offset-2 hover:underline"
-                    >
-                      {item.link}
-                    </a>
+                    {sourceHref ? (
+                      <a
+                        href={sourceHref}
+                        target="_blank"
+                        rel="nofollow noopener noreferrer"
+                        className="w-fit break-all underline-offset-2 hover:underline"
+                      >
+                        {item.link}
+                      </a>
+                    ) : (
+                      <span className="break-all">Unsafe source URL hidden</span>
+                    )}
                     <span className="inline-flex items-center gap-1">
                       <Clock className="size-3" />
                       Posted {formatDate(item.postedAt)}

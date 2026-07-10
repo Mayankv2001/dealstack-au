@@ -9,7 +9,13 @@ import {
   type RankableFeedItem,
   type StoreRef,
 } from "../../lib/repos/topDealsRanking";
-import { PUBLIC_REVIEW_STATES } from "../../lib/repos/topDeals";
+import {
+  PUBLIC_REVIEW_STATES,
+  PUBLIC_SIGNAL_STATUSES,
+  topDealCandidateToRankable,
+  type TopDealCandidateRow,
+  type TopDealSignalRow,
+} from "../../lib/repos/topDeals";
 
 const STORES: StoreRef[] = [
   { id: "myer", name: "Myer" },
@@ -32,12 +38,137 @@ function item(over: Partial<RankableFeedItem>): RankableFeedItem {
   };
 }
 
+function candidate(
+  rowOver: Partial<Omit<TopDealCandidateRow, "signal">> = {},
+  signalOver: Partial<TopDealSignalRow> = {}
+): TopDealCandidateRow {
+  return {
+    id: "feed-item-1",
+    source_native_id: "ozb:feed-1",
+    fetched_at: "2026-06-20T02:00:00.000Z",
+    review_state: "imported",
+    hidden_from_homepage: false,
+    signal: {
+      id: "signal-1",
+      source_native_id: "ozb:signal-1",
+      title: "Approved edited title",
+      summary: "Admin-written summary",
+      source_url: "https://www.ozbargain.com.au/node/1",
+      posted_at: "2026-06-19",
+      expiry_date: "2026-06-21",
+      tags: ["gift card", "Myer"],
+      is_sample: false,
+      status: "approved",
+      last_checked_at: "2026-06-20T01:00:00.000Z",
+      ...signalOver,
+    },
+    ...rowOver,
+  };
+}
+
 describe("topDeals — opt-in publication (safety invariant)", () => {
-  it("only admin-imported items are ever public; raw staged 'new' items are not", () => {
-    // Pin the homepage allowlist: publication is opt-in via admin import. If a
-    // change re-adds 'new' here, unreviewed feed content would go public — that
-    // must be a deliberate, reviewed decision, so this test fails loudly.
+  it("requires both an imported feed item and an approved promoted signal", () => {
     expect([...PUBLIC_REVIEW_STATES]).toEqual(["imported"]);
+    expect([...PUBLIC_SIGNAL_STATUSES]).toEqual(["approved"]);
+  });
+
+  it.each(["pending", "hidden", "expired"])(
+    "excludes a %s promoted signal after import",
+    (status) => {
+      expect(
+        topDealCandidateToRankable(
+          candidate({}, { status }),
+          "2026-06-20"
+        )
+      ).toBeNull();
+    }
+  );
+
+  it("includes an imported, approved, non-sample, live signal", () => {
+    expect(
+      topDealCandidateToRankable(candidate(), "2026-06-20")
+    ).toMatchObject({
+      id: "signal-1",
+      nativeId: "ozb:signal-1",
+      title: "Approved edited title",
+    });
+  });
+
+  it("keeps the independent homepage-hidden veto", () => {
+    expect(
+      topDealCandidateToRankable(
+        candidate({ hidden_from_homepage: true }),
+        "2026-06-20"
+      )
+    ).toBeNull();
+  });
+
+  it("excludes samples and non-imported feed states", () => {
+    expect(
+      topDealCandidateToRankable(
+        candidate({}, { is_sample: true }),
+        "2026-06-20"
+      )
+    ).toBeNull();
+    expect(
+      topDealCandidateToRankable(
+        candidate({ review_state: "new" }),
+        "2026-06-20"
+      )
+    ).toBeNull();
+  });
+
+  it("keeps a signal through its AU expiry day and excludes it the next day", () => {
+    const row = candidate({}, { expiry_date: "2026-06-20" });
+
+    expect(topDealCandidateToRankable(row, "2026-06-20")).not.toBeNull();
+    expect(topDealCandidateToRankable(row, "2026-06-21")).toBeNull();
+  });
+
+  it("excludes a signal whose required source URL is unsafe", () => {
+    expect(
+      topDealCandidateToRankable(
+        candidate({}, { source_url: "javascript:alert(1)" }),
+        "2026-06-20"
+      )
+    ).toBeNull();
+  });
+
+  it("maps moderated signal copy rather than raw feed copy", () => {
+    const row = Object.assign(candidate(), {
+      raw_title: "Unreviewed raw title",
+      raw_summary: "Unreviewed raw summary",
+      link: "https://example.invalid/raw",
+      categories: ["raw tag"],
+    });
+
+    expect(topDealCandidateToRankable(row, "2026-06-20")).toEqual({
+      id: "signal-1",
+      nativeId: "ozb:signal-1",
+      title: "Approved edited title",
+      summary: "Admin-written summary",
+      link: "https://www.ozbargain.com.au/node/1",
+      postedAt: "2026-06-19",
+      fetchedAt: "2026-06-20T02:00:00.000Z",
+      categories: ["gift card", "Myer"],
+    });
+  });
+
+  it("does not make feed-source enablement part of publication", () => {
+    const row = Object.assign(candidate(), {
+      source: { is_enabled: false },
+    });
+
+    expect(topDealCandidateToRankable(row, "2026-06-20")).not.toBeNull();
+  });
+
+  it("fails closed when the promoted signal embed is missing", () => {
+    expect(
+      topDealCandidateToRankable(
+        { ...candidate(), signal: null },
+        "2026-06-20"
+      )
+    ).toBeNull();
   });
 });
 

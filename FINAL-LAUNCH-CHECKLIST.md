@@ -62,6 +62,7 @@
 - [ ] Feed source added + enabled at `/admin/signals/sources`; source type is `ozbargain` (not `manual-url`, or `listDueEnabledFeeds` skips it and `last_fetched_at` never advances).
 - [ ] After first run: `/admin/monitor` → Recent fetch runs shows a fetch; `last_fetched_at` advanced.
 - [ ] (Optional) external scheduler (cron-job.org) GETs `/api/cron/monitor-feeds` with `Authorization: Bearer $CRON_SECRET` ≤ every 3h.
+- [ ] External alert checker GETs `/api/health/monitor` with the same Bearer token every 3h; alert on non-2xx/timeout and verify delivery once with a deliberately wrong token.
 - [ ] Keep `OZB_OFFER_DETECT_ENABLED` off until precision is reviewed, then follow the **go-live runbook** in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) — detection only stages candidates for `/admin/offer-changes`, never auto-applies. Post-enable status (flag, per-state counts, last-staged time) is visible on `/admin/monitor`.
 
 ---
@@ -79,9 +80,11 @@
 ## 6. Admin data-quality review
 
 - [ ] `/admin/dashboard` loads; data-quality stats render (missing rates, stale data, coverage gaps).
+- [ ] Repair every **Unsafe URL** data-quality flag before launch; unsafe public links are hidden and unsafe monitor targets are never fetched.
 - [ ] `/admin/card-offers` — offers verified and published (currently 5 published).
 - [ ] `/admin/stores` — store metadata correct; remember store `id` is immutable (edit is unpublish-only, no rename).
 - [ ] `/admin/signals/queue` — staged items reviewed; use keyword presets + **Ignore visible** for bulk triage (bulk **ignore** only — import is one-at-a-time, nothing auto-publishes).
+- [ ] Homepage Top 5 state matrix in staging: import a test item (pending → absent), approve its linked signal (present unless the feed item is hidden), edit the approved title (edited copy appears), then hide/expire the signal (absent). Disable all feed sources, confirm the already-approved card remains present, then restore the reviewed source enablement.
 - [ ] `/admin/audit` — append-only log records recent admin actions.
 - [ ] Every admin mutation goes through `requireAdmin` → `checkAdminRateLimit` → `logAudit` (per-admin mutation budget backed by `admin_rate_limits`).
 
@@ -143,7 +146,7 @@ Applied to `/:path*` via `next.config.ts` — confirm present on a prod response
 - [ ] Published cashback / gift-card / points / card offers have correct rates and current terms (verify against source before relying on any figure — the site is a research tool, not a checkout).
 - [ ] No placeholder / "Illustrative" copy remains on published rows. **Automated:** the "Placeholder copy" tile on `/admin/dashboard` (and the matching `⚑` section in `npm run cleanup:old-deals`) must read 0 — it currently flags the 5 `card_offers` rows published 2026-07-08. Confirm nothing reaches the public pages themselves with the strict smoke gate below (§7).
 - [ ] AUD amounts and Australian spelling throughout user-facing copy.
-- [ ] OzBargain signals shown are either real approved signals or clearly labelled samples; nothing misleading is public.
+- [ ] Homepage OzBargain signals are approved, non-sample and live; cards use the edited signal title/summary/source, never raw `feed_items` copy.
 - [ ] Store logos/aliases resolve; featured/popular stores on the homepage look correct.
 
 ---

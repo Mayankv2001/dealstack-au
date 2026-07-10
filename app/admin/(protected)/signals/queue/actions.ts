@@ -21,9 +21,9 @@ import {
  * live in the feed-queue repo; nothing here is reachable from the public site.
  *
  * Importing creates a PENDING signal, so we deliberately do NOT revalidate
- * /deals here — pending signals are not public. /deals is only revalidated later
- * when the signal is approved through the existing signals CRUD. No OzBargain
- * fetching / external source calls.
+ * public routes here. They are revalidated later when the signal is approved
+ * through the existing signals CRUD. No OzBargain fetching / external source
+ * calls.
  */
 
 /** Refresh every admin surface a queue change affects (never /deals). */
@@ -101,9 +101,9 @@ export async function markDuplicate(
  *
  * This ONLY flips hidden_from_homepage; it never changes review_state, so the
  * item stays in this queue and remains importable — the import workflow is
- * unaffected. It is not a publish: the homepage Top 5 only ever shows items an
- * admin has IMPORTED (review_state 'imported'); this flag further curates which
- * of those appear. We also revalidate "/" so the change is reflected promptly.
+ * unaffected. It is not a publish: the homepage Top 5 requires both an imported
+ * item and an approved promoted signal; this flag is an additional curation
+ * veto. We also revalidate "/" so the change is reflected promptly.
  */
 async function setHomepageHidden(
   feedItemId: string,

@@ -134,7 +134,11 @@ export default async function SearchPage({
             </p>
             <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
               {smartStackResults.map((result) => (
-                <SmartStackResultCard key={result.signal.id} result={result} />
+                <SmartStackResultCard
+                  key={result.signal.id}
+                  result={result}
+                  stores={stores}
+                />
               ))}
             </div>
           </section>

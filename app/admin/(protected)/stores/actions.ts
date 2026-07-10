@@ -18,6 +18,7 @@ import {
   type StoreInput,
 } from "@/lib/admin/repos/stores";
 import type { CashbackProvider, StoreLogoTheme } from "@/lib/data";
+import { safeLogoPath } from "@/lib/security/urlPolicy";
 
 /**
  * Store admin server actions.
@@ -147,6 +148,12 @@ function parseStoreForm(formData: FormData): ParseResult {
   const logo = text(formData.get("logo"));
   if (!logo) return { ok: false, error: "Logo (initials/placeholder) is required." };
 
+  const rawLogoPath = optionalText(formData.get("logo_path"));
+  const logoPath = safeLogoPath(rawLogoPath);
+  if (rawLogoPath !== null && !logoPath) {
+    return { ok: false, error: "Logo path must be a local /logos/<filename> path." };
+  }
+
   const provider = text(formData.get("cashback_provider"));
   if (!CASHBACK_PROVIDERS.includes(provider as CashbackProvider)) {
     return { ok: false, error: "Choose a valid cashback provider." };
@@ -199,7 +206,7 @@ function parseStoreForm(formData: FormData): ParseResult {
       name,
       category,
       logo,
-      logoPath: optionalText(formData.get("logo_path")),
+      logoPath,
       logoText: optionalText(formData.get("logo_text")),
       logoSubtext: optionalText(formData.get("logo_subtext")),
       logoTheme: logoTheme.value,

@@ -27,6 +27,7 @@ import {
   type SourceId,
 } from "@/lib/sources/types";
 import { cn } from "@/lib/utils";
+import { safePublicHref } from "@/lib/security/urlPolicy";
 
 /**
  * Card for a single weekly deal/offer. One normalised `WeeklyDealCardData`
@@ -225,10 +226,14 @@ export function CitationLinks({
   citations: Citation[];
   className?: string;
 }) {
-  if (citations.length === 0) return null;
+  const safeCitations = citations.flatMap((citation) => {
+    const sourceUrl = safePublicHref(citation.sourceUrl);
+    return sourceUrl ? [{ ...citation, sourceUrl }] : [];
+  });
+  if (safeCitations.length === 0) return null;
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
-      {citations.map((c) => {
+      {safeCitations.map((c) => {
         const meta = SOURCE_META[c.source];
         const external = c.sourceUrl.startsWith("http");
         const classes = cn(
@@ -303,6 +308,13 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
   const Icon = data.icon ?? kindIcons[data.kind];
   const expired = data.confidence === "expired-unknown";
   const variant = data.variant ?? "default";
+  const detailHref = data.detailUrl ? safePublicHref(data.detailUrl) : null;
+  const sourceHref = safePublicHref(
+    data.sourceUrl ?? data.citations[0]?.sourceUrl ?? ""
+  );
+  const retailerHref = data.retailerUrl
+    ? safePublicHref(data.retailerUrl)
+    : null;
 
   // ── GCDB-style gift card card ──────────────────────────────────────────
   if (variant === "giftcard") {
@@ -374,7 +386,7 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
             {/* Collapsible usage & stack notes (keeps the card short) */}
             {(data.usageNotes?.length ||
               data.stackNotes?.length ||
-              data.detailUrl) && (
+              detailHref) && (
               <details className="group rounded-lg border px-2.5 py-1.5">
                 <summary className="flex cursor-pointer list-none items-center gap-1 text-[11px] font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
                   <ChevronDown className="size-3 transition-transform group-open:rotate-180" />
@@ -411,9 +423,9 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
                       </ul>
                     </div>
                   )}
-                  {data.detailUrl && (
+                  {detailHref && (
                     <a
-                      href={data.detailUrl}
+                      href={detailHref}
                       target="_blank"
                       rel="nofollow noopener noreferrer"
                       className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:opacity-80 dark:text-emerald-400"
@@ -613,7 +625,7 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
               )}
               <CheckedLine lastCheckedAt={data.lastCheckedAt} />
             </div>
-            {data.isSample ? (
+            {data.isSample || !sourceHref ? (
               <div className="flex flex-col gap-1">
                 <Button
                   size="sm"
@@ -638,7 +650,7 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
                   className="h-7 gap-1 px-2 text-[11px]"
                 >
                   <a
-                    href={data.sourceUrl ?? data.citations[0]?.sourceUrl ?? "#"}
+                    href={sourceHref}
                     target="_blank"
                     rel="nofollow noopener noreferrer"
                   >
@@ -646,7 +658,7 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
                     <ExternalLink className="size-3" />
                   </a>
                 </Button>
-                {data.retailerUrl && (
+                {retailerHref && (
                   <Button
                     asChild
                     size="sm"
@@ -654,7 +666,7 @@ export function WeeklyDealCard({ data }: { data: WeeklyDealCardData }) {
                     className="h-7 gap-1 px-2 text-[11px]"
                   >
                     <a
-                      href={data.retailerUrl}
+                      href={retailerHref}
                       target="_blank"
                       rel="nofollow noopener noreferrer"
                     >

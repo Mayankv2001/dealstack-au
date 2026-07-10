@@ -22,6 +22,7 @@ import {
   toNumberOrNull,
   type DbClient,
 } from "@/lib/supabase/server";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Source-checks adapter — Supabase-backed "Checked sources" results.
@@ -196,7 +197,9 @@ function giftCardToResults(
     cardOrProvider: null,
     expiryDate: r.expiry_date,
     startDate: r.start_date,
-    sourceUrl: r.source_detail_url ?? SOURCE_META.gcdb.homepage,
+    sourceUrl:
+      (r.source_detail_url ? safeHttpsUrl(r.source_detail_url) : null) ??
+      SOURCE_META.gcdb.homepage,
     publishedAt: null,
     lastCheckedAt: r.last_checked_at,
     confidence: r.confidence,
@@ -407,7 +410,11 @@ export function buildSourceResultPool(
       .filter((r) => notExpired(r.expiry_date) && cardOfferRowIsPublicReady(r, today))
       .map((r) => cardOfferToSourceResult(cardOfferRowToInput(r))),
     ...rows.signals
-      .filter((r) => notExpired(r.expiry_date))
+      .filter(
+        (r) =>
+          notExpired(r.expiry_date) &&
+          (r.is_sample || safeHttpsUrl(r.source_url) !== null)
+      )
       .map((r) => signalToResult(r, nameOf)),
   ];
 

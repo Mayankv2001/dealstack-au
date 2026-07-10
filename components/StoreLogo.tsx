@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import type { Store, StoreLogoTheme } from "@/lib/data";
+import { safeLogoPath } from "@/lib/security/urlPolicy";
 import { cn } from "@/lib/utils";
 
 /**
@@ -58,7 +59,7 @@ export function StoreLogo({
   const sub = subtext ?? store?.logoSubtext;
   const name = store?.name ?? label;
   const s = SIZES[size];
-  const logoPath = store?.logoPath;
+  const logoPath = safeLogoPath(store?.logoPath ?? null);
 
   // 1) Real local logo asset, in a clean neutral (white) container.
   if (logoPath && !imgFailed) {

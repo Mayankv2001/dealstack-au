@@ -1,6 +1,7 @@
 import { Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import SignalDealCard from "@/components/SignalDealCard";
+import type { Store } from "@/lib/data";
 import type { OzBargainSignal } from "@/lib/offers/types";
 
 /**
@@ -29,7 +30,13 @@ export function selectHotBuys(signals: OzBargainSignal[]): OzBargainSignal[] {
     .sort((a, b) => (b.signalScore ?? 0) - (a.signalScore ?? 0));
 }
 
-export function HotBuys({ signals }: { signals: OzBargainSignal[] }) {
+export function HotBuys({
+  signals,
+  stores,
+}: {
+  signals: OzBargainSignal[];
+  stores: Store[];
+}) {
   const items = selectHotBuys(signals);
   if (items.length === 0) return null;
 
@@ -51,7 +58,7 @@ export function HotBuys({ signals }: { signals: OzBargainSignal[] }) {
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
-          <SignalDealCard key={item.id} signal={item} />
+          <SignalDealCard key={item.id} signal={item} stores={stores} />
         ))}
       </div>
     </section>

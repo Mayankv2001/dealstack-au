@@ -10,8 +10,8 @@ import { loadStackData } from "@/lib/stack/loadStack";
 /**
  * "Smart Stack" search.
  *
- * Instead of live-scraping on demand, this queries our APPROVED database rows
- * (via the repo layer, with static fallback) and synthesises a result with the
+ * Instead of live-scraping on demand, this queries our approved repository rows
+ * (configured Supabase is authoritative) and synthesises a result with the
  * existing Stack Engine:
  *
  *   1. Find approved OzBargain signals whose text matches the query.
@@ -103,7 +103,7 @@ export function buildSmartStackResults(
   });
 }
 
-/** Server entry point: load the repo bundle (DB-or-static), then build results. */
+/** Server entry point: load the authoritative repo bundle, then build results. */
 export async function loadSmartStackResults(
   query: string
 ): Promise<SmartStackResult[]> {

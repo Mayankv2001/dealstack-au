@@ -35,6 +35,7 @@ export interface MonitorFeed {
   id: string;
   label: string;
   feedUrl: string;
+  sourceType: string;
   etag: string | null;
   lastModified: string | null;
   failureCount: number;
@@ -91,6 +92,7 @@ export interface MonitorDeps {
   /** Defaults to the real networked fetchFeed; tests inject a fake. */
   fetchFeed?: (input: {
     feedUrl: string;
+    sourceType: string;
     etag?: string | null;
     lastModified?: string | null;
     userAgent: string;
@@ -315,6 +317,7 @@ export async function runMonitor(
     const startedAt = now().toISOString();
     const outcome = await doFetch({
       feedUrl: feed.feedUrl,
+      sourceType: feed.sourceType,
       etag: feed.etag,
       lastModified: feed.lastModified,
       userAgent: config.userAgent,

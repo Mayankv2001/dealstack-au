@@ -21,6 +21,7 @@ import {
   type SignalStatus,
 } from "@/lib/admin/repos/signals";
 import type { Confidence, DealKind } from "@/lib/sources/types";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * OzBargain signals admin server actions.
@@ -28,8 +29,8 @@ import type { Confidence, DealKind } from "@/lib/sources/types";
  * SECURITY: every action calls requireAdmin() first (a valid session is not
  * enough — the email must be in the admins allowlist). The service-role writes
  * live in the admin repo; nothing here is reachable from the public site. After
- * any change we revalidate /deals so the approved view reflects it, plus the
- * admin list. No OzBargain fetching / external source calls.
+ * any change we revalidate the public signal surfaces plus the admin list. No
+ * OzBargain fetching / external source calls.
  */
 
 /** Returned to the form via useActionState. Empty object means "no error yet". */
@@ -74,14 +75,14 @@ function parseOptionalText(raw: FormDataEntryValue | null): string | null {
   return text === "" ? null : text;
 }
 
-/** Optional URL field. Blank → null; non-blank must parse. */
+/** Optional URL field. Blank → null; non-blank must be safe public HTTPS. */
 function parseOptionalUrl(
   raw: FormDataEntryValue | null
 ): { ok: true; value: string | null } | { ok: false } {
   const text = String(raw ?? "").trim();
   if (text === "") return { ok: true, value: null };
-  if (!URL.canParse(text)) return { ok: false };
-  return { ok: true, value: text };
+  const url = safeHttpsUrl(text);
+  return url ? { ok: true, value: url } : { ok: false };
 }
 
 /** Splits a comma/newline-separated field into a trimmed, blank-free list. */
@@ -119,8 +120,9 @@ function parseSignalForm(formData: FormData): ParseResult {
   // source_url is required and must be a real URL (the column is NOT NULL).
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   if (!sourceUrl) return { ok: false, error: "Source URL is required." };
-  if (!URL.canParse(sourceUrl)) {
-    return { ok: false, error: "Source URL must be a valid URL (including https://)." };
+  const safeSourceUrl = safeHttpsUrl(sourceUrl);
+  if (!safeSourceUrl) {
+    return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
   }
 
   const merchantUrl = parseOptionalUrl(formData.get("merchant_url"));
@@ -162,7 +164,7 @@ function parseSignalForm(formData: FormData): ParseResult {
       commentCount: commentCount.value,
       sentiment: sentiment as Sentiment,
       dealKind: dealKind as DealKind,
-      sourceUrl,
+      sourceUrl: safeSourceUrl,
       merchantUrl: merchantUrl.value,
       productUrl: productUrl.value,
       postedAt: parseOptionalText(formData.get("posted_at")),
@@ -180,6 +182,7 @@ function parseSignalForm(formData: FormData): ParseResult {
 
 /** On-demand revalidation of every surface a signal change affects. */
 function revalidateSignals(): void {
+  revalidatePath("/");
   revalidatePath("/deals");
   revalidatePath("/admin/signals");
 }

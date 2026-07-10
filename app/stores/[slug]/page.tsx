@@ -26,7 +26,7 @@ import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
 import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
-import { formatExpiry, stores as staticStores, type Store } from "@/lib/data";
+import { formatExpiry, type Store } from "@/lib/data";
 import { siteUrl } from "@/lib/env";
 import { getStores } from "@/lib/repos";
 import { storeSourceResults } from "@/lib/repos/sourceResults";
@@ -38,16 +38,12 @@ import { cn } from "@/lib/utils";
 // Supabase is unconfigured or unavailable, so every store page still renders.
 export const revalidate = 300;
 
-// Pre-render one page per store. Pull the store list from the repository layer
-// when possible; if that throws at build time, fall back to the static `stores`
-// so the build never breaks.
+// Pre-render one page per trusted store. In live-data mode getStores() fails
+// closed to an empty list when the database is unavailable; dynamicParams keeps
+// valid store slugs routable once the database recovers.
 export async function generateStaticParams() {
-  try {
-    const stores = await getStores();
-    return stores.map((store) => ({ slug: store.id }));
-  } catch {
-    return staticStores.map((store) => ({ slug: store.id }));
-  }
+  const stores = await getStores();
+  return stores.map((store) => ({ slug: store.id }));
 }
 
 export async function generateMetadata({
@@ -394,7 +390,7 @@ export default async function StorePage({
               purchase price.
             </p>
           </div>
-          <DealStackCalculator />
+          <DealStackCalculator stores={stores} />
         </section>
 
         {/* Disclaimer */}

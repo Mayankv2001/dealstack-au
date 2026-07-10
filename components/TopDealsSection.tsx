@@ -1,5 +1,6 @@
 import { Clock, ExternalLink, Radio } from "lucide-react";
 import type { Relevance, TopDeal } from "@/lib/repos/topDealsRanking";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 import { cn } from "@/lib/utils";
 
 /**
@@ -80,7 +81,7 @@ export function TopDealsSection({ deals }: { deals: TopDeal[] }) {
         {lastUpdated ? (
           <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock className="size-3.5" />
-            Last updated {lastUpdated} (AEST)
+            Last updated {lastUpdated} (Sydney time)
           </p>
         ) : null}
 
@@ -125,9 +126,9 @@ export function TopDealsSection({ deals }: { deals: TopDeal[] }) {
                   </span>
                   {formatWhen(deal)}
                 </span>
-                {deal.sourceUrl ? (
+                {safeHttpsUrl(deal.sourceUrl) ? (
                   <a
-                    href={deal.sourceUrl}
+                    href={safeHttpsUrl(deal.sourceUrl) ?? undefined}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
                     className="inline-flex shrink-0 items-center gap-1 font-medium text-emerald-700 hover:underline dark:text-emerald-400"

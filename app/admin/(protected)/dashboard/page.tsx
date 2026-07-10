@@ -83,6 +83,12 @@ const DQ_ISSUE_INFO: Record<
   DataQualityIssueCode,
   { label: string; explanation: string; tone: string }
 > = {
+  "unsafe-url": {
+    label: "Unsafe URL",
+    explanation:
+      "A public link, logo path or monitor feed target violates the HTTPS/host policy and is blocked until repaired.",
+    tone: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
   "placeholder-copy": {
     label: "Placeholder copy",
     explanation:
@@ -126,6 +132,7 @@ const DQ_TILE_ORDER: {
   code: DataQualityIssueCode;
   count: (c: DataQualityCounts) => number;
 }[] = [
+  { code: "unsafe-url", count: (c) => c.unsafeUrl },
   { code: "placeholder-copy", count: (c) => c.placeholderCopy },
   { code: "expired", count: (c) => c.expiredPublished },
   { code: "missing-source", count: (c) => c.missingSourceUrl },

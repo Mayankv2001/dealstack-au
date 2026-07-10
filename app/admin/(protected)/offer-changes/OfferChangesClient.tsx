@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { AdminOfferChange } from "@/lib/admin/repos/offerChanges";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 import {
   applyOfferChangeAction,
   ignoreOfferChangeAction,
@@ -37,6 +38,9 @@ const SOURCE_TYPE_LABELS: Record<AdminOfferChange["sourceType"], string> = {
 function Row({ item }: { item: OfferChangeView }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const detectedHref = item.detectedUrl
+    ? safeHttpsUrl(item.detectedUrl)
+    : null;
 
   const run = (action: () => Promise<{ ok: true } | { error: string }>) => {
     setError(null);
@@ -113,9 +117,9 @@ function Row({ item }: { item: OfferChangeView }) {
           <p className="text-sm text-muted-foreground">{item.rawSummary}</p>
         ) : null}
 
-        {item.detectedUrl ? (
+        {detectedHref ? (
           <a
-            href={item.detectedUrl}
+            href={detectedHref}
             target="_blank"
             rel="noopener noreferrer nofollow"
             className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"

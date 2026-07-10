@@ -180,6 +180,14 @@ async function expectCronGateClosed(): Promise<void> {
   }
 }
 
+async function expectMonitorHealthGateClosed(): Promise<void> {
+  const res = await fetchWithRetry("/api/health/monitor");
+  if (res.status === 200) throw new Error("monitor health gate is open without auth");
+  if (res.status !== 401 && res.status !== 503) {
+    throw new Error(`expected 401 or 503, got ${res.status}`);
+  }
+}
+
 // ── §8 SEO endpoints ──────────────────────────────────────────────────────────
 
 async function expectRobotsTxt(): Promise<void> {
@@ -354,6 +362,10 @@ async function main(): Promise<void> {
   }
 
   await check("GET /api/cron/monitor-feeds without auth never returns 200", expectCronGateClosed);
+  await check(
+    "GET /api/health/monitor without auth never returns 200",
+    expectMonitorHealthGateClosed
+  );
 
   await check("GET /robots.txt", expectRobotsTxt);
   await check("GET /sitemap.xml", expectSitemapXml);

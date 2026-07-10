@@ -20,6 +20,7 @@ import {
   type SourceId,
 } from "@/lib/sources/types";
 import { cn } from "@/lib/utils";
+import { safePublicHref } from "@/lib/security/urlPolicy";
 
 /** Subtle per-source tints so citations are recognisable at a glance */
 const sourceBadgeClasses: Record<SourceId, string> = {
@@ -68,6 +69,7 @@ export function SourceResultCard({
       ? `${result.discountPercent}% off`
       : result.pointsAmount;
   const expired = result.confidence === "expired-unknown";
+  const sourceHref = safePublicHref(result.sourceUrl);
 
   return (
     <Card className={cn("gap-0 py-0", expired && "opacity-70")}>
@@ -136,16 +138,18 @@ export function SourceResultCard({
               Checked {formatDateAU(result.lastCheckedAt)}
             </span>
           </div>
-          <Button asChild variant="outline" size="sm" className="shrink-0">
-            <a
-              href={result.sourceUrl}
-              target="_blank"
-              rel="nofollow noopener noreferrer"
-            >
-              View source
-              <ExternalLink className="size-3.5" />
-            </a>
-          </Button>
+          {sourceHref ? (
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <a
+                href={sourceHref}
+                target="_blank"
+                rel="nofollow noopener noreferrer"
+              >
+                View source
+                <ExternalLink className="size-3.5" />
+              </a>
+            </Button>
+          ) : null}
         </div>
       </CardContent>
     </Card>

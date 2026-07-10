@@ -1,12 +1,12 @@
 /**
  * Repository barrel.
  *
- * Each getter reads from Supabase when configured and gracefully falls back to
- * the static data (lib/data.ts, lib/offers/manualOffers.ts) when Supabase env
- * vars are missing, the query fails, returns no rows, or DATA_SOURCE=static.
+ * Each getter reads from Supabase when configured. Static data is available
+ * only when Supabase env vars are missing or DATA_SOURCE=static; configured
+ * empty/error reads stay empty so demo values cannot masquerade as live data.
  *
  * These are server/data-layer functions — do not import into client components.
- * No UI is wired to them yet (that's a later step).
+ * Public server components pass their serializable results into client islands.
  */
 
 export { getStores } from "./stores";

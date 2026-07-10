@@ -14,12 +14,12 @@ import {
 /**
  * Server-side stack loaders.
  *
- * Gather the engine's data from the repository layer (Supabase when configured,
- * static fallback otherwise), then run the pure stack engine. Server/data-layer
- * only — not yet wired into any page.
+ * Gather the engine's data from the repository layer, then run the pure stack
+ * engine. Configured Supabase is authoritative; demo arrays are used only in
+ * explicit static/unconfigured mode. Server/data-layer only.
  */
 
-/** Load the full StackData bundle from the repos (DB-or-static). */
+/** Load the full StackData bundle using the repositories' DB-or-demo policy. */
 export async function loadStackData(): Promise<StackData> {
   const [stores, giftCardOffers, cashbackOffers, pointsOffers, ozBargainSignals] =
     await Promise.all([

@@ -130,6 +130,9 @@ If any box cannot be checked, **the monitor is not built** and we stay manual.
                                       ▼                  ▼              ▼
                                  approved            hidden          expired
                               (PUBLIC via RLS)    (reversible)    (reversible)
+                                      │
+                         Homepage Top 5 when feed-item
+                         curation + live-state checks pass
 ```
 
 - The queue lists `feed_items` where `review_state = 'new'`, service-role read,
@@ -176,6 +179,7 @@ All three are **service-role only** — no anon RLS policies. Only the existing
 | `content_hash` | Detect changed re-posts |
 | `review_state` | `new` \| `imported` \| `ignored` \| `duplicate` |
 | `promoted_signal_id` | Nullable FK → `ozbargain_signals` once imported |
+| `hidden_from_homepage` | Independent Top 5 curation veto; default `false` |
 
 ### `feed_fetch_log` — per-run audit / observability
 
@@ -212,7 +216,7 @@ Mapping `feed_item` → the existing `SignalInput` shape used by
   `feed_items.promoted_signal_id` instead of inserting a duplicate.
 - On import: set `feed_items.review_state = 'imported'` and reuse the existing
   `insertSignal()`; the admin later approves via `setSignalStatus()`, which
-  revalidates `/deals`.
+  revalidates `/deals` and `/`.
 
 ---
 
@@ -243,6 +247,27 @@ Two **separate** state machines: ingestion triage vs. publication moderation.
   pass flips `approved → expired` once `expiry_date` passes (or after N stale
   days). It never auto-approves and never deletes — fully reversible.
 
+### Homepage Top 5 publication contract
+
+The homepage uses the feed row only for ingestion/curation state and ranking
+recency. It joins through `feed_items.promoted_signal_id` and renders the
+approved signal's edited title, summary, tags, source URL and posted date. Raw
+feed title, summary, link and categories are never public copy.
+
+| Feed item | Promoted signal | Top 5 result |
+|---|---|---|
+| `new` | none or any status | Hidden |
+| `imported` | `pending` | Hidden |
+| `imported`, `hidden_from_homepage = false` | approved, non-sample, not past expiry | Eligible |
+| `imported`, `hidden_from_homepage = true` | approved | Hidden |
+| `imported` | hidden, expired, sample, or hard-expired by date | Hidden |
+| eligible imported item from a disabled feed source | approved and live | Still eligible |
+
+`feed_sources.is_enabled` is an operational fetch switch, not a publication
+state. Disabling a source stops future requests but does not unpublish content
+that already passed moderation. Approval, hiding, expiry and edited-copy saves
+revalidate the homepage through the signal admin actions.
+
 ---
 
 ## Backoff / rate-limit rules
@@ -264,7 +289,8 @@ Two **separate** state machines: ingestion triage vs. publication moderation.
 
 Admins can use **Disable all feed sources** on `/admin/monitor` for an audited,
 immediate DB-level stop. It disables only `feed_sources.is_enabled`; staged
-items and public data are preserved.
+items and approved public data are preserved. The homepage publication query
+does not filter on source enablement.
 
 Defence in depth — the monitor must be stoppable instantly at multiple levels:
 
@@ -710,6 +736,17 @@ monitor now has:
 Unit-tested offline (`npm run test:monitor`): parser/mapper, backoff math,
 blocked-body detection, and the orchestrator's kill-switch + "dry run writes
 nothing" + "blocked stops & disables" invariants.
+
+Feed egress is restricted to exact approved HTTPS hosts. For `ozbargain`, only
+`ozbargain.com.au` and `www.ozbargain.com.au` are accepted. Redirects are
+followed manually (maximum three), stay on the same approved hostname, and are
+revalidated before every request. Successful bodies are limited to 2 MiB and
+the deadline remains active while the body is read.
+
+For silent-stall alerting, poll `GET /api/health/monitor` every three hours from
+an external uptime service with the same Bearer secret. `200` means off, paused,
+or fresh; `503` means missing compliance, no successful run within 30 hours
+while feeds are expected, or unreadable state. Alert on non-2xx and timeout.
 
 **Now added (cron Phase 1):** a secret-gated Vercel Cron route
 (`app/api/cron/monitor-feeds/route.ts` + `vercel.json`, `GET`, daily at 02:00 UTC) that

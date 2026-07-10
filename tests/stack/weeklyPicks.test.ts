@@ -275,6 +275,26 @@ describe("buildWeeklyPickCard", () => {
     ]);
   });
 
+  it("drops unsafe persisted and signal citations", () => {
+    const card = buildWeeklyPickCard(
+      weeklyDeal({
+        componentIds: ["sig-1"],
+        citations: [{ source: "manual", sourceUrl: "javascript:alert(1)" }],
+      }),
+      lookups({
+        signals: [
+          signal({
+            id: "sig-1",
+            isSample: false,
+            sourceUrl: "https://user:secret@www.ozbargain.com.au/node/1",
+          }),
+        ],
+      }),
+      NOW
+    );
+    expect(card.citations).toEqual([]);
+  });
+
   it("marks expiringSoon true within the window and false outside it", () => {
     const soon = buildWeeklyPickCard(
       weeklyDeal({ expiryDate: "2026-06-25" }), // 5 days after NOW

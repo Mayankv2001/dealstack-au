@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import StoreLogo from "@/components/StoreLogo";
 import { CitationLinks, ConfidencePill } from "@/components/WeeklyDealCard";
 import { formatAUD } from "@/lib/calculateStack";
-import { stores } from "@/lib/data";
+import type { Store } from "@/lib/data";
 import type {
   StackComponent,
   StackLayer,
@@ -91,10 +91,12 @@ function layerChipValue(c: StackComponent): string {
 
 export function StackRecommendationCard({
   recommendation: rec,
+  stores,
   compact = false,
   rank,
 }: {
   recommendation: StackRecommendation;
+  stores: Store[];
   compact?: boolean;
   rank?: number;
 }) {

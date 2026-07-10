@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import SignalDealCard from "@/components/SignalDealCard";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
 import { formatAUD } from "@/lib/calculateStack";
+import type { Store } from "@/lib/data";
 import type { SmartStackResult } from "@/lib/stack/smartStack";
 
 /**
@@ -14,9 +15,15 @@ import type { SmartStackResult } from "@/lib/stack/smartStack";
  * is no receipt to show — but the deal should still surface in search, so it
  * falls back to a compact SignalDealCard instead of disappearing.
  */
-export function SmartStackResultCard({ result }: { result: SmartStackResult }) {
+export function SmartStackResultCard({
+  result,
+  stores,
+}: {
+  result: SmartStackResult;
+  stores: Store[];
+}) {
   const { signal, recommendation, signalPrice } = result;
-  if (!recommendation) return <SignalDealCard signal={signal} />;
+  if (!recommendation) return <SignalDealCard signal={signal} stores={stores} />;
 
   return (
     <div className="space-y-2">
@@ -38,7 +45,7 @@ export function SmartStackResultCard({ result }: { result: SmartStackResult }) {
           for {recommendation.merchantName} below.
         </span>
       </div>
-      <StackRecommendationCard recommendation={recommendation} />
+      <StackRecommendationCard recommendation={recommendation} stores={stores} />
     </div>
   );
 }

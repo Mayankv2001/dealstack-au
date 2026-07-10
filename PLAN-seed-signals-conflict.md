@@ -1,5 +1,7 @@
 # PLAN-seed-signals-conflict — Make `npm run seed` survive diverged prod signals
 
+> **Status: Shipped in the 2026-07-10 production-readiness audit.**
+
 > **Rank: 5 of 5 (2026-07-10 follow-on backlog).** PROJECT_STATE §10
 > documents a recurring operational failure: "Full `npm run seed` fails on
 > `ozbargain_signals` (source_native_id unique constraint + diverged prod

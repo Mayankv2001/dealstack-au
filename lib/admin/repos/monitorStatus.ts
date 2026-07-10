@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { PublicTable } from "@/lib/supabase/server";
 import { cronSecret } from "@/lib/env";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
+import { isApprovedForFetch } from "@/lib/monitor/offerChanges";
 
 /**
  * Monitor health/status — SERVICE-ROLE ONLY, READ-ONLY.
@@ -87,6 +88,55 @@ export interface MonitorStatus {
 }
 
 type AdminDb = ReturnType<typeof getSupabaseAdmin>;
+
+export interface MonitorHealthSnapshot {
+  envEnabled: boolean;
+  complianceApproved: boolean;
+  fetchableEnabledFeedCount: number;
+  lastSuccessAt: string | null;
+}
+
+/** Minimal read-only snapshot for the externally polled health route. */
+export async function getMonitorHealthSnapshot(): Promise<MonitorHealthSnapshot> {
+  const envEnabled = process.env.OZB_MONITOR_ENABLED === "true";
+  if (!envEnabled) {
+    return {
+      envEnabled: false,
+      complianceApproved: false,
+      fetchableEnabledFeedCount: 0,
+      lastSuccessAt: null,
+    };
+  }
+  const db = getSupabaseAdmin();
+  const [approval, sources, lastSuccess] = await Promise.all([
+    db
+      .from("compliance_reviews")
+      .select("id", { count: "exact", head: true })
+      .eq("approved_for_monitoring", true),
+    db.from("feed_sources").select("source_type").eq("is_enabled", true),
+    db
+      .from("feed_fetch_log")
+      .select("started_at")
+      .is("error", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (approval.error) throw new Error(`health compliance read failed: ${approval.error.message}`);
+  if (sources.error) throw new Error(`health sources read failed: ${sources.error.message}`);
+  if (lastSuccess.error) throw new Error(`health success read failed: ${lastSuccess.error.message}`);
+
+  const sourceRows = (sources.data ?? []) as unknown as { source_type: string }[];
+  const success = lastSuccess.data as unknown as { started_at: string } | null;
+  return {
+    envEnabled,
+    complianceApproved: (approval.count ?? 0) > 0,
+    fetchableEnabledFeedCount: sourceRows.filter((row) =>
+      isApprovedForFetch(row.source_type)
+    ).length,
+    lastSuccessAt: success?.started_at ?? null,
+  };
+}
 
 async function countRows(
   db: AdminDb,

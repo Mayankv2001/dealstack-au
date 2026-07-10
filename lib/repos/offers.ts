@@ -15,9 +15,9 @@ import type {
 import { filterLive, todayAU } from "@/lib/offers/expiry";
 import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
 import type { Citation, Confidence } from "@/lib/sources/types";
+import { safeHttpsUrl, safePublicHref } from "@/lib/security/urlPolicy";
 import {
   fromDbOrDemo,
-  fromDbOrStatic,
   getSupabaseServer,
   isStaticDataSource,
   toNumber,
@@ -29,9 +29,10 @@ import {
  * Offers repository (gift cards, cashback, points, OzBargain signals).
  *
  * DB reads go through the anon client, so RLS applies — only published offers
- * and `status = 'approved'` signals are returned. Anything missing/failed/empty
- * falls back to the static arrays from lib/offers/manualOffers.ts. Rows are
- * mapped back to the existing TypeScript shapes.
+ * and `status = 'approved'` signals are returned. Static arrays are available
+ * only in explicit demo mode or when Supabase is unconfigured. Once configured,
+ * empty and failed reads stay empty. Rows are mapped back to the existing
+ * TypeScript shapes.
  */
 
 // ── Gift cards ───────────────────────────────────────────────────────────────
@@ -58,6 +59,13 @@ interface GiftCardRow {
   last_checked_at: string;
 }
 
+function safeCitations(citations: Citation[] | null | undefined): Citation[] {
+  return (citations ?? []).flatMap((citation) => {
+    const sourceUrl = safePublicHref(citation.sourceUrl);
+    return sourceUrl ? [{ ...citation, sourceUrl }] : [];
+  });
+}
+
 function mapGiftCard(r: GiftCardRow): GiftCardOffer {
   return {
     id: r.id,
@@ -76,22 +84,26 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
     acceptedAt: r.accepted_at ?? undefined,
     usageNotes: r.usage_notes ?? undefined,
     stackNotes: r.stack_notes ?? undefined,
-    sourceDetailUrl: r.source_detail_url ?? undefined,
-    citations: r.citations ?? [],
+    sourceDetailUrl: r.source_detail_url
+      ? (safeHttpsUrl(r.source_detail_url) ?? undefined)
+      : undefined,
+    citations: safeCitations(r.citations),
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,
   };
 }
 
 export async function getGiftCardOffers(): Promise<GiftCardOffer[]> {
-  // filterLive wraps the fallback result (not the query callback) so expired
-  // rows can't trigger the zero-rows static fallback, and static rows are
-  // themselves guarded. Same pattern for every public getter below.
-  const rows = await fromDbOrStatic("gift_card_offers", staticGiftCards, async (db: DbClient) => {
-    const { data, error } = await db.from("gift_card_offers").select("*");
-    if (error) throw error;
-    return ((data ?? []) as unknown as GiftCardRow[]).map(mapGiftCard);
-  });
+  // Apply the expiry guard after resolving DB/demo mode so both sources obey it.
+  const rows = await fromDbOrDemo(
+    "gift_card_offers",
+    staticGiftCards,
+    async (db: DbClient) => {
+      const { data, error } = await db.from("gift_card_offers").select("*");
+      if (error) throw error;
+      return ((data ?? []) as unknown as GiftCardRow[]).map(mapGiftCard);
+    }
+  );
   return filterLive(rows);
 }
 
@@ -139,11 +151,10 @@ function mapCardOffer(r: CardOfferRow): CardOffer {
 /**
  * RLS on card_offers already restricts anon reads to is_published = true.
  *
- * Uses fromDbOrDemo (NOT fromDbOrStatic): the static card offers are hand-typed
- * demo rows with illustrative figures, so they are only ever shown in local/demo
- * mode (Supabase unconfigured or DATA_SOURCE=static). With Supabase configured,
- * zero published rows renders the /cards empty state and a read error returns
- * no rows — the demo data is never served as if it were live.
+ * Static card offers are hand-typed demo rows with illustrative figures, so
+ * they are only ever shown in local/demo mode (Supabase unconfigured or
+ * DATA_SOURCE=static). With Supabase configured, zero published rows renders
+ * the /cards empty state and a read error returns no rows.
  */
 interface CardOfferReadDeps {
   /** Test-only mode/client injection, mirroring fromDbOrDemo. */
@@ -212,18 +223,22 @@ function mapCashback(r: CashbackRow): CashbackOffer {
     excludesGiftCardPayment: r.excludes_gift_card_payment,
     termsSummary: r.terms_summary,
     expiryDate: r.expiry_date,
-    citations: r.citations ?? [],
+    citations: safeCitations(r.citations),
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,
   };
 }
 
 export async function getCashbackOffers(): Promise<CashbackOffer[]> {
-  const rows = await fromDbOrStatic("cashback_offers", staticCashback, async (db: DbClient) => {
-    const { data, error } = await db.from("cashback_offers").select("*");
-    if (error) throw error;
-    return ((data ?? []) as unknown as CashbackRow[]).map(mapCashback);
-  });
+  const rows = await fromDbOrDemo(
+    "cashback_offers",
+    staticCashback,
+    async (db: DbClient) => {
+      const { data, error } = await db.from("cashback_offers").select("*");
+      if (error) throw error;
+      return ((data ?? []) as unknown as CashbackRow[]).map(mapCashback);
+    }
+  );
   return filterLive(rows);
 }
 
@@ -252,18 +267,22 @@ function mapPoints(r: PointsRow): PointsOffer {
     pointValueCents: toNumberOrNull(r.point_value_cents),
     mechanism: r.mechanism,
     expiryDate: r.expiry_date,
-    citations: r.citations ?? [],
+    citations: safeCitations(r.citations),
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,
   };
 }
 
 export async function getPointsOffers(): Promise<PointsOffer[]> {
-  const rows = await fromDbOrStatic("points_offers", staticPoints, async (db: DbClient) => {
-    const { data, error } = await db.from("points_offers").select("*");
-    if (error) throw error;
-    return ((data ?? []) as unknown as PointsRow[]).map(mapPoints);
-  });
+  const rows = await fromDbOrDemo(
+    "points_offers",
+    staticPoints,
+    async (db: DbClient) => {
+      const { data, error } = await db.from("points_offers").select("*");
+      if (error) throw error;
+      return ((data ?? []) as unknown as PointsRow[]).map(mapPoints);
+    }
+  );
   return filterLive(rows);
 }
 
@@ -304,9 +323,9 @@ function mapSignal(r: SignalRow): OzBargainSignal {
     commentCount: r.comment_count,
     sentiment: r.sentiment,
     dealKind: r.deal_kind,
-    sourceUrl: r.source_url,
-    merchantUrl: r.merchant_url,
-    productUrl: r.product_url,
+    sourceUrl: safeHttpsUrl(r.source_url) ?? "",
+    merchantUrl: r.merchant_url ? safeHttpsUrl(r.merchant_url) : null,
+    productUrl: r.product_url ? safeHttpsUrl(r.product_url) : null,
     postedAt: r.posted_at,
     expiryDate: r.expiry_date,
     tags: r.tags ?? [],
@@ -321,13 +340,17 @@ function mapSignal(r: SignalRow): OzBargainSignal {
 }
 
 export async function getOzBargainSignals(): Promise<OzBargainSignal[]> {
-  const rows = await fromDbOrStatic("ozbargain_signals", staticSignals, async (db: DbClient) => {
-    const { data, error } = await db
-      .from("ozbargain_signals")
-      .select("*")
-      .order("signal_score", { ascending: false, nullsFirst: false });
-    if (error) throw error;
-    return ((data ?? []) as unknown as SignalRow[]).map(mapSignal);
-  });
-  return filterLive(rows);
+  const rows = await fromDbOrDemo(
+    "ozbargain_signals",
+    staticSignals,
+    async (db: DbClient) => {
+      const { data, error } = await db
+        .from("ozbargain_signals")
+        .select("*")
+        .order("signal_score", { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      return ((data ?? []) as unknown as SignalRow[]).map(mapSignal);
+    }
+  );
+  return filterLive(rows).filter((signal) => signal.sourceUrl !== "");
 }

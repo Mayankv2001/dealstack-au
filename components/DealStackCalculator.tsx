@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
-import { stores } from "@/lib/data";
+import type { Store } from "@/lib/data";
 
 interface FieldProps {
   id: string;
@@ -54,7 +54,7 @@ function Field({ id, label, icon, value, onChange, prefix, suffix }: FieldProps)
   );
 }
 
-export function DealStackCalculator() {
+export function DealStackCalculator({ stores }: { stores: Store[] }) {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [price, setPrice] = useState("500");
   const [discount, setDiscount] = useState("10");

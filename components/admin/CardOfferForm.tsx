@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Reusable card-offer create/edit form (client island).
@@ -103,6 +104,9 @@ export function CardOfferForm({
     action,
     {}
   );
+  const sourceHref = defaultValues?.sourceUrl
+    ? safeHttpsUrl(defaultValues.sourceUrl)
+    : null;
 
   return (
     <Card className="max-w-2xl">
@@ -341,10 +345,10 @@ export function CardOfferForm({
                 defaultValue={defaultValues?.sourceUrl ?? ""}
                 className="flex-1"
               />
-              {defaultValues?.sourceUrl ? (
+              {sourceHref ? (
                 <Button asChild variant="outline" size="sm" className="shrink-0">
                   <a
-                    href={defaultValues.sourceUrl}
+                    href={sourceHref}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

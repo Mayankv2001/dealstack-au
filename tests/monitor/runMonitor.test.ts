@@ -6,6 +6,7 @@ const FEED: MonitorFeed = {
   id: "feed-1",
   label: "Test feed",
   feedUrl: "https://example.com/feed.xml",
+  sourceType: "ozbargain",
   etag: null,
   lastModified: null,
   failureCount: 0,
@@ -68,6 +69,9 @@ describe("runMonitor — dry run", () => {
     );
 
     expect(fetchFeed).toHaveBeenCalledTimes(1);
+    expect(fetchFeed).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceType: "ozbargain" })
+    );
     expect(summary.results[0].status).toBe("ok");
     expect(summary.results[0].itemsSeen).toBe(2);
     expect(summary.results[0].itemsNew).toBe(2); // unique candidates

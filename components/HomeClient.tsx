@@ -597,7 +597,7 @@ export default function HomeClient({
               price after every layer.
             </p>
           </div>
-          <DealStackCalculator />
+          <DealStackCalculator stores={stores} />
         </section>
 
         {/* Trust & safety */}

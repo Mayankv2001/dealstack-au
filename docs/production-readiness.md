@@ -229,6 +229,16 @@ vercel rollback
 
 **Feed staging tables** (`feed_items`, `offer_change_candidates`) are append-only staging — they never write directly to public offers. A failed cron run or bad staged item cannot break the public site.
 
+### Monitor health alerts
+
+Configure a separate external checker for `GET /api/health/monitor` every three
+hours with `Authorization: Bearer <CRON_SECRET>`. A `200` response means the
+monitor is intentionally off, intentionally paused, or has a successful run
+newer than 30 hours. A `503` means compliance is missing, the expected monitor
+is stale/has never succeeded, or state could not be read. Alert on non-2xx and
+timeout, and test delivery once with an intentionally wrong token. The endpoint
+is read-only, uncached, and makes no external feed request.
+
 ---
 
 ## 13. Pre-launch verification checklist

@@ -1,227 +1,198 @@
-# PLAN-live-data-trust — Stop serving sample offers when the DB says otherwise
+# PLAN-live-data-trust - Make configured Supabase authoritative everywhere
 
-> **Rank: 2 of 5 (2026-07-10 follow-on backlog).** When Supabase is
-> configured, four public offer getters still serve **hand-typed sample
-> data** whenever the DB returns zero rows *or the read fails*:
-> `fromDbOrStatic` (`lib/supabase/server.ts:43-63`) falls back for
-> `gift_card_offers`, `cashback_offers`, `points_offers`,
-> `ozbargain_signals` (`lib/repos/offers.ts`) and `weekly_deals`
-> (`lib/repos/weeklyDeals.ts`); the search pool does the same via
-> `loadDbSourceResults` returning `null` on an empty pool or error
-> (`lib/repos/sourceResults.ts:339-373`, key line :364). The codebase
-> already knows this is wrong: `card_offers` was deliberately moved to
-> `fromDbOrDemo` ("zero published rows must render the empty state, not
-> resurrect demos … a read error returns no rows — the demo data is never
-> served as if it were live", `lib/repos/offers.ts:136-152`), with the
-> trust rule pinned in `tests/admin/dbFallback.test.ts`. Concretely today:
-> an admin unpublishing the last gift card (one is already expired-flagged —
-> PROJECT_STATE §10), an RLS misconfiguration, or a transient Supabase
-> outage silently swaps in illustrative rates, expiry dates and promo codes
-> on `/`, `/deals`, `/search` and store pages — on a product whose whole
-> promise is verified data. FINAL-LAUNCH-CHECKLIST §12's manual "confirm
-> pages serve the Supabase dataset, not the static fallback" (:156) exists
-> only because this failure is invisible. This plan extends the card-offers
-> rule to every public offer dataset: **sample data is demo-mode only.**
-> (Verified still-present against `origin/main` @ `4217595`:
-> `grep -rn "fromDbOrStatic(" lib/` → offers.ts ×4, weeklyDeals.ts ×1,
-> stores.ts ×1.)
+> **Status: Shipped in the 2026-07-10 production-readiness audit.**
 
-## Prerequisites
-
-- `git pull --rebase`; clean tree; `nvm use 20`; read `AGENTS.md` (Next.js
-  16 — but this plan touches almost no framework surface; it is data-layer
-  + verification).
-- Read fully before coding:
-  - `lib/supabase/server.ts` — both helpers. `fromDbOrDemo` (:75-95) is the
-    behaviour you are adopting; note its `deps` injection for tests.
-  - `lib/repos/offers.ts` — all four `fromDbOrStatic` call sites AND the
-    `getCardOffers` doc comment (:136-152), which is the pattern and the
-    rationale you replicate.
-  - `lib/repos/weeklyDeals.ts` — the fifth call site.
-  - `lib/repos/sourceResults.ts` — `loadDbSourceResults` (:339-373) and its
-    two callers `searchSourceResults` / `storeSourceResults` (:380-395).
-    Understand the tri-state: `null` = "defer to static pipeline".
-  - `tests/admin/dbFallback.test.ts` — the existing contract tests.
-  - `lib/offers/expiry.ts` `filterLive` and the comment at
-    `lib/repos/offers.ts:84-86` explaining why it wraps the *result*.
+> **Rank: 2 of 5. Execute after the homepage approval-boundary plan.**
+> Revalidated against `main` at `f65c951`. The source-card path is already safe
+> (`fbd570a`) and card offers already use `fromDbOrDemo`, but gift cards,
+> cashback, points, approved signals, weekly deals, and stores still use
+> `fromDbOrStatic`. In configured production, an empty table, RLS error, or DB
+> outage silently resurrects hand-written demo rates and codes. Separately,
+> `DealStackCalculator` imports static stores directly, so its store presets are
+> demo values even when every surrounding page came from Supabase.
 
 ## Goal
 
-With Supabase configured (`hasSupabaseEnv()` true and `DATA_SOURCE` not
-`static`), the DB is the single source of truth for every public offer
-dataset: zero published rows renders the real empty state, and a failed
-read renders empty (with a `console.warn` for Vercel logs) — sample data is
-never shown as live. With Supabase env absent or `DATA_SOURCE=static`,
-nothing changes: full demo/static behaviour remains (local dev, CI, and the
-smoke test all rely on it).
+Static arrays are allowed only in explicit demo mode:
 
-## Exact files to touch
+- `DATA_SOURCE=static`; or
+- no public Supabase URL/anon key is configured.
 
-| File | Change |
+Once Supabase is configured, it is authoritative for every public dataset.
+Successful empty reads and failed reads return empty data with a server warning,
+never samples. Store discount codes that have passed their AU-local expiry are
+suppressed at read time. Calculator store presets use the same repository-loaded
+store objects as the page that renders them.
+
+The site must still build, test, and smoke with no secrets in CI.
+
+## Exact Files To Touch
+
+| File | Required change |
 |---|---|
-| `lib/repos/offers.ts` | Swap `fromDbOrStatic` → `fromDbOrDemo` in `getGiftCardOffers`, `getCashbackOffers`, `getPointsOffers`, `getOzBargainSignals`; update module doc |
-| `lib/repos/weeklyDeals.ts` | Same swap in `getWeeklyDeals`; update doc |
-| `lib/repos/sourceResults.ts` | `loadDbSourceResults`: return `[]` (not `null`) on configured-but-empty and on error; `null` only for demo mode; update both comments |
-| `lib/supabase/server.ts` | No logic change — reword `fromDbOrStatic`'s doc: it is now the **stores-only** helper (see edge case 5) |
-| `tests/admin/dbFallback.test.ts` | Extend docstring: the rule now covers all public offer datasets, not just `/cards` |
-| `FINAL-LAUNCH-CHECKLIST.md` | Reword §12's "confirm not static fallback" bullet (:156): fallback can no longer masquerade; the check is now "confirm expected content exists" |
-| `PROJECT_STATE.md` | §4/§7/§11 entries (decision: sample data is demo-mode only, everywhere) |
+| `lib/supabase/server.ts` | Remove `fromDbOrStatic` after migrating its final callers; retain and document `fromDbOrDemo` as the single fallback policy |
+| `lib/repos/offers.ts` | Move gift cards, cashback, points, and signals to `fromDbOrDemo`; keep public expiry filtering |
+| `lib/repos/weeklyDeals.ts` | Move weekly deals to `fromDbOrDemo` |
+| `lib/repos/stores.ts` | Move stores to `fromDbOrDemo`; add a pure read-time guard for expired store discount codes |
+| `components/DealStackCalculator.tsx` | Accept `stores: Store[]` as a prop and remove the runtime import of static stores |
+| `components/HomeClient.tsx` | Pass its repository-loaded `stores` prop into the calculator |
+| `app/stores/[slug]/page.tsx` | Pass loaded stores into the calculator; remove the configured-DB static fallback from `generateStaticParams` and stale comments |
+| `app/page.tsx` | Update fallback comments to describe demo mode versus configured DB authority |
+| `app/deals/page.tsx` | Update repository contract comment |
+| `app/search/page.tsx` | Update store-loading comment |
+| `app/stores/page.tsx` | Update store-loading comment |
+| `tests/admin/dbFallback.test.ts` | Expand the existing helper contract to all public datasets |
+| `tests/stack/storeTrust.test.ts` | New pure tests for expired store-discount suppression |
+| `FINAL-LAUNCH-CHECKLIST.md` | Replace manual “make sure fallback is not live” wording with empty/error-state verification |
+| `PROJECT_STATE.md` | Record the global data-authority decision and remove stale source-result claims |
 
-No migrations. No RLS changes. No new components.
+Do not touch `lib/repos/sourceResults.ts`; `fbd570a` already gives it the desired
+tri-state contract (`null` only in demo mode, `[]` for configured errors/empty).
+Do not touch `lib/repos/topDeals.ts` here; Plan 1 owns that publication path.
 
-## Step-by-step implementation order
+## Implementation Order
 
-### Step 1 — `lib/repos/offers.ts`
+1. In `lib/repos/offers.ts`, change the four remaining public getters from
+   `fromDbOrStatic` to `fromDbOrDemo` without moving their query callbacks:
+   `getGiftCardOffers`, `getCashbackOffers`, `getPointsOffers`, and
+   `getOzBargainSignals`.
 
-For each of the four getters, change only the helper name (the query
-callback and `filterLive` wrapper stay identical):
+   Keep `filterLive(rows)` **outside** the helper. That applies the expiry guard
+   to both real DB rows and demo rows. Keep the stricter card readiness filter
+   exactly as-is.
 
-```ts
-const rows = await fromDbOrDemo("gift_card_offers", staticGiftCards, async (db: DbClient) => { … });
-return filterLive(rows);
-```
+2. Make the same helper change in `lib/repos/weeklyDeals.ts`. An empty live
+   `weekly_deals` table should hide "This week's picks"; `DealsClient` already
+   renders that section only when `weeklyPicks.length > 0`.
 
-Move/adapt the `getCardOffers` rationale comment so the module doc states
-the rule once for all five datasets instead of card offers being the
-exception. Remove the now-unused `fromDbOrStatic` import.
+3. In `lib/repos/stores.ts`, use `fromDbOrDemo`. Then add and export a pure
+   helper with an injected AU date, for example:
 
-### Step 2 — `lib/repos/weeklyDeals.ts`
+   ```ts
+   export function guardStoreDiscount(store: Store, today: string): Store
+   ```
 
-Same one-word swap; update the file comment ("Supabase when configured
-(published only); static rows are demo-mode only").
+   If `isPastExpiry(store.expiryDate, today)` is false, return the original
+   object. If true, return a copy with:
 
-### Step 3 — `lib/repos/sourceResults.ts`
+   - `discountPercent: 0`;
+   - `discountCode: "No current public code"`;
+   - `expiryDate: null`.
 
-In `loadDbSourceResults`:
-- Replace `return results.length > 0 ? results : null;` (:364) with
-  `return results;` — a configured-but-empty pool is an empty pool.
-- In the `catch`, replace `return null;` with `return [];` and reword the
-  warn ("returning no source results — sample data is never a live
-  fallback").
-- Update the function doc: `null` now means exactly "demo mode — defer to
-  the static sample pipeline" (the two early returns at :340-342).
+   Apply it to the helper result with `todayAU()`. Do not remove the whole store:
+   cashback, gift-card, and points information may still be valid, and the admin
+   must retain the original expired fields for correction.
 
-Callers need **no change**: `if (!pool) return searchSources(query);`
-already treats `[]` as a real pool (empty array is truthy) and ranks it to
-zero results.
+4. After every call site has moved, delete `fromDbOrStatic` from
+   `lib/supabase/server.ts`. A dead helper that still promises production
+   fallback is an attractive regression path. Update `fromDbOrDemo` docs to say
+   it is the public-repository policy, not a card-offer special case.
 
-### Step 4 — tests
+5. Refactor `DealStackCalculator`:
 
-`tests/admin/dbFallback.test.ts`: update the docstring to say the rule now
-covers gift cards, cashback, points, signals, weekly deals and the search
-pool. The behavioural cases for `fromDbOrDemo` already exist; add none
-unless you changed helper logic (you shouldn't have).
+   - import only the `Store` type from `lib/data.ts`;
+   - accept `{ stores: Store[] }`;
+   - look up presets from that prop;
+   - keep custom numeric input available when `stores` is empty;
+   - if the selected store disappears after navigation/revalidation, clearing
+     the selection must not reset the user's manually entered numbers.
 
-### Step 5 — verify empty states in the UI (manual, with a temporary patch)
+   Update both render sites: `<DealStackCalculator stores={stores} />` in
+   `HomeClient`, and the same on the store detail page. Do not add client-side
+   Supabase fetching.
 
-Demo mode can't show you this (it always has data), so simulate
-configured-but-empty locally: with real Supabase env in `.env.local`,
-temporarily add `.eq("id", "__none__")` to ONE query at a time (e.g. the
-gift-cards query), run `npm run dev`, and check the surfaces that consume
-it. **Revert the patch before committing** (`git diff` must not contain
-`__none__`). Check:
+6. Simplify `generateStaticParams()` in `app/stores/[slug]/page.tsx` to return
+   whatever `getStores()` returns. In demo/no-env builds that is still the
+   static list. In a configured build with an empty/erroring DB it is `[]`, which
+   is truthful. Next dynamic params remain enabled by default, so an admin-added
+   slug can still render on demand; do not set `dynamicParams = false`.
 
-- `/` — stack calculator still answers (layers just thin out); Today's top
-  signals section is a separate path (`lib/repos/topDeals.ts`) and is
-  unaffected.
-- `/deals` — every filter tab renders sensible empty copy; with
-  `weekly_deals` emptied, the "This week's picks" section must hide or
-  show its empty state, not a broken grid (see edge case 2).
-- `/search?q=myer` — "Checked sources" shows its no-results state.
-- `/stores/jb-hi-fi` — offer sections render without crashing.
-- `/cards` — already truthful; unchanged.
+7. Expand tests:
 
-If any surface renders an awkward hole, the fix is a minimal conditional
-(hide the section when its list is empty) in that component — keep to the
-existing soft-emerald style, Australian spelling, no redesign.
+   - existing `fromDbOrDemo` cases must cover explicit static mode, no client,
+     configured rows, configured empty, and configured throw;
+   - store discount remains live on its expiry date;
+   - it is suppressed the following AU day;
+   - null expiry is evergreen;
+   - suppressing a code does not zero cashback/gift-card/points fields;
+   - malformed dates follow existing lexical date policy and do not introduce
+     JavaScript `Date` parsing.
 
-### Step 6 — full gate
+8. Update comments/docs only after behaviour and tests are green. Explicitly
+   state that a configured outage produces honest empty states plus `[repos]`
+   warnings. Do not describe this as a generic “graceful fallback”.
 
-```bash
-nvm use 20
-npm run lint && npm run build
-npm run test:admin && npm run test:monitor && npm run test:stack
-npm run smoke   # against a local `npm run start` WITHOUT Supabase env — demo mode must still show content
-```
+9. Verify both modes under Node 20:
 
-## Edge cases a weaker model would miss
+   ```bash
+   # Normal test environment (CI/no Supabase env => demo mode)
+   npm run lint
+   npm run test:admin
+   npm run test:monitor
+   npm run test:stack
+   npm run build
 
-1. **`filterLive` wraps the result, not the query — keep it that way.** The
-   comment at `lib/repos/offers.ts:84-86` explains the old reason (expired
-   rows must not trigger the zero-rows fallback). The zero-rows fallback is
-   gone after this change, but the placement still matters: it also guards
-   the *demo* rows in demo mode. Moving it inside the query callback would
-   stop filtering demo data.
-2. **`weekly_deals` may be thin or empty in production.** The picks feature
-   shipped 2026-07-09 (`2835137`) and the section can render *sample*
-   picks via the fallback. After this change it will show nothing until the
-   admin curates rows in `/admin/weekly-deals`. That is correct behaviour —
-   but (a) verify `buildWeeklyPickCards` + `components/DealsClient.tsx`
-   hide the section cleanly when given zero deals, and (b) say explicitly
-   in the PR description that the owner should either curate real picks or
-   expect the section to disappear. `lib/offers/weeklyPicks.ts` already
-   drops unresolved component ids silently — mixed DB/static resolution is
-   designed for; don't "fix" it.
-3. **The error path change is deliberate product policy, not a regression.**
-   Before: Supabase outage → sample offers presented as live. After: outage
-   → empty sections + `console.warn` in Vercel logs. If a reviewer asks for
-   "graceful degradation", the answer is the `getCardOffers` comment: on a
-   verified-data product, fabricated data IS the outage. Don't add a
-   "stale-but-real cache" here either — that's a different, bigger feature.
-4. **Do not touch `lib/repos/topDeals.ts`.** It is already truthful
-   (returns `[]` on missing env/static mode/error — see its module doc) and
-   it reads admin-reviewed `feed_items` with the service role; changing it
-   risks the RLS design documented in its comment.
-5. **`getStores` stays on `fromDbOrStatic` — documented decision, not an
-   oversight.** The static stores double as the site skeleton (store pages,
-   `/stores` index, sitemap, calculator targets); an empty-stores DB state
-   rendering a storeless site helps nobody, and prod always has DB store
-   rows. Residual risk to note in the PR: static stores carry sample promo
-   codes (`MYER10`, `lib/data.ts:81-82`) surfaced as the needs-verification
-   "discount" layer — the admin can already edit/zero these via
-   `/admin/stores` (StoreForm has the discount fields), so cleaning them is
-   a content task for the owner, out of scope here.
-6. **Demo mode must keep working — three consumers depend on it:** local
-   dev without `.env.local`, the smoke test, and CI (see
-   `PLAN-ci-quality-gates.md`, which builds and smokes with no secrets).
-   `fromDbOrDemo` returns demo data when env is absent or
-   `DATA_SOURCE=static`; do not "simplify" those branches away. After your
-   change, `npm run build` with no Supabase env must still succeed
-   (verified possible on 2026-07-10).
-7. **`loadDbSourceResults` returning `[]` changes `/search` and store-page
-   behaviour on outage** (empty "Checked sources" instead of sample pool) —
-   that's the intent, but confirm the components render an empty-state
-   message rather than `undefined`-mapping. The static pipeline
-   (`searchSources`) remains reachable ONLY via `null` = demo mode.
-8. **Don't rename the helpers or "clean up" `fromDbOrStatic`.** It still
-   has one legitimate caller (stores). Narrow its doc comment instead;
-   renaming ripples through tests and stores for zero behaviour gain.
-9. **Keep the `console.warn` labels stable** (`[repos] <table>: …`) — they
-   are the only way to spot a production fallback in Vercel logs, and
-   someone may already grep for them.
-10. **`DATA_SOURCE=static` must still force static everywhere** — both
-    helpers check it first; verify once manually with the env var set that
-    `/deals` shows sample data even with Supabase configured.
+   # Start the build and run the ordinary smoke suite
+   npm run start
+   npm run smoke
 
-## Acceptance criteria
+   git diff --check
+   ```
 
-- [ ] `grep -rn "fromDbOrStatic(" lib/` → exactly two hits: the definition
-      in `lib/supabase/server.ts` and the `stores` call in
-      `lib/repos/stores.ts`.
-- [ ] With Supabase configured and a table temporarily emptied (Step 5
-      patch): the corresponding public sections render truthful empty
-      states — zero sample brands/rates/codes visible. Patch reverted
-      (`git grep __none__` → nothing).
-- [ ] With Supabase env absent (demo mode): `/`, `/deals`, `/search?q=myer`,
-      `/cards` all render sample content exactly as before; `npm run smoke`
-      passes against a no-env `npm run start`.
-- [ ] With `DATA_SOURCE=static` and Supabase configured: static data is
-      served (spot-check `/deals`).
-- [ ] Simulated read error (temporarily throw inside one query callback):
-      section renders empty, `[repos] …` warn appears in server logs,
-      page does not 500. Patch reverted.
-- [ ] `npm run lint`, `npm run build`, `test:admin`, `test:monitor`,
-      `test:stack` all green on Node 20.
-- [ ] `git diff --stat` touches only the seven files listed (plus at most
-      one component file if Step 5 required an empty-state fix — name it in
-      the PR description).
+   With configured local Supabase, temporarily force one query to return zero
+   and one to throw; confirm the affected sections are empty, not demo-backed.
+   Revert the temporary fault before committing (`git grep __none__` and
+   `git diff` must prove it is gone).
+
+## Edge Cases A Weaker Model Would Miss
+
+1. **An empty array is authoritative in configured mode.** Do not use
+   `rows.length || staticData`. Zero published rows can be an intentional admin
+   action and must stay zero.
+2. **CI depends on demo mode.** GitHub Actions has no Supabase secrets. Missing
+   env must continue returning static arrays so build and smoke remain useful.
+3. **`DATA_SOURCE=static` overrides configured env.** This explicit local/demo
+   switch remains supported and must be tested.
+4. **Filter after helper resolution.** Moving `filterLive` inside only the DB
+   callback would let expired demo rows leak in demo mode.
+5. **Stores carry actionable codes.** They are not harmless navigation
+   skeletons: `StoreCard`, store detail, homepage estimates, and the stack engine
+   display `discountCode` and calculate with `discountPercent`. Therefore stores
+   must follow the same configured-DB authority rule.
+6. **Store expiry is separate from offer-table expiry.** The generic
+   `filterLive` cannot drop a store just because its code expired; suppress only
+   that discount layer.
+7. **The calculator is a client boundary.** Passing serializable store props from
+   the server is correct. Importing `lib/repos` into the client component would
+   bundle server-only data access and is forbidden.
+8. **`generateStaticParams` does not define all future slugs.** With default
+   dynamic params, a store added after build still renders. Do not freeze routes
+   to the build-time list.
+9. **Top Deals currently calls `getStores()`.** Once configured store reads fail
+   closed, that repository should hide or return unranked results according to
+   its own catch path; it must never resurrect static store names.
+10. **Do not conflate this with stale-real caching.** Serving the last known real
+    snapshot could be a future availability feature, but hand-authored examples
+    are not a cache and cannot be shown as live.
+11. **The source-results trust guard is already shipped.** Re-editing its
+    loader risks undoing its card readiness and expiry tests.
+12. **Store cashback/gift-card summary columns remain a separate modelling
+    concern.** This plan removes demo fallback and expired codes; it does not
+    redesign schema or synchronize denormalized store summary fields.
+
+## Acceptance Criteria
+
+- [ ] `rg "fromDbOrStatic" lib tests` returns no matches.
+- [ ] With Supabase configured, empty and failed reads for stores, offers, and
+      weekly deals render empty states and never show static brands/codes/rates.
+- [ ] With no Supabase env or `DATA_SOURCE=static`, demo content still renders
+      and ordinary smoke tests pass.
+- [ ] An expired store code contributes $0 to cards, homepage examples, store
+      detail, and calculator presets while the store itself remains available.
+- [ ] `DealStackCalculator.tsx` has no value import from `lib/data.ts`; both
+      callers pass their repository-loaded stores.
+- [ ] Configured DB failures log `[repos] <dataset>: DB read failed; returning no
+      rows` without logging secrets or throwing a public 500.
+- [ ] No migration, RLS, root layout, global CSS, cron, or monitor-gate change is
+      present.
+- [ ] Full Node 20 quality gate, smoke test, and `git diff --check` pass.

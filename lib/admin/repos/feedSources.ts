@@ -10,6 +10,7 @@ import {
 } from "@/lib/monitor/offerChanges";
 import type { FeedItemInsert } from "@/lib/monitor/mapFeedItem";
 import { feedItemReviewState } from "@/lib/monitor/feedItemPreference";
+import { isApprovedFeedUrl } from "@/lib/security/urlPolicy";
 import type {
   FeedFetchLogEntry,
   FeedPollStatePatch,
@@ -262,10 +263,20 @@ export async function listDueEnabledFeeds(opts: {
     return next == null || Date.parse(next) <= nowMs;
   });
 
+  const unsafe = due.find(
+    (row) => !isApprovedFeedUrl(row.source_type, row.feed_url)
+  );
+  if (unsafe) {
+    throw new Error(
+      `Feed source ${unsafe.id} has a URL that is not approved for its source type.`
+    );
+  }
+
   return due.slice(0, Math.max(1, opts.limit)).map((r) => ({
     id: r.id,
     label: r.label,
     feedUrl: r.feed_url,
+    sourceType: r.source_type,
     etag: r.etag,
     lastModified: r.last_modified,
     failureCount: r.failure_count == null ? 0 : Number(r.failure_count),

@@ -9,6 +9,7 @@ import {
 } from "@/components/WeeklyDealCard";
 import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { CardOffer, CardOfferType } from "@/lib/offers/types";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 import { cn } from "@/lib/utils";
 
 /**
@@ -83,6 +84,7 @@ function headline(offer: CardOffer): { value: string; caption?: string } {
 }
 
 export function CardOfferCard({ offer }: { offer: CardOffer }) {
+  const sourceHref = safeHttpsUrl(offer.sourceUrl);
   const tone = TONE_BY_TYPE[offer.offerType];
   const { value, caption } = headline(offer);
   const expired = isPastExpiry(offer.expiryDate, todayAU());
@@ -186,10 +188,10 @@ export function CardOfferCard({ offer }: { offer: CardOffer }) {
               />
               <CheckedLine lastCheckedAt={offer.lastCheckedAt} />
             </div>
-            {offer.sourceUrl ? (
+            {sourceHref ? (
               <Button asChild variant="outline" size="sm" className="w-full">
                 <a
-                  href={offer.sourceUrl}
+                  href={sourceHref}
                   target="_blank"
                   rel="nofollow noopener noreferrer"
                 >

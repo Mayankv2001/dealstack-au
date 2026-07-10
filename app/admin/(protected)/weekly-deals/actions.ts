@@ -18,6 +18,7 @@ import {
 } from "@/lib/admin/repos/weeklyDeals";
 import type { WeeklyHighlight } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Weekly-deals admin server actions.
@@ -80,10 +81,11 @@ function parseWeeklyDealForm(formData: FormData): ParseResult {
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   const citations: Citation[] = [];
   if (sourceUrl !== "") {
-    if (!URL.canParse(sourceUrl)) {
-      return { ok: false, error: "Source URL must be a valid URL (including https://)." };
+    const safeSourceUrl = safeHttpsUrl(sourceUrl);
+    if (!safeSourceUrl) {
+      return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
     }
-    citations.push({ source: "manual", sourceUrl });
+    citations.push({ source: "manual", sourceUrl: safeSourceUrl });
   }
 
   return {

@@ -1,5 +1,6 @@
 import type { WeeklyDealCardData, WeeklyDealTone } from "@/components/WeeklyDealCard";
 import type { Citation, DealKind } from "@/lib/sources/types";
+import { safePublicHref } from "@/lib/security/urlPolicy";
 import { isExpiringSoonAU } from "./expiry";
 import type {
   CashbackOffer,
@@ -104,8 +105,9 @@ function resolveSignalCitations(
   const citations: Citation[] = [];
   for (const id of componentIds) {
     const signal = signals.find((s) => s.id === id);
-    if (signal && !signal.isSample) {
-      citations.push({ source: "ozbargain", sourceUrl: signal.sourceUrl });
+    const sourceUrl = signal ? safePublicHref(signal.sourceUrl) : null;
+    if (signal && !signal.isSample && sourceUrl) {
+      citations.push({ source: "ozbargain", sourceUrl });
     }
   }
   return citations;
@@ -115,10 +117,12 @@ function dedupeCitations(citations: Citation[]): Citation[] {
   const seen = new Set<string>();
   const out: Citation[] = [];
   for (const c of citations) {
-    const key = `${c.source}|${c.sourceUrl}`;
+    const sourceUrl = safePublicHref(c.sourceUrl);
+    if (!sourceUrl) continue;
+    const key = `${c.source}|${sourceUrl}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(c);
+    out.push({ ...c, sourceUrl });
   }
   return out;
 }

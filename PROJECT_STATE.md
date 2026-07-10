@@ -2,7 +2,7 @@
 
 > Single source of truth for DealStack AU. Maintained so a second Claude account can continue the work safely without losing context.
 >
-> **Last updated:** 2026-07-10 (CI gate + card-offer readiness gate shipped) · **Branch:** `main` · **Base:** `2f2db1d`
+> **Last updated:** 2026-07-10 (production-readiness audit) · **Branch:** `main`
 
 ---
 
@@ -15,12 +15,13 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 
 ## 2. Current Status
 
-- **Live/working:** Public site (homepage, `/deals`, `/stores`, `/search`, `/cards`, `/resources`), admin portal (incl. `/admin/cleanup`), feed monitor, feed queue with relevance triage, stacking calculator. **CI now gates every PR/push to `main`** (see below). Card offers CRUD is live, but **public `/cards` now shows its empty state**: a new readiness gate (`ea7d3fe`/`2f2db1d`) blocks any DB row from reaching `/cards` or admin-publish unless it's confirmed, unexpired, HTTPS-sourced, has a positive headline value, and is free of placeholder wording — all 5 existing rows fail this (still "Illustrative", `needs-verification`, null expiry), so they're hidden until an admin re-verifies and republishes. **This is the intended, safer behaviour, not a regression** — see §6 human ops item 3 and §10.
+- **Live/working:** Public site (homepage, `/deals`, `/stores`, `/search`, `/cards`, `/resources`), admin portal (incl. `/admin/cleanup`), feed monitor, feed queue with relevance triage, stacking calculator, CI quality gate, card-offer readiness gate, source-result trust guard, strict production-content smoke, and the audited monitor emergency stop.
+- **Current audit:** Top Deals requires approved signal copy; configured Supabase is authoritative; public URL and monitor egress boundaries fail closed; monitor health is externally observable; signal seeding tolerates diverged native ids.
 - **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
-- **Backlog: the daa2653 backlog (2026-07-08) is fully shipped**, including `dq-mark-rechecked` (`1c8a20c`) — previously the one holdover, now done. **The 2026-07-10 5-plan backlog is fully shipped**: `queue-relevance-triage` (`8269bc9`), `detection-go-live` (`d499d7e`), `admin-cleanup-page` (`919f3d6`), `dq-mark-rechecked` (`1c8a20c`), `state-truthing` (`4217595`). **The 2026-07-10 follow-on backlog (1/5 shipped):** `ci-quality-gates` (`106a5d3`) — see §6 for the remaining 4.
-- **Confirmed two-session collision:** on 2026-07-10 a *second*, separate 5-plan backlog was found sitting uncommitted in the working tree alongside the tracked follow-on backlog (two different Claude sessions each generated their own "2026-07-10 backlog" independently). Its rank-1 plan, `card-offer-public-readiness-gate`, has now shipped (`2f2db1d`, reviewed/verified/PR'd rather than blindly committed). The remaining four plans are now ranked in §6, with `PLAN-public-source-results-trust-guard.md` explicitly next.
+- **Recent trust/ops sequence:** public source-result guard (`fbd570a`), final AU expiry unification (`14db2d6`), strict public-content smoke (`e29c1c9`), and audited feed-source emergency stop (`f65c951`) are shipped on `main` after the card readiness gate (`2f2db1d`).
+- **Current ranked backlog:** schema-drift watchdog remains the next code task. See §6.
 - **Known prod hygiene (see §10):** two published-but-expired gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish` from 2026-07-11) — clear via the new `/admin/cleanup` page (or the CLI `npm run cleanup:old-deals -- --write`).
-- **Build/lint/tests:** Full Node 20 quality gate is green at `2f2db1d`: lint, build, 139 stack tests, 170 monitor tests, 72 admin tests, and `git diff --check` all pass. CI also passed on PR #2.
+- **Build/lint/tests:** Full Node 20 gate is green in this working tree: lint, production build, 158 stack tests, 182 monitor tests, 76 admin tests, and `git diff --check`.
 
 ## 3. Repository / File Structure
 
@@ -44,15 +45,11 @@ scripts/                 Seed / fixture / cleanup scripts
 tests/  monitor/ stack/ admin/ fixtures/      Vitest suites
 supabase/                Migrations + seed SQL
 docs/                    Architecture & monitoring docs
-PLAN-*.md                33 files; 25 carry a STATUS banner (shipped/superseded/
-                          partially shipped) and are historical reference only.
-                          8 unbannered plans remain across two backlogs:
-                          tracked follow-on backlog (4 left) — live-data-trust,
-                          monitor-health-endpoint, schema-drift-watchdog,
-                          seed-signals-conflict; untracked second backlog
-                          (4 left, see §2) — expiry-tz-unification,
-                          monitor-emergency-stop, production-content-smoke,
-                          public-source-results-trust-guard
+PLAN-*.md                35 files. The current ranked backlog is Top Deals
+                          approval boundary (implemented in this working tree),
+                          live-data trust, URL trust boundaries, monitor health,
+                          and schema-drift watchdog. Older plans are historical
+                          reference unless revalidated against git and code.
 vercel.json              Cron: one/day at 02:00 (Hobby limit)
 ```
 
@@ -69,23 +66,22 @@ Verified from git history and memory. Commit hashes in parentheses.
 - **Broader taxonomy:** category taxonomy, feed preference + top-deals ranking tuning, queue review presets (`a508746`, `ec6f1b9`, `aa62989`, `81067dd`).
 - **Tooling:** `/phase` skill for controlled-phase workflow (`c6daf99`), `npm run verify:schema` read-only migration-drift probe (`49086d0`), `npm run smoke` route/SEO/security-header test (`90a21f6`), stack engine's injectable `now` clock for deterministic tests (`9560080`), docs/runbook refresh to match migrations 006/007 (`c77919d`).
 - **Data quality:** placeholder-copy guard flagging "Illustrative" demo text on published rows (`7d2f293`); cashback cap-maths fix, was understating capped cashback ~10× (`c6e31ed`); weekly picks surfaced on `/deals` (`2835137`); generated Supabase types replacing `LooseDB` (`8d2d219`); one-click "Mark re-checked" to clear stale-data flags without a full edit round-trip (`1c8a20c`).
-- **2026-07-10 backlog (4/5 shipped):** feed queue relevance filter/sort/select-all-filtered (`8269bc9`); detection ops status card + go-live runbook (`d499d7e`, listed above); `/admin/cleanup` — reviewed one-click apply for expiry hygiene, ported from the CLI script (`919f3d6`); dashboard mark-rechecked (`1c8a20c`, listed above). This file (`state-truthing`) is the 5th, completing now.
+- **2026-07-10 backlog (5/5 shipped):** feed queue relevance filter/sort/select-all-filtered (`8269bc9`); detection ops status card + go-live runbook (`d499d7e`, listed above); `/admin/cleanup` — reviewed one-click apply for expiry hygiene, ported from the CLI script (`919f3d6`); dashboard mark-rechecked (`1c8a20c`, listed above); project-state truthing (`4217595`).
 - **CI quality gate:** `.github/workflows/ci.yml` — GitHub Actions runs lint, `test:monitor`, `test:stack`, `test:admin`, `build`, and `start`+`smoke` on every PR and every push to `main`, with zero repository secrets (static-fallback demo data covers build/smoke without Supabase env). First structural fix from the 2026-07-10 follow-on backlog, ranked first because two-account direct pushes to `main` had no gate at all. Verified working on its first real PR (#2, below) — `quality` check passed in 1m12s (`106a5d3`, `34d0fe4`).
-- **Card offer public-readiness gate:** `lib/offers/cardReadiness.ts` — one pure rule (confirmed confidence, unexpired date, HTTPS issuer source, positive headline value for the offer type, no placeholder wording) enforced on both the public `/cards` read path (`lib/repos/offers.ts`) and admin insert/update/publish actions (`lib/admin/repos/cardOffers.ts`, card-offers `actions.ts`). Found already implemented-but-uncommitted from a parallel session (see §2 collision note); reviewed, verified (lint/build/`test:admin`+`test:monitor`+`test:stack` all green), and shipped via PR #2, squash `2f2db1d` (branch commit `ea7d3fe`). **Effect: `/cards` now shows its empty state in production** until the 5 illustrative rows are re-verified — see §6 human ops item 3 and §10.
+- **Card offer public-readiness gate:** `lib/offers/cardReadiness.ts` — one pure rule (confirmed confidence, unexpired date, HTTPS issuer source, positive headline value for the offer type, no placeholder wording) enforced on both the public `/cards` read path (`lib/repos/offers.ts`) and admin insert/update/publish actions (`lib/admin/repos/cardOffers.ts`, card-offers `actions.ts`). Reviewed, verified, and shipped via PR #2, squash `2f2db1d` (branch commit `ea7d3fe`). **Effect: `/cards` now shows its empty state in production** until the 5 illustrative rows are re-verified — see §6 human ops item 3 and §10.
+- **Public trust follow-through:** source cards now fail closed on configured DB errors/empty results and enforce expiry/card readiness (`fbd570a`); the last fixed-offset expiry checks use the shared AU calendar (`14db2d6`); strict smoke catches public placeholder/demo leakage (`e29c1c9`).
+- **Monitor emergency stop:** `/admin/monitor` can disable all enabled feed sources immediately with rate limiting and an audit record; staged and public content are preserved (`f65c951`).
+- **Homepage Top 5 approval boundary (current working tree, uncommitted):** imported feed state is no longer enough. `lib/repos/topDeals.ts` joins the promoted signal, requires approved/non-sample/live state, maps moderated signal copy, preserves the independent homepage-hidden veto, and ignores feed-source enablement for publication. Signal changes now revalidate `/`.
 
 ## 5. Current Task
 
-**None in progress.** `PLAN-card-offer-public-readiness-gate.md` shipped in `2f2db1d`. **Next task: `PLAN-public-source-results-trust-guard.md`** — make `/search` and `/stores/[slug]` obey configured-DB authority, hard-expiry filtering, and the shared card-readiness rule.
+Production-readiness audit implementation and verification.
 
 ## 6. Next 3 Tasks
 
-**Fresh 2026-07-10 leverage backlog after readiness-gate completion.** Cross-check each against `git log` before starting; do not re-execute a banner-stamped plan.
-
-1. **PLAN-public-source-results-trust-guard.md — DO THIS NEXT.** Make `/search` and `/stores/[slug]` treat configured Supabase as authoritative, never resurrect static samples on query errors/empty results, filter hard-expired rows before ranking, and reuse the card-readiness gate.
-2. **PLAN-expiry-tz-unification.md.** Remove the final fixed `+10:00` expiry constructions in source normalisation and stack compatibility; route them through the existing DST-correct AU calendar helpers.
-3. **PLAN-production-content-smoke.md.** Add opt-in strict content checks to `npm run smoke` so placeholder/demo/trust regressions fail before launch.
-
-**After these three:** `PLAN-monitor-emergency-stop.md` adds an audited one-click disable-all-feed-sources control. The older tracked follow-on plans (`live-data-trust`, `monitor-health-endpoint`, `schema-drift-watchdog`, `seed-signals-conflict`) remain lower-priority backlog/reference; re-audit overlap after the fresh four are complete.
+1. **PLAN-schema-drift-watchdog.md.** Automate the existing read-only production schema probe and make its migration manifest self-auditing.
+2. Configure the external monitor health alert described in `docs/ozbargain-monitoring.md`.
+3. Complete the human production-data checks below.
 
 **Also open — three ops steps only a human can perform** (verifying real-world data / making a production judgement call):
 
@@ -116,6 +112,7 @@ Verified from git history and memory. Commit hashes in parentheses.
 - **No AI agents / autonomous publishing workflows.** No bypassing Cloudflare, login pages, robots.txt, or rate limits.
 - **Keep changes small and reviewable.** Don't remove existing features.
 - **Framework note (AGENTS.md):** This is Next.js 16 with breaking changes vs. training data — read `node_modules/next/dist/docs/` before writing framework code.
+- **Feed enablement is operational only.** `feed_sources.is_enabled` controls future monitor requests; it must not unpublish already-approved content.
 
 ## 9. Commands to Run
 
@@ -143,8 +140,8 @@ npm run cleanup:old-deals
 - **`tests/stack/buildStack.test.ts` — stale-fixture failure (RESOLVED).** The stack engine now takes an injectable `now` clock (`buildStackRecommendations(input, spend, data, now)`, default `new Date()`); the stack tests pass a fixed `TEST_NOW` (see `tests/stack/factories.ts`), so time-based expiry/stale warnings no longer drift as the real clock advances.
 - **Preview server (Node/Turbopack):** `preview_start` running `next dev` needs a zsh `-c` PATH-prefix to Node 20 or Turbopack workers panic. After a panicked run, `rm -rf .next/dev` — the cache stays poisoned otherwise.
 - **Prod migration drift:** Some migrations were applied by hand and are untracked. Migration 005 (`hidden_from_homepage`) was found NOT applied to prod on 2026-07-08. **Verify prod schema via `information_schema.columns`, not just table existence.**
-- **Seed signals gotcha:** Full `npm run seed` fails on `ozbargain_signals` (source_native_id unique constraint + diverged prod data). Insert new signals **individually**, not via full seed.
-- **Card offers:** the 5 DB rows remain published but marked "Illustrative" with `confidence='needs-verification'` and null expiry. They are not real offer data and are hidden from `/cards` by `2f2db1d`. The separate `lib/repos/sourceResults.ts` path still needs `PLAN-public-source-results-trust-guard.md` before `/search` and store source cards have the same trust contract (see §6 next task and human ops item 3).
+- **Seed signals unique-key divergence (RESOLVED):** full seed now skips and reports rows whose `source_native_id` belongs to a different production id, then continues to later tables.
+- **Card offers:** the 5 DB rows remain published but marked "Illustrative" with `confidence='needs-verification'` and null expiry. They are not real offer data and are hidden from `/cards` by `2f2db1d`; `/search` and store source cards enforce the same trust contract as of `fbd570a`. Human verification/republication is still required (see §6 human ops item 3).
 - **Two published-but-expired gift cards (prod-verified 2026-07-10):** `gc-tcn-jbhifi` (TCN, expired 2026-07-02) and `gc-woolworths-wish` (Woolworths WISH, expires 2026-07-10 — expired from the 11th). The public read-guard already hides expired offers from actionable listings, so this is DB hygiene, not a live lie. Clear via `/admin/cleanup` (see §6 human ops item 2).
 - **Two-account coordination risk:** Both accounts share `main`. Pull/rebase before working; commit small; push promptly to avoid divergence (git workflow is autonomous through to `origin/main`).
 
@@ -153,7 +150,12 @@ npm run cleanup:old-deals
 Most recent commits (newest first):
 
 ```
-2f2db1d  Add public-readiness gate for card offers (#2)                                      <- HEAD
+f65c951  Add admin monitor actions and feed source updates                                  <- base/HEAD
+e29c1c9  Add --strict-content mode to npm run smoke for public trust regressions
+14db2d6  Unify last two expiry checks onto DST-correct AU calendar helpers
+fbd570a  Apply public trust guard to source results
+eb4d080  Track the remaining second-backlog plan docs
+2f2db1d  Add public-readiness gate for card offers (#2)
 34d0fe4  Docs: fill in CI workflow commit hash in PROJECT_STATE §11
 106a5d3  Add GitHub Actions CI workflow — lint/tests/build/smoke gate on every PR + push to main
 1c8a20c  Add one-click Mark re-checked to dashboard data-quality flags
@@ -175,7 +177,7 @@ daa2653  Add next 5-plan backlog (ranked): placeholder guard, schema verify, smo
 **Before starting any work:**
 1. `git pull --rebase` on `main` — the other account may have pushed. Working tree should be clean.
 2. `nvm use 20` (Node 22 only for `npm run seed`).
-3. **Next coded task is `PLAN-public-source-results-trust-guard.md`.** The card readiness plan shipped in `2f2db1d`; do not re-execute it. See §6 for the ranked sequence and separate human-only ops steps.
+3. **The current working tree contains the completed, uncommitted `PLAN-top-deals-approved-signal-boundary.md` implementation.** Review/commit it before starting `PLAN-live-data-trust.md`. See §6 for the ranked sequence and separate human-only ops steps.
 4. Cross-check any PLAN against `git log --oneline` and its top STATUS/rank lines. STATUS banners and §6 override stale rankings in older plan files; do not redo shipped work.
 
 **While working:**

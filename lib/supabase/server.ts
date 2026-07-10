@@ -28,44 +28,14 @@ export function getSupabaseServer(): DbClient | null {
   return cached;
 }
 
-/** Explicit override: DATA_SOURCE=static forces the static fallback everywhere. */
+/** Explicit override: DATA_SOURCE=static forces local/demo arrays everywhere. */
 export function isStaticDataSource(): boolean {
   return process.env.DATA_SOURCE === "static";
 }
 
 /**
- * Run a DB read with graceful fallback to static data. Falls back when:
- *   - DATA_SOURCE=static, or
- *   - Supabase env vars are missing (client is null), or
- *   - the query throws, or
- *   - the query returns zero rows.
- */
-export async function fromDbOrStatic<T>(
-  label: string,
-  staticData: T[],
-  query: (supabase: DbClient) => Promise<T[]>
-): Promise<T[]> {
-  if (isStaticDataSource()) return staticData;
-  const supabase = getSupabaseServer();
-  if (!supabase) return staticData;
-  try {
-    const rows = await query(supabase);
-    if (!rows || rows.length === 0) return staticData;
-    return rows;
-  } catch (err) {
-    console.warn(
-      `[repos] ${label}: DB read failed, using static fallback. ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    );
-    return staticData;
-  }
-}
-
-/**
- * Run a DB read where the static array is ONLY a local/demo substitute, never a
- * production fallback. For datasets (e.g. card_offers) whose static rows are
- * illustrative demo data that must not be shown as if live:
+ * Public-repository fallback policy. Static arrays are ONLY local/demo
+ * substitutes, never production fallbacks:
  *   - DATA_SOURCE=static or Supabase env absent → demo data (local/demo mode);
  *   - Supabase configured + query succeeds      → the DB rows, even when EMPTY —
  *     zero published rows must render the empty state, not resurrect demos;
