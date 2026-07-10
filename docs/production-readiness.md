@@ -28,7 +28,7 @@ supabase db push
 | 006 | `supabase/migrations/006_admin_rate_limits.sql` | `admin_rate_limits` (per-admin mutation rate-limit ledger) |
 | 007 | `supabase/migrations/007_card_offers.sql` | `card_offers` (bank/credit-card offers shown on `/cards`) |
 
-**Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled.
+**Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss).
 
 ---
 

@@ -49,8 +49,8 @@
 ## 3. Migrations applied (in order, idempotent)
 
 - [ ] 001 `initial_schema` · 002 `feed_import_queue` · 003 `compliance_review` · 004 `offer_change_candidates` · 005 `feed_item_homepage_hidden` · 006 `admin_rate_limits` · 007 `card_offers`
-- [ ] **All 7** present in Supabase (`supabase db push` or SQL editor). Verify via `information_schema.columns`, not just table names — some prod migrations were historically hand-applied and drifted.
-- [ ] Spot-check the columns added by later migrations exist: `feed_items.hidden_from_homepage` (005), `admin_rate_limits` table (006), `card_offers` table (007).
+- [ ] **All 7** present in Supabase (`supabase db push` or SQL editor). Some prod migrations were historically hand-applied and drifted, so run `npm run verify:schema` — it probes the live project for every table/column the migrations declare and fails loudly on any gap.
+- [ ] Spot-check the columns added by later migrations exist: `feed_items.hidden_from_homepage` (005), `admin_rate_limits` table (006), `card_offers` table (007) — `npm run verify:schema` covers all three.
 
 ---
 
