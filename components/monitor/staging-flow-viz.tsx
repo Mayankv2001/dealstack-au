@@ -1,33 +1,19 @@
 "use client";
 
 /**
- * StagingFlowViz — client wrapper around the 3D staging-flow scene.
+ * StagingFlowViz — client wrapper around the SVG staging-flow scene.
  *
- * Responsibilities (all client-side):
- *   1. Dynamically import the WebGL scene with `ssr: false`. This MUST live in a
- *      Client Component — Next.js 16 rejects `ssr: false` in Server Components.
- *   2. Detect WebGL support and fall back to a 2D stat panel when it is absent.
- *   3. Wrap the scene in an ErrorBoundary so a runtime WebGL failure degrades to
- *      the same 2D fallback instead of crashing the admin page.
- *   4. Honour prefers-reduced-motion.
- *
- * It renders the canvas inside a shadcn `<Card>` and overlays the live metrics
- * passed down from the server, so the panel is informative even before (or
- * without) WebGL. It performs no data access of its own.
+ * The scene is plain SVG (see staging-flow-scene.tsx), so this wrapper no
+ * longer needs WebGL detection, an error boundary, or a dynamic import — it
+ * just supplies the panel chrome (shadcn `<Card>`, header, metric chips) and
+ * honours prefers-reduced-motion. It performs no data access of its own.
  */
 
 import * as React from "react";
-import dynamic from "next/dynamic";
-import { Boxes, Loader2, Radio, Rss } from "lucide-react";
+import { Boxes, Radio, Rss } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { StagingFlowSceneProps } from "./staging-flow-scene";
-
-// Client-only: the scene pulls in three.js / WebGL and must never SSR.
-const StagingFlowScene = dynamic(() => import("./staging-flow-scene"), {
-  ssr: false,
-  loading: () => <SceneSkeleton />,
-});
+import StagingFlowScene from "./staging-flow-scene";
 
 export interface StagingFlowVizProps {
   /** Monitor armed & live (emerald, streaming) vs idle / waiting (amber). */
@@ -36,58 +22,13 @@ export interface StagingFlowVizProps {
   stagedItemCount: number;
   /** Enabled feed sources → outer nodes. */
   activeSources: number;
-  /** Items awaiting review — shown in the overlay/fallback only. */
+  /** Items awaiting review — shown in the overlay. */
   pendingCount?: number;
   className?: string;
 }
 
-// --- Error boundary (must be a class component) -----------------------------
-class WebGLErrorBoundary extends React.Component<
-  { fallback: React.ReactNode; children: React.ReactNode },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: unknown) {
-    // Non-fatal: log for diagnostics, the fallback renders instead.
-    console.error("StagingFlowViz: WebGL scene failed, using fallback.", error);
-  }
-
-  render() {
-    return this.state.hasError ? this.props.fallback : this.props.children;
-  }
-}
-
-// --- WebGL capability detection ---------------------------------------------
-function detectWebGL(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const canvas = document.createElement("canvas");
-    return Boolean(
-      window.WebGLRenderingContext &&
-        (canvas.getContext("webgl") ||
-          canvas.getContext("experimental-webgl"))
-    );
-  } catch {
-    return false;
-  }
-}
-
-// WebGL support is a one-time capability — cache the probe result.
-let webglCache: boolean | null = null;
-function getWebGLSupport(): boolean {
-  if (webglCache === null) webglCache = detectWebGL();
-  return webglCache;
-}
-
-// --- Client-detection hooks (useSyncExternalStore avoids setState-in-effect
-// and the SSR/CSR hydration mismatch that plain useState/useEffect introduce). --
-const subscribeNoop = () => () => {};
-const getTrue = () => true;
+// --- Reduced-motion hook (useSyncExternalStore avoids setState-in-effect and
+// SSR/CSR hydration mismatch; server + first client render agree on false). --
 const getFalse = () => false;
 
 function subscribeReducedMotion(onChange: () => void) {
@@ -97,11 +38,6 @@ function subscribeReducedMotion(onChange: () => void) {
 }
 function getReducedMotionSnapshot() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-/** True only after client hydration — server + first client render agree on false. */
-function useHydrated(): boolean {
-  return React.useSyncExternalStore(subscribeNoop, getTrue, getFalse);
 }
 function useReducedMotion(): boolean {
   return React.useSyncExternalStore(
@@ -187,44 +123,6 @@ function MetricOverlay({
   );
 }
 
-// --- Loading + fallback states ----------------------------------------------
-function SceneSkeleton() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3 text-slate-400">
-        <Loader2 className="size-6 animate-spin text-emerald-400" />
-        <p className="text-xs">Initialising visualisation…</p>
-      </div>
-    </div>
-  );
-}
-
-/** 2D fallback shown when WebGL is unavailable or the scene errors. */
-function StaticFallback({
-  isFetching,
-  stagedItemCount,
-  activeSources,
-  pendingCount,
-}: StagingFlowVizProps) {
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6">
-      <div className="grid w-full max-w-md grid-cols-3 gap-2">
-        <StatChip icon={Boxes} label="Staged" value={stagedItemCount} />
-        <StatChip icon={Rss} label="Sources" value={activeSources} />
-        <StatChip
-          icon={Radio}
-          label="Awaiting"
-          value={pendingCount ?? 0}
-        />
-      </div>
-      <p className="max-w-sm text-center text-xs text-slate-400">
-        {isFetching ? "Monitor is live." : "Monitor is idle."} Interactive 3D
-        view is unavailable in this browser — showing live metrics instead.
-      </p>
-    </div>
-  );
-}
-
 export function StagingFlowViz({
   isFetching,
   stagedItemCount,
@@ -232,61 +130,32 @@ export function StagingFlowViz({
   pendingCount,
   className,
 }: StagingFlowVizProps) {
-  // Before hydration: render the skeleton (matches SSR, no mismatch). After:
-  // probe WebGL synchronously during render — the result is cached.
-  const hydrated = useHydrated();
   const reducedMotion = useReducedMotion();
-  const webglOk = hydrated && getWebGLSupport();
-
-  const sceneProps: StagingFlowSceneProps = {
-    isFetching,
-    stagedItemCount,
-    activeSources,
-    reducedMotion,
-  };
-
-  const fallback = (
-    <StaticFallback
-      isFetching={isFetching}
-      stagedItemCount={stagedItemCount}
-      activeSources={activeSources}
-      pendingCount={pendingCount}
-    />
-  );
 
   return (
     <Card
       className={cn(
-        // Zero the card padding/gap so the canvas fills edge-to-edge.
+        // Zero the card padding/gap so the scene fills edge-to-edge.
         "relative h-[400px] w-full overflow-hidden bg-slate-950 [--card-spacing:0px]",
         className
       )}
     >
       <PanelHeader isFetching={isFetching} />
 
-      {!hydrated ? (
-        <SceneSkeleton />
-      ) : webglOk ? (
-        <WebGLErrorBoundary fallback={fallback}>
-          {/* In-flow, definitely-sized container so R3F measures correct
-              dimensions on mount (an absolute wrapper can mis-measure to the
-              300×150 canvas default until a window resize). */}
-          <div className="h-full w-full">
-            <StagingFlowScene {...sceneProps} />
-          </div>
-        </WebGLErrorBoundary>
-      ) : (
-        fallback
-      )}
-
-      {/* Live metrics overlay — only meaningful over the 3D view. */}
-      {webglOk ? (
-        <MetricOverlay
+      <div className="h-full w-full">
+        <StagingFlowScene
+          isFetching={isFetching}
           stagedItemCount={stagedItemCount}
           activeSources={activeSources}
-          pendingCount={pendingCount}
+          reducedMotion={reducedMotion}
         />
-      ) : null}
+      </div>
+
+      <MetricOverlay
+        stagedItemCount={stagedItemCount}
+        activeSources={activeSources}
+        pendingCount={pendingCount}
+      />
     </Card>
   );
 }

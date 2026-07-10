@@ -1,27 +1,23 @@
-"use client";
-
 /**
- * StagingFlowScene — the WebGL half of the Monitor "staging flow" visual.
+ * StagingFlowScene — the animated half of the Monitor "staging flow" visual.
  *
- * This module imports three.js / @react-three/fiber at the top level, so it is
- * ONLY ever loaded on the client via a `dynamic(..., { ssr: false })` import in
- * StagingFlowViz (Next.js 16 forbids `ssr: false` in Server Components). It is
- * a pure presentation layer — it renders whatever metrics it is handed and
- * never fetches, writes, or reads any data itself.
+ * Pure SVG + SMIL. No WebGL, no three.js: the scene is a deterministic
+ * pseudo-isometric projection, so it server-renders, never needs capability
+ * detection, and weighs nothing. It is a pure presentation layer — it renders
+ * whatever metrics it is handed and never fetches, writes, or reads any data.
  *
- * Visual metaphor:
- *   - Central layered cylinder  → the Supabase `feed_items` staging queue.
- *   - Outer floating nodes      → enabled (approved) feed sources.
+ * Visual metaphor (unchanged from the WebGL original):
+ *   - Central layered cylinder   → the Supabase `feed_items` staging queue.
+ *   - Outer floating nodes       → enabled (approved) feed sources.
  *   - Glowing travelling packets → fetched deal signals being staged.
  *
  * Colour language matches the rest of the monitor: emerald = live / fetching,
  * amber = idle / waiting (backoff), against a dark slate viewport.
+ *
+ * Reduced motion: when `reducedMotion` is set the SMIL <animate*> elements are
+ * simply not rendered — packets freeze mid-path and the hub stops pulsing,
+ * mirroring the frozen-frame behaviour of the old 3D scene.
  */
-
-import { useEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Line, OrbitControls, Sparkles } from "@react-three/drei";
-import * as THREE from "three";
 
 // --- Theme constants (soft-emerald fintech palette) -------------------------
 const EMERALD = "#10b981";
@@ -29,324 +25,395 @@ const EMERALD_LIGHT = "#34d399";
 const AMBER = "#f59e0b";
 const AMBER_LIGHT = "#fbbf24";
 const SLATE_NODE = "#1e293b"; // slate-800
+const SLATE_EDGE = "#475569"; // slate-600
 const SLATE_LINE = "#334155"; // slate-700
-const FOG_SLATE = "#020617"; // slate-950
 
 export interface StagingFlowSceneProps {
   /** Monitor is armed and live (emerald, packets stream) vs idle/backoff (amber, packets idle). */
   isFetching: boolean;
-  /** Total staged feed_items — scales the central hub's presence. */
+  /** Total staged feed_items — scales the central hub's glow. */
   stagedItemCount: number;
   /** Enabled feed sources — number of outer nodes (clamped for layout). */
   activeSources: number;
-  /** Honour prefers-reduced-motion: freeze all per-frame animation. */
+  /** Honour prefers-reduced-motion: freeze all animation. */
   reducedMotion?: boolean;
 }
 
 const MAX_NODES = 8;
-const HUB_POINT = new THREE.Vector3(0, 0, 0);
 
-interface SourceLayout {
-  position: THREE.Vector3;
-  curve: THREE.QuadraticBezierCurve3;
+/**
+ * SVG coordinates are emitted as pre-rounded strings: React stringifies raw
+ * floats slightly differently on the server vs the client (17 vs 16
+ * significant digits), which trips hydration-mismatch warnings.
+ */
+function fmt(n: number): string {
+  return n.toFixed(1);
 }
 
-/** Distribute N source nodes on a ring around the vertical hub, with gentle height variation. */
+// Scene geometry (viewBox units). The ring is an ellipse to fake perspective.
+const VIEW_W = 800;
+const VIEW_H = 400;
+const HUB_X = 400;
+const HUB_Y = 205;
+const RING_RX = 290;
+const RING_RY = 108;
+
+interface SourceLayout {
+  x: number;
+  y: number;
+  /** Pseudo-depth: negative = behind the hub, positive = in front. */
+  z: number;
+  /** SVG path from the node to the hub, arced gently upward. */
+  path: string;
+}
+
+/** Distribute N source nodes on an elliptical ring around the hub, with gentle height variation. */
 function buildSources(count: number): SourceLayout[] {
   const n = Math.max(0, Math.min(MAX_NODES, count));
   return Array.from({ length: n }, (_, i) => {
-    const angle = (i / n) * Math.PI * 2;
-    const radius = 3.3;
-    const y = i % 2 === 0 ? 0.9 : -0.9;
-    const position = new THREE.Vector3(
-      Math.cos(angle) * radius,
-      y,
-      Math.sin(angle) * radius
-    );
-    // Arc the packet path slightly upward through a mid control point.
-    const mid = position.clone().multiplyScalar(0.5);
-    mid.y += 1.4;
-    const curve = new THREE.QuadraticBezierCurve3(
-      position.clone(),
-      mid,
-      HUB_POINT.clone()
-    );
-    return { position, curve };
+    // Offset the start angle so a lone node doesn't sit exactly on the hub's horizon.
+    const angle = (i / n) * Math.PI * 2 + Math.PI / 7;
+    const x = HUB_X + Math.cos(angle) * RING_RX;
+    const y = HUB_Y + Math.sin(angle) * RING_RY + (i % 2 === 0 ? -26 : 26);
+    const z = Math.sin(angle);
+    // Quadratic bezier node → hub with the control point lifted for an arc.
+    const cx = (x + HUB_X) / 2;
+    const cy = (y + HUB_Y) / 2 - 56;
+    const path = `M ${x.toFixed(1)} ${y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${HUB_X} ${HUB_Y}`;
+    return { x, y, z, path };
   });
-}
-
-// --- Central hub ------------------------------------------------------------
-function CentralHub({
-  accent,
-  intensity,
-  reducedMotion,
-}: {
-  accent: string;
-  intensity: number;
-  reducedMotion: boolean;
-}) {
-  const group = useRef<THREE.Group>(null);
-  const ring = useRef<THREE.Mesh>(null);
-  const materials = useRef<THREE.MeshStandardMaterial[]>([]);
-
-  useFrame((state, delta) => {
-    if (reducedMotion) return;
-    if (group.current) group.current.rotation.y += delta * 0.3;
-    if (ring.current) ring.current.rotation.y -= delta * 0.5;
-    // Subtle "heartbeat" on the emissive layers while live.
-    const pulse = intensity + Math.sin(state.clock.elapsedTime * 2) * 0.18;
-    for (const m of materials.current) m.emissiveIntensity = pulse;
-  });
-
-  const layers = [0, 1, 2];
-
-  return (
-    <group ref={group}>
-      {layers.map((i) => (
-        <mesh key={i} position={[0, (i - 1) * 0.55, 0]} castShadow>
-          <cylinderGeometry args={[0.95 - i * 0.06, 0.95 - i * 0.06, 0.45, 56]} />
-          <meshStandardMaterial
-            ref={(m) => {
-              if (m) materials.current[i] = m;
-            }}
-            color={SLATE_NODE}
-            emissive={accent}
-            emissiveIntensity={intensity}
-            metalness={0.65}
-            roughness={0.3}
-          />
-        </mesh>
-      ))}
-      {/* Tech accent ring orbiting the hub middle. */}
-      <mesh ref={ring} rotation={[Math.PI / 2.2, 0, 0]}>
-        <torusGeometry args={[1.35, 0.025, 12, 64]} />
-        <meshBasicMaterial color={accent} transparent opacity={0.55} />
-      </mesh>
-    </group>
-  );
 }
 
 // --- A single feed source node ----------------------------------------------
 function SourceNode({
-  position,
+  x,
+  y,
   accent,
+  index,
   reducedMotion,
 }: {
-  position: THREE.Vector3;
+  x: number;
+  y: number;
   accent: string;
+  index: number;
   reducedMotion: boolean;
 }) {
-  const node = (
-    <mesh position={position}>
-      <icosahedronGeometry args={[0.34, 0]} />
-      <meshStandardMaterial
-        color={SLATE_NODE}
-        emissive={accent}
-        emissiveIntensity={0.7}
-        metalness={0.5}
-        roughness={0.35}
-        flatShading
-      />
-    </mesh>
-  );
-
-  if (reducedMotion) return node;
+  const r = 13;
+  // Diamond with a flat top edge — reads as a faceted "icosahedron" glyph.
+  const points = [
+    `${fmt(x - r)},${fmt(y)}`,
+    `${fmt(x - r * 0.45)},${fmt(y - r * 0.85)}`,
+    `${fmt(x + r * 0.45)},${fmt(y - r * 0.85)}`,
+    `${fmt(x + r)},${fmt(y)}`,
+    `${fmt(x)},${fmt(y + r)}`,
+  ].join(" ");
   return (
-    <Float speed={2} rotationIntensity={0.6} floatIntensity={0.5}>
-      {node}
-    </Float>
+    <g>
+      <polygon
+        points={points}
+        fill={SLATE_NODE}
+        stroke={accent}
+        strokeWidth={1.5}
+        opacity={0.95}
+      >
+        {!reducedMotion && (
+          // Gentle float: nudge the node up and down a few px, staggered per node.
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            values="0 0; 0 -6; 0 0"
+            dur="3.6s"
+            begin={`${-(index * 0.7)}s`}
+            repeatCount="indefinite"
+          />
+        )}
+      </polygon>
+    </g>
   );
 }
 
 // --- A glowing data packet travelling source → hub --------------------------
 function DataPacket({
-  curve,
+  path,
   color,
-  speed,
-  offset,
+  dur,
+  begin,
   reducedMotion,
+  staticPoint,
 }: {
-  curve: THREE.QuadraticBezierCurve3;
+  path: string;
   color: string;
-  speed: number;
-  offset: number;
+  dur: number;
+  begin: number;
   reducedMotion: boolean;
+  /** Frozen position (path midpoint-ish) rendered under reduced motion. */
+  staticPoint: { x: number; y: number };
 }) {
-  const mesh = useRef<THREE.Mesh>(null);
-  const halo = useRef<THREE.Mesh>(null);
-  // Stable starting point for the reduced-motion / first frame.
-  const start = useMemo(() => curve.getPoint(offset % 1), [curve, offset]);
-
-  useFrame((state) => {
-    if (reducedMotion || !mesh.current) return;
-    const t = (state.clock.elapsedTime * speed + offset) % 1;
-    const p = curve.getPoint(t);
-    mesh.current.position.copy(p);
-    if (halo.current) halo.current.position.copy(p);
-    // Fade as the packet is absorbed into the hub (t → 1).
-    const fade = Math.min(1, (1 - t) * 4);
-    const s = 0.5 + fade * 0.6;
-    mesh.current.scale.setScalar(s);
-    if (halo.current) halo.current.scale.setScalar(s * 2.4);
-  });
-
+  if (reducedMotion) {
+    return (
+      <circle
+        cx={fmt(staticPoint.x)}
+        cy={fmt(staticPoint.y)}
+        r={4}
+        fill={color}
+        opacity={0.8}
+      />
+    );
+  }
   return (
-    <group>
-      <mesh ref={mesh} position={start}>
-        <sphereGeometry args={[0.09, 12, 12]} />
-        <meshBasicMaterial color={color} toneMapped={false} />
-      </mesh>
-      <mesh ref={halo} position={start}>
-        <sphereGeometry args={[0.09, 12, 12]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.22}
-          toneMapped={false}
+    <g>
+      {/* Soft halo trailing the packet. */}
+      <circle r={9} fill={color} opacity={0.22}>
+        <animateMotion
+          path={path}
+          dur={`${dur}s`}
+          begin={`${begin}s`}
+          repeatCount="indefinite"
         />
-      </mesh>
-    </group>
+      </circle>
+      <circle r={4} fill={color}>
+        <animateMotion
+          path={path}
+          dur={`${dur}s`}
+          begin={`${begin}s`}
+          repeatCount="indefinite"
+        />
+        {/* Fade as the packet is absorbed into the hub. */}
+        <animate
+          attributeName="opacity"
+          values="1;1;0.15"
+          keyTimes="0;0.8;1"
+          dur={`${dur}s`}
+          begin={`${begin}s`}
+          repeatCount="indefinite"
+        />
+      </circle>
+    </g>
   );
 }
 
-// --- The flowing connections + packets per source ---------------------------
-function StagingFlow({
-  sources,
-  isFetching,
+/** Point on the quadratic bezier node→hub at parameter t (for frozen packets). */
+function bezierPoint(src: SourceLayout, t: number): { x: number; y: number } {
+  const cx = (src.x + HUB_X) / 2;
+  const cy = (src.y + HUB_Y) / 2 - 56;
+  const mt = 1 - t;
+  return {
+    x: mt * mt * src.x + 2 * mt * t * cx + t * t * HUB_X,
+    y: mt * mt * src.y + 2 * mt * t * cy + t * t * HUB_Y,
+  };
+}
+
+// --- Central hub ------------------------------------------------------------
+function CentralHub({
+  accent,
+  glow,
   reducedMotion,
 }: {
-  sources: SourceLayout[];
-  isFetching: boolean;
+  accent: string;
+  glow: number;
   reducedMotion: boolean;
 }) {
-  const accent = isFetching ? EMERALD_LIGHT : AMBER_LIGHT;
-  // More, faster packets while live; a single slow trickle while idle.
-  const packetsPerSource = isFetching ? 3 : 1;
-  const baseSpeed = isFetching ? 0.32 : 0.12;
-
+  const layers = [0, 1, 2]; // bottom → top
   return (
-    <>
-      {sources.map((src, i) => (
-        <group key={i}>
-          <Line
-            points={src.curve.getPoints(28)}
-            color={SLATE_LINE}
-            lineWidth={1}
-            transparent
-            opacity={0.4}
+    <g>
+      {/* Accent glow pool under the hub — its opacity encodes queue fullness. */}
+      <ellipse
+        cx={HUB_X}
+        cy={HUB_Y + 46}
+        rx={120}
+        ry={26}
+        fill={accent}
+        opacity={glow * 0.35}
+      >
+        {!reducedMotion && (
+          <animate
+            attributeName="opacity"
+            values={`${glow * 0.25};${glow * 0.45};${glow * 0.25}`}
+            dur="2.4s"
+            repeatCount="indefinite"
           />
-          <SourceNode
-            position={src.position}
-            accent={accent}
-            reducedMotion={reducedMotion}
-          />
-          {Array.from({ length: packetsPerSource }, (_, p) => (
-            <DataPacket
-              key={p}
-              curve={src.curve}
-              color={accent}
-              speed={baseSpeed + p * 0.04}
-              offset={(p / packetsPerSource + i * 0.13) % 1}
-              reducedMotion={reducedMotion}
+        )}
+      </ellipse>
+
+      {/* Stacked cylinder layers (drawn bottom-up so tops overlap correctly). */}
+      {layers.map((i) => {
+        const cy = HUB_Y + 30 - i * 30;
+        const rx = 66 - i * 4;
+        const ry = 20 - i;
+        return (
+          <g key={i}>
+            {/* Side wall */}
+            <path
+              d={`M ${HUB_X - rx} ${cy - 14} L ${HUB_X - rx} ${cy} A ${rx} ${ry} 0 0 0 ${HUB_X + rx} ${cy} L ${HUB_X + rx} ${cy - 14} Z`}
+              fill={SLATE_NODE}
+              stroke={SLATE_EDGE}
+              strokeWidth={0.75}
             />
-          ))}
-        </group>
+            {/* Top disc with an accent rim */}
+            <ellipse
+              cx={HUB_X}
+              cy={cy - 14}
+              rx={rx}
+              ry={ry}
+              fill={SLATE_NODE}
+              stroke={accent}
+              strokeWidth={1.25}
+              strokeOpacity={0.85}
+            />
+            {/* Emissive sheen that pulses while live */}
+            <ellipse
+              cx={HUB_X}
+              cy={cy - 14}
+              rx={rx * 0.62}
+              ry={ry * 0.62}
+              fill={accent}
+              opacity={glow * 0.3}
+            >
+              {!reducedMotion && (
+                <animate
+                  attributeName="opacity"
+                  values={`${glow * 0.2};${glow * 0.42};${glow * 0.2}`}
+                  dur="2s"
+                  begin={`${-i * 0.3}s`}
+                  repeatCount="indefinite"
+                />
+              )}
+            </ellipse>
+          </g>
+        );
+      })}
+
+      {/* Tech accent ring orbiting the hub (dash drift suggests rotation). */}
+      <ellipse
+        cx={HUB_X}
+        cy={HUB_Y - 14}
+        rx={104}
+        ry={30}
+        fill="none"
+        stroke={accent}
+        strokeWidth={1.5}
+        strokeDasharray="10 14"
+        opacity={0.55}
+      >
+        {!reducedMotion && (
+          <animate
+            attributeName="stroke-dashoffset"
+            from="0"
+            to="-96"
+            dur="6s"
+            repeatCount="indefinite"
+          />
+        )}
+      </ellipse>
+    </g>
+  );
+}
+
+// --- Ambient "data dust" ------------------------------------------------------
+/** Deterministic twinkle field (no randomness → SSR-stable markup). */
+function DataDust({
+  accent,
+  reducedMotion,
+}: {
+  accent: string;
+  reducedMotion: boolean;
+}) {
+  const specks = Array.from({ length: 26 }, (_, i) => {
+    // Golden-angle scatter keeps the field organic but fully deterministic.
+    const a = i * 2.39996;
+    const rad = 60 + ((i * 53) % 140);
+    return {
+      x: HUB_X + Math.cos(a) * rad * 1.6,
+      y: HUB_Y - 10 + Math.sin(a) * rad * 0.55,
+      r: 1 + (i % 3) * 0.5,
+      dur: 2.6 + (i % 5) * 0.7,
+      begin: -((i * 0.47) % 3),
+    };
+  });
+  return (
+    <g>
+      {specks.map((s, i) => (
+        <circle key={i} cx={fmt(s.x)} cy={fmt(s.y)} r={s.r} fill={accent} opacity={0.3}>
+          {!reducedMotion && (
+            <animate
+              attributeName="opacity"
+              values="0.08;0.5;0.08"
+              dur={`${s.dur}s`}
+              begin={`${s.begin}s`}
+              repeatCount="indefinite"
+            />
+          )}
+        </circle>
       ))}
-    </>
+    </g>
   );
 }
 
 // --- Scene root -------------------------------------------------------------
-function Scene({
-  isFetching,
-  stagedItemCount,
-  activeSources,
-  reducedMotion,
-}: Required<StagingFlowSceneProps>) {
-  const sources = useMemo(() => buildSources(activeSources), [activeSources]);
-  const accent = isFetching ? EMERALD : AMBER;
-  // Hub glows brighter the fuller the staging queue is (gently capped).
-  const hubIntensity =
-    (isFetching ? 0.55 : 0.3) + Math.min(stagedItemCount / 40, 1) * 0.4;
-
-  return (
-    <>
-      <color attach="background" args={[FOG_SLATE]} />
-      <fog attach="fog" args={[FOG_SLATE, 9, 22]} />
-
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[4, 6, 3]} intensity={2.2} />
-      <pointLight position={[0, 0, 0]} color={accent} intensity={6} distance={12} />
-
-      <CentralHub
-        accent={accent}
-        intensity={hubIntensity}
-        reducedMotion={reducedMotion}
-      />
-
-      <StagingFlow
-        sources={sources}
-        isFetching={isFetching}
-        reducedMotion={reducedMotion}
-      />
-
-      {/* Ambient "data dust" around the hub for depth. */}
-      <Sparkles
-        count={40}
-        scale={6}
-        size={2}
-        speed={reducedMotion ? 0 : 0.3}
-        opacity={0.5}
-        color={isFetching ? EMERALD_LIGHT : AMBER_LIGHT}
-      />
-
-      <OrbitControls
-        enableZoom={false}
-        enablePan={false}
-        enableRotate={!reducedMotion}
-        autoRotate={!reducedMotion}
-        autoRotateSpeed={0.4}
-        minPolarAngle={Math.PI / 3}
-        maxPolarAngle={Math.PI / 1.8}
-      />
-    </>
-  );
-}
-
 export default function StagingFlowScene({
   isFetching,
   stagedItemCount,
   activeSources,
   reducedMotion = false,
 }: StagingFlowSceneProps) {
-  // R3F occasionally mis-measures the canvas on mount (leaving it at the
-  // 300×150 default until a window resize) in some bundler/timing setups.
-  // Nudge a measure across the first few hundred ms so the canvas fills its
-  // container regardless of when R3F's resize listener finishes attaching.
-  useEffect(() => {
-    const fire = () => window.dispatchEvent(new Event("resize"));
-    const raf = requestAnimationFrame(fire);
-    const timers = [80, 250, 500].map((ms) => setTimeout(fire, ms));
-    return () => {
-      cancelAnimationFrame(raf);
-      timers.forEach(clearTimeout);
-    };
-  }, []);
+  const sources = buildSources(activeSources);
+  const accent = isFetching ? EMERALD : AMBER;
+  const accentLight = isFetching ? EMERALD_LIGHT : AMBER_LIGHT;
+  // Hub glows brighter the fuller the staging queue is (gently capped).
+  const glow = (isFetching ? 0.55 : 0.3) + Math.min(stagedItemCount / 40, 1) * 0.4;
+  // More, faster packets while live; a single slow trickle while idle.
+  const packetsPerSource = isFetching ? 3 : 1;
+  const baseDur = isFetching ? 3.2 : 8.5;
 
-  return (
-    <Canvas
-      dpr={[1, 2]}
-      camera={{ position: [0, 1.6, 7.8], fov: 45 }}
-      gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-      frameloop={reducedMotion ? "demand" : "always"}
-      resize={{ offsetSize: true, debounce: 0 }}
-    >
-      <Scene
-        isFetching={isFetching}
-        stagedItemCount={stagedItemCount}
-        activeSources={activeSources}
+  const behind = sources.filter((s) => s.z < 0);
+  const front = sources.filter((s) => s.z >= 0);
+
+  const renderSource = (src: SourceLayout, i: number) => (
+    <g key={`${src.x}-${src.y}`}>
+      <path
+        d={src.path}
+        fill="none"
+        stroke={SLATE_LINE}
+        strokeWidth={1}
+        opacity={0.4}
+      />
+      <SourceNode
+        x={src.x}
+        y={src.y}
+        accent={accentLight}
+        index={i}
         reducedMotion={reducedMotion}
       />
-    </Canvas>
+      {Array.from({ length: packetsPerSource }, (_, p) => (
+        <DataPacket
+          key={p}
+          path={src.path}
+          color={accentLight}
+          dur={baseDur + p * 0.4}
+          begin={-((p / packetsPerSource) * baseDur + i * 1.1)}
+          reducedMotion={reducedMotion}
+          staticPoint={bezierPoint(src, 0.3 + p * 0.22 + (i % 3) * 0.08)}
+        />
+      ))}
+    </g>
+  );
+
+  return (
+    <svg
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      className="h-full w-full"
+      role="img"
+      aria-label={
+        isFetching
+          ? "Animated diagram: feed sources streaming signals into the staging queue"
+          : "Animated diagram: feed sources idle around the staging queue"
+      }
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <DataDust accent={accentLight} reducedMotion={reducedMotion} />
+      {behind.map((s) => renderSource(s, sources.indexOf(s)))}
+      <CentralHub accent={accent} glow={glow} reducedMotion={reducedMotion} />
+      {front.map((s) => renderSource(s, sources.indexOf(s)))}
+    </svg>
   );
 }

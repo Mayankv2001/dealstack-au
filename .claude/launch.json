@@ -6,6 +6,16 @@
       "runtimeExecutable": "/Users/mayank/.nvm/versions/node/v20.20.2/bin/node",
       "runtimeArgs": ["node_modules/next/dist/bin/next", "start"],
       "port": 3000
+    },
+    {
+      "name": "dealstack-hmr",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/mayank/Downloads/dealstack-au-clean && export PATH=/Users/mayank/.nvm/versions/node/v20.20.2/bin:$PATH && exec /Users/mayank/.nvm/versions/node/v20.20.2/bin/node node_modules/next/dist/bin/next dev"
+      ],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
