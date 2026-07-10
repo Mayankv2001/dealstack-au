@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { expiryUrgencyLabelAU } from "@/lib/offers/expiry";
 import { formatDateAU } from "@/lib/sources/normalise";
 import {
   SOURCE_META,
@@ -264,7 +265,7 @@ export function CitationLinks({
   );
 }
 
-/** Expiry line, tinted amber when expiring soon. */
+/** Expiry line: rose when expired, amber + "Ends today/tomorrow/in N days" when soon. */
 export function ExpiryLine({
   expiryDate,
   expiringSoon,
@@ -274,18 +275,25 @@ export function ExpiryLine({
   expiringSoon?: boolean;
   expired: boolean;
 }) {
+  const urgency = expiringSoon ? expiryUrgencyLabelAU(expiryDate) : null;
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 text-[11px]",
-        expiringSoon
-          ? "font-medium text-amber-700 dark:text-amber-400"
-          : "text-muted-foreground"
+        expired
+          ? "font-medium text-rose-700 dark:text-rose-400"
+          : urgency
+            ? "font-medium text-amber-700 dark:text-amber-400"
+            : "text-muted-foreground"
       )}
     >
       <Clock className="size-3" />
       {expiryDate
-        ? `${expired ? "Expired" : expiringSoon ? "Ends soon —" : "Expires"} ${formatDateAU(expiryDate)}`
+        ? expired
+          ? `Expired ${formatDateAU(expiryDate)}`
+          : urgency
+            ? `${urgency} — ${formatDateAU(expiryDate)}`
+            : `Expires ${formatDateAU(expiryDate)}`
         : "Check source for expiry"}
     </span>
   );

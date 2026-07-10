@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  daysUntilExpiryAU,
+  expiryUrgencyLabelAU,
   filterLive,
   isExpiringSoonAU,
   isPastExpiry,
@@ -86,5 +88,45 @@ describe("isExpiringSoonAU", () => {
   it("honours a caller-supplied soonDays window", () => {
     expect(isExpiringSoonAU("2026-07-10", now, 3)).toBe(true);
     expect(isExpiringSoonAU("2026-07-11", now, 3)).toBe(false);
+  });
+});
+
+describe("daysUntilExpiryAU", () => {
+  // 02:00Z is midday AEST on 7 Jul (winter, UTC+10).
+  const now = new Date("2026-07-07T02:00:00Z");
+
+  it("null/undefined expiry → null (evergreen)", () => {
+    expect(daysUntilExpiryAU(null, now)).toBeNull();
+    expect(daysUntilExpiryAU(undefined, now)).toBeNull();
+  });
+  it("counts calendar days: today 0, tomorrow 1, yesterday -1", () => {
+    expect(daysUntilExpiryAU("2026-07-07", now)).toBe(0);
+    expect(daysUntilExpiryAU("2026-07-08", now)).toBe(1);
+    expect(daysUntilExpiryAU("2026-07-06", now)).toBe(-1);
+  });
+  it("crosses month/year boundaries", () => {
+    // 01:00Z is midday AEDT on 29 Dec.
+    const dec = new Date("2026-12-29T01:00:00Z");
+    expect(daysUntilExpiryAU("2027-01-05", dec)).toBe(7);
+  });
+});
+
+describe("expiryUrgencyLabelAU", () => {
+  const now = new Date("2026-07-07T02:00:00Z");
+
+  it("null for evergreen, past, and beyond the soon window", () => {
+    expect(expiryUrgencyLabelAU(null, now)).toBeNull();
+    expect(expiryUrgencyLabelAU("2026-07-06", now)).toBeNull();
+    expect(expiryUrgencyLabelAU("2026-07-15", now)).toBeNull();
+  });
+  it("phrases today / tomorrow / N days", () => {
+    expect(expiryUrgencyLabelAU("2026-07-07", now)).toBe("Ends today");
+    expect(expiryUrgencyLabelAU("2026-07-08", now)).toBe("Ends tomorrow");
+    expect(expiryUrgencyLabelAU("2026-07-12", now)).toBe("Ends in 5 days");
+    expect(expiryUrgencyLabelAU("2026-07-14", now)).toBe("Ends in 7 days");
+  });
+  it("honours a caller-supplied soonDays window", () => {
+    expect(expiryUrgencyLabelAU("2026-07-10", now, 3)).toBe("Ends in 3 days");
+    expect(expiryUrgencyLabelAU("2026-07-11", now, 3)).toBeNull();
   });
 });

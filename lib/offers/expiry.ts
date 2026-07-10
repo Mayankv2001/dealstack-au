@@ -62,3 +62,40 @@ export function isExpiringSoonAU(
   if (expiryDate < today) return false; // already past
   return expiryDate <= addDaysToIsoDate(today, soonDays);
 }
+
+/** "YYYY-MM-DD" → UTC ms of the date part (calendar arithmetic, DST-immune). */
+function isoDateToUtcMs(isoDate: string): number {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+/**
+ * Whole calendar days from today (AU) until expiry: 0 = expires today,
+ * 1 = tomorrow, negative = already past. Null expiry → null (evergreen).
+ */
+export function daysUntilExpiryAU(
+  expiryDate: string | null | undefined,
+  now: Date = new Date()
+): number | null {
+  if (expiryDate == null) return null;
+  const diff = isoDateToUtcMs(expiryDate) - isoDateToUtcMs(todayAU(now));
+  return Math.round(diff / 86_400_000);
+}
+
+/**
+ * Urgency phrasing for deal cards: "Ends today" / "Ends tomorrow" /
+ * "Ends in N days". Null when the offer is evergreen, already past, or not
+ * within the soon window — callers fall back to the absolute date.
+ */
+export function expiryUrgencyLabelAU(
+  expiryDate: string | null | undefined,
+  now: Date = new Date(),
+  soonDays: number = EXPIRY_SOON_DAYS
+): string | null {
+  if (!isExpiringSoonAU(expiryDate, now, soonDays)) return null;
+  const days = daysUntilExpiryAU(expiryDate, now);
+  if (days == null || days < 0) return null;
+  if (days === 0) return "Ends today";
+  if (days === 1) return "Ends tomorrow";
+  return `Ends in ${days} days`;
+}

@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfidencePill } from "@/components/WeeklyDealCard";
 import type { Store } from "@/lib/data";
+import { expiryUrgencyLabelAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import { formatDateAU } from "@/lib/sources/normalise";
 import type { OzBargainSignal } from "@/lib/offers/types";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
@@ -30,6 +31,8 @@ export function SignalDealCard({
   stores: Store[];
 }) {
   const expiry = formatDateAU(signal.expiryDate ?? null);
+  const expired = isPastExpiry(signal.expiryDate, todayAU());
+  const urgency = expired ? null : expiryUrgencyLabelAU(signal.expiryDate);
   const isCostco = signal.merchantId === "costco";
   const sourceHref = safeHttpsUrl(signal.sourceUrl);
 
@@ -64,9 +67,21 @@ export function SignalDealCard({
 
         <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-[11px] text-muted-foreground">
           {expiry ? (
-            <span className="inline-flex items-center gap-1">
+            <span
+              className={
+                expired
+                  ? "inline-flex items-center gap-1 font-medium text-rose-700 dark:text-rose-400"
+                  : urgency
+                    ? "inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-400"
+                    : "inline-flex items-center gap-1"
+              }
+            >
               <CalendarClock className="size-3" />
-              Ends {expiry}
+              {expired
+                ? `Ended ${expiry}`
+                : urgency
+                  ? `${urgency} — ${expiry}`
+                  : `Ends ${expiry}`}
             </span>
           ) : null}
           {signal.isSample || !sourceHref ? (
