@@ -2,7 +2,7 @@
 
 > Single source of truth for DealStack AU. Maintained so a second Claude account can continue the work safely without losing context.
 >
-> **Last updated:** 2026-07-10 · **Branch:** `main` · **Working tree:** clean · **HEAD:** `1c8a20c`
+> **Last updated:** 2026-07-10 (follow-on backlog) · **Branch:** `claude/prioritize-high-leverage-work-j073xy` (pending PR to `main`) · **Base:** `4217595`
 
 ---
 
@@ -17,7 +17,7 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 
 - **Live/working:** Public site (homepage, `/deals`, `/stores`, `/search`, `/cards`, `/resources`), admin portal (incl. `/admin/cleanup`), feed monitor, feed queue with relevance triage, stacking calculator. Card offers are live (5/5 published by admin, still Illustrative — see below).
 - **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
-- **Backlog: the daa2653 backlog (2026-07-08) is fully shipped**, including `dq-mark-rechecked` (`1c8a20c`) — previously the one holdover, now done. **The 2026-07-10 5-plan backlog is 4/5 shipped**: `queue-relevance-triage` (`8269bc9`), `detection-go-live` (`d499d7e`), `admin-cleanup-page` (`919f3d6`), `dq-mark-rechecked` (`1c8a20c`); this file's own plan (`state-truthing`) is completing this commit. **No further coded backlog remains** — see §6 for the three human-only ops steps still open.
+- **Backlog: the daa2653 backlog (2026-07-08) is fully shipped**, including `dq-mark-rechecked` (`1c8a20c`) — previously the one holdover, now done. **The 2026-07-10 5-plan backlog is fully shipped**: `queue-relevance-triage` (`8269bc9`), `detection-go-live` (`d499d7e`), `admin-cleanup-page` (`919f3d6`), `dq-mark-rechecked` (`1c8a20c`), `state-truthing` (`4217595`). **A fresh 2026-07-10 follow-on backlog of 5 coded plans now exists** — see §6 (it supersedes the earlier "no coded backlog remains" claim; the three human-only ops steps also remain open).
 - **Known prod hygiene (see §10):** two published-but-expired gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish` from 2026-07-11) — clear via the new `/admin/cleanup` page (or the CLI `npm run cleanup:old-deals -- --write`).
 - **Build/lint/tests:** All green — `npm run lint`, `npm run build`, and `test:stack` / `test:monitor` / `test:admin` pass. (The former `buildStack.test.ts` stale-fixture failure is resolved — see §10.)
 
@@ -43,9 +43,12 @@ scripts/                 Seed / fixture / cleanup scripts
 tests/  monitor/ stack/ admin/ fixtures/      Vitest suites
 supabase/                Migrations + seed SQL
 docs/                    Architecture & monitoring docs
-PLAN-*.md                23 files; 18 carry a STATUS banner (shipped/superseded/
+PLAN-*.md                28 files; 23 carry a STATUS banner (shipped/superseded/
                           partially shipped) and are historical reference only —
-                          the 5 active 2026-07-10 backlog plans have no banner
+                          the 5 active follow-on backlog plans have no banner:
+                          ci-quality-gates, live-data-trust,
+                          monitor-health-endpoint, schema-drift-watchdog,
+                          seed-signals-conflict
 vercel.json              Cron: one/day at 02:00 (Hobby limit)
 ```
 
@@ -66,11 +69,19 @@ Verified from git history and memory. Commit hashes in parentheses.
 
 ## 5. Current Task
 
-**None in progress.** Working tree is clean at `1c8a20c`. `state-truthing` (this refresh) is the last item in the 2026-07-10 backlog and completes this commit. **No coded `PLAN-*.md` backlog remains** — every plan in the repo root is either SHIPPED/SUPERSEDED/PARTIALLY SHIPPED (18 files, banner-stamped) or one of the just-completed 2026-07-10 five. Next action = pick a fresh task, or work one of the three human-only ops steps in §6.
+**None in progress.** A full codebase re-audit on 2026-07-10 (after the 2026-07-10 backlog shipped) produced a **fresh ranked backlog of 5 execution-ready plans** — this commit adds them and banner-stamps the five shipped 2026-07-10 plans. Next action = execute `PLAN-ci-quality-gates.md` (§6), or work one of the three human-only ops steps.
 
 ## 6. Next 3 Tasks
 
-**No further coded backlog exists as of 2026-07-10** — the daa2653 and 2026-07-10 backlogs are both fully shipped. What remains is three ops steps only a human can perform (verifying real-world data / making a production judgement call), not further coding:
+**The 2026-07-10 follow-on backlog — 5 execution-ready coded plans, ranked by leverage.** Cross-check each against `git log` before starting; do not re-execute a banner-stamped plan.
+
+1. **PLAN-ci-quality-gates.md — DO THIS FIRST.** GitHub Actions gate (lint + 3 test suites + build + smoke) on every PR/push to main, zero secrets. The repo has no CI at all, two accounts push to main autonomously, and on 2026-07-10 two parallel sessions produced overlapping backlogs — this is the structural fix.
+2. **PLAN-live-data-trust.md** — extend the card-offers `fromDbOrDemo` rule to gift cards / cashback / points / signals / weekly deals / search pool: sample data becomes demo-mode only, never a live fallback on zero rows or read errors.
+3. **PLAN-monitor-health-endpoint.md** — secret-gated `GET /api/health/monitor` returning 503-on-stale so cron-job.org alerts the owner about a stalled pipeline (closes the acknowledged "alerts still pending" gap in docs/ozbargain-monitoring.md item 8).
+4. **PLAN-schema-drift-watchdog.md** — weekly scheduled Action running `npm run verify:schema` against prod with repo secrets (drift already bit prod once: migration 005, 2026-07-08).
+5. **PLAN-seed-signals-conflict.md** — make `npm run seed` skip-and-report diverged `source_native_id` signals instead of aborting (resolves the §10 manual-insert workaround).
+
+**Also open — three ops steps only a human can perform** (verifying real-world data / making a production judgement call), unchanged from the previous refresh:
 
 1. **Flip `OZB_OFFER_DETECT_ENABLED` live.** Run the precision review in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) on ≥2 different days via `/admin/offer-changes` → Preview, then set the env var in Vercel and redeploy. `/admin/monitor`'s new detection card shows the result. Zero candidates on preview is a healthy, expected outcome — not a blocker.
 2. **Clear the two expired-published gift cards.** `gc-tcn-jbhifi` (expired 2026-07-02) and `gc-woolworths-wish` (expires 2026-07-10, so expired from the 11th) — click Unpublish on `/admin/cleanup` (or run `npm run cleanup:old-deals -- --write`). Harmless, one-click, audited.

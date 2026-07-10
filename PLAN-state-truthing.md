@@ -1,5 +1,8 @@
 # PLAN-state-truthing — Stamp shipped plans, refresh PROJECT_STATE.md
 
+> **STATUS (2026-07-10): SHIPPED** in `4217595`. Kept as historical
+> reference — do not re-execute.
+
 > **Rank: 5 of 5 (2026-07-10 backlog) — but DO THIS FIRST: ~30 minutes,
 > docs-only, and it de-risks every other phase.** The repo's coordination
 > layer has drifted from reality, and in this project that is dangerous, not

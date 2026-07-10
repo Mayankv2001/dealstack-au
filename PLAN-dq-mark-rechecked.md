@@ -1,5 +1,8 @@
 # PLAN-dq-mark-rechecked — One-click "Mark re-checked" on data-quality flags
 
+> **STATUS (2026-07-10): SHIPPED** in `1c8a20c`. Kept as historical
+> reference — do not re-execute.
+
 > **Rank: 4 of 5 (2026-07-10 backlog; refreshed — this plan was rank 5 of the
 > daa2653 backlog and is the only item from it still unshipped; verified no
 > `mark-rechecked` code exists via grep + git log 2026-07-10).** The admin

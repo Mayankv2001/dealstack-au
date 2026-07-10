@@ -1,5 +1,8 @@
 # PLAN-admin-cleanup-page — One-click expiry hygiene at /admin/cleanup
 
+> **STATUS (2026-07-10): SHIPPED** in `919f3d6`. Kept as historical
+> reference — do not re-execute.
+
 > **Rank: 3 of 5 (2026-07-10 backlog).** The cleanup pass
 > (`scripts/cleanup-old-deals.ts`) is the only way to unpublish expired-but-live
 > offers, and it is CLI-only: it needs a local checkout, `.env.local` with the

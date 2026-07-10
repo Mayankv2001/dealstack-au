@@ -1,5 +1,9 @@
 # PLAN-detection-go-live — Take offer-change detection live, with observability
 
+> **STATUS (2026-07-10): SHIPPED** in `d499d7e` (ops card + runbook). The
+> flag flip itself remains a human step — see PROJECT_STATE §6. Kept as
+> historical reference — do not re-execute.
+
 > **Rank: 2 of 5 (2026-07-10 backlog).** Detection is **fully built and fully
 > dark**: the pure pipeline (`lib/monitor/detectOffers.ts`,
 > `lib/monitor/runDetection.ts`), the cron hook behind

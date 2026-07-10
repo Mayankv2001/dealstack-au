@@ -1,5 +1,8 @@
 # PLAN-queue-relevance-triage — Make the 331-item feed queue triageable by relevance
 
+> **STATUS (2026-07-10): SHIPPED** in `8269bc9`. Kept as historical
+> reference — do not re-execute.
+
 > **Rank: 1 of 5 (2026-07-10 backlog).** Prod has **331 feed items in
 > `review_state='new'`** (verified via Supabase 2026-07-10) and the queue grows
 > on every monitor fetch. The queue UI already computes a High/Medium/Low
