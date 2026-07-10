@@ -103,7 +103,8 @@ For more frequent feed checks, an **optional external scheduler** (e.g. cron-job
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (RLS enforced) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only service-role key |
 | `CRON_SECRET` | Bearer token for the cron route |
-| `OZB_MONITOR_ENABLED` | Set `true` to activate feed monitoring |
+| `NEXT_PUBLIC_SITE_URL` | Launch-critical: sitemap, robots, canonical URLs, OG images and JSON-LD silently fall back to `http://localhost:3000` when unset |
+| `OZB_MONITOR_ENABLED` | Optional — only to activate feed monitoring; default off |
 
 ---
 
