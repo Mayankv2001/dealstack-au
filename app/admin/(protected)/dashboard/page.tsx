@@ -39,9 +39,12 @@ import {
   listFeedSources,
 } from "@/lib/admin/repos/feedSources";
 import { getMonitorStatus } from "@/lib/admin/repos/monitorStatus";
+import { recheckTableFor } from "@/lib/admin/repos/recheck";
 import { isMonitorStale, MONITOR_STALE_HOURS } from "@/lib/monitor/staleness";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
+import { ActionButton } from "@/components/admin/ActionButton";
+import { markRechecked } from "./actions";
 
 export const metadata: Metadata = {
   title: "Admin dashboard | DealStack AU",
@@ -61,7 +64,8 @@ interface Section {
 }
 
 // Deterministic, AU-local timestamp for the recent-updates feed. Fixed parts +
-// timeZone keep server-rendered output stable (this page has no client island).
+// timeZone keep server-rendered output stable — the page is a server component
+// (its only client island is the "Mark re-checked" ActionButton).
 const RECENT_DATE_FMT = new Intl.DateTimeFormat("en-AU", {
   day: "numeric",
   month: "short",
@@ -166,7 +170,8 @@ export default async function AdminDashboardPage({
       now: new Date(),
     });
 
-  // "Show all" via URL query param (page has no client island).
+  // "Show all" via URL query param — server-driven, so no client state needed
+  // (the page's only client island is the "Mark re-checked" ActionButton).
   const showAllFlags = dq === "all";
   const displayedFlags = showAllFlags
     ? dataQuality.flags
@@ -549,9 +554,24 @@ export default async function AdminDashboardPage({
                       </span>
                     )}
                   </div>
-                  <Button asChild variant="ghost" size="sm" className="shrink-0">
-                    <Link href={flag.editHref}>Edit in {flag.typeLabel}</Link>
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Only a `stale` flag on a table with a last_checked_at
+                        column is clearable here — never a placeholder/expired
+                        flag, which needs a real edit. */}
+                    {flag.issues.some((i) => i.code === "stale") &&
+                    recheckTableFor(flag.type) ? (
+                      <ActionButton
+                        run={markRechecked.bind(null, flag.type, flag.id)}
+                        size="xs"
+                        title="Confirms you re-verified this offer at its source just now. Updates only the last-checked time."
+                      >
+                        Mark re-checked
+                      </ActionButton>
+                    ) : null}
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={flag.editHref}>Edit in {flag.typeLabel}</Link>
+                    </Button>
+                  </div>
                 </div>
               ))}
 
