@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `8d2d219` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 8d2d219`.
+
 # PLAN: Generated Supabase types — replace LooseDB with compile-time schema safety
 
 > **Rank: 5 of 5** (highest engineering payoff, biggest diff — do it last, on

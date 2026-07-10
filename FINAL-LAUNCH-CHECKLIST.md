@@ -1,7 +1,7 @@
 # DealStack AU — Final Launch Checklist
 
 > Concise, repo-accurate go-live checklist. Verified against the codebase on
-> 2026-07-09 (HEAD `8d2d219`). Work top to bottom; nothing here auto-applies.
+> 2026-07-10 (HEAD `1c8a20c`). Work top to bottom; nothing here auto-applies.
 > For the full narrative runbook see [`docs/production-readiness.md`](docs/production-readiness.md);
 > this file is the condensed pre-flight pass.
 >
@@ -71,7 +71,7 @@
 - [ ] Run dry-run first (default writes nothing): `nvm use 22 && npm run cleanup:old-deals`
 - [ ] Review candidates: expired-but-published offers → unpublish; stale `new` feed items (>60d) → ignore.
 - [ ] Apply only after review: `npm run cleanup:old-deals -- --write` (every change writes an `audit_log` row).
-- [ ] Known item as of 2026-07-09: `gc-tcn-jbhifi` (TCN gift card) is published but expired 2026-07-02 — unpublish via cleanup `--write` or `/admin/gift-cards`. The public read-guard already hides expired offers from actionable listings; this is DB hygiene.
+- [ ] Known items as of 2026-07-10: **two** expired-published gift cards — `gc-tcn-jbhifi` (TCN, expired 2026-07-02) and `gc-woolworths-wish` (Woolworths WISH, expires 2026-07-10 — expired from the 11th). Unpublish via `/admin/cleanup` (the reviewed, audited one-click page — preferred) or the CLI `cleanup --write` / `/admin/gift-cards`. The public read-guard already hides expired offers from actionable listings; this is DB hygiene.
 - [ ] Offers intentionally published with **no** `expiry_date` (ongoing card/cashback/points offers) are flagged for manual review but left untouched — confirm they are genuinely open-ended.
 
 ---

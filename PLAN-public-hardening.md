@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `07d8049`, `831b99e` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep -E "07d8049|831b99e"`.
+
 # PLAN: Public hardening — security headers, error/404 boundaries, date-logic fixes
 
 > **Rank: 8 of 10.** Three small, independent, permanent wins bundled into one

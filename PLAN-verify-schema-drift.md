@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `49086d0` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 49086d0`.
+
 # PLAN: `npm run verify:schema` — detect prod/migration schema drift before it bites again
 
 > **Rank: 2 of 5.** Schema drift is this project's most-repeated production

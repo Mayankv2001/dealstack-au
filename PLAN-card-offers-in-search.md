@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `36f5434` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 36f5434`.
+
 # PLAN: Card offers in search — the live `/cards` content is invisible to `/search`
 
 > **Rank: 4 of 5.** `/cards` shipped and 5 card offers are published, but

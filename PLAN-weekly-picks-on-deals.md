@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `2835137` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 2835137`.
+
 # PLAN: Weekly picks on /deals — surface the admin-curated weekly_deals rows
 
 > **Rank: 5 of 5.** The `/admin/weekly-deals` CRUD (title, summary,

@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `6c62d04` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 6c62d04`.
+
 # PLAN: Feed queue scalability — cap the unbounded query, chunk the lookup, burn the backlog
 
 > **Rank: 3 of 5.**

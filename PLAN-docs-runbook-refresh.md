@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `c77919d` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep c77919d`.
+
 # PLAN: Docs/runbook refresh — bring the ops docs back in sync with shipped code
 
 > **Rank: 4 of 5.**

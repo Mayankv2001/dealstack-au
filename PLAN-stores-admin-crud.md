@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `3a2282f` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 3a2282f`.
+
 # PLAN: Stores admin CRUD — unblock the platform's core growth lever
 
 > **Rank: 7 of 10.**

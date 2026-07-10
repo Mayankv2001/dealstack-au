@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `90a21f6` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 90a21f6`.
+
 # PLAN: `npm run smoke` — automate the launch checklist's route/SEO/header QA
 
 > **Rank: 3 of 5.** FINAL-LAUNCH-CHECKLIST.md §7 (public route QA), §8

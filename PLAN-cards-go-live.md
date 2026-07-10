@@ -1,3 +1,12 @@
+> **STATUS (2026-07-10): PARTIALLY SHIPPED — do not re-run Steps 1–6.** Admin
+> wiring shipped in `2f0a9fb`; all 5 rows were published by an admin on
+> 2026-07-08. **Remaining is Step 7 done PROPERLY** — it was performed but
+> without the verification it demands: prod-verified 2026-07-10, all 5
+> published rows still carry "Illustrative" copy, `confidence =
+> 'needs-verification'`, and a null `expiry_date`. The remaining work is to
+> verify each offer against its issuer source, fix the real figures, set a
+> real expiry, and flip confidence to `confirmed` — not to redo the plan.
+
 # PLAN: Get /cards live — admin coverage + publish workflow for card_offers
 
 > **Rank: 1 of 5 (do this first).**

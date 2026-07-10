@@ -2,7 +2,7 @@
 
 > Single source of truth for DealStack AU. Maintained so a second Claude account can continue the work safely without losing context.
 >
-> **Last updated:** 2026-07-09 · **Branch:** `main` · **Working tree:** clean · **HEAD:** `54fe741`
+> **Last updated:** 2026-07-10 · **Branch:** `main` · **Working tree:** clean · **HEAD:** `1c8a20c`
 
 ---
 
@@ -15,9 +15,10 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 
 ## 2. Current Status
 
-- **Live/working:** Public site (homepage, `/deals`, `/stores`, `/search`, `/cards`, `/resources`), admin portal, feed monitor, stacking calculator. Card offers are live (5/5 published by admin).
-- **In progress / partial:** Offer-change detection is wired but **behind a default-off flag (staging-only)** — not live in production.
-- **Backlog:** 10 execution-ready `PLAN-*.md` files in repo root; most executed, 2–3 remain (see §6).
+- **Live/working:** Public site (homepage, `/deals`, `/stores`, `/search`, `/cards`, `/resources`), admin portal (incl. `/admin/cleanup`), feed monitor, feed queue with relevance triage, stacking calculator. Card offers are live (5/5 published by admin, still Illustrative — see below).
+- **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
+- **Backlog: the daa2653 backlog (2026-07-08) is fully shipped**, including `dq-mark-rechecked` (`1c8a20c`) — previously the one holdover, now done. **The 2026-07-10 5-plan backlog is 4/5 shipped**: `queue-relevance-triage` (`8269bc9`), `detection-go-live` (`d499d7e`), `admin-cleanup-page` (`919f3d6`), `dq-mark-rechecked` (`1c8a20c`); this file's own plan (`state-truthing`) is completing this commit. **No further coded backlog remains** — see §6 for the three human-only ops steps still open.
+- **Known prod hygiene (see §10):** two published-but-expired gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish` from 2026-07-11) — clear via the new `/admin/cleanup` page (or the CLI `npm run cleanup:old-deals -- --write`).
 - **Build/lint/tests:** All green — `npm run lint`, `npm run build`, and `test:stack` / `test:monitor` / `test:admin` pass. (The former `buildStack.test.ts` stale-fixture failure is resolved — see §10.)
 
 ## 3. Repository / File Structure
@@ -42,7 +43,9 @@ scripts/                 Seed / fixture / cleanup scripts
 tests/  monitor/ stack/ admin/ fixtures/      Vitest suites
 supabase/                Migrations + seed SQL
 docs/                    Architecture & monitoring docs
-PLAN-*.md                10 execution-ready backlog plans (repo root)
+PLAN-*.md                23 files; 18 carry a STATUS banner (shipped/superseded/
+                          partially shipped) and are historical reference only —
+                          the 5 active 2026-07-10 backlog plans have no banner
 vercel.json              Cron: one/day at 02:00 (Hobby limit)
 ```
 
@@ -54,24 +57,26 @@ Verified from git history and memory. Commit hashes in parentheses.
 - **Public hardening:** security headers on every response (`07d8049`), branded 404 + error boundary (`831b99e`), public read-path expiry guard AU-timezone (`5f952e7`), unified DST-correct expiring-soon helper (`59a754c`). Range `07d8049..59a754c`.
 - **Card offers (LIVE):** migration, admin CRUD, public `/cards` page, seed data (Amex/NAB/CBA/Westpac/ANZ), wired into admin dashboard + data quality + cleanup (`2f0a9fb`). **5/5 published by admin 2026-07-08.**
 - **Admin stores CRUD:** immutable id, unpublish-only (`3a2282f`).
-- **Offer-change detection:** wired **behind default-off flag, staging-only** (`89c8c26`) — NOT live.
-- **SEO:** site-level JSON-LD + generated OG images (`54fe741`), sitemap/robots.
+- **Offer-change detection:** wired **behind default-off flag, staging-only** (`89c8c26`), dry-run preview panel (`8404c27`), and an `/admin/monitor` ops status card + written go-live/rollback runbook (`d499d7e`) — still NOT live (flag flip is a human step).
+- **SEO:** site-level JSON-LD + generated OG images (`54fe741`), sitemap/robots, `/stores` index hub (`aff00df`), published card offers surfaced in cross-entity search (`36f5434`).
 - **Broader taxonomy:** category taxonomy, feed preference + top-deals ranking tuning, queue review presets (`a508746`, `ec6f1b9`, `aa62989`, `81067dd`).
-- **Tooling:** `/phase` skill for controlled-phase workflow (`c6daf99`).
+- **Tooling:** `/phase` skill for controlled-phase workflow (`c6daf99`), `npm run verify:schema` read-only migration-drift probe (`49086d0`), `npm run smoke` route/SEO/security-header test (`90a21f6`), stack engine's injectable `now` clock for deterministic tests (`9560080`), docs/runbook refresh to match migrations 006/007 (`c77919d`).
+- **Data quality:** placeholder-copy guard flagging "Illustrative" demo text on published rows (`7d2f293`); cashback cap-maths fix, was understating capped cashback ~10× (`c6e31ed`); weekly picks surfaced on `/deals` (`2835137`); generated Supabase types replacing `LooseDB` (`8d2d219`); one-click "Mark re-checked" to clear stale-data flags without a full edit round-trip (`1c8a20c`).
+- **2026-07-10 backlog (4/5 shipped):** feed queue relevance filter/sort/select-all-filtered (`8269bc9`); detection ops status card + go-live runbook (`d499d7e`, listed above); `/admin/cleanup` — reviewed one-click apply for expiry hygiene, ported from the CLI script (`919f3d6`); dashboard mark-rechecked (`1c8a20c`, listed above). This file (`state-truthing`) is the 5th, completing now.
 
 ## 5. Current Task
 
-**Unknown / none in progress.** Working tree is clean at `54fe741`. The immediately preceding chunk of work (SEO structured data) is committed. No active WIP. Next action = pick from §6.
+**None in progress.** Working tree is clean at `1c8a20c`. `state-truthing` (this refresh) is the last item in the 2026-07-10 backlog and completes this commit. **No coded `PLAN-*.md` backlog remains** — every plan in the repo root is either SHIPPED/SUPERSEDED/PARTIALLY SHIPPED (18 files, banner-stamped) or one of the just-completed 2026-07-10 five. Next action = pick a fresh task, or work one of the three human-only ops steps in §6.
 
 ## 6. Next 3 Tasks
 
-Drawn from the remaining `PLAN-*.md` backlog. Confirm against `git log` before starting — do not re-execute an already-shipped plan. Ordered by architect decision (2026-07-09): **safest work first**.
+**No further coded backlog exists as of 2026-07-10** — the daa2653 and 2026-07-10 backlogs are both fully shipped. What remains is three ops steps only a human can perform (verifying real-world data / making a production judgement call), not further coding:
 
-1. **PLAN-docs-runbook-refresh.md — DO THIS NEXT.** Docs-only refresh of the ops runbook/README/CLAUDE.md to match shipped code (7 migrations not 5, `/cards`, card-offers admin, admin rate limiting, bulk-ignore, `test:admin`/`cleanup:old-deals`). Lowest blast radius — no code/config/test changes (`git diff --stat` must list only `.md` files), can't break build or prod, safe for a parallel worker.
-2. **PLAN-generated-db-types.md** — Generate TypeScript types from the Supabase schema for type-safe data access. Deliberately **later**: biggest diff (rank 5/5, "do it last"), needs Supabase auth/network, and may surface real schema drift mid-task. Do after safer work.
-3. **PLAN-offer-change-detection-live.md — NOT next.** Take offer-change detection from staging-only/flagged (`89c8c26`) to live. Deferred because of **higher blast radius** (edits the protected monitor cron/entry-points and writes to the DB) and **existing partial wiring** (`89c8c26` already flagged it on, so the plan's "nothing invokes detection yet" assumption needs careful verification first). Highest-value feature, but not the safe next step.
+1. **Flip `OZB_OFFER_DETECT_ENABLED` live.** Run the precision review in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) on ≥2 different days via `/admin/offer-changes` → Preview, then set the env var in Vercel and redeploy. `/admin/monitor`'s new detection card shows the result. Zero candidates on preview is a healthy, expected outcome — not a blocker.
+2. **Clear the two expired-published gift cards.** `gc-tcn-jbhifi` (expired 2026-07-02) and `gc-woolworths-wish` (expires 2026-07-10, so expired from the 11th) — click Unpublish on `/admin/cleanup` (or run `npm run cleanup:old-deals -- --write`). Harmless, one-click, audited.
+3. **Replace the 5 illustrative card-offer rows with verified real data** (`PLAN-cards-go-live.md`'s banner — Step 7 done properly): confirm each offer against its issuer source, fix the figures, set a real `expiry_date`, flip `confidence` to `confirmed`. This is the standing item from §7/§10 — genuinely needs a human to read the issuer's terms page.
 
-> Other PLAN files (`cards-go-live`, `expired-offer-read-guard`, `feed-ingestion-recovery`, `feed-queue-scalability`, `public-hardening`, `stores-admin-crud`, `structured-data-seo`) appear **already executed** — verify before touching.
+> If a new `PLAN-*.md` backlog appears in the repo root before you start, prefer it over this list (this file may lag by one commit — check `ls PLAN-*.md` and `head -3` on each for a STATUS banner first).
 
 ## 7. Important Decisions
 
@@ -122,7 +127,8 @@ npm run cleanup:old-deals
 - **Preview server (Node/Turbopack):** `preview_start` running `next dev` needs a zsh `-c` PATH-prefix to Node 20 or Turbopack workers panic. After a panicked run, `rm -rf .next/dev` — the cache stays poisoned otherwise.
 - **Prod migration drift:** Some migrations were applied by hand and are untracked. Migration 005 (`hidden_from_homepage`) was found NOT applied to prod on 2026-07-08. **Verify prod schema via `information_schema.columns`, not just table existence.**
 - **Seed signals gotcha:** Full `npm run seed` fails on `ozbargain_signals` (source_native_id unique constraint + diverged prod data). Insert new signals **individually**, not via full seed.
-- **Card offers** are published but marked "Illustrative" with null expiry — not real offer data yet.
+- **Card offers** are published but marked "Illustrative" with `confidence='needs-verification'` and null expiry — not real offer data yet (verified against prod 2026-07-10; see §6 item 3).
+- **Two published-but-expired gift cards (prod-verified 2026-07-10):** `gc-tcn-jbhifi` (TCN, expired 2026-07-02) and `gc-woolworths-wish` (Woolworths WISH, expires 2026-07-10 — expired from the 11th). The public read-guard already hides expired offers from actionable listings, so this is DB hygiene, not a live lie. Clear via `/admin/cleanup` (see §6 item 2).
 - **Two-account coordination risk:** Both accounts share `main`. Pull/rebase before working; commit small; push promptly to avoid divergence (git workflow is autonomous through to `origin/main`).
 
 ## 11. Latest Changes
@@ -130,16 +136,16 @@ npm run cleanup:old-deals
 Most recent commits (newest first):
 
 ```
-54fe741  Add site-level JSON-LD and generated OG images (SEO)   <- HEAD
-579156b  Add execution-ready PLAN backlog files
-89c8c26  Wire offer-change detection behind default-off flag (staging-only)
-3a2282f  Add /admin/stores CRUD (immutable id, unpublish-only)
-59a754c  Unify expiring-soon logic in shared DST-correct AU helper
-831b99e  Add branded 404 and error boundary pages
-07d8049  Add security headers to every response
-6c62d04  Cap feed queue read at 200, chunk signal lookup, show true backlog
-5f952e7  Add public read-path expiry guard (AU-timezone filter)
-53c4a50  Add monitor staleness alert and unfetchable-feed warnings
+1c8a20c  Add one-click Mark re-checked to dashboard data-quality flags   <- HEAD
+919f3d6  Add /admin/cleanup — reviewed one-click apply for expiry hygiene
+d499d7e  Add detection ops status to /admin/monitor + go-live runbook
+8269bc9  Add relevance filter, sort and select-all-filtered to feed queue triage
+cb3f904  Add 2026-07-10 ranked 5-plan backlog
+49086d0  Add npm run verify:schema — read-only migration drift probe
+aff00df  Add /stores index page — public hub for the SEO backbone
+90a21f6  Add npm run smoke — route/SEO/security-header smoke test
+7d2f293  Add placeholder-copy data-quality guard
+daa2653  Add next 5-plan backlog (ranked): placeholder guard, schema verify, smoke, stores index, re-check
 ```
 
 ## 12. Handoff for Other Claude Account
@@ -149,8 +155,8 @@ Most recent commits (newest first):
 **Before starting any work:**
 1. `git pull --rebase` on `main` — the other account may have pushed. Working tree should be clean.
 2. `nvm use 20` (Node 22 only for `npm run seed`).
-3. Confirm which PLAN you're taking so the two accounts don't collide. The obvious next pickup is **PLAN-offer-change-detection-live.md** (§6).
-4. Cross-check the PLAN against `git log --oneline` — several PLANs are already shipped; don't redo them.
+3. **No coded `PLAN-*.md` backlog remains as of 2026-07-10** — see §6 for the three human-only ops steps, or pick a fresh task with the user. If a new backlog has appeared since, confirm which PLAN you're taking so the two accounts don't collide.
+4. Cross-check any PLAN against `git log --oneline` AND `head -3 PLAN-<name>.md` (18 of the repo's PLAN files carry a `STATUS (2026-07-10)` banner marking them SHIPPED/SUPERSEDED/PARTIALLY SHIPPED — do not re-execute one) — several PLANs are already shipped; don't redo them.
 
 **While working:**
 - Keep changes small and reviewable; one PLAN/phase at a time. The `/phase` skill runs a controlled phase end-to-end (scope → implement → lint/build/test → commit → push → stop).

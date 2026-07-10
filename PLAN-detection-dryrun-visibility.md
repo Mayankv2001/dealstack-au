@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `8404c27` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 8404c27`.
+
 # PLAN: Detection dry-run visibility — make the go-live review actually possible
 
 > **Rank: 3 of 5.** Offer-change detection is fully built and wired dark

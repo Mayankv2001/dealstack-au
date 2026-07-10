@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `aff00df` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep aff00df`.
+
 # PLAN: `/stores` index — give the site's SEO backbone a public hub page
 
 > **Rank: 4 of 5.** Store pages (`/stores/[slug]`) are DealStack's strongest

@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `53c4a50` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 53c4a50`.
+
 # PLAN: Feed ingestion recovery — the monitor has silently fetched nothing since 2026-07-01
 
 > **Rank: 6 of 10 — do this FIRST of the second tranche. Production is broken

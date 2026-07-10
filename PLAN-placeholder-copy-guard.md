@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `7d2f293` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 7d2f293`.
+
 # PLAN: Placeholder-copy guard — flag published rows still carrying "Illustrative" demo text
 
 > **Rank: 1 of 5 — do this first.** The public `/cards` page currently serves

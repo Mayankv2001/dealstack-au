@@ -1,3 +1,7 @@
+> **STATUS (2026-07-10): SHIPPED in `5f952e7` (+ `59a754c` follow-up) — do not
+> re-execute.** Kept for reference. Verify with
+> `git log --oneline | grep -E "5f952e7|59a754c"`.
+
 # PLAN: Read-time guard — never render hard-expired offers on the public site
 
 > **Rank: 2 of 5.**

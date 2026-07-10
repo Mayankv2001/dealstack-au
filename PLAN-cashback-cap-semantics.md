@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `c6e31ed` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep c6e31ed`.
+
 # PLAN: Fix cashback cap maths — the engine understates capped cashback ~10×
 
 > **Rank: 2 of 5. Highest product-correctness impact in this batch.** The

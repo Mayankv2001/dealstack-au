@@ -1,3 +1,6 @@
+> **STATUS (2026-07-10): SHIPPED in `54fe741` — do not re-execute.**
+> Kept for reference. Verify with `git log --oneline | grep 54fe741`.
+
 # PLAN: Structured data & social previews — JSON-LD and Open Graph images
 
 > **Rank: 10 of 10.**
