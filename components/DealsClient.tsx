@@ -1034,8 +1034,8 @@ export default function DealsClient({
               ))}
             </ol>
             <p className="mt-4 border-t border-amber-500/20 pt-3 text-xs leading-relaxed text-muted-foreground">
-              <strong>Disclaimer:</strong> These are manually curated, cached
-              examples — not live data. Offers change quickly. Always verify with
+              <strong>Disclaimer:</strong> These offers are manually curated and
+              served from a cache — not live data. Offers change quickly. Always verify with
               the original source, cashback provider, gift card portal, or
               retailer before purchasing. DealStack AU is not affiliated with any
               retailer, program or provider mentioned.
