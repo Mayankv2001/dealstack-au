@@ -747,6 +747,9 @@ For silent-stall alerting, poll `GET /api/health/monitor` every three hours from
 an external uptime service with the same Bearer secret. `200` means off, paused,
 or fresh; `503` means missing compliance, no successful run within 30 hours
 while feeds are expected, or unreadable state. Alert on non-2xx and timeout.
+**Implemented 2026-07-11 via `.github/workflows/monitor-health.yml`** (GitHub
+Actions schedule, fails on non-2xx → GitHub failure notification; needs the
+`CRON_SECRET` repository Actions secret — see FINAL-LAUNCH-CHECKLIST §4).
 
 **Now added (cron Phase 1):** a secret-gated Vercel Cron route
 (`app/api/cron/monitor-feeds/route.ts` + `vercel.json`, `GET`, daily at 02:00 UTC) that

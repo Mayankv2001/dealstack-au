@@ -1,0 +1,67 @@
+# Scheduled production monitor-health alert (launch condition #4, Option B).
+#
+# Polls the read-only, bearer-gated /api/health/monitor endpoint every 3 hours
+# and fails on any non-2xx, so GitHub's workflow-failure notification becomes
+# the alert channel. GETs our own app only — no external hosts, no writes, no
+# checkout. The response body is never printed (public repo → public run logs);
+# only the HTTP status code is logged.
+#
+# Exit contract (mirrors schema-drift.yml):
+#   0 = healthy (HTTP 2xx: monitor off, paused, or fresh)
+#   1 = unhealthy (HTTP 503: missing compliance, silent stall >30h, or
+#       unreadable state — or any other non-2xx / network failure)
+#   2 = this check is blind (CRON_SECRET repository secret missing) — must be
+#       red, never silently green.
+#
+# Human setup (once): add repository Actions secret CRON_SECRET with the same
+# value as the Vercel env var (the endpoint checks Authorization: Bearer).
+# Until it exists, every run is red with exit 2 — the first such red run also
+# proves the failure-notification channel delivers.
+#
+# Known limits (accepted for this project, documented in LAUNCH-DECISION):
+# scheduled runs can lag by minutes, and GitHub disables schedules after ~60
+# days without repo activity. A dedicated uptime service (cron-job.org) remains
+# the documented alternative — see FINAL-LAUNCH-CHECKLIST §4.
+
+name: Monitor health
+
+on:
+  schedule:
+    - cron: "23 */3 * * *" # every 3 hours, offset from the top of the hour
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: monitor-health-production
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    # Manual dispatch can target any branch; the probe must only run from main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe /api/health/monitor (read-only, logs status code only)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not configured — a blind health check must not look green."
+            exit 2
+          fi
+          status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 --retry 2 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://dealstack-au.vercel.app/api/health/monitor)" || {
+            echo "::error::curl could not reach the health endpoint (network error)."
+            exit 1
+          }
+          echo "HTTP $status"
+          case "$status" in
+            2??) echo "Monitor healthy (off, paused, or fresh)." ;;
+            *)
+              echo "::error::Monitor health probe returned HTTP $status — check /admin/monitor and Vercel function logs."
+              exit 1
+              ;;
+          esac

@@ -33,7 +33,7 @@ Every remaining condition names its owner and its verification. These are the *o
 | # | Unmet action | Owner | Verification step |
 |---|---|---|---|
 | 3 | Create GitHub Actions secrets `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`; run one manual "Schema drift" dispatch to green | Mayank | Workflow run green (exit 0) |
-| 4 | Configure external uptime alert on `GET /api/health/monitor` (Bearer `CRON_SECRET`, every 3h); test alert delivery once with a wrong token | Mayank | One received alert from the wrong-token test |
+| 4 | Health alert (Option B, chosen 2026-07-11): workflow `.github/workflows/monitor-health.yml` is shipped; remaining setup is the `CRON_SECRET` repository Actions secret (value lives only in Vercel — `gh secret set CRON_SECRET`), then one manual dispatch to green | Mayank (secret) + manager (dispatch/verify) | First run without the secret is red (proves failure-notification delivery); post-secret dispatch is green. Accepted limits: schedule lag, ~60-day inactivity auto-disable (workflow header) |
 | 5 | Confirm Supabase automatic backups / PITR enabled for the prod project | Mayank | Dashboard confirmation noted here |
 
 Recommended (not gating): complete TASK-001/002/003 (see backlog); enable Supabase leaked-password protection while in the dashboard for #5.

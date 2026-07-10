@@ -65,7 +65,7 @@
 - [ ] Feed source added + enabled at `/admin/signals/sources`; source type is `ozbargain` (not `manual-url`, or `listDueEnabledFeeds` skips it and `last_fetched_at` never advances).
 - [ ] After first run: `/admin/monitor` → Recent fetch runs shows a fetch; `last_fetched_at` advanced.
 - [ ] (Optional) external scheduler (cron-job.org) GETs `/api/cron/monitor-feeds` with `Authorization: Bearer $CRON_SECRET` ≤ every 3h.
-- [ ] External alert checker GETs `/api/health/monitor` with the same Bearer token every 3h; alert on non-2xx/timeout and verify delivery once with a deliberately wrong token.
+- [ ] External health alert: `.github/workflows/monitor-health.yml` polls `/api/health/monitor` with the Bearer token every 3h and fails on non-2xx, so GitHub's workflow-failure notification is the alert channel (chosen 2026-07-11 over a dedicated uptime service; limits documented in the workflow header). One-time setup: add repository Actions secret `CRON_SECRET`; until it exists every run is red (exit 2 — a blind check must not look green), and that first red run doubles as the alert-delivery test. Then dispatch once manually to green.
 - [ ] Keep `OZB_OFFER_DETECT_ENABLED` off until precision is reviewed, then follow the **go-live runbook** in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) — detection only stages candidates for `/admin/offer-changes`, never auto-applies. Post-enable status (flag, per-state counts, last-staged time) is visible on `/admin/monitor`.
 
 ---
