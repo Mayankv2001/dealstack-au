@@ -1,0 +1,81 @@
+# DealStack AU — Launch Backlog
+
+> Source of truth for launch work. Maintained by the launch manager (Fable 5).
+> Statuses: DISCOVERED / READY / IN_PROGRESS / IMPLEMENTED / REVIEW_FAILED / APPROVED / BLOCKED / DEFERRED.
+>
+> Companion files: [`ASSIGNMENTS.md`](ASSIGNMENTS.md) (who is doing what),
+> [`LAUNCH-DECISION.md`](LAUNCH-DECISION.md) (go/no-go gate),
+> [`tasks/`](tasks/) (worker task specs), [`prompts/`](prompts/) (worker prompts).
+
+## Assessment header
+
+| Field | Value |
+|---|---|
+| Repository commit | `1fae4ed` (main, clean tree, pushed to `origin/main`) |
+| Assessment date | 2026-07-10 |
+| Assessed by | Fable 5 (launch manager) |
+| Current launch status | **CONDITIONALLY READY** — see [`LAUNCH-DECISION.md`](LAUNCH-DECISION.md) |
+| Production deployment | `dealstack-au.vercel.app` — latest production deploy READY (2026-07-10) |
+
+## Baseline verification performed (2026-07-10, commit `1fae4ed`)
+
+All executed by the manager, not taken from documentation:
+
+| Check | Command | Result |
+|---|---|---|
+| Lint | `npm run lint` (Node 20) | PASS (clean) |
+| Monitor tests | `npm run test:monitor` | PASS — 203/203 |
+| Stack tests | `npm run test:stack` | PASS — 166/166 |
+| Admin tests | `npm run test:admin` | PASS — 114/114 |
+| Production build | `npm run build` | PASS |
+| Live prod smoke + strict content | `npm run smoke -- --strict-content --base-url=https://dealstack-au.vercel.app` | PASS — 28/28, 0 warned. Includes: all public routes 200, admin routes 307→login, cron/health endpoints refuse unauthenticated access, robots/sitemap/OG on prod host (no localhost leak), all security headers + HSTS, zero banned trust markers on any public page |
+| Prod schema (read-only, Supabase API) | `list_tables` + `information_schema` probes | PASS — 15/15 expected tables present, RLS enabled on all; `feed_items.hidden_from_homepage` (005) present |
+| Prod security advisors (Supabase) | `get_advisors --security` | 2 WARN (see TASK-001 and OPS-6); 8 INFO "RLS enabled no policy" on staging/admin tables — **expected by design** (deny-all = service-role only) |
+| Prod data hygiene (read-only SQL) | counts on offers/signals/compliance | 1 expired-but-published gift card today (second expires 2026-07-10 → expired from the 11th); 5/5 published card offers unready (hidden from `/cards` by the readiness gate); compliance approved; monitor last fetched 2026-07-10 02:17 UTC (healthy); 1 admin row |
+
+Checks **not** performed (and why): GitHub Actions run history (`gh` CLI unauthenticated on this machine — CI config verified by reading `.github/workflows/ci.yml`, and its exact steps passed locally); Vercel env var listing (not exposed by the available API — verified *indirectly*: prod smoke proves `NEXT_PUBLIC_SITE_URL` correct and security headers active; the 02:17 UTC monitor run proves `CRON_SECRET` + monitor vars work); Supabase backup/PITR configuration (dashboard-only — OPS-5).
+
+## Reconciliation of existing plans
+
+`PROJECT_STATE.md`, `FINAL-LAUNCH-CHECKLIST.md` and `AUDIT_REPORT.md` were checked against code and live systems. **They are accurate.** The claim "all code backlogs shipped; remaining work is human ops" is confirmed with two qualifications, both now tracked here: the Supabase advisor WARN on `set_updated_at` (TASK-001) and small operator-facing documentation drift (TASK-002). The 29 `PLAN-*.md` files in the repo root are historical records of shipped work — none contains open code work.
+
+## Launch blockers
+
+All remaining blockers are **operational** (need human access, credentials, or a production judgement call). No launch-blocking code defects were found.
+
+| ID | Item | Owner | Status | Evidence / verification |
+|---|---|---|---|---|
+| OPS-1 | **Card-offer data decision.** All 5 published `card_offers` rows are unready (`confidence≠confirmed` / null expiry — DB-verified 2026-07-10), so `/cards` shows its empty state in production. Either (a) verify each offer against the issuer's HTTPS page and republish via `/admin/card-offers` (form enforces readiness), or (b) explicitly accept launching with an honest empty `/cards`. | Mayank | BLOCKED (human) | After: `/cards` shows verified offers, or written acceptance in LAUNCH-DECISION. Placeholder tile on `/admin/dashboard` reads 0. |
+| OPS-2 | **Unpublish 2 expired-published gift cards** (`gc-tcn-jbhifi` expired 2026-07-02; `gc-woolworths-wish` expires 2026-07-10 → expired from the 11th). Public read guard already hides them; this is DB hygiene. One click on `/admin/cleanup` (audited) or `npm run cleanup:old-deals -- --write` (Node 22). | Mayank | BLOCKED (human) | `npm run cleanup:old-deals` dry-run reports 0 expired-published offers. |
+| OPS-3 | **Schema-drift watchdog secrets.** Create GitHub Actions secrets `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`, then run one manual dispatch of the "Schema drift" workflow to green (checklist §3). Until then the weekly watchdog is deliberately red (exit 2 = blind). | Mayank | BLOCKED (human) | Manual dispatch run is green (exit 0). |
+| OPS-4 | **External monitor health alert.** Point an uptime checker (e.g. cron-job.org) at `GET /api/health/monitor` with `Authorization: Bearer $CRON_SECRET` every 3h; alert on non-2xx; test delivery once with a wrong token (checklist §4). | Mayank | BLOCKED (human) | One real alert received from the wrong-token test. |
+| OPS-5 | **Confirm Supabase backups/PITR enabled** for the prod project (checklist §10). | Mayank | BLOCKED (human) | Dashboard screenshot / note in LAUNCH-DECISION. |
+| OPS-7 | **Post-cleanup strict smoke re-run** against prod after OPS-1/OPS-2, to refresh the evidence: `npm run smoke -- --strict-content --base-url=https://dealstack-au.vercel.app`. (Passed 28/28 on 2026-07-10 pre-cleanup; re-run is confirmation, not discovery.) | Mayank or manager | READY (after OPS-1/2) | 28/28 pass recorded in LAUNCH-DECISION. |
+
+## Code / docs tasks (worker-executable)
+
+| ID | Title | Severity | Launch impact | Confidence | Effort | Worker | Status | Depends on | Commit | Review |
+|---|---|---|---|---|---|---|---|---|---|---|
+| [TASK-001](tasks/TASK-001-pin-set-updated-at-search-path.md) | Migration 008: pin `set_updated_at()` search_path (clears Supabase security WARN) | Low | Recommended | Confirmed | Small | Claude Sonnet | READY | — | — | — |
+| [TASK-002](tasks/TASK-002-operator-env-docs-accuracy.md) | Operator env docs accuracy (README required-env table, `.env.example` ADMIN_EMAILS) | Medium | Required | Confirmed | Small | Claude Haiku | READY | — | — | — |
+| [TASK-003](tasks/TASK-003-deals-disclaimer-wording-accuracy.md) | `/deals` disclaimer wording: "cached examples" understates real curated data | Low | Recommended | Confirmed | Small | Claude Haiku | READY | — | — | — |
+
+**Dependency order:** none between the three — zero file overlap. Recommended sequence when run one-at-a-time in the shared working tree: TASK-002 → TASK-001 → TASK-003 (operator docs first, since deploy verification reads them). **Safe parallel group:** {001, 002, 003} only if each worker uses its own branch/worktree.
+
+## Non-blocking improvements (post-launch, with explicit ownership)
+
+| ID | Item | Severity | Rationale for deferral |
+|---|---|---|---|
+| DEF-1 | Atomic admin rate limiting (count-then-insert race; fail-open) — needs a DB function/migration | Medium | Documented, deliberate availability tradeoff (`lib/admin/rate-limit.ts` header). Threat model is trusted, allowlisted admins (1 row in prod); limiter guards against runaway scripts, not adversaries. A new RPC migration near launch adds more risk than it removes. Post-launch. |
+| DEF-2 | Transactional audit writes (mutation + `audit_log` row are separate writes) | Medium | Same reasoning as DEF-1 (`AUDIT_REPORT.md` Remaining Risks). Best-effort audit is documented; append-only log exists and is used. Post-launch RPC work. |
+| DEF-3 | Privacy/legal page | Low | Public site collects **no** personal data: no analytics of any kind (grep-verified), no forms except GET search, cookies only for admin login. Disclaimers + non-affiliation copy present on every public surface. Add a lightweight privacy note post-launch. |
+| DEF-4 | Content-Security-Policy header | Low | Deliberate, documented decision (`next.config.ts` comment): needs nonce plumbing through the frozen root layout. Revisit post-launch. |
+| DEF-5 | Supabase migration ledger backfill (001–003 hand-applied, not in `supabase_migrations`; 004 tracked under a different name) | Low | Ledger is cosmetic here: actual schema verified complete by `verify:schema` probe and weekly watchdog (columns, not ledger). Rewriting prod migration bookkeeping near launch is risk without behaviour change. |
+| DEF-6 | Enable Supabase "leaked password protection" (advisor WARN) | Low | One click in dashboard; admin auth is magic-link-only so passwords are unused. Harmless to enable — fold into any Supabase dashboard visit (can be done with OPS-5). |
+| DEF-7 | `/deals` "Notify me" button is permanently disabled (dead UI) | Low | Reads as "coming soon"; harmless. Remove or wire up post-launch. |
+| DEF-8 | Vercel project runs Node 24.x vs local/CI Node 20 | Low | Prod build + runtime verified working (deploy READY, smoke 28/28). Consider pinning for parity post-launch. |
+
+## Explicitly out of scope for launch
+
+- Offer-change detection go-live (`OZB_OFFER_DETECT_ENABLED`) — **stays OFF at launch** per checklist §4; go-live runbook in `docs/ozbargain-monitoring.md` is a post-launch human step.
+- Any redesign, feature addition, RLS policy change, or cron schedule change.

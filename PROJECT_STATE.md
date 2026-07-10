@@ -80,6 +80,8 @@ None — second backlog and audit complete, schema-drift watchdog shipped. Next 
 
 ## 6. Next 3 Tasks
 
+> **Launch management now lives in [`docs/launch-management/`](docs/launch-management/LAUNCH-BACKLOG.md)** (backlog, task files, worker prompts, assignments, launch decision) — created 2026-07-10 at `1fae4ed`. The ops items below are mirrored there as OPS-1..7 with owners and verification steps; three small READY code/docs tasks (TASK-001..003) were added from a fresh audit. Treat that directory as the launch source of truth.
+
 1. Configure the external monitor health alert described in `docs/ozbargain-monitoring.md` (the `/api/health` endpoint is live; an uptime service needs to poll it).
 2. Create the two GitHub Actions secrets for the schema-drift watchdog (checklist §3) and run its first manual dispatch to green.
 3. Complete the human production-data checks below.
