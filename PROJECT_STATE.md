@@ -148,7 +148,7 @@ npm run cleanup:old-deals
 Most recent commits (newest first):
 
 ```
-(pending)  Add GitHub Actions CI workflow — lint/tests/build/smoke gate on every PR + push to main   <- HEAD
+106a5d3  Add GitHub Actions CI workflow — lint/tests/build/smoke gate on every PR + push to main   <- HEAD
 1c8a20c  Add one-click Mark re-checked to dashboard data-quality flags
 919f3d6  Add /admin/cleanup — reviewed one-click apply for expiry hygiene
 d499d7e  Add detection ops status to /admin/monitor + go-live runbook
