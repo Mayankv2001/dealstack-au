@@ -48,9 +48,10 @@
 
 ## 3. Migrations applied (in order, idempotent)
 
-- [ ] 001 `initial_schema` · 002 `feed_import_queue` · 003 `compliance_review` · 004 `offer_change_candidates` · 005 `feed_item_homepage_hidden` · 006 `admin_rate_limits` · 007 `card_offers`
-- [ ] **All 7** present in Supabase (`supabase db push` or SQL editor). Some prod migrations were historically hand-applied and drifted, so run `npm run verify:schema` — it probes the live project for every table/column the migrations declare and fails loudly on any gap.
+- [ ] 001 `initial_schema` · 002 `feed_import_queue` · 003 `compliance_review` · 004 `offer_change_candidates` · 005 `feed_item_homepage_hidden` · 006 `admin_rate_limits` · 007 `card_offers` · 008 `pin_function_search_path`
+- [ ] **All 8** present in Supabase (`supabase db push` or SQL editor). Some prod migrations were historically hand-applied and drifted, so run `npm run verify:schema` — it probes the live project for every table/column the migrations declare and fails loudly on any gap.
 - [ ] Spot-check the columns added by later migrations exist: `feed_items.hidden_from_homepage` (005), `admin_rate_limits` table (006), `card_offers` table (007) — `npm run verify:schema` covers all three.
+- [ ] 008 pins `set_updated_at()`'s search_path (no schema shape change) — clears the Supabase advisor WARN `function_search_path_mutable` (lint 0011). Re-run `get_advisors` after applying to confirm the WARN is gone.
 - [ ] **Scheduled watchdog:** `.github/workflows/schema-drift.yml` re-runs the probe every Monday 21:00 UTC and on manual dispatch (Actions → Schema drift → Run workflow, `main` only). One-time setup: add repository Actions secrets `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; until they exist, runs stay red with exit 2 (a blind watchdog must never look green). Exit 1 = real drift — review and hand-apply the named migration; nothing is ever auto-applied. Adding a migration without updating `scripts/schema-manifest.ts` fails `npm run test:admin` (manifest self-audit), so probe coverage can't silently lag.
 - [ ] Ensure the repository owner receives GitHub Actions failure notifications — a scheduled red run nobody sees is not an alert. Note GitHub disables schedules after ~60 days without repo activity; the manual-dispatch pre-launch run doubles as the keep-alive check.
 

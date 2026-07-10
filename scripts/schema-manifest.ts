@@ -36,6 +36,7 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "005_feed_item_homepage_hidden.sql",
   "006_admin_rate_limits.sql",
   "007_card_offers.sql",
+  "008_pin_function_search_path.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */

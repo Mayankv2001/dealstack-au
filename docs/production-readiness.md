@@ -27,6 +27,7 @@ supabase db push
 | 005 | `supabase/migrations/005_feed_item_homepage_hidden.sql` | `hidden_from_homepage` column on `feed_items` |
 | 006 | `supabase/migrations/006_admin_rate_limits.sql` | `admin_rate_limits` (per-admin mutation rate-limit ledger) |
 | 007 | `supabase/migrations/007_card_offers.sql` | `card_offers` (bank/credit-card offers shown on `/cards`) |
+| 008 | `supabase/migrations/008_pin_function_search_path.sql` | Pins `set_updated_at()`'s search_path to `''` — no schema shape change, clears Supabase advisor WARN `function_search_path_mutable` (lint 0011) |
 
 **Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss). The expected tables/columns live in `scripts/schema-manifest.ts` with per-column migration ownership; `tests/admin/schemaManifest.test.ts` fails `npm run test:admin` if a committed migration is missing from that manifest, so the probe cannot silently under-cover new migrations. Local runs need **Node 22** (`nvm use 22`) — on Node 20, `@supabase/supabase-js` aborts before probing ("no native WebSocket support").
 
