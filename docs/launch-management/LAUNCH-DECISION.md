@@ -22,7 +22,7 @@ The codebase, tests, security boundaries, CI, and the live production deployment
 | Database (prod, read-only) | VERIFIED | 15/15 tables present; RLS enabled on all; staging/admin tables deny-all (service-role only); migration 005 column present; monitor healthy (last fetch 2026-07-10 02:17 UTC); compliance review approved |
 | Secrets handling | VERIFIED (repo side) | Service-role key confined to `lib/supabase/admin.ts` (browser guard throws) + scripts; cron/health endpoints 503 without `CRON_SECRET`, constant-time compare; `.env.local` gitignored |
 | Monitoring & rollback docs | EXIST | `docs/ozbargain-monitoring.md` (incl. go-live/rollback runbook), `FINAL-LAUNCH-CHECKLIST.md` §10 (Vercel rollback, emergency monitor stop), `/admin/monitor` emergency stop (audited) |
-| Migrations verified | PARTIAL | Schema verified complete via probe; **watchdog not yet armed** (OPS-3) and advisor WARN open (TASK-001) |
+| Migrations verified | PARTIAL | Schema verified complete via probe; migration 008 applied to prod 2026-07-11 (`proconfig` = `search_path=""`, advisor WARN cleared, ledger entry recorded); **watchdog not yet armed** (OPS-3) |
 
 ## Conditions to reach READY TO LAUNCH
 
@@ -56,3 +56,4 @@ These are known, documented, and deliberately NOT fixed pre-launch. Launching me
 | 2026-07-10 | CONDITIONALLY READY | Initial assessment at `1fae4ed`. Code verified launch-grade (local gate + live prod strict smoke 28/28 + read-only prod DB verification). Blocked solely on operational conditions 1–6 above. |
 | 2026-07-10 | CONDITIONALLY READY | Card-offer condition #1 complete: five issuer checks, one fixed-expiry offer published, four deliberately withheld, and five audit entries recorded. Conditions #2–6 remain. |
 | 2026-07-11 | CONDITIONALLY READY | All three recommended worker tasks APPROVED after manager review (TASK-002 `8213003`, TASK-001 `37854b0`, TASK-003 `6845117`). Fresh strict smoke against live prod: 28/28, 0 warned. Status unchanged — remaining items are ops conditions #2–6 plus the human-authorised prod application of migration 008 (repo-approved, not yet applied; `pg_proc.proconfig` verified NULL). |
+| 2026-07-11 | CONDITIONALLY READY | Migration 008 applied to prod on user authorisation ("do it"), by the manager via the Supabase API using the exact reviewed SQL. Verified: `proconfig` = `search_path=""`; advisor re-run shows `function_search_path_mutable` WARN cleared; ledger entry `008_pin_function_search_path` recorded. All code-side launch work is now complete **and live**. Only ops conditions #2–6 remain. |
