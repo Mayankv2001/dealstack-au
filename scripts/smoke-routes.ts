@@ -12,22 +12,39 @@
  * Run:
  *   npm run smoke                                        # http://localhost:3000
  *   npm run smoke -- --base-url=https://<prod-domain>
+ *
+ * Opt-in strict content mode (see STRICT_CONTENT_BANNED_MARKERS below):
+ *   npm run smoke -- --strict-content
+ *   npm run smoke -- --strict-content --base-url=https://<prod-domain>
  */
+
+import { fileURLToPath } from "node:url";
 
 const USER_AGENT = "dealstack-smoke/1.0";
 const TIMEOUT_MS = 15_000;
+
+// True only when this file is the process entry point (`tsx scripts/smoke-routes.ts`),
+// so tests can import its pure exports (constants, check functions) without
+// triggering --help's process.exit or main()'s network calls.
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
 
 // ── CLI args ─────────────────────────────────────────────────────────────────
 
 const argv = process.argv.slice(2);
 
-if (argv.includes("--help") || argv.includes("-h")) {
+if (isMainModule && (argv.includes("--help") || argv.includes("-h"))) {
   console.log(
     [
       "smoke-routes — read-only route/SEO/security-header smoke test.",
       "",
       "  npm run smoke                                    http://localhost:3000",
       "  npm run smoke -- --base-url=https://example.com",
+      "  npm run smoke -- --strict-content                also scan for banned",
+      "                                                     public trust markers",
+      "                                                     (placeholder/demo/",
+      "                                                     expired/unready-card",
+      "                                                     content) — opt-in,",
+      "                                                     off by default.",
       "",
       "GETs a fixed list of our own routes and prints PASS/FAIL per check.",
       "Exits 0 only if every check passes (warns, e.g. missing HSTS on a",
@@ -45,6 +62,7 @@ function parseBaseUrl(args: string[]): string {
 
 const baseUrl = parseBaseUrl(argv);
 const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(baseUrl);
+const strictContent = argv.includes("--strict-content");
 
 // ── Fetch helper: manual redirects, timeout, one retry on network failure ────
 
@@ -239,12 +257,77 @@ async function expectHsts(): Promise<void> {
   }
 }
 
+// ── --strict-content: public trust-marker checks (opt-in) ───────────────────
+//
+// Catches the product-trust regressions route/SEO/header checks above don't:
+// placeholder/demo copy, static-demo-data leakage, and unready card offers
+// reaching a public page. Every marker is high-precision and literal — never
+// a bare word like "sample" or "expired" that occurs in legitimate copy —
+// see lib/content/placeholderCopy.ts's own precision note (tested for
+// alignment in tests/admin/placeholderCopy.test.ts).
+//
+//   - "Illustrative sign-up bonus" / "Illustrative statement credit" /
+//     "Sample only"  — the literal static-demo card-offer copy
+//     (lib/offers/manualOffers.ts). Only ever served publicly as the
+//     no-Supabase/DATA_SOURCE=static demo pool for /cards, or as a card_offers
+//     row that failed the public-readiness gate (lib/offers/cardReadiness.ts —
+//     placeholder wording is itself one of its failure reasons). Seeing any of
+//     these against a configured production base URL means either static
+//     demo data leaked live, or an unready card offer reached the public pool.
+//   - "placeholder URL" / "lorem ipsum" — generic placeholder-copy markers.
+//   - "Application error" — an unhandled-error shell (already checked per
+//     PUBLIC_ROUTES above; repeated here for the strict route set).
+//   - "Expired / unknown" — the exact ConfidenceBadge label
+//     (components/ConfidenceBadge.tsx) shown only for a real expired-unknown
+//     result. Search/store source results are supposed to filter these out
+//     before render (lib/repos/sourceResults.ts) — this marker catches a
+//     regression in that filter.
+export const STRICT_CONTENT_BANNED_MARKERS: string[] = [
+  "Illustrative sign-up bonus",
+  "Illustrative statement credit",
+  "Sample only",
+  "placeholder URL",
+  "lorem ipsum",
+  "Application error",
+  "Expired / unknown",
+];
+
+// Fixed, hand-picked public routes only — no crawling, no admin routes.
+const STRICT_CONTENT_ROUTES = [
+  "/",
+  "/deals",
+  "/cards",
+  "/search?q=qantas",
+  "/search?q=myer",
+  "/stores/myer",
+  "/stores/jb-hifi",
+];
+
+export async function expectNoPublicTrustMarkers(path: string): Promise<void> {
+  const res = await fetchWithRetry(path);
+  if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/html")) {
+    throw new Error(`expected text/html content-type, got "${contentType}"`);
+  }
+  const body = await res.text();
+  const hits = STRICT_CONTENT_BANNED_MARKERS.filter((marker) => body.includes(marker));
+  // localhost is only a leak when the base URL itself claims to be production.
+  if (!isLocal && body.includes("localhost:3000")) hits.push("localhost:3000");
+  if (hits.length > 0) {
+    // Never log the body itself — only the route (via the check name) and
+    // which markers matched.
+    throw new Error(`banned marker(s) found: ${hits.join(", ")}`);
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   console.log("DealStack AU — route smoke test");
-  console.log(`  base URL: ${baseUrl}`);
-  console.log(`  isLocal:  ${isLocal}\n`);
+  console.log(`  base URL:       ${baseUrl}`);
+  console.log(`  isLocal:        ${isLocal}`);
+  console.log(`  strictContent:  ${strictContent}\n`);
 
   for (const { path, marker } of PUBLIC_ROUTES) {
     await check(`GET ${path} (200, marker "${marker}")`, () => expectPublicRoute(path, marker));
@@ -281,6 +364,15 @@ async function main(): Promise<void> {
     await check("Strict-Transport-Security present on / (Vercel edge)", expectHsts);
   }
 
+  if (strictContent) {
+    console.log("\n--strict-content: scanning for banned public trust markers\n");
+    for (const path of STRICT_CONTENT_ROUTES) {
+      await check(`GET ${path} has no banned public trust markers`, () =>
+        expectNoPublicTrustMarkers(path)
+      );
+    }
+  }
+
   const passed = results.filter((r) => r.status === "pass").length;
   const failed = results.filter((r) => r.status === "fail");
   const warned = results.filter((r) => r.status === "warn");
@@ -295,7 +387,9 @@ async function main(): Promise<void> {
   process.exit(failed.length > 0 ? 1 : 0);
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+if (isMainModule) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}

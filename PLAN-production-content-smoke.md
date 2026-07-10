@@ -66,10 +66,29 @@ Do not make strict mode the default until current prod is clean, or the normal r
 
 ## Acceptance Criteria
 
-- [ ] `npm run smoke` behaviour is unchanged without `--strict-content`.
-- [ ] `npm run smoke -- --help` documents strict mode.
-- [ ] `npm run smoke -- --strict-content` fails if a checked public page contains `Illustrative sign-up bonus`.
-- [ ] Against a clean local/prod build, strict mode passes without crawling external links.
-- [ ] `FINAL-LAUNCH-CHECKLIST.md` names strict smoke as the automated check for "No placeholder / Illustrative copy remains public".
-- [ ] `npm run lint` and `npm run build` pass.
+- [x] `npm run smoke` behaviour is unchanged without `--strict-content`.
+- [x] `npm run smoke -- --help` documents strict mode.
+- [x] `npm run smoke -- --strict-content` fails if a checked public page contains `Illustrative sign-up bonus`.
+- [x] Against a clean local/prod build, strict mode passes without crawling external links.
+- [x] `FINAL-LAUNCH-CHECKLIST.md` names strict smoke as the automated check for "No placeholder / Illustrative copy remains public".
+- [x] `npm run lint` and `npm run build` pass.
+
+## Status: Shipped 2026-07-10
+
+`scripts/smoke-routes.ts` gained `--strict-content` (opt-in, default off) which
+GETs `/`, `/deals`, `/cards`, `/search?q=qantas`, `/search?q=myer`,
+`/stores/myer`, `/stores/jb-hifi` and fails on any of `Illustrative sign-up
+bonus`, `Illustrative statement credit`, `Sample only`, `placeholder URL`,
+`lorem ipsum`, `Application error`, `Expired / unknown` (the exact
+ConfidenceBadge label for a leaked expired-unknown source result), or a
+`localhost:3000` leak on a non-local base URL. The file's CLI-only side
+effects (`--help`'s `process.exit`, `main()`'s network calls) are now gated
+behind an `isMainModule` check so `STRICT_CONTENT_BANNED_MARKERS` and
+`expectNoPublicTrustMarkers` are safely importable — used by a new alignment
+test in `tests/admin/placeholderCopy.test.ts` confirming every placeholder/demo
+marker in the banned list is also caught by `findPlaceholderMarkers`. Verified
+manually against a running `next start` server (clean pass) and via a stubbed
+`fetch` harness (confirms it fails on `Illustrative sign-up bonus`).
+Documented in `FINAL-LAUNCH-CHECKLIST.md` §7 and §11, and in `README.md`
+under Tests.
 

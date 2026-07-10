@@ -84,6 +84,8 @@ npm run test:stack     # deal-stacking calculations
 npm run test:admin     # admin rate-limit & DB-fallback logic
 npm run lint           # ESLint
 npm run build          # production build
+npm run smoke          # read-only route/SEO/security-header smoke test
+npm run smoke -- --strict-content --base-url=https://<prod-domain>  # + banned public trust markers (opt-in)
 ```
 
 ---

@@ -102,6 +102,7 @@ Verify each returns 200 with real content (spot-checked green 2026-07-09):
 - [ ] Mobile 375px: no horizontal overflow on `/`, `/deals`, `/cards`, `/stores/*`, `/search`, `/resources`
 - [ ] Desktop layout clean
 - [ ] All `/admin/*` routes 307-redirect to `/admin/login` when unauthenticated (no data leak) — automated: `npm run smoke`
+- [ ] No placeholder/demo copy, expired results, or unready card offers reach a public page — **automated (opt-in, run once against the live prod URL after data cleanup):** `npm run smoke -- --strict-content --base-url=https://<prod-domain>`. Fetches `/`, `/deals`, `/cards`, `/search?q=qantas`, `/search?q=myer`, `/stores/myer`, `/stores/jb-hifi` and fails on any of: `Illustrative sign-up bonus`, `Illustrative statement credit`, `Sample only`, `placeholder URL`, `lorem ipsum`, `Application error`, `Expired / unknown`, or a `localhost:3000` leak. Off by default — plain `npm run smoke` is unaffected.
 
 ---
 
@@ -140,7 +141,7 @@ Applied to `/:path*` via `next.config.ts` — confirm present on a prod response
 ## 11. Manual content verification
 
 - [ ] Published cashback / gift-card / points / card offers have correct rates and current terms (verify against source before relying on any figure — the site is a research tool, not a checkout).
-- [ ] No placeholder / "Illustrative" copy remains on published rows. **Automated:** the "Placeholder copy" tile on `/admin/dashboard` (and the matching `⚑` section in `npm run cleanup:old-deals`) must read 0 — it currently flags the 5 `card_offers` rows published 2026-07-08.
+- [ ] No placeholder / "Illustrative" copy remains on published rows. **Automated:** the "Placeholder copy" tile on `/admin/dashboard` (and the matching `⚑` section in `npm run cleanup:old-deals`) must read 0 — it currently flags the 5 `card_offers` rows published 2026-07-08. Confirm nothing reaches the public pages themselves with the strict smoke gate below (§7).
 - [ ] AUD amounts and Australian spelling throughout user-facing copy.
 - [ ] OzBargain signals shown are either real approved signals or clearly labelled samples; nothing misleading is public.
 - [ ] Store logos/aliases resolve; featured/popular stores on the homepage look correct.
