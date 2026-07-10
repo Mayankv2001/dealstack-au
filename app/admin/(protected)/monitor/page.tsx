@@ -19,6 +19,7 @@ import {
   type MonitorStatus,
 } from "@/lib/admin/repos/monitorStatus";
 import { getDetectionOpsStatus } from "@/lib/admin/repos/offerChanges";
+import { disableAllFeeds } from "./actions";
 import { ozbOfferDetectEnabled } from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -36,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StagingFlowViz } from "@/components/monitor/staging-flow-viz";
+import { ActionButton } from "@/components/admin/ActionButton";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -588,13 +590,25 @@ export default async function MonitorStatusPage() {
           <div className="rounded-md border bg-muted/30 px-3 py-2.5">
             <p className="font-medium">Option 2 — disable feed sources (immediate, no redeploy)</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Navigate to{" "}
-              <Link href="/admin/signals/sources" className="underline">
-                Feed Sources
-              </Link>{" "}
-              and toggle all feeds to disabled. The cron will still run on
-              schedule but find no enabled sources and exit immediately.
+              The cron will still run on schedule but find no enabled sources
+              and exit immediately. Staged feed items remain available for
+              review; public data is unchanged.
             </p>
+            {status.feedSourcesEnabled > 0 ? (
+              <ActionButton
+                run={disableAllFeeds}
+                confirm="Disable all enabled feed sources now? This does not delete staged items or change public data."
+                variant="destructive"
+                className="mt-2"
+              >
+                <PowerOff className="size-3.5" />
+                Disable all feed sources ({status.feedSourcesEnabled})
+              </ActionButton>
+            ) : (
+              <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                No feed sources are currently enabled.
+              </p>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             Full emergency steps and rollback plan are in{" "}

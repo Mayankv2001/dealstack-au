@@ -194,6 +194,18 @@ export async function setFeedSourceEnabled(
   if (error) throw new Error(`setFeedSourceEnabled failed: ${error.message}`);
 }
 
+/** Disable every currently enabled feed source and return the affected count. */
+export async function disableAllFeedSources(): Promise<number> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("feed_sources")
+    .update({ is_enabled: false })
+    .eq("is_enabled", true)
+    .select("id");
+  if (error) throw new Error(`disableAllFeedSources failed: ${error.message}`);
+  return data?.length ?? 0;
+}
+
 // ── Monitor ingestion (SERVICE-ROLE; used by the manual monitor script) ──────
 // These back the runMonitor orchestrator's persistence contract. They write ONLY
 // to the staging tables (feed_items, feed_fetch_log) and feed_sources poll-state

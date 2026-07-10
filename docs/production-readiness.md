@@ -194,6 +194,9 @@ If you need to stop the monitor immediately:
 3. Redeploy (or wait for next deployment to pick up the change)
 
 ### Option B — disable at the DB level (immediate, no redeploy needed)
+From `/admin/monitor`, use **Disable all feed sources** to apply this change
+with an audit entry. It leaves staged items and public offers untouched.
+
 ```sql
 -- Disable all feed sources (monitor will skip them even if env var is set)
 UPDATE feed_sources SET is_enabled = false;

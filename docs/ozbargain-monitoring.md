@@ -262,6 +262,10 @@ Two **separate** state machines: ingestion triage vs. publication moderation.
 
 ## Kill switch rules
 
+Admins can use **Disable all feed sources** on `/admin/monitor` for an audited,
+immediate DB-level stop. It disables only `feed_sources.is_enabled`; staged
+items and public data are preserved.
+
 Defence in depth — the monitor must be stoppable instantly at multiple levels:
 
 - [ ] **Deploy-level master**: env flag `OZB_MONITOR_ENABLED` (default **off**),
