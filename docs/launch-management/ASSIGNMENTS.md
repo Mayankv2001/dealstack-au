@@ -8,7 +8,7 @@
 | Task | Worker | Branch/worktree | Status | Depends on | Commit | Manager review |
 |---|---|---|---|---|---|---|
 | TASK-001 pin `set_updated_at` search_path | Claude Sonnet | `task/001-search-path` (or sequential on `main`) | READY | — | — | pending |
-| TASK-002 operator env docs accuracy | Claude Haiku | `task/002-env-docs` (or sequential on `main`) | READY | — | — | pending |
+| TASK-002 operator env docs accuracy | Claude Sonnet (actual; Haiku recommended) | sequential on `main` | APPROVED | — | `8213003` | [APPROVED](reviews/REVIEW-TASK-002.md) 2026-07-10 |
 | TASK-003 `/deals` disclaimer wording | Claude Haiku | `task/003-deals-copy` (or sequential on `main`) | READY | — | — | pending |
 
 ## Dispatch order and parallelism
@@ -30,3 +30,4 @@
 | Date | Event |
 |---|---|
 | 2026-07-10 | Backlog created at commit `1fae4ed`; TASK-001/002/003 authored and READY; no work dispatched yet. |
+| 2026-07-10 | TASK-002 implemented by worker (Claude Sonnet, commit `8213003`, sequential on `main`). Manager review: all 5 acceptance criteria PASS, verification re-run, scope clean → **APPROVED** ([REVIEW-TASK-002](reviews/REVIEW-TASK-002.md)). TASK-001 and TASK-003 remain READY; next dispatch per recommended sequence: TASK-001 (Claude Sonnet, `PROMPT-TASK-001.md`). |

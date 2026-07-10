@@ -57,7 +57,7 @@ All remaining blockers are **operational** (need human access, credentials, or a
 | ID | Title | Severity | Launch impact | Confidence | Effort | Worker | Status | Depends on | Commit | Review |
 |---|---|---|---|---|---|---|---|---|---|---|
 | [TASK-001](tasks/TASK-001-pin-set-updated-at-search-path.md) | Migration 008: pin `set_updated_at()` search_path (clears Supabase security WARN) | Low | Recommended | Confirmed | Small | Claude Sonnet | READY | — | — | — |
-| [TASK-002](tasks/TASK-002-operator-env-docs-accuracy.md) | Operator env docs accuracy (README required-env table, `.env.example` ADMIN_EMAILS) | Medium | Required | Confirmed | Small | Claude Haiku | READY | — | — | — |
+| [TASK-002](tasks/TASK-002-operator-env-docs-accuracy.md) | Operator env docs accuracy (README required-env table, `.env.example` ADMIN_EMAILS) | Medium | Required | Confirmed | Small | Claude Sonnet (actual; Haiku was recommended) | APPROVED | — | `8213003` | [REVIEW-TASK-002](reviews/REVIEW-TASK-002.md) — all 5 criteria PASS, verification re-run by manager 2026-07-10 |
 | [TASK-003](tasks/TASK-003-deals-disclaimer-wording-accuracy.md) | `/deals` disclaimer wording: "cached examples" understates real curated data | Low | Recommended | Confirmed | Small | Claude Haiku | READY | — | — | — |
 
 **Dependency order:** none between the three — zero file overlap. Recommended sequence when run one-at-a-time in the shared working tree: TASK-002 → TASK-001 → TASK-003 (operator docs first, since deploy verification reads them). **Safe parallel group:** {001, 002, 003} only if each worker uses its own branch/worktree.
