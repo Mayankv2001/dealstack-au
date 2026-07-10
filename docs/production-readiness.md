@@ -28,7 +28,17 @@ supabase db push
 | 006 | `supabase/migrations/006_admin_rate_limits.sql` | `admin_rate_limits` (per-admin mutation rate-limit ledger) |
 | 007 | `supabase/migrations/007_card_offers.sql` | `card_offers` (bank/credit-card offers shown on `/cards`) |
 
-**Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss).
+**Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss). The expected tables/columns live in `scripts/schema-manifest.ts` with per-column migration ownership; `tests/admin/schemaManifest.test.ts` fails `npm run test:admin` if a committed migration is missing from that manifest, so the probe cannot silently under-cover new migrations. Local runs need **Node 22** (`nvm use 22`) — on Node 20, `@supabase/supabase-js` aborts before probing ("no native WebSocket support").
+
+### 1a. Scheduled schema-drift watchdog
+
+`.github/workflows/schema-drift.yml` runs the same probe against production every Monday 21:00 UTC and on manual dispatch, from `main` only. It is deliberately separate from `ci.yml`, which must stay secretless for untrusted PR branches.
+
+- **Setup (once):** create the repository Actions secrets `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (GitHub → Settings → Secrets and variables → Actions). The service-role key is required because staging/admin tables have no anon SELECT policy — an anon probe would misreport RLS denials as drift. Secrets are exposed to the probe step only, never to `npm ci` or lifecycle scripts.
+- **Interpretation:** exit 0 = registered tables/columns all exist · exit 1 = drift — review and hand-apply the named migration, then re-run (never auto-apply from CI) · exit 2 = watchdog blind (secrets/connectivity/unexpected error) — investigate; never mask with `continue-on-error`.
+- **Limitations:** the PostgREST probe checks table/column presence only — not indexes, constraints, triggers, functions, or RLS policy text. A green run is necessary, not sufficient, for full schema identity.
+- **Key rotation:** rotating the service-role key now has three consumers to update — Vercel env, local `.env.local` files, and this workflow's GitHub secret.
+- **Recovery:** on drift, apply the missing migration by hand in the SQL editor (reviewed first, per house rules), then re-run the workflow via manual dispatch until green.
 
 ---
 

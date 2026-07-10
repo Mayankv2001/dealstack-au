@@ -1,183 +1,217 @@
-# PLAN-schema-drift-watchdog — Run verify:schema on a schedule, not on memory
+# PLAN-schema-drift-watchdog - Detect production schema drift automatically
 
-> **Rank: 4 of 5 (2026-07-10 follow-on backlog).** Prod schema drift is not
-> hypothetical here: migrations were historically hand-applied, and on
-> 2026-07-08 migration 005 (`feed_items.hidden_from_homepage`) was found
-> **not applied to production** (PROJECT_STATE §10 — "verify prod schema
-> via `information_schema.columns`, not just table existence"). The repo
-> already owns the cure — `npm run verify:schema` (`scripts/verify-schema.ts`,
-> shipped `49086d0`) probes the live project for every table/column
-> migrations 001-007 declare, exits 1 on drift, 2 on config error, and
-> FINAL-LAUNCH-CHECKLIST §3 tells the operator to run it — but it only runs
-> when a human remembers, which is exactly how 005 slipped. This plan adds
-> a **scheduled GitHub Actions workflow** (weekly + manual dispatch, never
-> on PRs) that runs the probe against production using repo secrets, so
-> drift becomes a red workflow run and a notification email instead of a
-> latent prod bug. It is deliberately a separate workflow from
-> `PLAN-ci-quality-gates.md`'s `ci.yml`, whose zero-secrets property must
-> survive.
-
-## Prerequisites
-
-- `PLAN-ci-quality-gates.md` is NOT required first (independent files), but
-  if both land, keep them as two workflows — never merge (edge case 1).
-- Read fully before writing YAML:
-  - `scripts/verify-schema.ts` — header (:1-40): required env
-    (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), why the
-    service-role key is needed (staging tables have no anon SELECT policy;
-    the anon key would misreport RLS denials as drift), and the exit-code
-    contract (0 match / 1 drift / 2 config error).
-  - The script's `.env.local` loader — it is wrapped in try/catch for
-    standalone runs, so a missing `.env.local` in CI is fine; env comes
-    from `process.env` (i.e. the workflow's `env:` block).
-  - `.nvmrc` (Node 20) and `package.json` scripts.
+> **Rank: 5 of 5.** Revalidated against `main` at `f65c951`. Production has a
+> documented history of hand-applied migration drift; migration 005 was missing
+> until a manual check found it. `npm run verify:schema` is read-only and useful,
+> but it runs only when someone remembers and its manifest says "001-007"
+> throughout. A future migration can be added without updating the probe, making
+> a scheduled green check falsely reassuring unless manifest coverage is itself
+> tested.
 
 ## Goal
 
-A workflow named "Schema drift" runs every Monday and on manual dispatch,
-executes `npm run verify:schema` against the production Supabase project
-using two repository secrets, and fails red (email/notification to the
-owner via normal GitHub notifications) whenever the live schema is missing
-anything migrations 001-007 declare — or whenever the check itself cannot
-run (missing secret, unreachable project), because a blind watchdog must
-also alarm.
+Run the read-only production schema probe weekly and on explicit manual dispatch
+from `main`, using GitHub Actions secrets isolated from ordinary PR CI. Make the
+probe manifest self-auditing: adding a migration file without registering its
+expected tables/columns must fail `test:admin` before merge.
 
-## Exact files to touch
+This watchdog reports drift; it never applies migrations or writes to Supabase.
 
-| File | Change |
+## Exact Files To Touch
+
+| File | Required change |
 |---|---|
-| `.github/workflows/schema-drift.yml` | **New** — the only code change |
-| `FINAL-LAUNCH-CHECKLIST.md` | §3: note the check now also runs weekly in CI (manual run remains the pre-launch step) |
-| `PROJECT_STATE.md` | §4/§11 entries |
+| `scripts/schema-manifest.ts` | New pure manifest module: expected columns with per-column migration ownership, table creation ownership, and covered migration filenames |
+| `scripts/verify-schema.ts` | Import the manifest and remove hard-coded `001-007` wording |
+| `tests/admin/schemaManifest.test.ts` | Ensure every committed migration is represented and every manifest table has an owner |
+| `.github/workflows/schema-drift.yml` | New weekly/manual production probe, restricted to `main` with minimal permissions |
+| `FINAL-LAUNCH-CHECKLIST.md` | Document weekly history, manual dispatch, and secret setup |
+| `docs/production-readiness.md` | Add watchdog setup, interpretation, rotation, and recovery steps |
+| `PROJECT_STATE.md` | Record automated drift detection and current migration coverage |
 
-Plus one **human dashboard step** (not a file): create the two repository
-secrets (Step 2).
+Human setup outside Git: create GitHub Actions secrets
+`NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Do not place either
+value in a file, workflow output, issue, plan, or commit.
 
-## Step-by-step implementation order
+## Implementation Order
 
-### Step 1 — `.github/workflows/schema-drift.yml`
+1. Replace `EXPECTED` and the too-coarse `TABLE_TO_MIGRATION` in
+   `scripts/verify-schema.ts` with `scripts/schema-manifest.ts`. Export:
 
-```yaml
-name: Schema drift
+   ```ts
+   export interface ExpectedTable {
+     introducedBy: string;
+     columns: Record<string, string>; // column name -> introducing migration
+   }
+   export const EXPECTED_SCHEMA: Record<string, ExpectedTable>;
+   export const COVERED_MIGRATIONS: readonly string[];
+   export function findManifestCoverageErrors(
+     migrationFiles: readonly string[]
+   ): string[];
+   ```
 
-on:
-  schedule:
-    - cron: "0 21 * * 1" # Mondays 21:00 UTC (~Tue 07:00 AEST)
-  workflow_dispatch:
+   `COVERED_MIGRATIONS` must list every current SQL filename in
+   `supabase/migrations` (`001_initial_schema.sql` through
+   `007_card_offers.sql`). The pure validator reports:
 
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - name: Probe production schema against migrations 001-007
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npm run verify:schema
-```
+   - committed migration missing from `COVERED_MIGRATIONS`;
+   - covered filename absent from disk input;
+   - schema table without an `introducedBy` owner;
+   - table/column owner filename not in `COVERED_MIGRATIONS`;
+   - empty or duplicate column names.
 
-### Step 2 — repository secrets (human, GitHub dashboard)
+   Most columns use their table's creation migration. Extensions must point to
+   the file that actually added them: `feed_sources.source_type` -> 004 and
+   `feed_items.hidden_from_homepage` -> 005. This is what makes a drift report
+   actionable instead of telling the operator to reapply migration 002.
 
-GitHub → repo → Settings → Secrets and variables → Actions → New
-repository secret, twice:
-- `NEXT_PUBLIC_SUPABASE_URL` — the project URL (same value as Vercel's).
-- `SUPABASE_SERVICE_ROLE_KEY` — the service-role key (same value as
-  Vercel's server-only var).
+2. Keep `verify-schema.ts` executable as before, but import the manifest. Derive
+   its banner and success message from the covered filenames/table count instead
+   of embedding `001-007`. Do not export or import the script's `main()` from
+   tests: it reads env and exits the process.
 
-Document in the PR description that these must exist before the first
-dispatch, and that the workflow simply fails with exit 2 until they do —
-which is correct behaviour, not a bug.
+3. Add `tests/admin/schemaManifest.test.ts`:
 
-### Step 3 — docs
+   - read `supabase/migrations` with `node:fs`;
+   - keep only `*.sql`, sorted;
+   - expect `findManifestCoverageErrors(files)` to equal `[]`;
+   - unit-test the pure validator with a fake unregistered `008_example.sql`;
+   - unit-test stale covered filenames and missing table/column ownership;
+   - assert the two post-creation columns above report migrations 004 and 005.
 
-- `FINAL-LAUNCH-CHECKLIST.md` §3: after the existing
-  `npm run verify:schema` sentence, add: "This probe also runs weekly via
-  `.github/workflows/schema-drift.yml` (Actions tab → 'Schema drift' for
-  history and manual re-runs)."
-- `PROJECT_STATE.md`: §4 entry with commit hash; §11 latest-changes line.
+   This does not parse SQL. Its purpose is to force the next migration author to
+   update the explicit column manifest in the same PR, where reviewers can check
+   the declared columns against the SQL.
 
-### Step 4 — verify
+4. Create `.github/workflows/schema-drift.yml`:
 
-1. Push the branch, merge to main (scheduled workflows only fire from the
-   default branch — see edge case 4), then Actions tab → "Schema drift" →
-   **Run workflow** (manual dispatch).
-2. Expected outcomes, both acceptable:
-   - **Green** — prod matches migrations 001-007.
-   - **Red with exit 1 and a drift report** — the watchdog just did its
-     job on day one; apply the named migration, re-dispatch, confirm green.
-3. Local gate (docs + YAML only, but run the ritual): `nvm use 20`,
-   `npm run lint`, `npm run build`.
+   ```yaml
+   name: Schema drift
 
-## Edge cases a weaker model would miss
+   on:
+     schedule:
+       - cron: "0 21 * * 1"
+     workflow_dispatch:
 
-1. **Never add `pull_request`/`push` triggers, and never merge this into
-   `ci.yml`.** The whole design of `ci.yml`
-   (`PLAN-ci-quality-gates.md` edge case 1) is that it holds zero secrets
-   and can safely run on any PR. This workflow holds the service-role key;
-   restricting it to `schedule` + `workflow_dispatch` means it only ever
-   runs from the default branch's committed YAML, with no PR-injected code
-   deciding what to do with the secret.
-2. **The service-role key in Actions secrets is a deliberate, consented
-   tradeoff — surface it, don't smuggle it.** CLAUDE.md forbids exposing
-   the key to client code or public routes; an Actions secret is
-   server-side, masked in logs, and unavailable to fork PRs — standard
-   practice — but the PR description must say the key is being added to a
-   second secret store so the owner can consent (and knows to rotate it in
-   Supabase → update both Vercel and GitHub if it ever leaks). If the
-   owner declines, close the PR — this plan is optional infrastructure.
-3. **Exit code 2 (config error) must fail the job, and does.** Missing
-   secrets, an unreachable project, or an unrecognised API error make the
-   watchdog blind; a blind watchdog that reports green is worse than none.
-   `verify-schema.ts` already exits non-zero for these — do not wrap the
-   step in `continue-on-error` or `|| true`.
-4. **Scheduled workflows only run from the default branch.** The YAML must
-   be merged to `main` before the Monday schedule ever fires; until then,
-   only `workflow_dispatch` works (and dispatch also requires the file on
-   the branch you dispatch from). Test via dispatch post-merge; don't
-   conclude "schedule is broken" from a feature branch.
-5. **GitHub auto-disables schedules after ~60 days without repo activity.**
-   This repo is active so it's unlikely, but note it in the checklist line
-   so a future quiet period doesn't silently kill the watchdog (GitHub
-   emails a warning first, and the Actions tab shows "disabled").
-6. **The script's `.env.local` loader is CI-safe.** It loads the file only
-   if present (try/catch); in Actions the env comes from the step's `env:`
-   block. Do not create a fake `.env.local` in the workflow, and never
-   `echo` the secrets anywhere (they're masked, but don't rely on it).
-7. **Secret names must match `lib/env.ts` exactly**
-   (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) — the script
-   reads them via `supabaseUrl()`/`supabaseServiceRoleKey()`, which throw
-   with a helpful message naming the variable if absent (that message is
-   what a red exit-2 run shows).
-8. **The probe is read-only by design** — it queries
-   `information_schema`-level metadata via the REST API and writes
-   nothing. Don't "improve" it to auto-apply missing migrations from CI;
-   migrations are reviewed before prod (CLAUDE.md Supabase rules), and an
-   auto-applying watchdog would violate that.
-9. **Notification path is GitHub's default** (failed-workflow email to
-   whoever watches the repo). Don't build Slack/webhook plumbing here —
-   the owner already gets failure emails; keep the diff one YAML file.
+   permissions:
+     contents: read
 
-## Acceptance criteria
+   concurrency:
+     group: schema-drift-production
+     cancel-in-progress: false
 
-- [ ] `.github/workflows/schema-drift.yml` exists; triggers are exactly
-      `schedule` + `workflow_dispatch`
-      (`grep -E "pull_request|push:" .github/workflows/schema-drift.yml` →
-      0 hits).
-- [ ] `ci.yml` (if present) is unchanged and still secretless
-      (`grep -c "secrets\." .github/workflows/ci.yml` → 0).
-- [ ] Both secrets created (human-confirmed); a manual dispatch after merge
-      completes **green**, or red-with-drift-report that names the missing
-      migration (then: apply, re-dispatch, green).
-- [ ] Removing a secret and dispatching produces a red run whose log shows
-      the missing-variable message and exit code 2 (restore the secret
-      after) — the blind-watchdog case alarms.
-- [ ] No secret value appears in any workflow log (spot-check the run log).
-- [ ] `FINAL-LAUNCH-CHECKLIST.md` §3 and `PROJECT_STATE.md` updated;
-      `npm run lint` and `npm run build` green on Node 20.
+   jobs:
+     verify:
+       if: github.ref == 'refs/heads/main'
+       runs-on: ubuntu-latest
+       timeout-minutes: 10
+       env:
+         NEXT_TELEMETRY_DISABLED: "1"
+       steps:
+         - uses: actions/checkout@v4
+         - uses: actions/setup-node@v4
+           with:
+             node-version-file: .nvmrc
+             cache: npm
+         - run: npm ci
+         - name: Probe production schema
+           env:
+             NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+             SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+           run: npm run verify:schema
+   ```
+
+   Keep secrets scoped to the final probe step so dependency installation and
+   lifecycle scripts cannot read them. Keep this separate from `ci.yml`.
+
+5. In GitHub, create the two repository Actions secrets. The service-role key is
+   required because staging/admin tables have no anon read policy. Record the
+   operational tradeoff in `docs/production-readiness.md`: rotating the key now
+   requires updating Supabase consumers in Vercel, local secrets, and GitHub.
+
+6. Merge the workflow to `main`, then use Actions -> Schema drift -> Run
+   workflow. A run selected on any non-main ref must skip the job. Interpret
+   outcomes strictly:
+
+   - exit 0: all registered tables/columns exist;
+   - exit 1: drift found; review/apply the named migration manually, then rerun;
+   - exit 2: watchdog blind (configuration, auth, connectivity, or unexpected
+     API error); investigate, never mark green with `continue-on-error`.
+
+7. Test alert delivery through normal GitHub Actions notifications. Ensure the
+   repository owner watches failed workflow runs; scheduled workflows are not a
+   pager if nobody receives the failure notification.
+
+8. Run the local Node 20 gate:
+
+   ```bash
+   npm run lint
+   npm run test:admin
+   npm run test:monitor
+   npm run test:stack
+   npm run build
+   git diff --check
+   ```
+
+   Also verify:
+
+   ```bash
+   rg 'pull_request|push:' .github/workflows/schema-drift.yml
+   rg 'secrets\.' .github/workflows/ci.yml
+   ```
+
+   Both commands must produce no matches.
+
+## Edge Cases A Weaker Model Would Miss
+
+1. **Automating an incomplete manifest can create false confidence.** The
+   migration-directory test is part of this plan, not optional polish.
+2. **Do not run production-secret workflows on PRs or pushes.** PR code can
+   modify scripts; ordinary CI must remain secretless and safe for untrusted
+   branches.
+3. **Manual dispatch can target a branch.** The job-level main-ref condition
+   prevents a selected feature branch from executing modified code with
+   production secrets.
+4. **Step-level secret scoping matters.** Job-level secrets would be available to
+   `npm ci` and package lifecycle hooks. Expose them only to the probe command.
+5. **The service-role key is intentionally powerful.** It is needed for private
+   tables, must be masked by Actions, and must never be printed. This is a human
+   consent/setup step, not something an agent should infer or retrieve.
+6. **A blind watchdog is a failure.** Missing secrets, Supabase downtime, and
+   unknown errors must stay red; never add `continue-on-error` or `|| true`.
+7. **No auto-migration.** Applying SQL from a scheduled workflow violates the
+   repository's reviewed-migration rule and turns a detector into a destructive
+   actor.
+8. **Column presence is not full schema equivalence.** The current PostgREST
+   probe cannot verify indexes, constraints, triggers, functions, or RLS policy
+   text. State this residual risk; do not claim a green run proves total schema
+   identity.
+9. **Scheduled workflows run only from the default branch and may be disabled
+   after long inactivity.** Keep manual pre-launch verification in the checklist
+   and inspect Actions history during release review.
+10. **Migration ownership spans files.** A table created in 002 and extended in
+    004/005 must report the migration containing the missing column. Per-column
+    ownership is mandatory; retaining one `TABLE_TO_MIGRATION` value would
+    incorrectly tell the operator to reapply migration 002.
+11. **Do not load `.env.local` in Actions.** The script already tolerates its
+    absence and reads the step environment.
+12. **Never test secret masking by echoing the real key.** Inspect normal logs
+    and use a disposable fake variable if masking behaviour itself must be
+    demonstrated.
+
+## Acceptance Criteria
+
+- [ ] Adding an unregistered `008_*.sql` migration makes `test:admin` fail with
+      an explicit manifest-coverage error.
+- [ ] Workflow triggers are exactly weekly schedule plus manual dispatch; the
+      job cannot run off `main`.
+- [ ] Existing `.github/workflows/ci.yml` is unchanged and contains no secret
+      references.
+- [ ] Supabase secrets are scoped only to the probe step and never appear in
+      logs.
+- [ ] Manual dispatch on `main` returns green, or accurately identifies drift
+      that is manually repaired before a green rerun.
+- [ ] Missing-secret and connection-failure tests/runs remain red (exit 2).
+- [ ] Documentation states the probe's table/column-only limitation and key
+      rotation responsibilities.
+- [ ] Full Node 20 quality gate and `git diff --check` pass.

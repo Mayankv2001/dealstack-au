@@ -71,16 +71,17 @@ Verified from git history and memory. Commit hashes in parentheses.
 - **Card offer public-readiness gate:** `lib/offers/cardReadiness.ts` — one pure rule (confirmed confidence, unexpired date, HTTPS issuer source, positive headline value for the offer type, no placeholder wording) enforced on both the public `/cards` read path (`lib/repos/offers.ts`) and admin insert/update/publish actions (`lib/admin/repos/cardOffers.ts`, card-offers `actions.ts`). Reviewed, verified, and shipped via PR #2, squash `2f2db1d` (branch commit `ea7d3fe`). **Effect: `/cards` now shows its empty state in production** until the 5 illustrative rows are re-verified — see §6 human ops item 3 and §10.
 - **Public trust follow-through:** source cards now fail closed on configured DB errors/empty results and enforce expiry/card readiness (`fbd570a`); the last fixed-offset expiry checks use the shared AU calendar (`14db2d6`); strict smoke catches public placeholder/demo leakage (`e29c1c9`).
 - **Monitor emergency stop:** `/admin/monitor` can disable all enabled feed sources immediately with rate limiting and an audit record; staged and public content are preserved (`f65c951`).
-- **Homepage Top 5 approval boundary (current working tree, uncommitted):** imported feed state is no longer enough. `lib/repos/topDeals.ts` joins the promoted signal, requires approved/non-sample/live state, maps moderated signal copy, preserves the independent homepage-hidden veto, and ignores feed-source enablement for publication. Signal changes now revalidate `/`.
+- **Production trust + monitor ops hardening (`05cc339`, audit report `f01162b` / `AUDIT_REPORT.md`):** the second-backlog bundle, all four plans in one reviewed commit. (a) Homepage Top 5 approval boundary — imported feed state is no longer enough; `lib/repos/topDeals.ts` joins the promoted signal, requires approved/non-sample/live state, maps moderated signal copy, preserves the independent homepage-hidden veto, and ignores feed-source enablement for publication; signal changes revalidate `/`. (b) Live-data trust — `fromDbOrStatic` deleted; configured Supabase is authoritative for every public dataset (empty/error reads stay empty, never demo rows), expired store discount codes suppressed at read time (`guardStoreDiscount`), calculator takes repository-loaded stores as props. (c) URL trust — `lib/security/urlPolicy.ts` enforced at admin writes, public reads, final renders, and monitor egress (manual same-host redirects, 3-hop cap, bounded response bodies); unsafe persisted URLs surface as data-quality flags. (d) Monitor health endpoint (`app/api/health/`, `lib/monitor/health.ts`) for external uptime polling, plus seed tolerance for diverged signal native ids.
+- **Schema-drift watchdog (shipped with this commit — see §11 for hash):** `scripts/schema-manifest.ts` (per-column migration ownership: a drift report names the migration that ADDED the column, e.g. 005 for `hidden_from_homepage`) + `tests/admin/schemaManifest.test.ts` (a committed migration missing from the manifest fails `test:admin` — the self-audit that keeps a green probe honest) + `.github/workflows/schema-drift.yml` (weekly Monday 21:00 UTC + manual dispatch, read-only, `main`-only, secrets scoped to the probe step, **Node 22** — supabase-js crashes on Node 20 before probing, reproduced 2026-07-10). Human setup: create the two Actions secrets (checklist §3). Refactored probe verified against live prod: 15/15 tables OK, exit 0.
 
 ## 5. Current Task
 
-Production-readiness audit implementation and verification.
+None — second backlog and audit complete, schema-drift watchdog shipped. Next action = §6.
 
 ## 6. Next 3 Tasks
 
-1. **PLAN-schema-drift-watchdog.md.** Automate the existing read-only production schema probe and make its migration manifest self-auditing.
-2. Configure the external monitor health alert described in `docs/ozbargain-monitoring.md`.
+1. Configure the external monitor health alert described in `docs/ozbargain-monitoring.md` (the `/api/health` endpoint is live; an uptime service needs to poll it).
+2. Create the two GitHub Actions secrets for the schema-drift watchdog (checklist §3) and run its first manual dispatch to green.
 3. Complete the human production-data checks below.
 
 **Also open — three ops steps only a human can perform** (verifying real-world data / making a production judgement call):

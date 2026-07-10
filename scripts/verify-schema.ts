@@ -4,9 +4,10 @@
  * Migrations in this project were historically applied to prod by hand and
  * untracked; migration 005's feed_items.hidden_from_homepage column was
  * silently missing from prod for weeks before anyone noticed. This script
- * probes the configured Supabase project for every table/column declared
- * across supabase/migrations/001-007 and fails loudly on any gap, instead of
- * relying on a manual SQL-editor check that gets skipped.
+ * probes the configured Supabase project for every table/column declared in
+ * scripts/schema-manifest.ts (which tests/admin/schemaManifest.test.ts keeps
+ * in lock-step with supabase/migrations/) and fails loudly on any gap,
+ * instead of relying on a manual SQL-editor check that gets skipped.
  *
  * WHY NOT information_schema: supabase-js talks to Supabase via PostgREST,
  * which only exposes the `public` schema — db.from("information_schema.columns")
@@ -29,13 +30,14 @@
  *   npm run verify:schema
  *
  * Exit codes:
- *   0 — schema matches migrations 001-007
+ *   0 — schema matches every covered migration
  *   1 — drift found (missing table/column) — see report for which migration to apply
  *   2 — config/connection error (missing env, unreachable project, unrecognised error)
  */
 
 import { createClient, type PostgrestError, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseServiceRoleKey, supabaseUrl } from "../lib/env";
+import { COVERED_MIGRATIONS, EXPECTED_SCHEMA } from "./schema-manifest";
 
 // Load .env.local for standalone runs (Next loads it for the app, scripts don't).
 type WithLoadEnv = { loadEnvFile?: (path?: string) => void };
@@ -51,7 +53,7 @@ if (argv.includes("--help") || argv.includes("-h")) {
   console.log(
     [
       "verify-schema — read-only probe for drift between the configured Supabase",
-      "project and supabase/migrations/001-007.",
+      `project and the ${COVERED_MIGRATIONS.length} covered migrations (scripts/schema-manifest.ts).`,
       "",
       "  npm run verify:schema",
       "",
@@ -63,114 +65,10 @@ if (argv.includes("--help") || argv.includes("-h")) {
 }
 
 // ── Manifest ─────────────────────────────────────────────────────────────────
-// When you add a migration, add its tables/columns here — the launch checklist
-// runs `npm run verify:schema` to catch drift before it bites again.
-
-const EXPECTED: Record<string, string[]> = {
-  // 001_initial_schema.sql
-  stores: [
-    "id", "name", "category", "logo", "logo_path", "logo_text", "logo_subtext",
-    "logo_theme", "discount_percent", "discount_code", "expiry_date",
-    "cashback_percent", "cashback_provider", "gift_card_discount_percent",
-    "gift_card_source", "points_program", "points_rate", "aliases",
-    "is_published", "sort_order", "created_at", "updated_at",
-  ],
-  gift_card_offers: [
-    "id", "brand", "discount_percent", "channel", "source",
-    "accepted_at_merchant_ids", "points_on_purchase", "cap_dollars",
-    "expiry_date", "start_date", "purchase_location", "purchase_method",
-    "limit_per_customer", "accepted_at", "usage_notes", "stack_notes",
-    "source_detail_url", "citations", "confidence", "last_checked_at",
-    "is_published", "created_at", "updated_at",
-  ],
-  cashback_offers: [
-    "id", "merchant_id", "provider", "rate_percent", "flat_amount",
-    "cap_dollars", "is_upsized", "excludes_gift_card_payment", "terms_summary",
-    "expiry_date", "citations", "confidence", "last_checked_at",
-    "is_published", "created_at", "updated_at",
-  ],
-  points_offers: [
-    "id", "merchant_id", "program", "earn_rate_display", "earn_multiple",
-    "point_value_cents", "mechanism", "expiry_date", "citations", "confidence",
-    "last_checked_at", "is_published", "created_at", "updated_at",
-  ],
-  ozbargain_signals: [
-    "id", "source_native_id", "merchant_id", "title", "summary",
-    "votes_sample", "comment_count", "sentiment", "deal_kind", "source_url",
-    "merchant_url", "product_url", "posted_at", "expiry_date", "tags",
-    "promo_code", "price_text", "signal_score", "confidence",
-    "last_checked_at", "is_sample", "status", "created_at", "updated_at",
-  ],
-  weekly_deals: [
-    "id", "week_of", "merchant_id", "title", "summary", "highlight",
-    "component_ids", "citations", "expiry_date", "confidence",
-    "is_published", "created_at", "updated_at",
-  ],
-  admins: ["email", "role", "created_at"],
-  audit_log: [
-    "id", "actor_email", "action", "table_name", "row_id", "diff", "created_at",
-  ],
-  // 002_feed_import_queue.sql (+ source_type added in 004, hidden_from_homepage in 005)
-  feed_sources: [
-    "id", "label", "feed_url", "kind", "merchant_id", "is_enabled", "etag",
-    "last_modified", "last_fetched_at", "last_status", "failure_count",
-    "next_earliest_fetch_at", "created_at", "updated_at",
-    "source_type", // 004_offer_change_candidates.sql
-  ],
-  feed_items: [
-    "id", "feed_source_id", "source_native_id", "link", "raw_title",
-    "raw_summary", "categories", "posted_at", "fetched_at", "content_hash",
-    "review_state", "promoted_signal_id", "created_at", "updated_at",
-    "hidden_from_homepage", // 005_feed_item_homepage_hidden.sql
-  ],
-  feed_fetch_log: [
-    "id", "feed_source_id", "started_at", "finished_at", "http_status",
-    "items_seen", "items_new", "error", "created_at",
-  ],
-  // 003_compliance_review.sql
-  compliance_reviews: [
-    "id", "source_name", "robots_txt_checked", "terms_checked",
-    "feed_paths_allowed", "user_agent_recorded", "rate_limit_recorded",
-    "approved_for_monitoring", "reviewer_email", "notes", "reviewed_at",
-    "created_at", "updated_at",
-  ],
-  // 004_offer_change_candidates.sql
-  offer_change_candidates: [
-    "id", "source_type", "source_name", "merchant_id", "target_id",
-    "detected_title", "detected_rate_or_discount", "detected_url",
-    "previous_value", "proposed_value", "confidence", "raw_summary",
-    "content_hash", "review_state", "reviewed_by", "reviewed_at",
-    "created_at", "updated_at",
-  ],
-  // 006_admin_rate_limits.sql
-  admin_rate_limits: ["id", "admin_email", "action_key", "created_at"],
-  // 007_card_offers.sql
-  card_offers: [
-    "id", "provider", "card_name", "offer_type", "bonus_points",
-    "cashback_amount", "statement_credit_amount", "minimum_spend",
-    "minimum_spend_period", "annual_fee", "eligibility_notes",
-    "offer_summary", "source_url", "confidence", "expiry_date",
-    "last_checked_at", "is_published", "created_at", "updated_at",
-  ],
-};
-
-const TABLE_TO_MIGRATION: Record<string, string> = {
-  stores: "001_initial_schema.sql",
-  gift_card_offers: "001_initial_schema.sql",
-  cashback_offers: "001_initial_schema.sql",
-  points_offers: "001_initial_schema.sql",
-  ozbargain_signals: "001_initial_schema.sql",
-  weekly_deals: "001_initial_schema.sql",
-  admins: "001_initial_schema.sql",
-  audit_log: "001_initial_schema.sql",
-  feed_sources: "002_feed_import_queue.sql",
-  feed_items: "002_feed_import_queue.sql",
-  feed_fetch_log: "002_feed_import_queue.sql",
-  compliance_reviews: "003_compliance_review.sql",
-  offer_change_candidates: "004_offer_change_candidates.sql",
-  admin_rate_limits: "006_admin_rate_limits.sql",
-  card_offers: "007_card_offers.sql",
-};
+// The expected tables/columns live in scripts/schema-manifest.ts with
+// per-column migration ownership; tests/admin/schemaManifest.test.ts fails the
+// suite when a committed migration is missing from that manifest, so this
+// probe cannot silently under-cover new migrations.
 
 // ── Env (fail before creating any client — zero network calls on config error) ─
 
@@ -264,8 +162,10 @@ function padTable(name: string): string {
 }
 
 async function main(): Promise<void> {
-  const tables = Object.keys(EXPECTED);
-  console.log("DealStack AU — verify-schema (read-only probe of migrations 001-007)");
+  const tables = Object.keys(EXPECTED_SCHEMA);
+  console.log(
+    `DealStack AU — verify-schema (read-only probe of ${COVERED_MIGRATIONS.length} covered migrations)`
+  );
   console.log(`  tables checked: ${tables.length}`);
   console.log("");
 
@@ -275,7 +175,8 @@ async function main(): Promise<void> {
   // Sequential: 15 tables, worst case ~15 + ~30 requests — a few seconds.
   // Simplicity beats parallel here.
   for (const table of tables) {
-    const columns = EXPECTED[table];
+    const spec = EXPECTED_SCHEMA[table];
+    const columns = Object.keys(spec.columns);
     const result = await verifyTable(db, table, columns);
     const label = padTable(result.table);
 
@@ -285,14 +186,17 @@ async function main(): Promise<void> {
     }
     if (result.missingTable) {
       driftCount += 1;
-      console.log(`▸ ${label} MISSING TABLE (apply ${TABLE_TO_MIGRATION[table]})`);
+      console.log(`▸ ${label} MISSING TABLE (apply ${spec.introducedBy})`);
       continue;
     }
     if (result.missingColumns && result.missingColumns.length > 0) {
       driftCount += 1;
-      console.log(
-        `▸ ${label} MISSING COLUMNS: ${result.missingColumns.join(", ")} (see ${TABLE_TO_MIGRATION[table]})`
-      );
+      // Per-column ownership: name the migration that ADDED each missing
+      // column, not just the table's creation migration.
+      const detail = result.missingColumns
+        .map((c) => `${c} (apply ${spec.columns[c] ?? spec.introducedBy})`)
+        .join(", ");
+      console.log(`▸ ${label} MISSING COLUMNS: ${detail}`);
     }
     if (result.unexpectedErrors && result.unexpectedErrors.length > 0) {
       unexpectedCount += 1;
@@ -316,7 +220,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log(`schema matches migrations 001–007 (${tables.length} tables OK).`);
+  console.log(
+    `schema matches all ${COVERED_MIGRATIONS.length} covered migrations (${tables.length} tables OK).`
+  );
 }
 
 main().catch((err) => {

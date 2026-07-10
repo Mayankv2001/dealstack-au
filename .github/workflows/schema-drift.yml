@@ -1,0 +1,61 @@
+# Scheduled production schema-drift watchdog.
+#
+# Runs the read-only probe (npm run verify:schema) against the production
+# Supabase project weekly and on manual dispatch — never on PRs or pushes, so
+# ordinary CI (ci.yml) stays secretless and safe for untrusted branches.
+#
+# Exit-code contract (scripts/verify-schema.ts):
+#   0 = all manifest tables/columns exist   → green
+#   1 = drift found                          → red: review + hand-apply the
+#       named migration, then re-run. Never auto-apply from CI.
+#   2 = watchdog blind (missing secrets, connectivity, unexpected API error)
+#       → red: investigate. Do not add continue-on-error; a blind watchdog
+#       must not look green.
+#
+# NODE VERSION: deliberately 22, NOT .nvmrc (20). @supabase/supabase-js
+# createClient() throws on Node 20 ("Node.js 20 detected without native
+# WebSocket support") before any probe runs — reproduced 2026-07-10 — and the
+# crash exits 1, which would misreport a broken runner as schema drift.
+#
+# Human setup (once, outside Git): repository Actions secrets
+#   NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
+# The service-role key is required because staging/admin tables have no anon
+# SELECT policy — an anon probe would misreport RLS denials as drift. Secrets
+# are scoped to the probe step only, so npm ci and package lifecycle scripts
+# can never read them.
+
+name: Schema drift
+
+on:
+  schedule:
+    - cron: "0 21 * * 1" # Mondays 21:00 UTC ≈ Tuesday 07:00–08:00 AEST/AEDT
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schema-drift-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    # Manual dispatch can target any branch; production secrets must only ever
+    # run code from main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Probe production schema (read-only)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run verify:schema
