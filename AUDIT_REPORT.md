@@ -70,7 +70,7 @@
 
 - Admin mutations and audit rows are separate writes; a true all-or-nothing audit guarantee requires transactional RPCs.
 - Admin rate limiting is count-then-insert and fail-open; atomic enforcement needs a database function/migration.
-- `PLAN-schema-drift-watchdog.md` remains unimplemented and locally modified outside this audit.
+- The schema-drift watchdog is now shipped (`483bd86`); its GitHub Actions secrets and first manual dispatch remain operator setup.
 - Production still needs schema verification, real card/offer review, expired-row cleanup, external health alert setup, and the detection go-live decision.
 
 ## Changed Files
@@ -81,4 +81,4 @@
 - Public data/UI: `app/search/page.tsx`, `app/stores/[slug]/page.tsx`, `components/CardOfferCard.tsx`, `DealStackCalculator.tsx`, `DealsClient.tsx`, `HomeClient.tsx`, `HotBuys.tsx`, `SignalDealCard.tsx`, `SmartStackResultCard.tsx`, `SourceResultCard.tsx`, `StackRecommendationCard.tsx`, `StoreLogo.tsx`, `TopDealsSection.tsx`, `WeeklyDealCard.tsx`.
 - Scripts: `scripts/seed-filters.ts`, `scripts/seed.ts`, `scripts/smoke-routes.ts`.
 - Tests: `tests/admin/seedFilters.test.ts`, `tests/admin/urlPolicy.test.ts`, `tests/monitor/fetchFeed.test.ts`, `health.test.ts`, `healthRoute.test.ts`, `runMonitor.test.ts`, `topDeals.test.ts`, `tests/stack/sourceResultsTrust.test.ts`, `storeTrust.test.ts`, `weeklyPicks.test.ts`.
-- Plans/state/runbooks: `.env.example`, `FINAL-LAUNCH-CHECKLIST.md`, `PROJECT_STATE.md`, `PLAN-live-data-trust.md`, `PLAN-monitor-health-endpoint.md`, `PLAN-seed-signals-conflict.md`, `PLAN-top-deals-approved-signal-boundary.md`, `PLAN-url-trust-boundaries.md`, `docs/ozbargain-monitoring.md`, `docs/production-readiness.md`.
+- Plans/state/runbooks at audit time: `.env.example`, `FINAL-LAUNCH-CHECKLIST.md`, `PROJECT_STATE.md`, and the monitoring/production-readiness docs. Completed root plan files were removed after the audit; git history retains them.

@@ -45,11 +45,9 @@ scripts/                 Seed / fixture / cleanup scripts
 tests/  monitor/ stack/ admin/ fixtures/      Vitest suites
 supabase/                Migrations + seed SQL
 docs/                    Architecture & monitoring docs
-PLAN-*.md                35 files. The current ranked backlog is Top Deals
-                          approval boundary (implemented in this working tree),
-                          live-data trust, URL trust boundaries, monitor health,
-                          and schema-drift watchdog. Older plans are historical
-                          reference unless revalidated against git and code.
+PLAN-cards-go-live.md    The only retained root plan; code steps shipped, but
+                          issuer-by-issuer production verification remains open.
+docs/launch-management/ Current launch backlog, tasks, prompts and decisions.
 vercel.json              Cron: one/day at 02:00 (Hobby limit)
 ```
 
@@ -93,7 +91,9 @@ None — second backlog and audit complete, schema-drift watchdog shipped. Next 
 2. **Clear the two expired-published gift cards.** `gc-tcn-jbhifi` (expired 2026-07-02) and `gc-woolworths-wish` (expires 2026-07-10, so expired from the 11th) — click Unpublish on `/admin/cleanup` (or run `npm run cleanup:old-deals -- --write`). Harmless, one-click, audited.
 3. **Replace the 5 illustrative card-offer rows with verified real data — now blocking, not just cosmetic.** Since the readiness gate shipped (§4), these rows are hidden from `/cards` entirely, not just labelled "Illustrative." For each offer: confirm the bonus/fee/eligibility against the issuer's own HTTPS page, set a real `expiry_date`, flip `confidence` to `confirmed`, remove any placeholder wording, then republish from `/admin/card-offers` — the form will now reject the save with a specific reason if any requirement is still unmet. Genuinely needs a human to read the issuer's terms page.
 
-> If a new `PLAN-*.md` backlog appears in the repo root before you start, prefer it over this list (this file may lag by one commit — check `ls PLAN-*.md` and `head -3` on each for a STATUS banner first). Given that two independent backlogs already collided once this same day, treat any *third* set of untracked PLAN files as a strong signal to slow down and reconcile with the user before executing anything.
+> New implementation work belongs in `docs/launch-management/`; root-level
+> shipped plans were removed on 2026-07-10. The retained card plan is an
+> operator verification checklist, not a request to rerun its shipped code.
 
 ## 7. Important Decisions
 
@@ -188,8 +188,8 @@ daa2653  Add next 5-plan backlog (ranked): placeholder guard, schema verify, smo
 **Before starting any work:**
 1. `git pull --rebase` on `main` — the other account may have pushed. Working tree should be clean.
 2. `nvm use 20` (Node 22 only for `npm run seed`).
-3. **The current working tree contains the completed, uncommitted `PLAN-top-deals-approved-signal-boundary.md` implementation.** Review/commit it before starting `PLAN-live-data-trust.md`. See §6 for the ranked sequence and separate human-only ops steps.
-4. Cross-check any PLAN against `git log --oneline` and its top STATUS/rank lines. STATUS banners and §6 override stale rankings in older plan files; do not redo shipped work.
+3. Use `docs/launch-management/LAUNCH-BACKLOG.md` as the task source of truth.
+   `PLAN-cards-go-live.md` remains only for its unfinished human verification.
 
 **While working:**
 - Keep changes small and reviewable; one PLAN/phase at a time. The `/phase` skill runs a controlled phase end-to-end (scope → implement → lint/build/test → commit → push → stop).
