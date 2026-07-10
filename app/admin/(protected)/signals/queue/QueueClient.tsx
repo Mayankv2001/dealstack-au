@@ -26,12 +26,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ActionButton } from "@/components/admin/ActionButton";
-import { stores } from "@/lib/data";
 import type { FeedQueueItem } from "@/lib/admin/repos/feedQueue";
-import { findMerchantIdInText } from "@/lib/sources/normalise";
-// Pure (no DB/network) category keyword list, shared with the homepage Top 5
-// ranking so the queue's relevance hint prefers the same priority categories.
-import { CATEGORY_PRIORITY_KEYWORDS } from "@/lib/repos/topDealsRanking";
+import { assessFeedItem, type Relevance } from "@/lib/admin/queueRelevance";
 import { cn } from "@/lib/utils";
 import {
   hideFromTopDeals,
@@ -77,42 +73,6 @@ function safeHost(url: string): string | null {
 
 // ── Review-assist heuristics (display only — never auto-import or reject) ──────
 
-const STORE_NAME_BY_ID = new Map(stores.map((s) => [s.id, s.name]));
-
-/** High-value cues: our core deal types + the points programmes we track. */
-const HIGH_RELEVANCE_KEYWORDS = [
-  "gift card",
-  "giftcard",
-  "cashback",
-  "cash back",
-  "points",
-  "qantas",
-  "velocity",
-  "flybuys",
-  "everyday rewards",
-  "frequent flyer",
-];
-
-/** Generic retail/deal cues: relevant category, but not a tracked store/type. */
-const MEDIUM_RELEVANCE_KEYWORDS = [
-  "discount",
-  "deal",
-  "sale",
-  "clearance",
-  "coupon",
-  "promo",
-  "voucher",
-  "bonus",
-  "% off",
-  "percent off",
-  "bundle",
-  "catalogue",
-  "price drop",
-  "rrp",
-];
-
-type Relevance = "high" | "medium" | "low";
-
 const RELEVANCE_META: Record<
   Relevance,
   { label: string; className: string }
@@ -132,46 +92,6 @@ const RELEVANCE_META: Record<
     className: "border-muted-foreground/30 text-muted-foreground",
   },
 };
-
-/**
- * A heuristic, read-only review hint for one staged item:
- *   - suggestedMerchant: the tracked store auto-detected in the TITLE (mirrors
- *     what the import action would set), via the existing normalise helper;
- *   - relevance: High when a tracked store is mentioned anywhere or a core
- *     keyword (gift card / cashback / points / Qantas / Velocity …) is present;
- *     Medium for generic retail/deal cues; Low otherwise.
- * It NEVER imports, rejects, or changes any state — it only helps the admin
- * decide faster.
- */
-function assessItem(item: FeedQueueItem): {
-  suggestedMerchant: string | null;
-  relevance: Relevance;
-} {
-  const haystack =
-    `${item.rawTitle} ${item.rawSummary} ${item.categories.join(" ")}`.toLowerCase();
-  // Title-only match mirrors the import action's auto-suggested merchant.
-  const titleMerchantId = findMerchantIdInText(item.rawTitle);
-  const suggestedMerchant = titleMerchantId
-    ? STORE_NAME_BY_ID.get(titleMerchantId) ?? null
-    : null;
-  // Relevance considers the whole item (a tracked store mentioned anywhere counts).
-  const mentionsTrackedStore = findMerchantIdInText(haystack) != null;
-
-  let relevance: Relevance;
-  if (
-    mentionsTrackedStore ||
-    HIGH_RELEVANCE_KEYWORDS.some((k) => haystack.includes(k)) ||
-    // High-priority deal categories (tech, fashion, beauty, automotive, home …)
-    CATEGORY_PRIORITY_KEYWORDS.some((k) => haystack.includes(k))
-  ) {
-    relevance = "high";
-  } else if (MEDIUM_RELEVANCE_KEYWORDS.some((k) => haystack.includes(k))) {
-    relevance = "medium";
-  } else {
-    relevance = "low";
-  }
-  return { suggestedMerchant, relevance };
-}
 
 /** Quick keyword presets for the merchants / deal types we care about. */
 const PRESETS = [
@@ -228,6 +148,9 @@ const controlClass =
 
 /** How many items to render per "page" before "Show more". */
 const PAGE_SIZE = 20;
+
+/** Mirrors BULK_IGNORE_MAX in actions.ts (a "use server" module — not importable here). */
+const SELECT_ALL_CAP = 200;
 
 /**
  * Per-item action row. Each action returns an AdminActionResult, so a returned
@@ -300,6 +223,8 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [presets, setPresets] = useState<string[]>([]);
+  const [relevance, setRelevance] = useState<Relevance | "">("");
+  const [oldestFirst, setOldestFirst] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -316,11 +241,28 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
     return [...seen.entries()].map(([id, label]) => ({ id, label }));
   }, [items]);
 
+  // Assess once per data load (not per keystroke) — assessFeedItem runs dozens
+  // of includes() scans per item, and `filtered` re-runs on every filter change.
+  const relevanceById = useMemo(
+    () => new Map(items.map((i) => [i.id, assessFeedItem(i)])),
+    [items]
+  );
+
+  // Counts over the loaded items (NOT `filtered`) — stable context so the
+  // chips stay usable as navigation instead of collapsing to 0 once clicked.
+  const relevanceCounts = useMemo(() => {
+    const counts: Record<Relevance, number> = { high: 0, medium: 0, low: 0 };
+    for (const item of items) {
+      counts[relevanceById.get(item.id)!.relevance]++;
+    }
+    return counts;
+  }, [items, relevanceById]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const cat = category.trim().toLowerCase();
     const activePresets = presets.map((p) => p.toLowerCase());
-    return items.filter((item) => {
+    const matches = items.filter((item) => {
       if (source && item.feedSourceId !== source) return false;
       if (q && !`${item.rawTitle} ${item.rawSummary}`.toLowerCase().includes(q)) {
         return false;
@@ -336,20 +278,31 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
           `${item.rawTitle} ${item.rawSummary} ${item.categories.join(" ")}`.toLowerCase();
         if (!activePresets.some((p) => haystack.includes(p))) return false;
       }
+      if (relevance && relevanceById.get(item.id)?.relevance !== relevance) {
+        return false;
+      }
       return true;
     });
-  }, [items, source, query, category, presets]);
+    // Sort a copy — .sort() mutates, and sorting in place would break React's
+    // referential-equality assumptions about `items`/the filtered result.
+    return [...matches].sort((a, b) =>
+      oldestFirst
+        ? a.fetchedAt.localeCompare(b.fetchedAt)
+        : b.fetchedAt.localeCompare(a.fetchedAt)
+    );
+  }, [items, source, query, category, presets, relevance, relevanceById, oldestFirst]);
 
   const anyFilterActive =
     source !== "" ||
     query.trim() !== "" ||
     category.trim() !== "" ||
-    presets.length > 0;
+    presets.length > 0 ||
+    relevance !== "";
 
   // Reset pagination AND selection whenever the active filter set changes, using
   // React's render-phase reset pattern (a setState in an effect is discouraged).
   // Resetting selection keeps "Ignore selected" scoped to the current view.
-  const filterKey = `${source} ${query} ${category} ${presets.join(" ")}`;
+  const filterKey = `${source} ${query} ${category} ${presets.join(" ")} ${relevance} ${oldestFirst}`;
   const [lastFilterKey, setLastFilterKey] = useState(filterKey);
   if (filterKey !== lastFilterKey) {
     setLastFilterKey(filterKey);
@@ -375,6 +328,11 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
     setQuery("");
     setCategory("");
     setPresets([]);
+    setRelevance("");
+  }
+
+  function toggleRelevance(level: Relevance) {
+    setRelevance((prev) => (prev === level ? "" : level));
   }
 
   function toggleSelect(id: string) {
@@ -393,6 +351,16 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
       for (const item of paged) next.add(item.id);
       return next;
     });
+  }
+
+  /**
+   * Add every filtered item (not just the current page) to the selection, up
+   * to SELECT_ALL_CAP. Mirrors BULK_IGNORE_MAX in actions.ts — capping here
+   * matches what the server would silently slice to, so the count shown and
+   * the count applied never diverge.
+   */
+  function selectAllFiltered() {
+    setSelected(new Set(filtered.slice(0, SELECT_ALL_CAP).map((i) => i.id)));
   }
 
   function clearSelection() {
@@ -460,6 +428,15 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
               </option>
             ))}
           </select>
+          <select
+            value={oldestFirst ? "oldest" : "newest"}
+            onChange={(e) => setOldestFirst(e.target.value === "oldest")}
+            aria-label="Sort order"
+            className={controlClass}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
           <span className="text-xs text-muted-foreground sm:ml-auto">
             Showing{" "}
             <span className="font-medium text-foreground tabular-nums">
@@ -505,6 +482,32 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
           ) : null}
         </div>
 
+        {/* Relevance chips — the triage axis: filter the loaded queue by the
+            existing heuristic hint, with live counts over ALL loaded items. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(["high", "medium", "low"] as const).map((level) => {
+            const on = relevance === level;
+            const meta = RELEVANCE_META[level];
+            const label = level[0].toUpperCase() + level.slice(1);
+            return (
+              <button
+                key={level}
+                type="button"
+                onClick={() => toggleRelevance(level)}
+                aria-pressed={on}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  on
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : cn("border-border bg-background", meta.className)
+                )}
+              >
+                {label} ({relevanceCounts[level]})
+              </button>
+            );
+          })}
+        </div>
+
         {/* Selection-based bulk ignore — acts only on explicitly ticked items. */}
         {filtered.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2.5">
@@ -525,6 +528,13 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                 className="font-medium text-foreground underline-offset-2 hover:underline"
               >
                 Select all shown ({paged.length})
+              </button>
+              <button
+                type="button"
+                onClick={selectAllFiltered}
+                className="font-medium text-foreground underline-offset-2 hover:underline"
+              >
+                Select all filtered ({Math.min(filtered.length, SELECT_ALL_CAP)})
               </button>
               {selectedCount > 0 ? (
                 <button
@@ -553,6 +563,12 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                 {bulkError}
               </p>
             ) : null}
+            {filtered.length > SELECT_ALL_CAP ? (
+              <p className="basis-full text-xs text-muted-foreground">
+                Bulk actions are capped at {SELECT_ALL_CAP} items per pass —
+                ignore this batch, then refresh to load more.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -572,8 +588,9 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
         <div className="space-y-4">
           {paged.map((item) => {
             const host = safeHost(item.link);
-            const { suggestedMerchant, relevance } = assessItem(item);
-            const rel = RELEVANCE_META[relevance];
+            const { suggestedMerchant, relevance: itemRelevance } =
+              relevanceById.get(item.id)!;
+            const rel = RELEVANCE_META[itemRelevance];
             const isSelected = selected.has(item.id);
             return (
               <Card
