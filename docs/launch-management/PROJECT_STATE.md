@@ -3,9 +3,10 @@
 > **2026-07-11 pipeline completion update:** the automated pipeline expansion is
 > implemented in the current change set: lifecycle retention, card detection
 > assistance, unified `/admin/review`, hardened health checks and system audit
-> coverage. Migrations 018 and 019 must be applied before deployment, followed by
-> the first authenticated run and two-run observation window. The exact rollout
-> order is in `docs/automated-deal-pipeline-status.md`.
+> coverage. Migrations 018 and 019 were applied and schema-verified in production
+> on 2026-07-11. Remaining work is deployment, the first authenticated run, and a
+> two-run observation window. The exact rollout order is in
+> `docs/automated-deal-pipeline-status.md`.
 
 > Single source of truth for DealStack AU. Maintained so a second Claude account can continue the work safely without losing context.
 >

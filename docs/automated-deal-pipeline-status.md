@@ -19,19 +19,27 @@ at `00:00 UTC`; optional external invocations use the same route and lock.
 | Health and alerting | The secret-gated health route checks stale/stuck/failed pipelines, per-feed parser failures, auto-disabled feeds, per-feed count anomalies and duplicate starts. Failed health and partial/error runs use the optional alert webhook. |
 | Audit | Fetch logs and the run ledger cover fetches; migration 019 transactionally audits cleanup, retention and candidate staging; admin mutations retain the request-actor trigger and explicit action audit. |
 
-## Rollout boundary
+## Rollout status
 
-Application code in this change must not deploy before migrations 018 and 019
-are applied. After applying them:
+Migrations 018 and 019 were applied to production and `npm run verify:schema`
+passed on 2026-07-11. The cleanup, purge and pipeline-cleanup RPCs and the
+detection audit trigger were also directly verified.
 
-1. Run `npm run verify:schema` with the production Supabase environment.
-2. Deploy with `CARD_DETECT_ENABLED=false`; keep the registered card feed disabled.
-3. Invoke the cron route once with its bearer secret and verify one completed
+Remaining rollout steps:
+
+1. Deploy commit `c88d2c0` or later with `CARD_DETECT_ENABLED=false`; keep the
+   registered card feed disabled.
+2. Invoke the cron route once with its bearer secret and verify one completed
    `daily_pipeline_runs` row plus `/admin/monitor` counters.
-4. Observe two successful daily runs before enabling additional feed sources.
-5. Review detection previews on at least two days before enabling
+3. Observe two successful daily runs before enabling additional feed sources.
+4. Review detection previews on at least two days before enabling
    `OZB_OFFER_DETECT_ENABLED`; enable `CARD_DETECT_ENABLED` separately only after
    card precision is acceptable.
+
+The remote migration-history ledger predates this repository's sequential
+filenames, so `supabase db push` remains intentionally blocked by historical
+drift. Do not run the CLI's suggested history repair blindly; reconcile that
+ledger as a separate, reviewed maintenance task.
 
 Rollback is code-first: disable detection/feed switches or promote the prior
 deployment. Migrations are additive and should remain applied; do not run a
