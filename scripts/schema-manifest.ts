@@ -41,6 +41,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "010_atomic_admin_rate_limit.sql",
   "011_transactional_admin_audit.sql",
   "012_card_offer_correction_reports.sql",
+  // Grants-only (revokes EXECUTE on the 009/011 trigger functions) — no
+  // schema shape change, so no EXPECTED_SCHEMA entry, same as 008.
+  "013_revoke_trigger_function_execute.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
