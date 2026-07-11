@@ -1,6 +1,7 @@
 import { findMerchantIdInText, normaliseText } from "@/lib/sources/normalise";
 import type { OzBargainSignal, StackRecommendation } from "@/lib/offers/types";
 import { isValidProductGroup } from "@/lib/offers/productGroup";
+import { parsePriceText } from "@/lib/offers/productPrice";
 import {
   DEFAULT_SPEND,
   buildStackRecommendations,
@@ -54,19 +55,7 @@ export interface SmartStackStandalone {
 
 export type SmartStackViewItem = SmartStackComparison | SmartStackStandalone;
 
-/**
- * Pull the first AUD amount out of a price string.
- *   "$1,799 (was $2,199)"  → 1799
- *   "$795 member price"    → 795
- *   "½ price selected"     → null
- */
-export function parsePriceText(text: string | null | undefined): number | null {
-  if (!text) return null;
-  const match = text.replace(/,/g, "").match(/\$\s*([0-9]+(?:\.[0-9]{1,2})?)/);
-  if (!match) return null;
-  const value = Number(match[1]);
-  return Number.isFinite(value) && value > 0 ? value : null;
-}
+export { parsePriceText };
 
 /** Query matches when every term appears in the signal's text/tags/merchant. */
 function signalMatchesQuery(signal: OzBargainSignal, query: string): boolean {
@@ -78,6 +67,7 @@ function signalMatchesQuery(signal: OzBargainSignal, query: string): boolean {
       signal.summary,
       (signal.tags ?? []).join(" "),
       signal.merchantId ?? "",
+      signal.productGroup ?? "",
     ].join(" ")
   );
   return terms.every((term) => haystack.includes(term));

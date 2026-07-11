@@ -361,7 +361,7 @@ export function SignalForm({
           <Field
             label="Product group"
             htmlFor="product_group"
-            hint="Optional exact key shared only by the same product at other retailers, e.g. airpods-pro-3. Lowercase letters, numbers and hyphens only."
+            hint="Optional exact key shared only by the same product at other retailers, e.g. airpods-pro-3. Requires a store, exact product URL and AUD price."
           >
             <Input
               id="product_group"

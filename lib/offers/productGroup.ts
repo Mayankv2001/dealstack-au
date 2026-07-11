@@ -1,3 +1,5 @@
+import { parsePriceText } from "@/lib/offers/productPrice";
+
 export const PRODUCT_GROUP_MAX_LENGTH = 80;
 
 export const PRODUCT_GROUP_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -17,4 +19,26 @@ export function parseProductGroup(
   return isValidProductGroup(text)
     ? { ok: true, value: text }
     : { ok: false };
+}
+
+export function productGroupReadinessError({
+  productGroup,
+  merchantId,
+  productUrl,
+  priceText,
+}: {
+  productGroup: string | null;
+  merchantId: string | null;
+  productUrl: string | null;
+  priceText: string | null;
+}): string | null {
+  if (!productGroup) return null;
+  if (!merchantId) return "Choose a store before assigning a product group.";
+  if (!productUrl) {
+    return "Add the retailer's exact product URL before assigning a product group.";
+  }
+  if (parsePriceText(priceText) === null) {
+    return "Add a parseable AUD price (for example, $1,799) before assigning a product group.";
+  }
+  return null;
 }

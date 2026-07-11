@@ -146,6 +146,35 @@ describe("buildSmartStackResults", () => {
   it("returns nothing when no signal matches the query", () => {
     expect(buildSmartStackResults("refrigerator", DATA)).toEqual([]);
   });
+
+  it("matches the canonical product group even when retailer titles differ", () => {
+    const groupedData: StackData = {
+      ...DATA,
+      ozBargainSignals: [
+        signal({
+          id: "canonical-jb",
+          title: "Limited laptop offer at JB Hi-Fi",
+          merchantId: "jb-hifi",
+          productGroup: "macbook-air-m3",
+          priceText: "$1,799",
+        }),
+        signal({
+          id: "canonical-costco",
+          title: "Member notebook bundle at Costco",
+          merchantId: "costco",
+          productGroup: "macbook-air-m3",
+          priceText: "$1,749",
+        }),
+      ],
+    };
+
+    const results = buildSmartStackResults("macbook air m3", groupedData);
+    expect(results.map((result) => result.signal.id).sort()).toEqual([
+      "canonical-costco",
+      "canonical-jb",
+    ]);
+    expect(buildSmartStackView(results)).toHaveLength(1);
+  });
 });
 
 describe("buildSmartStackView", () => {

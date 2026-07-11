@@ -21,7 +21,10 @@ import {
   type SignalStatus,
 } from "@/lib/admin/repos/signals";
 import type { Confidence, DealKind } from "@/lib/sources/types";
-import { parseProductGroup } from "@/lib/offers/productGroup";
+import {
+  parseProductGroup,
+  productGroupReadinessError,
+} from "@/lib/offers/productGroup";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
@@ -163,6 +166,14 @@ function parseSignalForm(formData: FormData): ParseResult {
   // merchant_id is optional — blank means a non-merchant signal.
   const merchantRaw = String(formData.get("merchant_id") ?? "").trim();
   const merchantId = merchantRaw === "" ? null : merchantRaw;
+  const priceText = parseOptionalText(formData.get("price_text"));
+  const groupReadinessError = productGroupReadinessError({
+    productGroup: productGroup.value,
+    merchantId,
+    productUrl: productUrl.value,
+    priceText,
+  });
+  if (groupReadinessError) return { ok: false, error: groupReadinessError };
 
   return {
     ok: true,
@@ -181,7 +192,7 @@ function parseSignalForm(formData: FormData): ParseResult {
       expiryDate: parseOptionalText(formData.get("expiry_date")),
       tags: parseTags(formData.get("tags")),
       promoCode: parseOptionalText(formData.get("promo_code")),
-      priceText: parseOptionalText(formData.get("price_text")),
+      priceText,
       signalScore: signalScore.value,
       confidence: confidence as Confidence,
       isSample: parseBool(formData, "is_sample"),

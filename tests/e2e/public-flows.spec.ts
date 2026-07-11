@@ -34,6 +34,19 @@ test("home → store page shows the stack breakdown", async ({ page }) => {
   await expect(page.getByText("Best stack estimate").first()).toBeVisible();
 });
 
+test("search: canonical product key compares retailer prices and stacks", async ({
+  page,
+}) => {
+  await page.goto("/search?q=macbook-air-m3");
+
+  await expect(page.getByText("Compare 2 retailers")).toBeVisible();
+  await expect(page.getByText("JB Hi-Fi").first()).toBeVisible();
+  await expect(page.getByText("Costco").first()).toBeVisible();
+  await expect(page.getByText("Best price")).toBeVisible();
+  await expect(page.getByText(/^Stack:/)).toBeVisible();
+  await expect(page.getByText("$1,749.00")).toBeVisible();
+});
+
 test("deals: weekly pick links through to its permalink page", async ({
   page,
 }) => {
@@ -128,7 +141,15 @@ test("security: HTML responses carry a nonce-based report-only CSP", async ({ pa
 });
 
 test("public routes do not overflow the viewport", async ({ page }) => {
-  for (const path of ["/", "/deals", "/cards", "/stores", "/search?q=myer", "/resources"]) {
+  for (const path of [
+    "/",
+    "/deals",
+    "/cards",
+    "/stores",
+    "/search?q=myer",
+    "/search?q=macbook-air-m3",
+    "/resources",
+  ]) {
     await page.goto(path);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1

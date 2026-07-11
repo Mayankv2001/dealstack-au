@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { filterSeedableSignals } from "@/scripts/seed-filters";
+import {
+  filterProductionSignals,
+  filterSeedableSignals,
+} from "@/scripts/seed-filters";
 
 const rows = [
   { id: "same", source_native_id: "100", title: "same" },
@@ -29,5 +32,15 @@ describe("filterSeedableSignals", () => {
       { id: "owner", source_native_id: "200" },
     ]);
     expect(result.seedable.map((row) => row.id)).toEqual(["same", "manual"]);
+  });
+});
+
+describe("filterProductionSignals", () => {
+  it("excludes static samples so seeding cannot publish demo signals", () => {
+    const signals = [
+      { id: "sample", isSample: true },
+      { id: "curated", isSample: false },
+    ];
+    expect(filterProductionSignals(signals)).toEqual([signals[1]]);
   });
 });

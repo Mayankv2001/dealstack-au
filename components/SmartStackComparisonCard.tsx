@@ -20,7 +20,10 @@ function retailerName(result: SmartStackResult, stores: Store[]): string {
   );
 }
 
-function retailerLink(result: SmartStackResult): string | null {
+function retailerLink(
+  result: SmartStackResult,
+  retailer: string
+): { href: string; label: string } | null {
   if (result.signal.isSample) return null;
   const productUrl = result.signal.productUrl
     ? safeHttpsUrl(result.signal.productUrl)
@@ -28,11 +31,10 @@ function retailerLink(result: SmartStackResult): string | null {
   const merchantUrl = result.signal.merchantUrl
     ? safeHttpsUrl(result.signal.merchantUrl)
     : null;
-  return (
-    productUrl ??
-    merchantUrl ??
-    safeHttpsUrl(result.signal.sourceUrl)
-  );
+  if (productUrl) return { href: productUrl, label: `View at ${retailer}` };
+  if (merchantUrl) return { href: merchantUrl, label: `Visit ${retailer}` };
+  const sourceUrl = safeHttpsUrl(result.signal.sourceUrl);
+  return sourceUrl ? { href: sourceUrl, label: "View deal source" } : null;
 }
 
 export function SmartStackComparisonCard({
@@ -66,7 +68,8 @@ export function SmartStackComparisonCard({
             const effectivePrice = comparablePrice(result);
             const merchantId = recommendation?.merchantId ?? signal.merchantId;
             const store = stores.find((item) => item.id === merchantId);
-            const href = retailerLink(result);
+            const name = retailerName(result, stores);
+            const link = retailerLink(result, name);
             const included = recommendation?.components.filter(
               (component) => !component.optional
             );
@@ -83,11 +86,11 @@ export function SmartStackComparisonCard({
                   <div className="flex items-center gap-2">
                     <StoreLogo
                       store={store}
-                      text={retailerName(result, stores).slice(0, 2).toUpperCase()}
+                      text={name.slice(0, 2).toUpperCase()}
                       size="xs"
                     />
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold">
-                      {retailerName(result, stores)}
+                      {name}
                     </p>
                     {index === 0 && effectivePrice !== null ? (
                       <Badge className="shrink-0 text-[10px]">Best price</Badge>
@@ -141,10 +144,10 @@ export function SmartStackComparisonCard({
                       </p>
                     ) : null}
                   </div>
-                  {href ? (
+                  {link ? (
                     <Button asChild size="sm" variant="outline">
-                      <a href={href} target="_blank" rel="noopener noreferrer nofollow">
-                        Visit retailer <ExternalLink className="size-3" />
+                      <a href={link.href} target="_blank" rel="noopener noreferrer nofollow">
+                        {link.label} <ExternalLink className="size-3" />
                       </a>
                     </Button>
                   ) : (

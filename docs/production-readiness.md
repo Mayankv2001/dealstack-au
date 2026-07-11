@@ -37,7 +37,23 @@ supabase db push
 
 **Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss). The expected tables/columns live in `scripts/schema-manifest.ts` with per-column migration ownership; `tests/admin/schemaManifest.test.ts` fails `npm run test:admin` if a committed migration is missing from that manifest, so the probe cannot silently under-cover new migrations. Local runs need **Node 22** (`nvm use 22`) — on Node 20, `@supabase/supabase-js` aborts before probing ("no native WebSocket support").
 
-### 1a. Scheduled schema-drift watchdog
+### 1a. Create a multi-retailer product comparison
+
+Product grouping is deliberately editorial, never inferred from feed titles. In
+`/admin/signals`, edit each signal for the exact same model and set all four:
+
+1. The known store.
+2. A parseable AUD **Price text**, such as `$1,799`.
+3. The retailer's exact HTTPS **Product URL**.
+4. The identical lowercase kebab-case **Product group**, such as `macbook-air-m3`.
+
+At least two approved, live signals with that key and different stores are
+required. `/search` then renders one comparison, keeps the best signal per
+retailer, sorts by effective post-stack price, and places unknown legacy prices
+last. Never reuse a key across model, storage, size, generation, or bundle
+variants. Leaving the key blank preserves the existing standalone signal card.
+
+### 1b. Scheduled schema-drift watchdog
 
 `.github/workflows/schema-drift.yml` runs the same probe against production every Monday 21:00 UTC and on manual dispatch, from `main` only. It is deliberately separate from `ci.yml`, which must stay secretless for untrusted PR branches.
 

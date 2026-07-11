@@ -110,5 +110,8 @@ describe("SmartStackComparisonCard", () => {
     expect(html).toContain("Ask in store");
     expect(html).not.toContain("$450.00");
     expect(html).toContain('href="https://retailer.example/item"');
+    expect(html).toContain("View at Retailer A");
+    expect(html).toContain('href="https://source.example/other"');
+    expect(html).toContain("View deal source");
   });
 });

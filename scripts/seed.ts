@@ -39,7 +39,11 @@ import {
   weeklyDeals,
 } from "../lib/offers/manualOffers";
 import { supabaseServiceRoleKey, supabaseUrl } from "../lib/env";
-import { filterSeedableSignals, type SignalSeedRow } from "./seed-filters";
+import {
+  filterProductionSignals,
+  filterSeedableSignals,
+  type SignalSeedRow,
+} from "./seed-filters";
 
 // Load .env.local for standalone runs (Next loads it for the app, scripts don't).
 type WithLoadEnv = { loadEnvFile?: (path?: string) => void };
@@ -208,7 +212,9 @@ const pointsRows: Row[] = pointsOffers.map((o) => ({
   is_published: true,
 }));
 
-const signalRows: (Row & SignalSeedRow)[] = ozBargainSignals.map((o) => ({
+const signalRows: (Row & SignalSeedRow)[] = filterProductionSignals(
+  ozBargainSignals
+).map((o) => ({
   id: o.id,
   source_native_id: o.sourceNativeId ?? null,
   merchant_id: o.merchantId ?? null,

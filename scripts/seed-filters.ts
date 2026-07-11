@@ -8,6 +8,13 @@ export interface ExistingSignalKey {
   source_native_id: string | null;
 }
 
+/** Static demo signals must never become approved production rows via seed. */
+export function filterProductionSignals<T extends { isSample: boolean }>(
+  signals: T[]
+): T[] {
+  return signals.filter((signal) => !signal.isSample);
+}
+
 export function filterSeedableSignals<T extends SignalSeedRow>(
   rows: T[],
   existing: ExistingSignalKey[]
