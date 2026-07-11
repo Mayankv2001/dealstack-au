@@ -72,6 +72,43 @@ describe("detectOffersFromItem — points", () => {
   });
 });
 
+describe("detectOffersFromItem — card offers", () => {
+  it("detects a known issuer, explicit credit-card context and bonus points", () => {
+    const [d] = detectOffersFromItem(
+      item({
+        rawTitle: "ANZ Rewards Black Credit Card - 180k bonus points, $375 annual fee",
+      })
+    );
+
+    expect(d).toMatchObject({
+      sourceType: "card_offer",
+      sourceName: "ANZ",
+      merchantId: null,
+      proposedValue: "180000pts",
+      payload: { provider: "ANZ", bonusPoints: 180000, annualFee: 375 },
+    });
+  });
+
+  it("accepts an approved Credit Cards feed category with a card title", () => {
+    const [d] = detectOffersFromItem(
+      item({
+        rawTitle: "Westpac Altitude Platinum Card - 90k points",
+        categories: ["Credit Cards"],
+      })
+    );
+    expect(d?.sourceType).toBe("card_offer");
+  });
+
+  it.each([
+    "ANZ debit card with 100k rewards points",
+    "Get a $100 gift card and 100k points from ANZ",
+    "180k points with a credit card",
+    "ANZ credit card promotion",
+  ])("rejects an ambiguous or incomplete card-like post: %s", (rawTitle) => {
+    expect(detectOffersFromItem(item({ rawTitle }))).toEqual([]);
+  });
+});
+
 describe("detectOffersFromItem — hard skips & non-detections", () => {
   it("never detects a Cashrewards mention (hard skip)", () => {
     expect(
@@ -122,6 +159,7 @@ const NO_TARGETS = {
   resolveCashbackTarget: async () => null,
   resolveGiftCardTarget: async () => null,
   resolvePointsTarget: async () => null,
+  resolveCardOfferTarget: async () => null,
 };
 
 function fakePersistence(
@@ -193,6 +231,57 @@ describe("runDetection — dedupe and dry-run", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it("drops card candidates unless their independent flag is enabled", async () => {
+    const card = item({ rawTitle: "NAB Rewards Credit Card - 100k points" });
+    const { deps, insert } = fakePersistence({ items: [card] });
+
+    const disabled = await runDetection(deps, {
+      sinceIso: SINCE,
+      dryRun: false,
+    });
+    expect(disabled.detected).toBe(0);
+    expect(insert.mock.calls[0][0]).toEqual([]);
+
+    insert.mockClear();
+    const enabled = await runDetection(deps, {
+      sinceIso: SINCE,
+      dryRun: false,
+      enableCardOffers: true,
+    });
+    expect(enabled.detected).toBe(1);
+    expect(insert.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  it("resolves a card target by canonical provider and detected title", async () => {
+    const card = item({
+      rawTitle: "Amex Qantas Ultimate Credit Card - 120k Qantas Points",
+    });
+    const resolveCardOfferTarget = vi.fn(async () => ({
+      id: "card-amex-qantas-bonus",
+      currentValue: "100000pts",
+    }));
+    const { deps, insert } = fakePersistence({
+      items: [card],
+      resolveCardOfferTarget,
+    });
+
+    await runDetection(deps, {
+      sinceIso: SINCE,
+      dryRun: false,
+      enableCardOffers: true,
+    });
+
+    expect(resolveCardOfferTarget).toHaveBeenCalledWith(
+      "American Express",
+      card.rawTitle
+    );
+    expect(insert.mock.calls[0][0][0]).toMatchObject({
+      source_type: "card_offer",
+      target_id: "card-amex-qantas-bonus",
+      previous_value: "100000pts",
+    });
+  });
+
   it("fills targetId + previousValue from a resolved target", async () => {
     const one = item({ rawTitle: "15% Cashback at Myer via ShopBack" });
     const resolved: ResolvedTarget = { id: "cb-myer-shopback", currentValue: "8%" };
@@ -203,6 +292,7 @@ describe("runDetection — dedupe and dry-run", () => {
       resolveCashbackTarget: async () => resolved,
       resolveGiftCardTarget: async () => null,
       resolvePointsTarget: async () => null,
+      resolveCardOfferTarget: async () => null,
       insertCandidates: insert,
     };
     await runDetection(deps, { sinceIso: SINCE, dryRun: false });

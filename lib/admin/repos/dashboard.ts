@@ -387,6 +387,7 @@ export type DataQualityIssueCode =
   | "missing-source"
   | "stale"
   | "review-overdue"
+  | "review-due-soon"
   | "missing-expiry"
   | "stale-week-of"
   | "placeholder-copy"
@@ -421,6 +422,7 @@ export interface DataQualityCounts {
   missingExpiry: number;
   staleChecked: number;
   reviewOverdue: number;
+  reviewDueSoon: number;
   staleWeekOf: number;
   placeholderCopy: number;
   unsafeUrl: number;
@@ -547,6 +549,8 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
   const db = getSupabaseAdmin();
   const now = new Date();
   const todayStr = DQ_DAY_FMT.format(now);
+  const reviewSoonDate = new Date(now.getTime() + 7 * 86_400_000);
+  const reviewSoonStr = DQ_DAY_FMT.format(reviewSoonDate);
   const staleBeforeMs = now.getTime() - STALE_DAYS * 86_400_000;
 
   const [
@@ -622,6 +626,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     missingExpiry: 0,
     staleChecked: 0,
     reviewOverdue: 0,
+    reviewDueSoon: 0,
     staleWeekOf: 0,
     placeholderCopy: 0,
     unsafeUrl: 0,
@@ -714,6 +719,16 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         label: `Review deadline ${opts.reviewByDate} has passed`,
       });
       severity = "high";
+    } else if (
+      opts.reviewByDate != null &&
+      opts.reviewByDate <= reviewSoonStr
+    ) {
+      counts.reviewDueSoon += 1;
+      issues.push({
+        code: "review-due-soon",
+        label: `Review deadline ${opts.reviewByDate} is within 7 days`,
+      });
+      if (severity == null) severity = "medium";
     }
     if (staleForType) staleByType[opts.type] += 1;
     if (opts.checkMissingExpiry && opts.expiryDate == null) {

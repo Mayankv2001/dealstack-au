@@ -67,7 +67,7 @@ raw OzBargain community posts in the current `feed_items` table.*
 |---|---|
 | **Existing table** | Fully covered today: `ozbargain_signals` (one-off grocery deal signals) plus the existing `cashback_offers`/`gift_card_offers`/`points_offers` per-merchant rows for Coles/Woolworths (already tracked stores). |
 | **New table needed?** | **No.** |
-| **Admin workflow** | Existing signals queue (`/admin/signals/queue`) + existing offer CRUD. |
+| **Admin workflow** | Unified review queue (`/admin/review?tab=deals`) + existing offer CRUD. |
 | **Public UI** | Already live: `/deals`, `/search`, `/stores/coles`, `/stores/woolworths`. |
 | **Risk level** | **Low** — already flows through the approved OzBargain RSS feed. |
 | **Safest ingestion** | No change needed. Phase 3 (classifier) and Phase 4 (ranking) add grocery-specific keyword signal so relevant items surface/rank better; no new source. |
@@ -79,11 +79,11 @@ raw OzBargain community posts in the current `feed_items` table.*
 |---|---|
 | **Existing table** | `gift_card_offers` — fully supports this today (brand, `discount_percent`, channel, accepted-at merchants, points-on-purchase, cap, dates, usage/stack notes). |
 | **New table needed?** | **No.** |
-| **Admin workflow** | Existing CRUD (`/admin/gift-cards`). A rate-change **detection** path already exists in schema (`offer_change_candidates` → `gift_card_offers.discount_percent`, wired in `lib/monitor/offerChanges.ts`) but nothing currently populates it — it's schema-only groundwork, not a live detector. |
+| **Admin workflow** | Existing CRUD (`/admin/gift-cards`) plus reviewed change candidates in `/admin/review?tab=changes`. The detector scans already-staged feed items only and never auto-applies. |
 | **Public UI** | Already live: `/deals` gift-card section, stack calculator, store pages. |
 | **Risk level** | **Low** (manual entry, current state). |
-| **Safest ingestion** | Manual entry (current state). The dormant `offer_change_candidates` detector, if ever built, must only stage proposed changes for admin **Apply** — never auto-apply. |
-| **Manual-only for now?** | **Yes.** |
+| **Safest ingestion** | Manual entry plus flag-gated RSS detection assistance. Candidates remain private until an admin explicitly applies or dismisses them. |
+| **Manual-only for now?** | Publication remains manual; discovery assistance is automated only when the detection flag is enabled. |
 
 ## 5. Automotive deals
 

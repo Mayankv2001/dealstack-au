@@ -51,9 +51,14 @@ export async function touchLastCheckedAt(
 ): Promise<void> {
   const table = RECHECKABLE_TABLES[type];
   const db = getSupabaseAdmin();
+  const checkedAt = new Date().toISOString();
+  const update =
+    type === "signals"
+      ? { last_checked_at: checkedAt, last_validated_at: checkedAt }
+      : { last_checked_at: checkedAt };
   const { data, error } = await db
     .from(table)
-    .update({ last_checked_at: new Date().toISOString() })
+    .update(update as never)
     .eq("id", id)
     .select("id");
   if (error) throw new Error(`touchLastCheckedAt ${table} failed: ${error.message}`);

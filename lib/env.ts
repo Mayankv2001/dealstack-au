@@ -123,3 +123,17 @@ export const ozbMonitorMinIntervalHours = (): number =>
  */
 export const ozbOfferDetectEnabled = (): boolean =>
   process.env.OZB_OFFER_DETECT_ENABLED === "true";
+
+/**
+ * Card-offer DETECTION switch — INDEPENDENT of, and additional to,
+ * OZB_OFFER_DETECT_ENABLED. Gates only the card_offer-typed detections within
+ * that same step (lib/monitor/detectOffers.ts's detectCardOffer); the
+ * existing cashback/gift_card/points detectors run exactly as before either
+ * way. Defaults to FALSE — true only when the value is exactly "true".
+ */
+export const cardDetectEnabled = (): boolean =>
+  process.env.CARD_DETECT_ENABLED === "true";
+
+/** Maximum age of a successful live-signal validation before archival. */
+export const signalValidationDays = (): number =>
+  optionalPositiveInt("SIGNAL_VALIDATION_DAYS", 45);

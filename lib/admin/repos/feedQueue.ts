@@ -5,6 +5,7 @@ import {
   type FeedItemMetadata,
 } from "@/lib/admin/feedItemMetadata";
 import { isApprovedOzBargainPostUrl } from "@/lib/security/urlPolicy";
+import type { DealKind } from "@/lib/sources/types";
 
 /**
  * Deal review queue repository — SERVICE-ROLE ONLY.
@@ -84,6 +85,90 @@ export interface ApprovalResult {
   signalId: string;
   /** false = an existing signal with the same source_native_id was reused. */
   created: boolean;
+}
+
+export interface FeedApprovalOverrides {
+  merchantId?: string | null;
+  dealKind?: DealKind;
+  priceText?: string | null;
+  couponCode?: string | null;
+  expiryDate?: string | null;
+  score?: number | null;
+}
+
+const REVIEW_DEAL_KINDS = new Set<DealKind>([
+  "discount-code",
+  "cashback",
+  "gift-card",
+  "points",
+  "guide",
+]);
+
+function optionalText(
+  value: string | null | undefined,
+  max: number,
+  label: string
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value.trim() === "") return null;
+  const clean = value.trim();
+  if (clean.length > max) throw new Error(`${label} is too long.`);
+  return clean;
+}
+
+function validDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+export function normaliseFeedApprovalOverrides(
+  input: FeedApprovalOverrides = {}
+): FeedApprovalOverrides {
+  const merchantId = optionalText(input.merchantId, 100, "Store id");
+  if (merchantId && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(merchantId)) {
+    throw new Error("Store id must be lowercase kebab-case.");
+  }
+  if (input.dealKind !== undefined && !REVIEW_DEAL_KINDS.has(input.dealKind)) {
+    throw new Error("Deal kind is invalid.");
+  }
+  const priceText = optionalText(input.priceText, 80, "Price");
+  const coupon = optionalText(input.couponCode, 32, "Coupon code");
+  if (coupon && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(coupon)) {
+    throw new Error("Coupon code contains unsupported characters.");
+  }
+  const expiryDate = optionalText(input.expiryDate, 10, "Expiry date");
+  if (expiryDate && !validDate(expiryDate)) {
+    throw new Error("Expiry date must be a real ISO calendar date.");
+  }
+  if (
+    input.score !== undefined &&
+    input.score !== null &&
+    (!Number.isFinite(input.score) || input.score < 0 || input.score > 1_000_000)
+  ) {
+    throw new Error("Score must be between 0 and 1,000,000.");
+  }
+  return {
+    ...(merchantId !== undefined ? { merchantId } : {}),
+    ...(input.dealKind !== undefined ? { dealKind: input.dealKind } : {}),
+    ...(priceText !== undefined ? { priceText } : {}),
+    ...(coupon !== undefined ? { couponCode: coupon?.toUpperCase() ?? null } : {}),
+    ...(expiryDate !== undefined ? { expiryDate } : {}),
+    ...(input.score !== undefined ? { score: input.score } : {}),
+  };
+}
+
+export interface ReviewedFeedItem {
+  id: string;
+  rawTitle: string;
+  reviewState: "ignored" | "rejected";
+  reviewedAt: string | null;
+  reviewedBy: string | null;
 }
 
 type AdminDb = ReturnType<typeof getSupabaseAdmin>;
@@ -216,6 +301,28 @@ export async function countNewFeedItems(): Promise<number> {
   return count ?? 0;
 }
 
+export async function listRecentlyReviewedFeedItems(
+  limit = 30
+): Promise<ReviewedFeedItem[]> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("feed_items")
+    .select("id, raw_title, review_state, reviewed_at, reviewed_by")
+    .in("review_state", ["ignored", "rejected"])
+    .order("reviewed_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) {
+    throw new Error(`listRecentlyReviewedFeedItems failed: ${error.message}`);
+  }
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    rawTitle: row.raw_title,
+    reviewState: row.review_state as "ignored" | "rejected",
+    reviewedAt: row.reviewed_at,
+    reviewedBy: row.reviewed_by,
+  }));
+}
+
 /** Lowercase, hyphenated, alnum-only slug for a readable PK segment. */
 function slugify(value: string): string {
   return (
@@ -252,7 +359,10 @@ async function inferMerchantId(
  * Human approval in one DB transaction: create/reuse an APPROVED signal and
  * mark the queue row imported. The RPC locks the row and dedupes by native id.
  */
-export async function approveFeedItem(feedItemId: string): Promise<ApprovalResult> {
+export async function approveFeedItem(
+  feedItemId: string,
+  overrides: FeedApprovalOverrides = {}
+): Promise<ApprovalResult> {
   const db = getSupabaseAdmin();
 
   const { data: itemData, error: itemErr } = await db
@@ -272,18 +382,28 @@ export async function approveFeedItem(feedItemId: string): Promise<ApprovalResul
     rawSummary: item.raw_summary,
     categories: item.categories ?? [],
   });
-  const merchantId = await inferMerchantId(db, metadata.merchantId);
+  const clean = normaliseFeedApprovalOverrides(overrides);
+  const merchantId = await inferMerchantId(
+    db,
+    clean.merchantId !== undefined ? clean.merchantId : metadata.merchantId
+  );
+  if (clean.merchantId && !merchantId) {
+    throw new Error("Selected store does not exist.");
+  }
   const signalId = `sig-${slugify(item.raw_title)}-${randomUUID().slice(0, 8)}`;
   const { data, error } = await db.rpc("approve_feed_item", {
     p_feed_item_id: feedItemId,
     p_expected_content_hash: item.content_hash,
     p_signal_id: signalId,
     p_merchant_id: merchantId,
-    p_deal_kind: metadata.dealKind,
-    p_price_text: metadata.priceText,
-    p_promo_code: metadata.couponCode,
-    p_expiry_date: metadata.expiryDate,
-    p_signal_score: metadata.score,
+    p_deal_kind: clean.dealKind ?? metadata.dealKind,
+    p_price_text:
+      clean.priceText !== undefined ? clean.priceText : metadata.priceText,
+    p_promo_code:
+      clean.couponCode !== undefined ? clean.couponCode : metadata.couponCode,
+    p_expiry_date:
+      clean.expiryDate !== undefined ? clean.expiryDate : metadata.expiryDate,
+    p_signal_score: clean.score !== undefined ? clean.score : metadata.score,
   });
   if (error) throw new Error(`approveFeedItem failed: ${error.message}`);
   const result = data?.[0];
@@ -310,6 +430,21 @@ export async function rejectFeedItem(
   if (error) throw new Error(`rejectFeedItem failed: ${error.message}`);
   if ((data?.length ?? 0) !== 1) {
     throw new Error("Feed item is no longer awaiting review.");
+  }
+}
+
+/** Restore an archived queue decision to human review. */
+export async function restoreFeedItem(feedItemId: string): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("feed_items")
+    .update({ review_state: "new", reviewed_at: null, reviewed_by: null })
+    .eq("id", feedItemId)
+    .in("review_state", ["ignored", "rejected"])
+    .select("id");
+  if (error) throw new Error(`restoreFeedItem failed: ${error.message}`);
+  if (data?.length !== 1) {
+    throw new Error("Feed item is not restorable or was already restored.");
   }
 }
 

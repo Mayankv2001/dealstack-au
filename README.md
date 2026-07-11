@@ -116,4 +116,4 @@ Before going live:
 - [ ] Add a compliance review row via the admin compliance page
 - [ ] Enable `OZB_MONITOR_ENABLED=true` in Vercel env if feed monitoring is wanted
 - [ ] Optionally configure cron-job.org to call the monitor route every 3 hours
-- [ ] Review any staged feed items in `/admin/signals/queue` before publishing
+- [ ] Review any staged feed items in `/admin/review?tab=deals` before publishing

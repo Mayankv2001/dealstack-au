@@ -87,7 +87,14 @@ const okSummary = {
 beforeEach(() => {
   runMonitorMock.mockReset();
   isApprovedMock.mockReset();
-  archiveExpiredMock.mockReset().mockResolvedValue({ total: 1 });
+  archiveExpiredMock.mockReset().mockResolvedValue({
+    total: 1,
+    expired: 1,
+    staleSignals: 0,
+    cardOffers: 0,
+    feedItemsRetired: 0,
+    feedItemsPurged: 0,
+  });
   validatePublishedMock.mockReset().mockResolvedValue({
     checked: 2,
     archived: 0,

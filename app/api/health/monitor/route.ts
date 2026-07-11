@@ -36,6 +36,12 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const snapshot = await getMonitorHealthSnapshot();
     const health = deriveMonitorHealth({ ...snapshot, now: new Date() });
+    if (!health.ok) {
+      await reportOperationalError(
+        `monitor-health-${health.reason}`,
+        "detail" in health ? health.detail : health.reason
+      );
+    }
     return Response.json(health, {
       status: health.ok ? 200 : 503,
       headers: NO_STORE,

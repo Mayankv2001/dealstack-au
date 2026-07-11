@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   hasLastCheckedAt,
   isApplyPlan,
+  isCardApplyPlan,
   planOfferApplication,
   OFFER_CHANGE_REVIEW_STATES,
   type OfferChangeCandidateInsert,
@@ -55,6 +56,8 @@ export interface AdminOfferChange {
   reviewedBy: string | null;
   reviewedAt: string | null;
   createdAt: string;
+  /** Structured prefill fields (e.g. a card offer's bonus points/annual fee). */
+  payload: Record<string, unknown>;
 }
 
 interface OfferChangeRow {
@@ -75,6 +78,7 @@ interface OfferChangeRow {
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;
+  payload: Record<string, unknown> | null;
   // Embedded one-to-one store (PostgREST returns an object, but type defensively).
   store: { name: string } | { name: string }[] | null;
 }
@@ -100,6 +104,7 @@ function mapOfferChange(r: OfferChangeRow): AdminOfferChange {
     reviewedBy: r.reviewed_by,
     reviewedAt: r.reviewed_at,
     createdAt: r.created_at,
+    payload: r.payload ?? {},
   };
 }
 
@@ -388,6 +393,49 @@ export async function resolvePointsTarget(
 }
 
 /**
+ * Card offer whose provider narrows the search, then (when that issuer has
+ * more than one card) whose card_name also appears in the detected title.
+ * Unlike the other resolvers this takes the CANONICAL provider name (the
+ * detector's own issuer allowlist already normalises "AmEx"/"Amex" etc. to
+ * "American Express" — see lib/monitor/detectOffers.ts's CARD_ISSUERS), not
+ * a substring match against free text, since card_offers.provider stores the
+ * canonical name while OzBargain titles favour abbreviations.
+ */
+export async function resolveCardOfferTarget(
+  provider: string,
+  detectedTitle: string
+): Promise<ResolvedTarget | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("card_offers")
+    .select("id, card_name, bonus_points")
+    .eq("is_archived", false)
+    .ilike("provider", provider);
+  if (error) throw new Error(`resolveCardOfferTarget failed: ${error.message}`);
+  const rows = (data ?? []) as {
+    id: string;
+    card_name: string;
+    bonus_points: number | null;
+  }[];
+  if (rows.length === 0) return null;
+
+  const named = rows.filter(
+    (r) => r.card_name && containsWord(detectedTitle, r.card_name)
+  );
+  // Exactly one card under this issuer -> unambiguous even without a title
+  // match (mirrors resolveCashbackTarget's "unique per merchant+provider in
+  // practice"). Several cards under the same issuer -> the card_name match
+  // must disambiguate; zero or multiple named hits stay unresolved.
+  const hit = named.length === 1 ? named[0] : rows.length === 1 ? rows[0] : null;
+  if (!hit) return null;
+  return {
+    id: hit.id,
+    currentValue:
+      hit.bonus_points != null ? `${hit.bonus_points}pts` : "no bonus on file",
+  };
+}
+
+/**
  * Assemble the production DetectionPersistence for runDetection. Bundles the
  * reads/resolvers above with insertOfferChangeCandidates (which adds
  * review_state 'new' and is idempotent on content_hash). Colocated with the
@@ -400,6 +448,7 @@ export function createDetectionPersistence(): DetectionPersistence {
     resolveCashbackTarget,
     resolveGiftCardTarget,
     resolvePointsTarget,
+    resolveCardOfferTarget,
     insertCandidates: insertOfferChangeCandidates,
   };
 }
@@ -408,9 +457,8 @@ export function createDetectionPersistence(): DetectionPersistence {
 
 export interface ApplyResult {
   table: string;
-  column: string;
   targetId: string;
-  value: number;
+  changes: Record<string, number>;
   merchantId: string | null;
 }
 
@@ -440,6 +488,7 @@ export async function applyOfferChange(
     reviewState: candidate.reviewState,
     targetId: candidate.targetId,
     proposedValue: candidate.proposedValue,
+    payload: candidate.payload,
   });
   if (!isApplyPlan(plan)) throw new Error(`Cannot apply: ${plan.skip}.`);
 
@@ -465,33 +514,39 @@ export async function applyOfferChange(
     );
   }
 
-  // 2) Update ONLY the targeted offer row's single numeric field.
-  const offerUpdate: Record<string, unknown> = { [plan.column]: plan.value };
+  // 2) Update only planner-approved numeric fields. Publication and archive
+  // state cannot be expressed in either plan shape.
+  const changes = isCardApplyPlan(plan)
+    ? plan.changes
+    : { [plan.column]: plan.value };
+  const offerUpdate: Record<string, unknown> = { ...changes };
   if (hasLastCheckedAt(plan.table)) {
     offerUpdate.last_checked_at = new Date().toISOString();
   }
-  const { error: offerErr } = await db
+  const { data: updated, error: offerErr } = await db
     .from(plan.table)
     // plan.table/plan.column span 4 different offer tables' Update shapes; the
     // typed client can't express "one dynamic column on one of these 4 tables"
     // as a static type, so this one write site is a deliberate escape hatch.
     .update(offerUpdate as never)
-    .eq("id", plan.id);
-  if (offerErr) {
+    .eq("id", plan.id)
+    .select("id");
+  if (offerErr || updated?.length !== 1) {
     // Release the claim (best-effort) so the candidate stays actionable.
     await db
       .from("offer_change_candidates")
       .update({ review_state: "new", reviewed_by: null, reviewed_at: null })
       .eq("id", id)
       .eq("review_state", "applied");
-    throw new Error(`applyOfferChange offer update failed: ${offerErr.message}`);
+    throw new Error(
+      `applyOfferChange offer update failed: ${offerErr?.message ?? "target not found"}`
+    );
   }
 
   return {
     table: plan.table,
-    column: plan.column,
     targetId: plan.id,
-    value: plan.value,
+    changes,
     merchantId: candidate.merchantId,
   };
 }

@@ -54,13 +54,15 @@ Cron scheduler
 External feed (RSS only)
   ↓  [cron route / monitor:feeds script]
 feed_items (staging, service-role write)
-  ↓  [admin reviews in /admin/signals/queue]
-ozbargain_signals (published, service-role write on Import)
+  ↓  [admin reviews in /admin/review?tab=deals]
+ozbargain_signals (published, transactional service-role write on Approve)
   ↓  [public homepage server component]
 TopDealsSection (rendered server-side, DTO only)
 ```
 
-No step in this chain is automatic. An admin must click "Import" for a staged item to reach the public table.
+No publication step in this chain is automatic. An admin must click **Approve**
+for a staged item to reach the public table; rejection preserves the source row
+for audit and later restore.
 
 ---
 
@@ -191,5 +193,5 @@ Before going live / after each deployment:
 - [ ] Verify the monitor page at `/admin/monitor` shows all checklist items green
 
 ### Queue hygiene
-- [ ] Review and process any staged items in `/admin/signals/queue` before announcing the site
-- [ ] Review any staged offer changes in `/admin/offer-changes`
+- [ ] Review and process staged items in `/admin/review?tab=deals` before announcing the site
+- [ ] Review staged offer changes in `/admin/review?tab=changes`

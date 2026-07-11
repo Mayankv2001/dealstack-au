@@ -119,6 +119,12 @@ const DQ_ISSUE_INFO: Record<
       "A published offer passed its mandatory review-by date and is hidden publicly until it is verified again.",
     tone: "border-destructive/30 bg-destructive/10 text-destructive",
   },
+  "review-due-soon": {
+    label: "Card review due soon",
+    explanation:
+      "A card offer reaches its fail-closed review deadline within seven days and should be verified against the issuer.",
+    tone: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+  },
   "missing-expiry": {
     label: "Missing expiry date",
     explanation:
@@ -145,6 +151,7 @@ const DQ_TILE_ORDER: {
   { code: "missing-expiry", count: (c) => c.missingExpiry },
   { code: "stale", count: (c) => c.staleChecked },
   { code: "review-overdue", count: (c) => c.reviewOverdue },
+  { code: "review-due-soon", count: (c) => c.reviewDueSoon },
   { code: "stale-week-of", count: (c) => c.staleWeekOf },
 ];
 
@@ -270,7 +277,7 @@ export default async function AdminDashboardPage({
     {
       label: "Feed items to review",
       value: feedQueueCount,
-      href: "/admin/signals/queue",
+      href: "/admin/review?tab=deals",
     },
     {
       label: "Pending OzBargain signals",
@@ -295,6 +302,11 @@ export default async function AdminDashboardPage({
     {
       label: "Unpublished card offers",
       value: counts.cardOffers.unpublished,
+      href: "/admin/card-offers",
+    },
+    {
+      label: "Card offers due for review within 7 days",
+      value: dataQuality.counts.reviewDueSoon,
       href: "/admin/card-offers",
     },
     {
@@ -332,7 +344,7 @@ export default async function AdminDashboardPage({
 
   const quickActions = [
     { label: "Monitor Status", href: "/admin/monitor" },
-    { label: "Review Feed Queue", href: "/admin/signals/queue" },
+    { label: "Review Feed Queue", href: "/admin/review?tab=deals" },
     { label: "Add Store", href: "/admin/stores/new" },
     { label: "Add Cashback Rate", href: "/admin/cashback/new" },
     { label: "Add Gift Card Offer", href: "/admin/gift-cards/new" },
@@ -470,7 +482,7 @@ export default async function AdminDashboardPage({
             Expired items should be <strong className="font-medium text-foreground">unpublished, not deleted</strong> —
             use the Edit screen and turn off “Published”. Old staged feed items
             can be <strong className="font-medium text-foreground">ignored</strong> in the{" "}
-            <Link href="/admin/signals/queue" className="underline">
+            <Link href="/admin/review?tab=deals" className="underline">
               feed queue
             </Link>
             . Always use admin edits for production data; nothing here is

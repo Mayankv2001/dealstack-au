@@ -35,15 +35,19 @@ supabase db push
 | 013 | `supabase/migrations/013_revoke_trigger_function_execute.sql` | Revokes direct execution of privileged trigger functions |
 | 014 | `supabase/migrations/014_signal_product_group.sql` | Optional admin-assigned product key for multi-retailer signal comparison |
 | 015 | `supabase/migrations/015_daily_deal_pipeline.sql` | Direct review approval, archival/validation fields, complete fetch/pipeline counts, transactional cleanup RPCs |
+| 016 | `supabase/migrations/016_daily_pipeline_lock.sql` | One-running pipeline lock with stale-run takeover |
+| 017 | `supabase/migrations/017_card_source_registry.sql` | Disabled OzBargain card-feed registry row and rejected Finder decision |
+| 018 | `supabase/migrations/018_card_offer_change_candidates.sql` | Card-offer candidate type and structured detection payload |
+| 019 | `supabase/migrations/019_pipeline_lifecycle_retention.sql` | Scheduled lifecycle cleanup, retention, detection counters and system audit coverage |
 
 **Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss). The expected tables/columns live in `scripts/schema-manifest.ts` with per-column migration ownership; `tests/admin/schemaManifest.test.ts` fails `npm run test:admin` if a committed migration is missing from that manifest, so the probe cannot silently under-cover new migrations. Local runs need **Node 22** (`nvm use 22`) — on Node 20, `@supabase/supabase-js` aborts before probing ("no native WebSocket support").
 
-For migration 015, apply and verify the migration **before** deploying the
-matching application code. The new cron and review queue depend on its columns
-and service-role RPCs. The migration is additive; if application rollback is
-needed, promote the previous Vercel deployment and leave the added columns and
-functions in place. Do not attempt a destructive down migration during an
-incident.
+Apply and verify migrations 015–019 **before** deploying their matching
+application code. The cron, review dashboard and card detection paths depend on
+their columns, triggers and service-role RPCs. These migrations are additive;
+if application rollback is needed, promote the previous Vercel deployment and
+leave the added schema in place. Do not attempt a destructive down migration
+during an incident.
 
 ### 1a. Create a multi-retailer product comparison
 
@@ -201,7 +205,8 @@ For more frequent feed checks without upgrading Vercel:
 
 ## 9. Deal review workflow
 
-After the first successful feed run, staged items appear in `/admin/signals/queue`.
+After the first successful feed run, staged items appear in
+`/admin/review?tab=deals` (`/admin/signals/queue` redirects there).
 
 For each staged item:
 - **Preview** — expands the stored feed title and summary; no write.
@@ -310,6 +315,6 @@ is read-only, uncached, and makes no external feed request.
 - [ ] `OZB_MONITOR_ENABLED=true` set only after compliance approval
 - [ ] Feed source enabled at `/admin/signals/sources`
 - [ ] First cron run verified at `/admin/monitor → Recent fetch runs`
-- [ ] Queue items reviewed at `/admin/signals/queue`
+- [ ] Queue items reviewed at `/admin/review?tab=deals`
 - [ ] Card offers verified and published at `/admin/card-offers`
 - [ ] `/cards` renders published offers

@@ -11,7 +11,14 @@ function deps() {
       async (): Promise<StartRunOutcome> => ({ started: true, runId: "run-1" })
     ),
     finishRun: vi.fn(async () => undefined),
-    archiveExpired: vi.fn(async () => ({ total: 2 })),
+    archiveExpired: vi.fn(async () => ({
+      total: 2,
+      expired: 2,
+      staleSignals: 0,
+      cardOffers: 0,
+      feedItemsRetired: 0,
+      feedItemsPurged: 0,
+    })),
     validateLive: vi.fn(async () => ({ checked: 4, archived: 1, unknown: 1 })),
     fetchLatest: vi.fn(async () => ({
       enabled: true,
@@ -34,6 +41,7 @@ function deps() {
         },
       ],
     })),
+    detectChanges: vi.fn(async () => ({ scanned: 10, detected: 2, inserted: 1 })),
   };
 }
 
@@ -55,6 +63,10 @@ describe("runDailyPipeline", () => {
       status: "ok",
       expiredArchived: 2,
       invalidArchived: 1,
+      staleArchived: 0,
+      cardOffersArchived: 0,
+      feedItemsRetired: 0,
+      feedItemsPurged: 0,
       itemsFetched: 20,
       itemsNew: 5,
       itemsUpdated: 2,
@@ -91,6 +103,53 @@ describe("runDailyPipeline", () => {
     if (!outcome.started) throw new Error("expected the run to start");
     expect(outcome.summary.status).toBe("partial");
     expect(outcome.summary.errors[0]).toMatch(/status endpoint down/);
+  });
+
+  it("runs detection after fetch and records its counters in the same ledger", async () => {
+    const d = deps();
+    const outcome = await runDailyPipeline(
+      {
+        monitorEnabled: true,
+        complianceApproved: true,
+        userAgent: "UA",
+        detectionEnabled: true,
+      },
+      d
+    );
+    if (!outcome.started) throw new Error("expected the run to start");
+    expect(d.fetchLatest.mock.invocationCallOrder[0]).toBeLessThan(
+      d.detectChanges.mock.invocationCallOrder[0]
+    );
+    expect(outcome.summary).toMatchObject({
+      detectionScanned: 10,
+      detectionDetected: 2,
+      detectionInserted: 1,
+    });
+    expect(d.finishRun).toHaveBeenCalledWith(
+      "run-1",
+      expect.objectContaining({ detectionInserted: 1 }),
+      NOW
+    );
+  });
+
+  it("records a detection failure as partial after preserving fetch results", async () => {
+    const d = deps();
+    d.detectChanges.mockRejectedValueOnce(new Error("detector unavailable"));
+    const outcome = await runDailyPipeline(
+      {
+        monitorEnabled: true,
+        complianceApproved: true,
+        userAgent: "UA",
+        detectionEnabled: true,
+      },
+      d
+    );
+    if (!outcome.started) throw new Error("expected the run to start");
+    expect(outcome.summary.status).toBe("partial");
+    expect(outcome.summary.itemsFetched).toBe(20);
+    expect(outcome.summary.errors).toContain(
+      "offer detection: detector unavailable"
+    );
   });
 
   it("records a compliance preflight failure as an error, not a normal block", async () => {

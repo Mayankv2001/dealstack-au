@@ -86,7 +86,7 @@
 - [ ] Repair every **Unsafe URL** data-quality flag before launch; unsafe public links are hidden and unsafe monitor targets are never fetched.
 - [x] `/admin/card-offers` — all 5 rows issuer-verified on 2026-07-10; 1 fixed-expiry offer published, 3 current no-fixed-expiry offers withheld, and 1 obsolete promotion withheld.
 - [ ] `/admin/stores` — store metadata correct; remember store `id` is immutable (edit is unpublish-only, no rename).
-- [ ] `/admin/signals/queue` — staged items reviewed; use keyword presets + **Ignore visible** for bulk triage (bulk **ignore** only — import is one-at-a-time, nothing auto-publishes).
+- [ ] `/admin/review?tab=deals` — staged items reviewed; Approve is the single human publication step, Reject is reversible, and bulk actions are capped at 200.
 - [ ] Homepage Top 5 state matrix in staging: import a test item (pending → absent), approve its linked signal (present unless the feed item is hidden), edit the approved title (edited copy appears), then hide/expire the signal (absent). Disable all feed sources, confirm the already-approved card remains present, then restore the reviewed source enablement.
 - [ ] `/admin/audit` — append-only log records recent admin actions.
 - [ ] Every admin mutation goes through `requireAdmin` → `checkAdminRateLimit` → `logAudit` (per-admin mutation budget backed by `admin_rate_limits`).

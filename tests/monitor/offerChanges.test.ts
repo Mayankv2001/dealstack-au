@@ -5,6 +5,7 @@ import {
   buildOfferChangeCandidates,
   dedupeOfferChangeCandidates,
   isApplyPlan,
+  isScalarApplyPlan,
   isApprovedForFetch,
   parseRateValue,
   planOfferApplication,
@@ -54,6 +55,22 @@ describe("offerChanges — staging candidate creation", () => {
     expect(candidate.detected_title).toBe("(untitled)");
     expect(candidate.confidence).toBe("needs-verification");
     expect(candidate.detected_url).toBe("");
+    expect(candidate.payload).toEqual({});
+  });
+
+  it("preserves structured card-offer prefill fields", () => {
+    const candidate = buildOfferChangeCandidate({
+      sourceType: "card_offer",
+      sourceName: "ANZ",
+      detectedTitle: "ANZ Rewards Black Credit Card",
+      proposedValue: "180000pts",
+      payload: { provider: "ANZ", bonusPoints: 180000, annualFee: 375 },
+    });
+    expect(candidate.payload).toEqual({
+      provider: "ANZ",
+      bonusPoints: 180000,
+      annualFee: 375,
+    });
   });
 
   it("produces a deterministic hash; a new proposed value yields a new hash", () => {
@@ -127,7 +144,7 @@ describe("offerChanges — apply only after admin review", () => {
   it("plans a single-column update for a reviewed, targeted candidate", () => {
     const plan = planOfferApplication(newCashback);
     expect(isApplyPlan(plan)).toBe(true);
-    if (!isApplyPlan(plan)) return;
+    if (!isApplyPlan(plan) || !isScalarApplyPlan(plan)) return;
     expect(plan).toEqual({
       table: "cashback_offers",
       column: "rate_percent",
@@ -156,11 +173,56 @@ describe("offerChanges — apply only after admin review", () => {
       proposedValue: "15% off",
     });
     expect(isApplyPlan(gift) && gift.table).toBe("gift_card_offers");
-    expect(isApplyPlan(gift) && gift.column).toBe("discount_percent");
+    expect(isApplyPlan(gift) && isScalarApplyPlan(gift) && gift.column).toBe(
+      "discount_percent"
+    );
     expect(isApplyPlan(points) && points.table).toBe("points_offers");
-    expect(isApplyPlan(points) && points.value).toBe(3);
+    expect(isApplyPlan(points) && isScalarApplyPlan(points) && points.value).toBe(3);
     expect(isApplyPlan(promo) && promo.table).toBe("stores");
-    expect(isApplyPlan(promo) && promo.value).toBe(15);
+    expect(isApplyPlan(promo) && isScalarApplyPlan(promo) && promo.value).toBe(15);
+  });
+
+  it("plans only detected numeric card fields and never publication state", () => {
+    const plan = planOfferApplication({
+      sourceType: "card_offer",
+      reviewState: "new",
+      targetId: "card-anz-rewards-bonus",
+      proposedValue: "180000pts",
+      payload: {
+        bonusPoints: 180000,
+        annualFee: 375,
+        isPublished: true,
+        provider: "attacker-controlled",
+      },
+    });
+    expect(plan).toEqual({
+      table: "card_offers",
+      id: "card-anz-rewards-bonus",
+      changes: { bonus_points: 180000, annual_fee: 375 },
+    });
+    expect(JSON.stringify(plan)).not.toContain("is_published");
+  });
+
+  it("refuses malformed or empty card payloads", () => {
+    for (const payload of [
+      {},
+      { bonusPoints: "180000" },
+      { bonusPoints: -1 },
+      { bonusPoints: 12.5 },
+      { annualFee: Number.POSITIVE_INFINITY },
+    ]) {
+      expect(
+        isApplyPlan(
+          planOfferApplication({
+            sourceType: "card_offer",
+            reviewState: "new",
+            targetId: "card-1",
+            proposedValue: "ignored",
+            payload,
+          })
+        )
+      ).toBe(false);
+    }
   });
 
   it("refuses to apply without a resolved target", () => {

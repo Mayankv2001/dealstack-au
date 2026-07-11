@@ -42,6 +42,16 @@ export interface DetectionPersistence {
   resolveGiftCardTarget(detectedTitle: string): Promise<ResolvedTarget | null>;
   /** Points offer for a merchant, when exactly one exists. */
   resolvePointsTarget(merchantId: string): Promise<ResolvedTarget | null>;
+  /**
+   * Card offer whose provider narrows to exactly one row (or, with several
+   * cards under that issuer, the one whose card_name also appears in the
+   * detected title). Zero or ambiguous matches return null — the admin
+   * either links it manually or creates a new draft.
+   */
+  resolveCardOfferTarget(
+    provider: string,
+    detectedTitle: string
+  ): Promise<ResolvedTarget | null>;
   /** Stage the given candidate rows; returns how many NEW rows were inserted. */
   insertCandidates(rows: OfferChangeCandidateInsert[]): Promise<number>;
 }
@@ -67,6 +77,17 @@ export interface DetectionOptions {
   /** When true, the summary carries the deduped would-be inserts. Leave unset
    *  on the cron path — raw titles must not enter the route JSON. */
   includeCandidates?: boolean;
+  /**
+   * Independent of, and additional to, the overall detection step (which the
+   * caller already gates on OZB_OFFER_DETECT_ENABLED before calling this at
+   * all). Defaults to false — card_offer detections are dropped before
+   * staging unless explicitly enabled, so CARD_DETECT_ENABLED can go live
+   * separately from the cashback/gift_card/points detectors that have been
+   * running longer. The dry-run preview action passes true unconditionally,
+   * the same way it already ignores the main detection flag, since preview
+   * exists precisely to show what detection WOULD stage before enabling it.
+   */
+  enableCardOffers?: boolean;
 }
 
 /** Hard cap on items scanned per run — see edge case 7 (bound the scan window). */
@@ -86,6 +107,9 @@ async function resolveTarget(
   if (d.sourceType === "points" && d.merchantId) {
     return deps.resolvePointsTarget(d.merchantId);
   }
+  if (d.sourceType === "card_offer") {
+    return deps.resolveCardOfferTarget(d.sourceName, d.detectedTitle);
+  }
   return null;
 }
 
@@ -104,10 +128,14 @@ export async function runDetection(
   opts: DetectionOptions
 ): Promise<DetectionSummary> {
   const items = await deps.listRecentNewFeedItems(opts.sinceIso, DETECTION_SCAN_LIMIT);
+  const enableCardOffers = opts.enableCardOffers ?? false;
 
   const detected: DetectedOffer[] = [];
   for (const item of items) {
     for (const offer of detectOffersFromItem(item)) {
+      // Card detection has its own, independent kill switch — dropped here,
+      // before resolution/staging, when the caller has not enabled it.
+      if (offer.sourceType === "card_offer" && !enableCardOffers) continue;
       const target = await resolveTarget(deps, offer);
       detected.push(
         target

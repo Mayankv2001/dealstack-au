@@ -29,7 +29,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ActionButton } from "@/components/admin/ActionButton";
-import type { FeedQueueItem } from "@/lib/admin/repos/feedQueue";
+import type {
+  FeedApprovalOverrides,
+  FeedQueueItem,
+} from "@/lib/admin/repos/feedQueue";
+import type { DealKind } from "@/lib/sources/types";
 import { assessFeedItem, type Relevance } from "@/lib/admin/queueRelevance";
 import { cn } from "@/lib/utils";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
@@ -162,12 +166,28 @@ const SELECT_ALL_CAP = 200;
 function QueueItemActions({ item }: { item: FeedQueueItem }) {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
+  const [draft, setDraft] = useState({
+    merchantId: item.metadata.merchantId ?? "",
+    dealKind: item.metadata.dealKind,
+    priceText: item.metadata.priceText ?? "",
+    couponCode: item.metadata.couponCode ?? "",
+    expiryDate: item.metadata.expiryDate ?? "",
+    score: item.metadata.score == null ? "" : String(item.metadata.score),
+  });
   const clear = () => setError(null);
+  const approvalOverrides = (): FeedApprovalOverrides => ({
+    merchantId: draft.merchantId.trim() || null,
+    dealKind: draft.dealKind,
+    priceText: draft.priceText.trim() || null,
+    couponCode: draft.couponCode.trim() || null,
+    expiryDate: draft.expiryDate || null,
+    score: draft.score === "" ? null : Number(draft.score),
+  });
   return (
     <CardFooter className="flex flex-col items-start gap-2">
       <div className="flex flex-wrap gap-2">
         <ActionButton
-          run={() => approveItem(item.id)}
+          run={() => approveItem(item.id, approvalOverrides())}
           variant="default"
           title="Publish this reviewed deal now."
           onStart={clear}
@@ -195,7 +215,7 @@ function QueueItemActions({ item }: { item: FeedQueueItem }) {
           onClick={() => setPreview((value) => !value)}
         >
           <Eye className="size-3.5" />
-          {preview ? "Hide preview" : "Preview"}
+          {preview ? "Hide review fields" : "Review fields"}
         </Button>
         {/* Homepage Top 5 eligibility is independent of review state, so this
             never imports/approves and keeps the item in the queue. */}
@@ -224,11 +244,83 @@ function QueueItemActions({ item }: { item: FeedQueueItem }) {
         )}
       </div>
       {preview ? (
-        <div className="w-full rounded-md border bg-muted/30 p-3 text-sm">
+        <div className="w-full space-y-3 rounded-md border bg-muted/30 p-3 text-sm">
           <p className="font-medium">{item.rawTitle}</p>
           <p className="mt-1 text-muted-foreground">
             {item.rawSummary || "No summary supplied by the feed."}
           </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="space-y-1 text-xs font-medium">
+              Store id
+              <Input
+                value={draft.merchantId}
+                onChange={(event) =>
+                  setDraft((value) => ({ ...value, merchantId: event.target.value }))
+                }
+                placeholder="optional-store-id"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium">
+              Deal kind
+              <select
+                value={draft.dealKind}
+                onChange={(event) =>
+                  setDraft((value) => ({
+                    ...value,
+                    dealKind: event.target.value as DealKind,
+                  }))
+                }
+                className={cn(controlClass, "w-full")}
+              >
+                <option value="discount-code">Discount code</option>
+                <option value="cashback">Cashback</option>
+                <option value="gift-card">Gift card</option>
+                <option value="points">Points</option>
+                <option value="guide">Guide</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-medium">
+              Price
+              <Input
+                value={draft.priceText}
+                onChange={(event) =>
+                  setDraft((value) => ({ ...value, priceText: event.target.value }))
+                }
+                placeholder="$199"
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium">
+              Coupon
+              <Input
+                value={draft.couponCode}
+                onChange={(event) =>
+                  setDraft((value) => ({ ...value, couponCode: event.target.value }))
+                }
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium">
+              Expiry
+              <Input
+                type="date"
+                value={draft.expiryDate}
+                onChange={(event) =>
+                  setDraft((value) => ({ ...value, expiryDate: event.target.value }))
+                }
+              />
+            </label>
+            <label className="space-y-1 text-xs font-medium">
+              Score
+              <Input
+                type="number"
+                min="0"
+                max="1000000"
+                value={draft.score}
+                onChange={(event) =>
+                  setDraft((value) => ({ ...value, score: event.target.value }))
+                }
+              />
+            </label>
+          </div>
         </div>
       ) : null}
       {error ? (

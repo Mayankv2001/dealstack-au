@@ -41,7 +41,7 @@ maintenance (see "If volume grows" below).
   names now score as a positive signal for "Today's top OzBargain signals".
 - **Admin queue presets** (`QueueClient.tsx`): "Uber Eats" and "DoorDash"
   quick-filter chips added, so an admin can jump straight to this category in
-  `/admin/signals/queue`.
+  `/admin/review?tab=deals`.
 
 No further category/filter copy changes are needed this phase.
 
@@ -50,7 +50,7 @@ No further category/filter copy changes are needed this phase.
 1. A dining-delivery post is staged automatically by the existing OzBargain
    monitor (unchanged fetch/cron logic) and now correctly lands as
    `review_state = 'new'` in the queue rather than being auto-ignored.
-2. Admin opens `/admin/signals/queue`, filters by the "Uber Eats"/"DoorDash"
+2. Admin opens `/admin/review?tab=deals`, filters by the "Uber Eats"/"DoorDash"
    preset (or searches), reviews the raw title/summary.
 3. Admin previews the stored source details, then clicks **Approve** (or selects
    several and uses **Approve selected**). This is the sole human publication

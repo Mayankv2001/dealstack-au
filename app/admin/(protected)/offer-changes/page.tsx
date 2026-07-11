@@ -4,33 +4,15 @@ import { Inbox } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import { listOfferChanges } from "@/lib/admin/repos/offerChanges";
 import { ozbOfferDetectEnabled } from "@/lib/env";
-import {
-  isApplyPlan,
-  planOfferApplication,
-  type ApplyPlan,
-} from "@/lib/monitor/offerChanges";
+import { buildOfferChangeViews } from "@/lib/admin/offerChangeViews";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import DetectionPreviewClient from "./DetectionPreviewClient";
-import OfferChangesClient, { type OfferChangeView } from "./OfferChangesClient";
+import OfferChangesClient from "./OfferChangesClient";
 
 export const metadata: Metadata = {
   title: "Offer changes | DealStack AU admin",
 };
-
-const TABLE_LABELS: Record<string, string> = {
-  cashback_offers: "cashback rate",
-  gift_card_offers: "gift-card discount",
-  points_offers: "points rate",
-  stores: "promo discount",
-};
-
-function humanApplyHint(plan: ApplyPlan): string {
-  const isPercent = ["rate_percent", "discount_percent"].includes(plan.column);
-  const formatted = isPercent ? `${plan.value}%` : String(plan.value);
-  const label = TABLE_LABELS[plan.table] ?? plan.table;
-  return `Will update ${label} to ${formatted} — confirm before applying`;
-}
 
 export default async function OfferChangesPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
@@ -41,19 +23,7 @@ export default async function OfferChangesPage() {
   // Compute the apply preview on the SERVER (pure planner) so the client island
   // never imports the detection module. canApply mirrors exactly what the repo's
   // applyOfferChange() will allow.
-  const items: OfferChangeView[] = candidates.map((c) => {
-    const plan = planOfferApplication({
-      sourceType: c.sourceType,
-      reviewState: c.reviewState,
-      targetId: c.targetId,
-      proposedValue: c.proposedValue,
-    });
-    return {
-      ...c,
-      canApply: isApplyPlan(plan),
-      applyHint: isApplyPlan(plan) ? humanApplyHint(plan) : plan.skip,
-    };
-  });
+  const items = buildOfferChangeViews(candidates);
 
   return (
     <div className="space-y-6">
@@ -61,8 +31,8 @@ export default async function OfferChangesPage() {
         <div className="space-y-1">
           <h1 className="font-heading text-2xl font-semibold">Offer changes</h1>
           <p className="text-sm text-muted-foreground">
-            Detected changes to cashback rates, gift-card discounts, points and
-            promos — awaiting review.
+            Detected changes to cashback rates, gift-card discounts, points,
+            promos and card offers — awaiting review.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -88,8 +58,9 @@ export default async function OfferChangesPage() {
             <p className="font-medium">No offer changes to review</p>
             <p className="max-w-sm text-sm text-muted-foreground">
               When the monitor detects a changed cashback rate, gift-card
-              discount, points offer or promo from an approved source, it appears
-              here. Applied, ignored and duplicate items are hidden.
+              discount, points offer, promo or card offer from an approved
+              source, it appears here. Applied, ignored and duplicate items are
+              hidden.
             </p>
           </CardContent>
         </Card>

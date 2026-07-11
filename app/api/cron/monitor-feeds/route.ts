@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import {
+  cardDetectEnabled,
   cronSecret,
   ozbMonitorEnabled,
   ozbMonitorMaxFeedsPerRun,
@@ -80,6 +81,11 @@ export async function GET(request: Request): Promise<Response> {
         preflightErrors: complianceError
           ? [`compliance check: ${complianceError}`]
           : undefined,
+        detectionEnabled:
+          monitorEnabled &&
+          complianceApproved &&
+          Boolean(userAgent) &&
+          ozbOfferDetectEnabled(),
       },
       {
         now: () => new Date(),
@@ -107,6 +113,18 @@ export async function GET(request: Request): Promise<Response> {
               },
             }
           ),
+        detectChanges: async () => {
+          const { runDetection } = await import("@/lib/monitor/runDetection");
+          const { createDetectionPersistence } = await import(
+            "@/lib/admin/repos/offerChanges"
+          );
+          const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          return runDetection(createDetectionPersistence(), {
+            sinceIso,
+            dryRun: false,
+            enableCardOffers: cardDetectEnabled(),
+          });
+        },
       }
     );
 
@@ -117,6 +135,13 @@ export async function GET(request: Request): Promise<Response> {
     }
     const summary = outcome.summary;
 
+    if (summary.status === "partial" || summary.status === "error") {
+      await reportOperationalError(
+        `daily-pipeline-${summary.status}`,
+        summary.errors.join("; ") || summary.status
+      );
+    }
+
     const body: Record<string, unknown> = {
       ok: summary.status === "ok" || summary.status === "disabled",
       ran: true,
@@ -124,27 +149,6 @@ export async function GET(request: Request): Promise<Response> {
       ...(complianceError ? { complianceError } : {}),
     };
 
-    if (
-      monitorEnabled &&
-      complianceApproved &&
-      userAgent &&
-      ozbOfferDetectEnabled()
-    ) {
-      try {
-        const { runDetection } = await import("@/lib/monitor/runDetection");
-        const { createDetectionPersistence } = await import(
-          "@/lib/admin/repos/offerChanges"
-        );
-        const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        body.detection = await runDetection(createDetectionPersistence(), {
-          sinceIso,
-          dryRun: false,
-        });
-      } catch (error) {
-        await reportOperationalError("offer-change-detection", error);
-        body.detection = { error: errMessage(error) };
-      }
-    }
     return Response.json(body, {
       status: summary.status === "error" ? 500 : 200,
     });

@@ -3,6 +3,7 @@ import type { PublicTable } from "@/lib/supabase/server";
 import { cronSecret } from "@/lib/env";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
 import { isApprovedForFetch } from "@/lib/monitor/offerChanges";
+import { summarizeFetchHealth } from "@/lib/monitor/health";
 
 /**
  * Monitor health/status — SERVICE-ROLE ONLY, READ-ONLY.
@@ -39,6 +40,13 @@ export interface DailyPipelineRunEntry {
   status: string;
   expiredArchived: number;
   invalidArchived: number;
+  staleArchived: number;
+  cardOffersArchived: number;
+  feedItemsRetired: number;
+  feedItemsPurged: number;
+  detectionScanned: number;
+  detectionDetected: number;
+  detectionInserted: number;
   validationChecked: number;
   validationUnknown: number;
   feedsProcessed: number;
@@ -115,26 +123,27 @@ export interface MonitorHealthSnapshot {
   complianceApproved: boolean;
   fetchableEnabledFeedCount: number;
   lastSuccessAt: string | null;
+  pipelineExpected: boolean;
+  latestPipelineAt: string | null;
+  latestPipelineStatus: string | null;
+  runningPipelineStartedAt: string | null;
+  consecutiveParserFailures: number;
+  autoDisabledFeedCount: number;
+  fetchAnomaly: "zero-collapse" | "spike" | null;
+  duplicateRunCount: number;
 }
 
 /** Minimal read-only snapshot for the externally polled health route. */
 export async function getMonitorHealthSnapshot(): Promise<MonitorHealthSnapshot> {
   const envEnabled = process.env.OZB_MONITOR_ENABLED === "true";
-  if (!envEnabled) {
-    return {
-      envEnabled: false,
-      complianceApproved: false,
-      fetchableEnabledFeedCount: 0,
-      lastSuccessAt: null,
-    };
-  }
   const db = getSupabaseAdmin();
-  const [approval, sources, lastSuccess] = await Promise.all([
+  const [approval, sources, lastSuccess, latestPipeline, runningPipeline, logs, runs] =
+    await Promise.all([
     db
       .from("compliance_reviews")
       .select("id", { count: "exact", head: true })
       .eq("approved_for_monitoring", true),
-    db.from("feed_sources").select("source_type").eq("is_enabled", true),
+    db.from("feed_sources").select("source_type, is_enabled, last_status"),
     db
       .from("feed_fetch_log")
       .select("started_at")
@@ -142,20 +151,89 @@ export async function getMonitorHealthSnapshot(): Promise<MonitorHealthSnapshot>
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    db
+      .from("daily_pipeline_runs")
+      .select("started_at, status")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("daily_pipeline_runs")
+      .select("started_at")
+      .eq("status", "running")
+      .order("started_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("feed_fetch_log")
+      .select("feed_source_id, error, items_seen")
+      .order("started_at", { ascending: false })
+      .limit(50),
+    db
+      .from("daily_pipeline_runs")
+      .select("started_at")
+      .order("started_at", { ascending: false })
+      .limit(10),
   ]);
   if (approval.error) throw new Error(`health compliance read failed: ${approval.error.message}`);
   if (sources.error) throw new Error(`health sources read failed: ${sources.error.message}`);
   if (lastSuccess.error) throw new Error(`health success read failed: ${lastSuccess.error.message}`);
+  if (latestPipeline.error) throw new Error(`health pipeline read failed: ${latestPipeline.error.message}`);
+  if (runningPipeline.error) throw new Error(`health running read failed: ${runningPipeline.error.message}`);
+  if (logs.error) throw new Error(`health fetch logs failed: ${logs.error.message}`);
+  if (runs.error) throw new Error(`health run history failed: ${runs.error.message}`);
 
-  const sourceRows = (sources.data ?? []) as unknown as { source_type: string }[];
+  const sourceRows = (sources.data ?? []) as unknown as {
+    source_type: string;
+    is_enabled: boolean;
+    last_status: string | null;
+  }[];
   const success = lastSuccess.data as unknown as { started_at: string } | null;
+  const pipeline = latestPipeline.data as unknown as {
+    started_at: string;
+    status: string;
+  } | null;
+  const running = runningPipeline.data as unknown as { started_at: string } | null;
+  const fetchRows = (logs.data ?? []) as unknown as {
+    feed_source_id: string;
+    error: string | null;
+    items_seen: number | null;
+  }[];
+  const { consecutiveParserFailures, fetchAnomaly } = summarizeFetchHealth(
+    fetchRows.map((row) => ({
+      feedSourceId: row.feed_source_id,
+      error: row.error,
+      itemsSeen: row.items_seen,
+    }))
+  );
+  const runStarts = ((runs.data ?? []) as unknown as { started_at: string }[])
+    .map((row) => Date.parse(row.started_at))
+    .filter(Number.isFinite);
+  let duplicateRunCount = 0;
+  for (let index = 1; index < runStarts.length; index++) {
+    if (runStarts[index - 1] - runStarts[index] < 5 * 60 * 1000) {
+      duplicateRunCount++;
+    }
+  }
   return {
     envEnabled,
     complianceApproved: (approval.count ?? 0) > 0,
-    fetchableEnabledFeedCount: sourceRows.filter((row) =>
-      isApprovedForFetch(row.source_type)
+    fetchableEnabledFeedCount: sourceRows.filter(
+      (row) => row.is_enabled && isApprovedForFetch(row.source_type)
     ).length,
     lastSuccessAt: success?.started_at ?? null,
+    pipelineExpected: true,
+    latestPipelineAt: pipeline?.started_at ?? null,
+    latestPipelineStatus: pipeline?.status ?? null,
+    runningPipelineStartedAt: running?.started_at ?? null,
+    consecutiveParserFailures,
+    autoDisabledFeedCount: sourceRows.filter(
+      (row) =>
+        !row.is_enabled &&
+        (row.last_status === "blocked" || row.last_status === "error")
+    ).length,
+    fetchAnomaly,
+    duplicateRunCount,
   };
 }
 
@@ -191,6 +269,13 @@ interface PipelineRunRow {
   status: string;
   expired_archived: number;
   invalid_archived: number;
+  stale_archived: number;
+  card_offers_archived: number;
+  feed_items_retired: number;
+  feed_items_purged: number;
+  detection_scanned: number;
+  detection_detected: number;
+  detection_inserted: number;
   validation_checked: number;
   validation_unknown: number;
   feeds_processed: number;
@@ -209,6 +294,13 @@ function mapPipelineRun(row: PipelineRunRow): DailyPipelineRunEntry {
     status: row.status,
     expiredArchived: row.expired_archived,
     invalidArchived: row.invalid_archived,
+    staleArchived: row.stale_archived,
+    cardOffersArchived: row.card_offers_archived,
+    feedItemsRetired: row.feed_items_retired,
+    feedItemsPurged: row.feed_items_purged,
+    detectionScanned: row.detection_scanned,
+    detectionDetected: row.detection_detected,
+    detectionInserted: row.detection_inserted,
     validationChecked: row.validation_checked,
     validationUnknown: row.validation_unknown,
     feedsProcessed: row.feeds_processed,

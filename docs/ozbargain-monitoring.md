@@ -18,7 +18,7 @@
 > implemented daily pipeline now runs once at **00:00 UTC**, archives expired
 > rows, performs status-only validation of approved OzBargain post URLs, fetches
 > due feeds, and records fetched/new/updated/skipped/error counts. New feed rows
-> land directly in `/admin/signals/queue`; **Approve** is the single human
+> land directly in `/admin/review?tab=deals`; **Approve** is the single human
 > publication step and **Reject** archives without deletion. Fetch code itself
 > still writes staging tables only and never invokes approval.
 
@@ -124,22 +124,17 @@ If any box cannot be checked, **the monitor is not built** and we stay manual.
  OzBargain feed ──► fetch + parse ──► feed_items (review_state = new)
                                             │
                                    Admin review queue UI
-                                   /admin/signals/queue
+                                   /admin/review?tab=deals
                                             │
-              ┌─────────────┬───────────────┴───────────────┐
-              ▼             ▼                                ▼
-           Ignore        Duplicate                  Import as signal
-      (review_state    (review_state           (creates ozbargain_signals
-        = ignored)      = duplicate)             row, status = PENDING,
-                                                 review_state = imported)
+                       ┌────────────────┴────────────────┐
+                       ▼                                 ▼
+                    Reject                           Approve
+             (review_state=rejected;       (transactionally creates/reuses
+              reviewer/time retained)       an APPROVED signal and links it)
                                                          │
-                                              Admin moderation
+                                                         ▼
+                                               PUBLIC via RLS
                                                          │
-                                      ┌──────────────────┼──────────────┐
-                                      ▼                  ▼              ▼
-                                 approved            hidden          expired
-                              (PUBLIC via RLS)    (reversible)    (reversible)
-                                      │
                          Homepage Top 5 when feed-item
                          curation + live-state checks pass
 ```
@@ -149,9 +144,10 @@ If any box cannot be checked, **the monitor is not built** and we stay manual.
 - Each row shows the raw title, source link (display only / `nofollow`, not
   auto-opened), an **auto-suggested merchant** (via `lib/sources/normalise.ts`),
   a heuristic `deal_kind`, posted date, and the feed source.
-- Importing reuses the **existing signal create form**, prefilled — the admin
-  edits the paraphrase, confirms the merchant, and saves as `pending`.
-- Nothing in this flow publishes; only the later `approved` transition does.
+- The review-fields panel exposes conservative metadata suggestions. The admin
+  can edit merchant, deal kind, price, coupon, expiry and score before approval.
+- Approval is the only publication decision. The service-role RPC locks and
+  deduplicates the row; rejection is reversible from Review history.
 
 ---
 
@@ -424,9 +420,10 @@ front-page firehose. Map each `Store.id` → its OzBargain store slug in preflig
 against `https://www.ozbargain.com.au/tag/credit-card/feed` — a live RSS 2.0
 feed ("OzBargain - Credit Card"), no `robots.txt` restriction on `/tag/` or
 `/feed`. Registered in `feed_sources` **disabled** (migration
-`017_card_source_registry.sql`) for a future card-offer detection-assist
-phase — see `docs/bank-card-offer-workflow.md`'s addendum for the full
-decision, including why Finder.com.au was rejected as an automation source.
+`017_card_source_registry.sql`) for the flag-gated card-offer detection-assist
+path — see `docs/bank-card-offer-workflow.md` for the full decision, including
+why Finder.com.au was rejected as an automation source. Detection code remains
+inert until both offer detection and card detection flags are enabled.
 
 ### Required User-Agent format
 
@@ -596,8 +593,8 @@ Behaviour and guarantees (enforced in code, covered by `npm run test:monitor`):
 - A **non-XML / HTML / Cloudflare-like** body is treated as **blocked** → the run
   stops and (live) the feed is auto-disabled. **No bypass, ever.**
 - Live writes touch **only** `feed_items`, `feed_fetch_log`, and `feed_sources`
-  poll-state — **never** `ozbargain_signals`. Imported items still require manual
-  admin approval via `/admin/signals/queue`.
+  poll-state — **never** `ozbargain_signals`. Staged items still require manual
+  admin approval via `/admin/review?tab=deals`.
 
 ## Scheduling the monitor
 
@@ -661,7 +658,7 @@ OzBargain — record that decision here before enabling it.
 
 - [x] Manual queue test data: `npm run seed:feed-items` inserts a **disabled**
       example feed source + a few clearly-fake `feed_items`
-      (`example-seed-*` ids, `example.com` links) so `/admin/signals/queue` can
+      (`example-seed-*` ids, `example.com` links) so `/admin/review?tab=deals` can
       be exercised. Safe to re-run; no network, no OzBargain fetch.
       *(`scripts/seed-feed-items.ts`.)*
 - [x] Unit-test parser/mapper against saved fixture XML — **no network**.

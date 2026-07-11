@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { ArrowRight, ExternalLink, FilePlus2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { AdminOfferChange } from "@/lib/admin/repos/offerChanges";
+import type { OfferChangeView } from "@/lib/admin/offerChangeViews";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 import {
   applyOfferChangeAction,
@@ -23,16 +25,12 @@ import {
  * detection module.
  */
 
-export interface OfferChangeView extends AdminOfferChange {
-  canApply: boolean;
-  applyHint: string;
-}
-
 const SOURCE_TYPE_LABELS: Record<AdminOfferChange["sourceType"], string> = {
   cashback: "Cashback",
   gift_card: "Gift card",
   points: "Points",
   promo: "Promo / discount",
+  card_offer: "Card offer",
 };
 
 function Row({ item }: { item: OfferChangeView }) {
@@ -41,6 +39,32 @@ function Row({ item }: { item: OfferChangeView }) {
   const detectedHref = item.detectedUrl
     ? safeHttpsUrl(item.detectedUrl)
     : null;
+  const cardDraftHref = useMemo(() => {
+    if (item.sourceType !== "card_offer" || item.targetId) return null;
+    const params = new URLSearchParams({
+      provider:
+        typeof item.payload.provider === "string"
+          ? item.payload.provider
+          : item.sourceName,
+      card_name: item.detectedTitle,
+      offer_summary: item.rawSummary || item.detectedTitle,
+      reference_url: item.detectedUrl,
+    });
+    for (const [param, key] of [
+      ["bonus_points", "bonusPoints"],
+      ["annual_fee", "annualFee"],
+    ] as const) {
+      const value = item.payload[key];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+        params.set(param, String(value));
+      }
+    }
+    params.set(
+      "offer_type",
+      params.has("bonus_points") ? "points_bonus" : "annual_fee_discount"
+    );
+    return `/admin/card-offers/new?${params.toString()}`;
+  }, [item]);
 
   const run = (action: () => Promise<{ ok: true } | { error: string }>) => {
     setError(null);
@@ -117,6 +141,17 @@ function Row({ item }: { item: OfferChangeView }) {
           <p className="text-sm text-muted-foreground">{item.rawSummary}</p>
         ) : null}
 
+        {item.sourceType === "card_offer" ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>
+              Bonus points: {String(item.payload.bonusPoints ?? "not detected")}
+            </span>
+            <span>
+              Annual fee: {String(item.payload.annualFee ?? "not detected")}
+            </span>
+          </div>
+        ) : null}
+
         {detectedHref ? (
           <a
             href={detectedHref}
@@ -152,6 +187,14 @@ function Row({ item }: { item: OfferChangeView }) {
           >
             Apply
           </Button>
+          {cardDraftHref ? (
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href={cardDraftHref} className="gap-1.5">
+                <FilePlus2 className="size-3.5" />
+                Create unpublished draft
+              </Link>
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -182,9 +225,44 @@ function Row({ item }: { item: OfferChangeView }) {
 }
 
 export function OfferChangesClient({ items }: { items: OfferChangeView[] }) {
+  const [sourceType, setSourceType] = useState<"all" | AdminOfferChange["sourceType"]>(
+    "all"
+  );
+  const filtered = useMemo(
+    () =>
+      sourceType === "all"
+        ? items
+        : items.filter((item) => item.sourceType === sourceType),
+    [items, sourceType]
+  );
   return (
     <div className="space-y-4">
-      {items.map((item) => (
+      <div className="flex items-center gap-2">
+        <label htmlFor="offer-change-source" className="text-sm font-medium">
+          Source type
+        </label>
+        <select
+          id="offer-change-source"
+          value={sourceType}
+          onChange={(event) =>
+            setSourceType(
+              event.target.value as "all" | AdminOfferChange["sourceType"]
+            )
+          }
+          className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+        >
+          <option value="all">All</option>
+          {Object.entries(SOURCE_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-muted-foreground">
+          {filtered.length} of {items.length}
+        </span>
+      </div>
+      {filtered.map((item) => (
         <Row key={item.id} item={item} />
       ))}
     </div>

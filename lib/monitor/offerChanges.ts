@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { stripHtml } from "./mapFeedItem";
+import type { Json } from "@/lib/supabase/database.types";
 
 /**
  * Offer-change detection helpers — PURE / OFFLINE ONLY (no network, no DB).
@@ -25,6 +26,7 @@ export const OFFER_SOURCE_TYPES = [
   "gift_card",
   "points",
   "promo",
+  "card_offer",
 ] as const;
 export type OfferSourceType = (typeof OFFER_SOURCE_TYPES)[number];
 
@@ -105,6 +107,12 @@ export interface DetectedOffer {
   proposedValue: string;
   confidence?: OfferChangeConfidence;
   rawSummary?: string;
+  /**
+   * Structured fields a single rate/discount string cannot carry (e.g. a
+   * card offer's bonus points AND annual fee at once). Admin-review prefill
+   * only — never read by the apply planner. Defaults to `{}`.
+   */
+  payload?: Record<string, Json>;
 }
 
 /** Shaped for an `offer_change_candidates` insert (server adds review_state, ts). */
@@ -121,6 +129,7 @@ export interface OfferChangeCandidateInsert {
   confidence: OfferChangeConfidence;
   raw_summary: string;
   content_hash: string;
+  payload: Record<string, Json>;
 }
 
 const SUMMARY_MAX = 500;
@@ -178,6 +187,7 @@ export function buildOfferChangeCandidate(
       detectedUrl,
       proposedValue,
     }),
+    payload: d.payload ?? {},
   };
 }
 
@@ -235,16 +245,24 @@ export type OfferTable =
   | "cashback_offers"
   | "gift_card_offers"
   | "points_offers"
-  | "stores";
+  | "stores"
+  | "card_offers";
 
-/** Which table + numeric column each candidate source type applies to. */
-const OFFER_TARGET: Record<OfferSourceType, { table: OfferTable; column: string }> =
-  {
-    cashback: { table: "cashback_offers", column: "rate_percent" },
-    gift_card: { table: "gift_card_offers", column: "discount_percent" },
-    points: { table: "points_offers", column: "earn_multiple" },
-    promo: { table: "stores", column: "discount_percent" },
-  };
+/**
+ * Which table + numeric column each candidate source type applies to. A
+ * source type with NO entry here cannot be applied yet — planOfferApplication
+ * refuses it with a clear skip instead of crashing on a missing key.
+ * `card_offer` is handled separately because one reviewed detection can carry
+ * more than one numeric field.
+ */
+const OFFER_TARGET: Partial<
+  Record<OfferSourceType, { table: OfferTable; column: string }>
+> = {
+  cashback: { table: "cashback_offers", column: "rate_percent" },
+  gift_card: { table: "gift_card_offers", column: "discount_percent" },
+  points: { table: "points_offers", column: "earn_multiple" },
+  promo: { table: "stores", column: "discount_percent" },
+};
 
 /** Offer tables that carry a last_checked_at column (stores does not). */
 export function hasLastCheckedAt(table: OfferTable): boolean {
@@ -259,12 +277,21 @@ export function parseRateValue(text: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-export interface ApplyPlan {
+export interface ScalarApplyPlan {
   table: OfferTable;
   column: string;
   id: string;
   value: number;
 }
+export interface CardApplyPlan {
+  table: "card_offers";
+  id: string;
+  changes: {
+    bonus_points?: number;
+    annual_fee?: number;
+  };
+}
+export type ApplyPlan = ScalarApplyPlan | CardApplyPlan;
 export interface ApplySkip {
   skip: string;
 }
@@ -275,6 +302,27 @@ export interface ApplyCandidateView {
   reviewState: OfferChangeReviewState;
   targetId: string | null;
   proposedValue: string;
+  payload?: Record<string, unknown>;
+}
+
+function cardField(
+  payload: Record<string, unknown>,
+  key: "bonusPoints" | "annualFee",
+  max: number,
+  integer = false
+): number | null {
+  const value = payload[key];
+  if (value === null || value === undefined) return null;
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > max ||
+    (integer && !Number.isInteger(value))
+  ) {
+    return null;
+  }
+  return value;
 }
 
 /**
@@ -293,14 +341,39 @@ export function planOfferApplication(
   if (!c.targetId) {
     return { skip: "no target offer is linked to this candidate" };
   }
+  if (c.sourceType === "card_offer") {
+    const payload = c.payload ?? {};
+    const bonusPoints = cardField(payload, "bonusPoints", 10_000_000, true);
+    const annualFee = cardField(payload, "annualFee", 100_000);
+    const changes: CardApplyPlan["changes"] = {};
+    if (bonusPoints !== null) changes.bonus_points = bonusPoints;
+    if (annualFee !== null) changes.annual_fee = annualFee;
+    if (Object.keys(changes).length === 0) {
+      return { skip: "card candidate has no valid detected fields" };
+    }
+    return { table: "card_offers", id: c.targetId, changes };
+  }
   const value = parseRateValue(c.proposedValue);
   if (value === null) {
     return { skip: "proposed value is not numeric" };
   }
   const target = OFFER_TARGET[c.sourceType];
+  if (!target) {
+    return {
+      skip: `automated apply is not yet supported for ${c.sourceType} candidates`,
+    };
+  }
   return { table: target.table, column: target.column, id: c.targetId, value };
 }
 
 export function isApplyPlan(plan: ApplyPlan | ApplySkip): plan is ApplyPlan {
   return "table" in plan;
+}
+
+export function isCardApplyPlan(plan: ApplyPlan): plan is CardApplyPlan {
+  return plan.table === "card_offers" && "changes" in plan;
+}
+
+export function isScalarApplyPlan(plan: ApplyPlan): plan is ScalarApplyPlan {
+  return "column" in plan;
 }

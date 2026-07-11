@@ -239,7 +239,7 @@ function recommendedAction(status: MonitorStatus): NextAction {
       status.feedQueuePending === 1 ? "" : "s"
     } in the queue.`,
     tone: "ok",
-    href: "/admin/signals/queue",
+    href: "/admin/review?tab=deals",
     hrefLabel: "Deal review queue",
   };
 }
@@ -287,7 +287,7 @@ export default async function MonitorStatusPage() {
           fashion, gift cards, beauty, automotive and household/appliance deals
           (and anything uncertain) are staged as <code className="text-xs">new</code>{" "}
           for review in the{" "}
-          <Link href="/admin/signals/queue" className="underline">
+          <Link href="/admin/review?tab=deals" className="underline">
             deal review queue
           </Link>
           . Clearly off-theme items (alcohol, anime/collectibles, gaming
@@ -627,7 +627,7 @@ export default async function MonitorStatusPage() {
             </CardTitle>
             {status.feedQueuePending > 0 ? (
               <Link
-                href="/admin/signals/queue"
+                href="/admin/review?tab=deals"
                 className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
               >
                 Review queue ({status.feedQueuePending} pending) →
@@ -841,12 +841,15 @@ export default async function MonitorStatusPage() {
                   <TableHead>Started</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Archived</TableHead>
+                  <TableHead className="text-right">Queue retired</TableHead>
+                  <TableHead className="text-right">Purged</TableHead>
                   <TableHead className="text-right">Validated</TableHead>
                   <TableHead className="text-right">Unknown</TableHead>
                   <TableHead className="text-right">Fetched</TableHead>
                   <TableHead className="text-right">New</TableHead>
                   <TableHead className="text-right">Updated</TableHead>
                   <TableHead className="text-right">Skipped</TableHead>
+                  <TableHead className="text-right">Detected</TableHead>
                   <TableHead>Errors</TableHead>
                 </TableRow>
               </TableHeader>
@@ -858,7 +861,16 @@ export default async function MonitorStatusPage() {
                     </TableCell>
                     <TableCell className="capitalize">{run.status}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {run.expiredArchived + run.invalidArchived}
+                      {run.expiredArchived +
+                        run.invalidArchived +
+                        run.staleArchived +
+                        run.cardOffersArchived}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {run.feedItemsRetired}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {run.feedItemsPurged}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {run.validationChecked}
@@ -870,6 +882,9 @@ export default async function MonitorStatusPage() {
                     <TableCell className="text-right tabular-nums">{run.itemsNew}</TableCell>
                     <TableCell className="text-right tabular-nums">{run.itemsUpdated}</TableCell>
                     <TableCell className="text-right tabular-nums">{run.itemsSkipped}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {run.detectionInserted}/{run.detectionDetected}
+                    </TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
                       {run.errors.join("; ") || "—"}
                     </TableCell>

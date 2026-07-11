@@ -58,4 +58,29 @@ describe("production safety migration contracts", () => {
     // Both inserts must be guarded so a re-run cannot duplicate the rows.
     expect(sql).toContain("where not exists");
   });
+
+  it("keeps card detections private and structurally constrained", () => {
+    const sql = migration("018_card_offer_change_candidates.sql");
+    expect(sql).toContain("'card_offer'");
+    expect(sql).toContain("payload jsonb not null");
+    expect(sql).toContain("jsonb_typeof(payload) = 'object'");
+    expect(sql).not.toMatch(/update\s+public\.card_offers/i);
+    expect(sql).not.toMatch(/create policy/i);
+  });
+
+  it("fences lifecycle cleanup and retention behind service-role functions", () => {
+    const sql = migration("019_pipeline_lifecycle_retention.sql");
+    expect(sql).toContain(
+      "last_validated_at = coalesce(last_checked_at, updated_at, created_at)"
+    );
+    expect(sql).toContain("review_by_date < p_today");
+    expect(sql).toContain("stale-unvalidated");
+    expect(sql).toContain("review_state in ('ignored', 'rejected')");
+    expect(sql).toContain("auto-purge-retained");
+    expect(sql).toContain("run_daily_pipeline_cleanup");
+    expect(sql).toContain("stage-detection");
+    expect(sql).toContain("trg_audit_system_offer_change_insert");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+  });
 });

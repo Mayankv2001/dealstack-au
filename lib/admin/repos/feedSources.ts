@@ -404,6 +404,21 @@ export async function recordFeedPollState(
     .update(update)
     .eq("id", feedSourceId);
   if (error) throw new Error(`recordFeedPollState failed: ${error.message}`);
+  if (patch.isEnabled === false) {
+    const { error: auditError } = await db.from("audit_log").insert({
+      actor_email: "system@dealstack.local",
+      action: "auto-disable-feed",
+      table_name: "feed_sources",
+      row_id: feedSourceId,
+      diff: {
+        lastStatus: patch.lastStatus ?? null,
+        failureCount: patch.failureCount ?? null,
+      },
+    });
+    if (auditError) {
+      console.warn(`[feed-monitor] auto-disable audit failed: ${auditError.message}`);
+    }
+  }
 }
 
 /** Append one per-run audit row to feed_fetch_log. */

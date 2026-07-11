@@ -8,8 +8,7 @@ import { cn } from "@/lib/utils";
 /**
  * Admin navigation (client island) — grouped links with active-state
  * highlighting. Grouping keeps the now-long nav scannable; the active link is
- * resolved by longest matching path prefix so e.g. /admin/signals/queue
- * highlights "Feed Queue" rather than "Signals".
+ * resolved by longest matching path prefix.
  */
 
 interface NavLink {
@@ -30,7 +29,7 @@ const GROUPS: NavLink[][] = [
   ],
   [
     { href: "/admin/signals", label: "Signals" },
-    { href: "/admin/signals/queue", label: "Review Queue" },
+    { href: "/admin/review", label: "Review" },
     { href: "/admin/signals/sources", label: "Feed Sources" },
     { href: "/admin/offer-changes", label: "Offer Changes" },
     { href: "/admin/compliance", label: "Compliance" },

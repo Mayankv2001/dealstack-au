@@ -9,13 +9,16 @@ import {
 import {
   approveFeedItem,
   rejectFeedItem,
+  restoreFeedItem,
   setFeedItemHomepageHidden,
+  type FeedApprovalOverrides,
 } from "@/lib/admin/repos/feedQueue";
 
 const BULK_REVIEW_MAX = 200;
 
 function revalidateQueue(publicChanged = false): void {
   revalidatePath("/admin/signals/queue");
+  revalidatePath("/admin/review");
   revalidatePath("/admin/signals");
   revalidatePath("/admin/dashboard");
   if (publicChanged) {
@@ -33,13 +36,19 @@ function cleanIds(ids: string[]): string[] {
 
 /** Human approval publishes one reviewed item directly and atomically. */
 export async function approveItem(
-  feedItemId: string
+  feedItemId: string,
+  overrides: FeedApprovalOverrides = {}
 ): Promise<AdminActionResult> {
   const { email } = await requireAdmin();
   const rateLimit = await checkAdminRateLimit({ adminEmail: email });
   if (!rateLimit.success) return { error: rateLimit.error };
-
-  await approveFeedItem(feedItemId);
+  try {
+    await approveFeedItem(feedItemId, overrides);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not approve this deal.",
+    };
+  }
   revalidateQueue(true);
   return { ok: true };
 }
@@ -52,7 +61,31 @@ export async function rejectItem(
   const rateLimit = await checkAdminRateLimit({ adminEmail: email });
   if (!rateLimit.success) return { error: rateLimit.error };
 
-  await rejectFeedItem(feedItemId, email);
+  try {
+    await rejectFeedItem(feedItemId, email);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not reject this deal.",
+    };
+  }
+  revalidateQueue();
+  return { ok: true };
+}
+
+export async function restoreItem(
+  feedItemId: string
+): Promise<AdminActionResult> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
+  try {
+    await restoreFeedItem(feedItemId);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not restore this deal.",
+    };
+  }
   revalidateQueue();
   return { ok: true };
 }

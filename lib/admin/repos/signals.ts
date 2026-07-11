@@ -246,9 +246,20 @@ export async function setSignalStatus(
   status: SignalStatus
 ): Promise<void> {
   const db = getSupabaseAdmin();
+  const now = new Date().toISOString();
+  const update =
+    status === "approved"
+      ? {
+          status,
+          archived_at: null,
+          archive_reason: null,
+          last_validated_at: now,
+          last_checked_at: now,
+        }
+      : { status };
   const { error } = await db
     .from("ozbargain_signals")
-    .update({ status })
+    .update(update)
     .eq("id", id);
   if (error) throw new Error(`setSignalStatus failed: ${error.message}`);
 }

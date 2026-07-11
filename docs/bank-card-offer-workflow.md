@@ -117,26 +117,21 @@ exactly:
   and card-issuer offer page is login-gated and/or Cloudflare-protected —
   automating discovery there would violate the no-scraping/no-bypass rules
   outright. This table is **manual-entry-only**, full stop.
-- **No automatic rate-change detection.** `offer_change_candidates` (staging
-  table for admin-reviewed changes to existing offers) could, in principle, be
-  extended later with `source_type = 'card_offer'` and a
-  `card_offers` entry in `OFFER_TARGET` (`lib/monitor/offerChanges.ts`) — but
-  that requires its own migration (a new `check` constraint value) and code
-  change, and there is still no live detector for anything in that table
-  today (confirmed in Phase 1 research: `insertOfferChangeCandidates()` is
-  currently called nowhere in the app). Out of scope here; flagged as a
-  possible future phase, not built.
+- **No automatic publication or issuer-page fetching.** The RSS-only detection
+  assistant can stage `card_offer` candidates behind `CARD_DETECT_ENABLED`.
+  Resolved candidates may update only reviewed numeric fields after an admin
+  clicks Apply; unresolved candidates prefill an unpublished draft. Issuer-page
+  verification remains manual, and publish/archive state is never changed by
+  detection or Apply.
 - **No public UI** is built in this phase — see Phase 9
   (`docs/public-ui-expansion-plan.md`) for where this would surface.
 
 ## Addendum: source decision for card-offer discovery automation (2026-07-11)
 
-The manual-entry-only posture above is unchanged and remains the way
-`card_offers` rows get **published**. This addendum records a compliance
-decision made in support of a future *detection-assist* phase — surfacing
-candidate new/changed card offers into the existing `offer_change_candidates`
-review queue (see the "No automatic rate-change detection" note above), never
-auto-publishing anything.
+The manual verification posture above is unchanged and remains the only way
+`card_offers` rows get **published**. This addendum records the source decision
+for the implemented detection assistant, which surfaces candidate new/changed
+card offers in the admin review queue and never auto-publishes anything.
 
 **Finder.com.au (credit card comparison) — rejected.** It publishes no
 RSS/Atom feed or public API for card offers. Its `robots.txt` confirms this:
@@ -159,8 +154,8 @@ existing monitor operates under (`source_type = 'ozbargain'`, already in
 `APPROVED_FEED_SOURCE_TYPES` — see `lib/monitor/offerChanges.ts`); no new
 fetching capability was added, only a new row in the existing allowlist.
 Registered in `feed_sources` **disabled** (`kind = 'category'`) in the same
-migration — enabling it, and building the card-shaped detection heuristics
-that would read it, is future work, not done here.
+migration. Card-shaped heuristics now exist behind the independent,
+default-off `CARD_DETECT_ENABLED` flag and only scan already-staged feed data.
 
 Issuer pages remain the manual verification source of truth for actually
 publishing a `card_offers` row, exactly as described above — a detected

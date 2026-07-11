@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   approveFeedItem: vi.fn(),
   rejectFeedItem: vi.fn(),
+  restoreFeedItem: vi.fn(),
   setSignalStatus: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock("@/lib/admin/repos/audit", () => ({ logAudit: vi.fn() }));
 vi.mock("@/lib/admin/repos/feedQueue", () => ({
   approveFeedItem: mocks.approveFeedItem,
   rejectFeedItem: mocks.rejectFeedItem,
+  restoreFeedItem: mocks.restoreFeedItem,
   setFeedItemHomepageHidden: vi.fn(),
 }));
 vi.mock("@/lib/admin/repos/signals", () => ({

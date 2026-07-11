@@ -1,9 +1,15 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { todayAU } from "@/lib/offers/expiry";
 import { validateSourcePost } from "@/lib/monitor/validateSourcePost";
+import { signalValidationDays } from "@/lib/env";
 
 export interface ArchiveSummary {
   total: number;
+  expired: number;
+  staleSignals: number;
+  cardOffers: number;
+  feedItemsRetired: number;
+  feedItemsPurged: number;
 }
 
 export interface ValidationSummary {
@@ -16,6 +22,13 @@ export interface PipelineRunPatch {
   status: "ok" | "partial" | "error" | "disabled" | "blocked";
   expiredArchived: number;
   invalidArchived: number;
+  staleArchived: number;
+  cardOffersArchived: number;
+  feedItemsRetired: number;
+  feedItemsPurged: number;
+  detectionScanned: number;
+  detectionDetected: number;
+  detectionInserted: number;
   validationChecked: number;
   validationUnknown: number;
   feedsProcessed: number;
@@ -26,15 +39,55 @@ export interface PipelineRunPatch {
   errors: string[];
 }
 
+export function dailyCleanupCutoffs(
+  now: Date,
+  validationDays: number
+): { signal: Date; staleFeed: Date; purge: Date } {
+  const dayMs = 24 * 60 * 60 * 1000;
+  return {
+    signal: new Date(now.getTime() - validationDays * dayMs),
+    staleFeed: new Date(now.getTime() - 60 * dayMs),
+    purge: new Date(now.getTime() - 90 * dayMs),
+  };
+}
+
+function count(value: unknown, key: string): number {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
+  const parsed = Number((value as Record<string, unknown>)[key]);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 export async function archiveExpiredDeals(now: Date): Promise<ArchiveSummary> {
   const db = getSupabaseAdmin();
   const today = todayAU(now);
-  const { data, error } = await db.rpc("archive_expired_deals", {
+  const cutoffs = dailyCleanupCutoffs(now, signalValidationDays());
+  const { data, error } = await db.rpc("run_daily_pipeline_cleanup", {
     p_today: today,
     p_archived_at: now.toISOString(),
+    p_signal_stale_before: cutoffs.signal.toISOString(),
+    p_feed_stale_before: cutoffs.staleFeed.toISOString(),
+    p_purge_before: cutoffs.purge.toISOString(),
   });
   if (error) throw new Error(`archiveExpiredDeals failed: ${error.message}`);
-  return { total: data ?? 0 };
+
+  const expired = count(data, "expiredOffers") + count(data, "expiredSignals");
+  const staleSignals = count(data, "staleSignals");
+  const cardOffers = count(data, "cardOffers");
+  const feedItemsRetired = count(data, "feedItemsRetired");
+  const feedItemsPurged = count(data, "feedItemsPurged");
+  return {
+    total:
+      expired +
+      staleSignals +
+      cardOffers +
+      feedItemsRetired +
+      feedItemsPurged,
+    expired,
+    staleSignals,
+    cardOffers,
+    feedItemsRetired,
+    feedItemsPurged,
+  };
 }
 
 export async function validatePublishedSignals(
@@ -82,9 +135,13 @@ export async function validatePublishedSignals(
         if (updateError) throw new Error(`archive invalid signal failed: ${updateError.message}`);
         if (changed) archived++;
       } else {
+        const validationStamp =
+          result.status === "active"
+            ? { last_validated_at: checkedAt, last_checked_at: checkedAt }
+            : { last_checked_at: checkedAt };
         const { error: updateError } = await db
           .from("ozbargain_signals")
-          .update({ last_validated_at: checkedAt })
+          .update(validationStamp)
           .eq("id", signal.id)
           .eq("status", "approved");
         if (updateError) throw new Error(`stamp signal validation failed: ${updateError.message}`);
@@ -163,6 +220,13 @@ export async function finishPipelineRun(
       status: patch.status,
       expired_archived: patch.expiredArchived,
       invalid_archived: patch.invalidArchived,
+      stale_archived: patch.staleArchived,
+      card_offers_archived: patch.cardOffersArchived,
+      feed_items_retired: patch.feedItemsRetired,
+      feed_items_purged: patch.feedItemsPurged,
+      detection_scanned: patch.detectionScanned,
+      detection_detected: patch.detectionDetected,
+      detection_inserted: patch.detectionInserted,
       validation_checked: patch.validationChecked,
       validation_unknown: patch.validationUnknown,
       feeds_processed: patch.feedsProcessed,

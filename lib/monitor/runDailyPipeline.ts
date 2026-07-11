@@ -13,6 +13,11 @@ export interface DailyPipelineDeps {
   archiveExpired(now: Date): Promise<ArchiveSummary>;
   validateLive(now: Date, userAgent: string): Promise<ValidationSummary>;
   fetchLatest(): Promise<MonitorRunSummary>;
+  detectChanges?(): Promise<{
+    scanned: number;
+    detected: number;
+    inserted: number;
+  }>;
 }
 
 export interface DailyPipelineOptions {
@@ -20,6 +25,7 @@ export interface DailyPipelineOptions {
   complianceApproved: boolean;
   userAgent: string | null;
   preflightErrors?: string[];
+  detectionEnabled?: boolean;
 }
 
 export interface DailyPipelineSummary extends PipelineRunPatch {
@@ -53,6 +59,13 @@ export async function runDailyPipeline(
   const errors: string[] = [...(options.preflightErrors ?? [])];
   let expiredArchived = 0;
   let invalidArchived = 0;
+  let staleArchived = 0;
+  let cardOffersArchived = 0;
+  let feedItemsRetired = 0;
+  let feedItemsPurged = 0;
+  let detectionScanned = 0;
+  let detectionDetected = 0;
+  let detectionInserted = 0;
   let validationChecked = 0;
   let validationUnknown = 0;
   let feedsProcessed = 0;
@@ -62,7 +75,12 @@ export async function runDailyPipeline(
   let itemsSkipped = 0;
 
   try {
-    expiredArchived = (await deps.archiveExpired(startedAt)).total;
+    const cleanup = await deps.archiveExpired(startedAt);
+    expiredArchived = cleanup.expired;
+    staleArchived = cleanup.staleSignals;
+    cardOffersArchived = cleanup.cardOffers;
+    feedItemsRetired = cleanup.feedItemsRetired;
+    feedItemsPurged = cleanup.feedItemsPurged;
   } catch (error) {
     errors.push(`expiry cleanup: ${message(error)}`);
   }
@@ -100,6 +118,17 @@ export async function runDailyPipeline(
     } catch (error) {
       errors.push(`feed fetch: ${message(error)}`);
     }
+
+    if (options.detectionEnabled && deps.detectChanges) {
+      try {
+        const detection = await deps.detectChanges();
+        detectionScanned = detection.scanned;
+        detectionDetected = detection.detected;
+        detectionInserted = detection.inserted;
+      } catch (error) {
+        errors.push(`offer detection: ${message(error)}`);
+      }
+    }
   }
 
   const status =
@@ -114,6 +143,13 @@ export async function runDailyPipeline(
     status,
     expiredArchived,
     invalidArchived,
+    staleArchived,
+    cardOffersArchived,
+    feedItemsRetired,
+    feedItemsPurged,
+    detectionScanned,
+    detectionDetected,
+    detectionInserted,
     validationChecked,
     validationUnknown,
     feedsProcessed,

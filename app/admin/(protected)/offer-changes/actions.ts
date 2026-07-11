@@ -8,7 +8,7 @@ import {
   applyOfferChange,
   setOfferChangeReviewState,
 } from "@/lib/admin/repos/offerChanges";
-import { ozbOfferDetectEnabled } from "@/lib/env";
+import { cardDetectEnabled, ozbOfferDetectEnabled } from "@/lib/env";
 import type { OfferChangeCandidateInsert } from "@/lib/monitor/offerChanges";
 
 /**
@@ -30,15 +30,25 @@ export type OfferChangeActionResult = { ok: true } | { error: string };
 /** Admin surfaces a queue change affects (never public pages). */
 function revalidateAdmin(): void {
   revalidatePath("/admin/offer-changes");
+  revalidatePath("/admin/review");
   revalidatePath("/admin/dashboard");
 }
 
 /** Applying changes a PUBLISHED offer, so the public surfaces must refresh. */
-function revalidatePublicOffers(merchantId: string | null): void {
+function revalidatePublicOffers(
+  merchantId: string | null,
+  table: string,
+  targetId: string
+): void {
   revalidatePath("/");
   revalidatePath("/deals");
   revalidatePath("/search");
   if (merchantId) revalidatePath(`/stores/${merchantId}`);
+  if (table === "card_offers") {
+    revalidatePath("/cards");
+    revalidatePath("/cards/compare");
+    revalidatePath(`/cards/${targetId}`);
+  }
 }
 
 /** Apply a reviewed candidate to its target offer (admin-confirmed). */
@@ -60,7 +70,7 @@ export async function applyOfferChangeAction(
       diff: { applied: result },
     });
     revalidateAdmin();
-    revalidatePublicOffers(result.merchantId);
+    revalidatePublicOffers(result.merchantId, result.table, result.targetId);
     return { ok: true };
   } catch (err) {
     return {
@@ -101,6 +111,7 @@ export type DetectionPreviewResult =
   | {
       ok: true;
       flagEnabled: boolean;
+      cardDetectFlagEnabled: boolean;
       scanned: number;
       detected: number;
       deduped: number;
@@ -116,6 +127,11 @@ export type DetectionPreviewResult =
  * mutations — a read here must never starve real Apply/Ignore actions; the
  * client debounces instead via a pending transition). Nothing is written and
  * nothing is logged, since nothing changed.
+ *
+ * Card-offer detections are included unconditionally too (enableCardOffers:
+ * true), the same "preview isn't gated" reasoning applied to CARD_DETECT_ENABLED
+ * — cardDetectFlagEnabled tells the UI whether that flag is actually on, so it
+ * can label these as "would stage if enabled" when it is not.
  */
 export async function previewDetectionAction(): Promise<DetectionPreviewResult> {
   await requireAdmin();
@@ -129,10 +145,12 @@ export async function previewDetectionAction(): Promise<DetectionPreviewResult> 
       sinceIso,
       dryRun: true,
       includeCandidates: true,
+      enableCardOffers: true,
     });
     return {
       ok: true,
       flagEnabled: ozbOfferDetectEnabled(),
+      cardDetectFlagEnabled: cardDetectEnabled(),
       scanned: summary.scanned,
       detected: summary.detected,
       deduped: summary.deduped,

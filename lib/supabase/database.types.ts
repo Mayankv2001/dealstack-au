@@ -261,8 +261,14 @@ export type Database = {
       daily_pipeline_runs: {
         Row: {
           created_at: string
+          detection_detected: number
+          detection_inserted: number
+          detection_scanned: number
           errors: Json
           expired_archived: number
+          card_offers_archived: number
+          feed_items_purged: number
+          feed_items_retired: number
           feeds_processed: number
           finished_at: string | null
           id: string
@@ -273,13 +279,20 @@ export type Database = {
           items_updated: number
           started_at: string
           status: string
+          stale_archived: number
           validation_checked: number
           validation_unknown: number
         }
         Insert: {
           created_at?: string
+          detection_detected?: number
+          detection_inserted?: number
+          detection_scanned?: number
           errors?: Json
           expired_archived?: number
+          card_offers_archived?: number
+          feed_items_purged?: number
+          feed_items_retired?: number
           feeds_processed?: number
           finished_at?: string | null
           id?: string
@@ -290,13 +303,20 @@ export type Database = {
           items_updated?: number
           started_at?: string
           status?: string
+          stale_archived?: number
           validation_checked?: number
           validation_unknown?: number
         }
         Update: {
           created_at?: string
+          detection_detected?: number
+          detection_inserted?: number
+          detection_scanned?: number
           errors?: Json
           expired_archived?: number
+          card_offers_archived?: number
+          feed_items_purged?: number
+          feed_items_retired?: number
           feeds_processed?: number
           finished_at?: string | null
           id?: string
@@ -307,6 +327,7 @@ export type Database = {
           items_updated?: number
           started_at?: string
           status?: string
+          stale_archived?: number
           validation_checked?: number
           validation_unknown?: number
         }
@@ -703,6 +724,7 @@ export type Database = {
           detected_url: string
           id: string
           merchant_id: string | null
+          payload: Json
           previous_value: string | null
           proposed_value: string
           raw_summary: string
@@ -723,6 +745,7 @@ export type Database = {
           detected_url?: string
           id?: string
           merchant_id?: string | null
+          payload?: Json
           previous_value?: string | null
           proposed_value?: string
           raw_summary?: string
@@ -743,6 +766,7 @@ export type Database = {
           detected_url?: string
           id?: string
           merchant_id?: string | null
+          payload?: Json
           previous_value?: string | null
           proposed_value?: string
           raw_summary?: string
@@ -1093,6 +1117,29 @@ export type Database = {
           p_window_seconds: number
         }
         Returns: boolean
+      }
+      purge_reviewed_feed_items: {
+        Args: { p_cutoff: string }
+        Returns: number
+      }
+      run_daily_cleanup: {
+        Args: {
+          p_archived_at: string
+          p_feed_stale_before: string
+          p_signal_stale_before: string
+          p_today: string
+        }
+        Returns: Json
+      }
+      run_daily_pipeline_cleanup: {
+        Args: {
+          p_archived_at: string
+          p_feed_stale_before: string
+          p_purge_before: string
+          p_signal_stale_before: string
+          p_today: string
+        }
+        Returns: Json
       }
       submit_card_offer_correction: {
         Args: {

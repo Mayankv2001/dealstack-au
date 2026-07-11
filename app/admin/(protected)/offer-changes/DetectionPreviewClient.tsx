@@ -27,6 +27,7 @@ const SOURCE_TYPE_LABELS: Record<OfferChangeCandidateInsert["source_type"], stri
   gift_card: "Gift card",
   points: "Points",
   promo: "Promo / discount",
+  card_offer: "Card offer",
 };
 
 function CandidateRow({ c }: { c: OfferChangeCandidateInsert }) {
@@ -81,6 +82,8 @@ export function DetectionPreviewClient({
   const [result, setResult] = useState<DetectionPreviewResult | null>(null);
 
   const flagEnabled = result && "ok" in result ? result.flagEnabled : initialFlagEnabled;
+  const cardFlagEnabled =
+    result && "ok" in result ? result.cardDetectFlagEnabled : false;
 
   const onRun = () => {
     startTransition(async () => {
@@ -108,6 +111,16 @@ export function DetectionPreviewClient({
             }
           >
             Detection flag: {flagEnabled ? "ON" : "OFF"}
+          </Badge>
+          <Badge
+            variant="outline"
+            className={
+              cardFlagEnabled
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-muted-foreground"
+            }
+          >
+            Card detection: {cardFlagEnabled ? "ON" : "OFF"}
           </Badge>
         </div>
 

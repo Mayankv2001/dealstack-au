@@ -52,6 +52,8 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Data-only (registers a disabled feed_sources row and a rejected
   // compliance_reviews row) — no schema shape change, same as 008/013/016.
   "017_card_source_registry.sql",
+  "018_card_offer_change_candidates.sql",
+  "019_pipeline_lifecycle_retention.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -164,14 +166,19 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "approved_for_monitoring", "reviewer_email", "notes", "reviewed_at",
     "created_at", "updated_at",
   ]),
-  // 004_offer_change_candidates.sql
-  offer_change_candidates: table("004_offer_change_candidates.sql", [
-    "id", "source_type", "source_name", "merchant_id", "target_id",
-    "detected_title", "detected_rate_or_discount", "detected_url",
-    "previous_value", "proposed_value", "confidence", "raw_summary",
-    "content_hash", "review_state", "reviewed_by", "reviewed_at",
-    "created_at", "updated_at",
-  ]),
+  // 004_offer_change_candidates.sql — extended by 018 (payload, for card-offer
+  // prefill fields a single detected_rate_or_discount string can't carry).
+  offer_change_candidates: table(
+    "004_offer_change_candidates.sql",
+    [
+      "id", "source_type", "source_name", "merchant_id", "target_id",
+      "detected_title", "detected_rate_or_discount", "detected_url",
+      "previous_value", "proposed_value", "confidence", "raw_summary",
+      "content_hash", "review_state", "reviewed_by", "reviewed_at",
+      "created_at", "updated_at", "payload",
+    ],
+    { payload: "018_card_offer_change_candidates.sql" }
+  ),
   // 006_admin_rate_limits.sql
   admin_rate_limits: table("006_admin_rate_limits.sql", [
     "id", "admin_email", "action_key", "created_at",
@@ -208,7 +215,18 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "invalid_archived", "validation_checked", "validation_unknown",
     "feeds_processed", "items_fetched", "items_new",
     "items_updated", "items_skipped", "errors", "created_at",
-  ]),
+    "stale_archived", "card_offers_archived", "feed_items_retired",
+    "feed_items_purged", "detection_scanned", "detection_detected",
+    "detection_inserted",
+  ], {
+    stale_archived: "019_pipeline_lifecycle_retention.sql",
+    card_offers_archived: "019_pipeline_lifecycle_retention.sql",
+    feed_items_retired: "019_pipeline_lifecycle_retention.sql",
+    feed_items_purged: "019_pipeline_lifecycle_retention.sql",
+    detection_scanned: "019_pipeline_lifecycle_retention.sql",
+    detection_detected: "019_pipeline_lifecycle_retention.sql",
+    detection_inserted: "019_pipeline_lifecycle_retention.sql",
+  }),
 };
 
 /**
