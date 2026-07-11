@@ -10,7 +10,7 @@ import {
   type CellTone,
 } from "@/components/admin/AdminListTable";
 import { Button } from "@/components/ui/button";
-import { setStatus } from "./actions";
+import { approveSelectedSignals, setStatus } from "./actions";
 
 export const metadata: Metadata = {
   title: "OzBargain signals | DealStack AU admin",
@@ -68,6 +68,9 @@ function toRow(signal: AdminSignal): AdminRow {
     searchText:
       `${signal.title} ${store} ${kind} ${STATUS_LABELS[signal.status]}`.toLowerCase(),
     filterValue: signal.status,
+    // Bulk approve targets not-yet-approved signals only (same rule as the
+    // per-row Approve button).
+    selectable: signal.status !== "approved",
     editHref: `/admin/signals/${signal.id}/edit`,
     cells: {
       title: { kind: "text", text: signal.title, strong: true },
@@ -135,6 +138,14 @@ export default async function SignalsListPage() {
               { value: "hidden", label: "Hidden" },
               { value: "expired", label: "Expired" },
             ],
+          }}
+          bulk={{
+            run: approveSelectedSignals,
+            label: "Approve selected",
+            max: 200,
+            confirmBody:
+              "Approved signals become PUBLIC on /deals and the homepage Top 5 " +
+              "immediately. Untick anything you have not reviewed before confirming.",
           }}
         />
       )}

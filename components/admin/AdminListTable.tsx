@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,8 @@ export interface AdminRow {
   searchText: string;
   /** Value the optional filter dropdown matches ("" = always shown). */
   filterValue?: string;
+  /** Eligible for the optional bulk action (rows without it get no checkbox). */
+  selectable?: boolean;
   editHref?: string;
   cells: Record<string, AdminCell>;
   actions?: AdminRowAction[];
@@ -73,11 +75,33 @@ export interface AdminFilter {
   options: { value: string; label: string }[];
 }
 
+export interface AdminBulkAction {
+  /** Server action over the explicitly selected ids (one rate-limit unit). */
+  run: (ids: string[]) => Promise<AdminActionResult>;
+  /** Button label, e.g. "Approve selected". */
+  label: string;
+  /**
+   * Confirm-dialog body (a plain string — this prop crosses the server→client
+   * boundary, so it cannot be a function). The component prefixes it with the
+   * selection count.
+   */
+  confirmBody: string;
+  /** Selection cap — mirror the server action's cap so shown == applied. */
+  max: number;
+}
+
 interface AdminListTableProps {
   columns: AdminColumn[];
   rows: AdminRow[];
   searchPlaceholder?: string;
   filter?: AdminFilter;
+  /**
+   * Optional selection-scoped bulk action. Only rows marked `selectable` get a
+   * checkbox; "Select all shown" ticks every eligible filtered row (up to
+   * `max`) and individual boxes can then be unticked before running — so
+   * "filter, select all, exclude the exceptions" is the intended workflow.
+   */
+  bulk?: AdminBulkAction;
 }
 
 function toneToBadge(tone: CellTone): {
@@ -186,9 +210,13 @@ export function AdminListTable({
   rows,
   searchPlaceholder = "Search…",
   filter,
+  bulk,
 }: AdminListTableProps) {
   const [query, setQuery] = useState("");
   const [filterValue, setFilterValue] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -198,6 +226,53 @@ export function AdminListTable({
       return true;
     });
   }, [rows, query, filterValue]);
+
+  // Reset the selection whenever the view changes (render-phase reset pattern)
+  // so a bulk action can never include rows the admin is no longer looking at.
+  const viewKey = `${query} ${filterValue}`;
+  const [lastViewKey, setLastViewKey] = useState(viewKey);
+  if (viewKey !== lastViewKey) {
+    setLastViewKey(viewKey);
+    setSelected(new Set());
+  }
+
+  const eligible = bulk ? filtered.filter((row) => row.selectable) : [];
+  const selectedCount = selected.size;
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  /** Tick every eligible filtered row, capped to the server action's max. */
+  function selectAllEligible() {
+    if (!bulk) return;
+    setSelected(new Set(eligible.slice(0, bulk.max).map((row) => row.id)));
+  }
+
+  function handleBulk() {
+    if (!bulk) return;
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const prompt =
+      `${bulk.label}: ${ids.length} row${ids.length === 1 ? "" : "s"}?\n\n` +
+      bulk.confirmBody;
+    if (!window.confirm(prompt)) return;
+    setBulkError(null);
+    startTransition(async () => {
+      const result = await bulk.run(ids);
+      if ("error" in result) {
+        // Typed failure (e.g. rate limit): keep the selection for a retry.
+        setBulkError(result.error);
+        return;
+      }
+      setSelected(new Set());
+    });
+  }
 
   const controlClass =
     "h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
@@ -235,6 +310,63 @@ export function AdminListTable({
         </span>
       </div>
 
+      {/* Selection toolbar — only when a bulk action is configured and the
+          current view contains eligible rows. */}
+      {bulk && eligible.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 font-medium tabular-nums",
+                selectedCount > 0
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground"
+              )}
+            >
+              {selectedCount} selected
+            </span>
+            <button
+              type="button"
+              onClick={selectAllEligible}
+              className="font-medium text-foreground underline-offset-2 hover:underline"
+            >
+              Select all shown ({Math.min(eligible.length, bulk.max)})
+            </button>
+            {selectedCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              >
+                <X className="size-3" />
+                Clear selection
+              </button>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleBulk}
+            disabled={selectedCount === 0 || isPending}
+          >
+            {isPending
+              ? "Working…"
+              : `${bulk.label}${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+          </Button>
+          {bulkError ? (
+            <p role="alert" className="basis-full text-xs text-destructive">
+              {bulkError}
+            </p>
+          ) : null}
+          {eligible.length > bulk.max ? (
+            <p className="basis-full text-xs text-muted-foreground">
+              Bulk actions are capped at {bulk.max} rows per pass — run this
+              batch, then select again for the rest.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
           No matches.
@@ -246,6 +378,9 @@ export function AdminListTable({
             <Table>
               <TableHeader>
                 <TableRow>
+                  {bulk ? (
+                    <TableHead className="w-8" aria-label="Select" />
+                  ) : null}
                   {columns.map((column) => (
                     <TableHead
                       key={column.key}
@@ -259,7 +394,23 @@ export function AdminListTable({
               </TableHeader>
               <TableBody>
                 {filtered.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    className={cn(selected.has(row.id) && "bg-primary/5")}
+                  >
+                    {bulk ? (
+                      <TableCell className="w-8 align-top">
+                        {row.selectable ? (
+                          <input
+                            type="checkbox"
+                            checked={selected.has(row.id)}
+                            onChange={() => toggleSelect(row.id)}
+                            aria-label={`Select row: ${row.searchText.slice(0, 60)}`}
+                            className="mt-0.5 size-4 cursor-pointer accent-primary"
+                          />
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                     {columns.map((column) => (
                       <TableCell
                         key={column.key}
@@ -285,8 +436,22 @@ export function AdminListTable({
             {filtered.map((row) => (
               <div
                 key={row.id}
-                className="space-y-2 rounded-lg border p-3 text-sm shadow-sm"
+                className={cn(
+                  "space-y-2 rounded-lg border p-3 text-sm shadow-sm",
+                  selected.has(row.id) && "ring-2 ring-primary/40"
+                )}
               >
+                {bulk && row.selectable ? (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      onChange={() => toggleSelect(row.id)}
+                      className="size-4 cursor-pointer accent-primary"
+                    />
+                    Select for bulk action
+                  </label>
+                ) : null}
                 {columns.map((column) => (
                   <div
                     key={column.key}

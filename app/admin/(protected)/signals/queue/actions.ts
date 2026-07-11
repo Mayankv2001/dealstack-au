@@ -142,8 +142,73 @@ export async function showInTopDeals(
   return setHomepageHidden(feedItemId, false);
 }
 
-/** Hard cap on a single bulk-ignore call — defensive against a huge payload. */
+/** Hard cap on a single bulk call — defensive against a huge payload. */
 const BULK_IGNORE_MAX = 200;
+
+/**
+ * Import a scoped set of items in one pass — the ids the admin explicitly
+ * ticked after filtering (select-all minus any unticked exceptions). Uses the
+ * SAME per-item promotion as `importItem`: every import lands as a PENDING
+ * signal (or idempotently links to an existing one) and still requires the
+ * second manual approval step in /admin/signals before anything is public.
+ *
+ * Per-item failures don't abort the batch: the rest still import, and the
+ * returned error summarises what failed so the admin can retry (retrying an
+ * already-imported item is a safe no-op link).
+ */
+export async function importSelectedItems(
+  feedItemIds: string[]
+): Promise<AdminActionResult> {
+  const { email } = await requireAdmin();
+
+  // One bulk pass counts as a single admin mutation against the limit.
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
+  const ids = [...new Set(feedItemIds)]
+    .filter((id): id is string => typeof id === "string" && id.length > 0)
+    .slice(0, BULK_IGNORE_MAX);
+  if (ids.length === 0) return { ok: true };
+
+  let createdCount = 0;
+  let linkedCount = 0;
+  const failed: string[] = [];
+  for (const id of ids) {
+    try {
+      const result = await importFeedItem(id);
+      if (result.created) createdCount++;
+      else linkedCount++;
+    } catch {
+      failed.push(id);
+    }
+  }
+
+  await logAudit({
+    actorEmail: email,
+    action: "import",
+    tableName: "feed_items",
+    rowId: null,
+    // One summary row for the batch; keep a capped id list for traceability.
+    diff: {
+      bulk: true,
+      count: ids.length,
+      created: createdCount,
+      linked: linkedCount,
+      failedCount: failed.length,
+      ids: ids.slice(0, 50),
+    },
+  });
+  revalidateQueue();
+
+  if (failed.length > 0) {
+    return {
+      error:
+        `Imported ${createdCount + linkedCount} of ${ids.length} as pending signals; ` +
+        `${failed.length} failed and stayed in the queue — retry the remaining selection.`,
+    };
+  }
+  return { ok: true };
+}
 
 /**
  * Ignore a scoped set of items in one pass — the IDs the admin can currently see

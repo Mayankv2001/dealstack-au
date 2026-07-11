@@ -35,6 +35,7 @@ import {
   ignoreItem,
   ignoreVisibleItems,
   importItem,
+  importSelectedItems,
   markDuplicate,
   showInTopDeals,
 } from "./actions";
@@ -43,10 +44,13 @@ import {
  * Client review island for the feed import queue.
  *
  * The server page owns the (service-role) data fetch and passes the staged items
- * in. This component adds in-memory search/filtering and a scoped bulk-ignore —
- * it fetches nothing and changes no triage logic. The Import / Ignore / Mark
- * duplicate actions are the EXISTING server actions (bound per item); bulk ignore
- * calls `ignoreVisibleItems` with only the currently-visible filtered ids.
+ * in. This component adds in-memory search/filtering and selection-scoped bulk
+ * actions (import-as-pending / ignore) — it fetches nothing and changes no
+ * triage logic. The per-item Import / Ignore / Mark duplicate actions are the
+ * EXISTING server actions (bound per item); the bulk buttons send only the
+ * explicitly ticked ids, so "select all filtered, untick the exceptions" is the
+ * intended workflow. Bulk import never publishes: every import lands as a
+ * PENDING signal that still needs approval in /admin/signals.
  */
 
 // Deterministic AU-local timestamps (fixed timeZone → no hydration mismatch).
@@ -365,9 +369,26 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
     setSelected(new Set());
   }
 
-  // Safer bulk ignore: acts ONLY on the explicitly-selected ids, behind a
-  // confirm. Reuses the existing ignoreVisibleItems action (ignored review_state
-  // only — never imports, approves, or publishes). Selection clears on success.
+  // Bulk actions act ONLY on the explicitly-selected ids, behind a confirm.
+  // On a typed failure ({ error }) the selection is kept so the admin can
+  // retry; on success it clears.
+  function runBulk(
+    ids: string[],
+    run: (ids: string[]) => Promise<{ ok: true } | { error: string }>
+  ) {
+    setBulkError(null);
+    startTransition(async () => {
+      const result = await run(ids);
+      if ("error" in result) {
+        setBulkError(result.error);
+        return;
+      }
+      setSelected(new Set());
+    });
+  }
+
+  // Bulk ignore: reuses the existing ignoreVisibleItems action (ignored
+  // review_state only — never imports, approves, or publishes).
   function handleIgnoreSelected() {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -378,17 +399,22 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
         "requires a database operation, not a filter here."
     );
     if (!ok) return;
-    setBulkError(null);
-    startTransition(async () => {
-      const result = await ignoreVisibleItems(ids);
-      if ("error" in result) {
-        // Rate-limited (or other typed failure): keep the selection so the
-        // admin can retry, and surface the message instead of throwing.
-        setBulkError(result.error);
-        return;
-      }
-      setSelected(new Set());
-    });
+    runBulk(ids, ignoreVisibleItems);
+  }
+
+  // Bulk import: same promotion as the per-item button — every item becomes a
+  // PENDING signal (or links to an existing one) and still needs the second
+  // manual approval step in /admin/signals before anything is public.
+  function handleImportSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const ok = window.confirm(
+      `Import ${ids.length} selected item${ids.length === 1 ? "" : "s"} as pending signals?\n\n` +
+        "Nothing goes public: each import creates (or links to) a PENDING signal " +
+        "that still needs your approval in Signals before it appears anywhere."
+    );
+    if (!ok) return;
+    runBulk(ids, importSelectedItems);
   }
 
   return (
@@ -506,7 +532,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
           })}
         </div>
 
-        {/* Selection-based bulk ignore — acts only on explicitly ticked items. */}
+        {/* Selection-based bulk actions — act only on explicitly ticked items. */}
         {filtered.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -545,17 +571,30 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                 </button>
               ) : null}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleIgnoreSelected}
-              disabled={selectedCount === 0 || isPending}
-            >
-              {isPending
-                ? "Ignoring…"
-                : `Ignore selected${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleImportSelected}
+                disabled={selectedCount === 0 || isPending}
+                title="Creates PENDING signals — nothing is public until each one is approved in Signals."
+              >
+                {isPending
+                  ? "Working…"
+                  : `Import selected as pending${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleIgnoreSelected}
+                disabled={selectedCount === 0 || isPending}
+              >
+                {isPending
+                  ? "Working…"
+                  : `Ignore selected${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+              </Button>
+            </div>
             {bulkError ? (
               <p role="alert" className="basis-full text-xs text-destructive">
                 {bulkError}
@@ -605,7 +644,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleSelect(item.id)}
-                      aria-label={`Select for bulk ignore: ${item.rawTitle}`}
+                      aria-label={`Select for bulk actions: ${item.rawTitle}`}
                       className="mt-1 size-4 shrink-0 cursor-pointer accent-primary"
                     />
                     <div className="min-w-0 flex-1 space-y-2">

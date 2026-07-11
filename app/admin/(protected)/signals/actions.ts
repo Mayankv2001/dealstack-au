@@ -267,3 +267,63 @@ export async function setStatus(
   revalidateSignals();
   return { ok: true };
 }
+
+/** Hard cap on a single bulk-approve call — defensive against a huge payload. */
+const BULK_APPROVE_MAX = 200;
+
+/**
+ * Approve a scoped set of signals in one pass — the ids the admin explicitly
+ * ticked in the list (select-all minus any unticked exceptions). This IS the
+ * manual review step: it uses the same per-signal status write as the per-row
+ * Approve button, just batched. Per-signal failures don't abort the batch; the
+ * returned error summarises what failed so the admin can retry.
+ */
+export async function approveSelectedSignals(
+  signalIds: string[]
+): Promise<AdminActionResult> {
+  const { email } = await requireAdmin();
+
+  // One bulk pass counts as a single admin mutation against the limit.
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
+  const ids = [...new Set(signalIds)]
+    .filter((id): id is string => typeof id === "string" && id.length > 0)
+    .slice(0, BULK_APPROVE_MAX);
+  if (ids.length === 0) return { ok: true };
+
+  let approved = 0;
+  const failed: string[] = [];
+  for (const id of ids) {
+    try {
+      await setSignalStatus(id, "approved");
+      approved++;
+    } catch {
+      failed.push(id);
+    }
+  }
+
+  await logAudit({
+    actorEmail: email,
+    action: "status",
+    tableName: "ozbargain_signals",
+    rowId: null,
+    // One summary row for the batch; keep a capped id list for traceability.
+    diff: {
+      bulk: true,
+      status: "approved",
+      count: ids.length,
+      approved,
+      failedCount: failed.length,
+      ids: ids.slice(0, 50),
+    },
+  });
+  revalidateSignals();
+
+  if (failed.length > 0) {
+    return {
+      error: `Approved ${approved} of ${ids.length}; ${failed.length} failed — retry the remaining selection.`,
+    };
+  }
+  return { ok: true };
+}
