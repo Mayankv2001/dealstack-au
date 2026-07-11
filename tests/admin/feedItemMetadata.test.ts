@@ -6,9 +6,10 @@ describe("deriveFeedItemMetadata", () => {
     const result = deriveFeedItemMetadata({
       rawTitle: "Samsung Watch $589 (35% off) @ JB Hi-Fi with code WATCH35",
       rawSummary: "Ends 2026-07-15 - 120 votes",
-      categories: ["Electronics"],
+      categories: ["Electronics", "Samsung"],
     });
     expect(result).toMatchObject({
+      brands: ["Samsung"],
       merchantId: "jb-hifi",
       merchantName: "JB Hi-Fi",
       priceText: "$589",
@@ -19,6 +20,16 @@ describe("deriveFeedItemMetadata", () => {
       score: 120,
       dealKind: "discount-code",
     });
+  });
+
+  it("does not infer a brand from title text without a trusted brand tag", () => {
+    expect(
+      deriveFeedItemMetadata({
+        rawTitle: "Samsung television clearance",
+        rawSummary: "",
+        categories: ["Electronics"],
+      }).brands
+    ).toEqual([]);
   });
 
   it("recognises supported cashback providers", () => {

@@ -35,9 +35,14 @@ import type {
 } from "@/lib/admin/repos/feedQueue";
 import type { DealKind } from "@/lib/sources/types";
 import { assessFeedItem, type Relevance } from "@/lib/admin/queueRelevance";
+import {
+  feedQueueBrandOptions,
+  feedQueueSelectionIds,
+  filterFeedQueueItems,
+  NO_BRAND_FILTER,
+} from "@/lib/admin/feedQueueFilters";
 import { cn } from "@/lib/utils";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
-import { isExpiringSoonAU } from "@/lib/offers/expiry";
 import {
   approveItem,
   approveSelectedItems,
@@ -334,6 +339,7 @@ function QueueItemActions({ item }: { item: FeedQueueItem }) {
 
 export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   const [source, setSource] = useState("");
+  const [brand, setBrand] = useState("");
   const [store, setStore] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
@@ -372,6 +378,12 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [items]);
 
+  const brands = useMemo(() => feedQueueBrandOptions(items), [items]);
+  const hasUnbrandedItems = useMemo(
+    () => items.some((item) => item.metadata.brands.length === 0),
+    [items]
+  );
+
   // Assess once per data load (not per keystroke) — assessFeedItem runs dozens
   // of includes() scans per item, and `filtered` re-runs on every filter change.
   const relevanceById = useMemo(
@@ -390,36 +402,21 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   }, [items, relevanceById]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const cat = category.trim().toLowerCase();
-    const activePresets = presets.map((p) => p.toLowerCase());
-    const matches = items.filter((item) => {
-      if (source && item.feedSourceId !== source) return false;
-      if (store && item.metadata.merchantId !== store) return false;
-      if (
-        cashbackProvider &&
-        item.metadata.cashbackProvider !== cashbackProvider
-      ) return false;
-      if (expiringSoon && !isExpiringSoonAU(item.metadata.expiryDate)) return false;
-      if (q && !`${item.rawTitle} ${item.rawSummary}`.toLowerCase().includes(q)) {
-        return false;
-      }
-      if (
-        cat &&
-        !item.categories.some((c) => c.toLowerCase().includes(cat))
-      ) {
-        return false;
-      }
-      if (activePresets.length > 0) {
-        const haystack =
-          `${item.rawTitle} ${item.rawSummary} ${item.categories.join(" ")}`.toLowerCase();
-        if (!activePresets.some((p) => haystack.includes(p))) return false;
-      }
-      if (relevance && relevanceById.get(item.id)?.relevance !== relevance) {
-        return false;
-      }
-      return true;
-    });
+    const matches = filterFeedQueueItems(
+      items,
+      {
+        source,
+        brand,
+        store,
+        query,
+        category,
+        cashbackProvider,
+        expiringSoon,
+        presets,
+        relevance,
+      },
+      relevanceById
+    );
     // Sort a copy — .sort() mutates, and sorting in place would break React's
     // referential-equality assumptions about `items`/the filtered result.
     return [...matches].sort((a, b) => {
@@ -439,6 +436,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   }, [
     items,
     source,
+    brand,
     store,
     query,
     category,
@@ -452,6 +450,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
 
   const anyFilterActive =
     source !== "" ||
+    brand !== "" ||
     store !== "" ||
     query.trim() !== "" ||
     category.trim() !== "" ||
@@ -465,6 +464,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   // after revalidation removes it from the visible queue.
   const viewKey = JSON.stringify([
     source,
+    brand,
     store,
     query,
     category,
@@ -497,6 +497,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
 
   function clearFilters() {
     setSource("");
+    setBrand("");
     setStore("");
     setQuery("");
     setCategory("");
@@ -523,7 +524,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
   function selectAllShown() {
     setSelected((prev) => {
       const next = new Set(prev);
-      for (const item of paged) next.add(item.id);
+      for (const id of feedQueueSelectionIds(paged, SELECT_ALL_CAP)) next.add(id);
       return next;
     });
   }
@@ -535,7 +536,7 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
    * the count applied never diverge.
    */
   function selectAllFiltered() {
-    setSelected(new Set(filtered.slice(0, SELECT_ALL_CAP).map((i) => i.id)));
+    setSelected(new Set(feedQueueSelectionIds(filtered, SELECT_ALL_CAP)));
   }
 
   function clearSelection() {
@@ -616,6 +617,22 @@ export default function QueueClient({ items }: { items: FeedQueueItem[] }) {
                 {s.label}
               </option>
             ))}
+          </select>
+          <select
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            aria-label="Filter by brand"
+            className={cn(controlClass, "w-full max-w-full sm:w-auto")}
+          >
+            <option value="">All brands</option>
+            {brands.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+            {hasUnbrandedItems ? (
+              <option value={NO_BRAND_FILTER}>Unknown / no brand</option>
+            ) : null}
           </select>
           <select
             value={store}

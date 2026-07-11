@@ -52,6 +52,9 @@ describe("direct queue bulk moderation", () => {
   it("approves selected queue items directly and refreshes public routes", async () => {
     await expect(approveSelectedItems(["a", "b"])).resolves.toEqual({ ok: true });
     expect(mocks.approveFeedItem).toHaveBeenCalledTimes(2);
+    expect(mocks.approveFeedItem).toHaveBeenNthCalledWith(1, "a");
+    expect(mocks.approveFeedItem).toHaveBeenNthCalledWith(2, "b");
+    expect(mocks.approveFeedItem).not.toHaveBeenCalledWith("outside-filter");
     expect(mocks.checkRateLimit).toHaveBeenCalledOnce();
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/deals");
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/search");
@@ -61,6 +64,10 @@ describe("direct queue bulk moderation", () => {
     await expect(rejectSelectedItems(["a", "b"])).resolves.toEqual({ ok: true });
     expect(mocks.rejectFeedItem).toHaveBeenNthCalledWith(1, "a", "admin@example.com");
     expect(mocks.rejectFeedItem).toHaveBeenNthCalledWith(2, "b", "admin@example.com");
+    expect(mocks.rejectFeedItem).not.toHaveBeenCalledWith(
+      "outside-filter",
+      "admin@example.com"
+    );
     expect(mocks.revalidatePath).not.toHaveBeenCalledWith("/deals");
   });
 

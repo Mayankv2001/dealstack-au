@@ -1,10 +1,12 @@
 import { stores } from "@/lib/data";
 import { findMerchantIdInText } from "@/lib/sources/normalise";
 import type { DealKind } from "@/lib/sources/types";
+import { detectFeedItemBrands } from "@/lib/admin/feedItemBrand";
 
 export type CashbackProviderFilter = "ShopBack" | "TopCashback";
 
 export interface FeedItemMetadata {
+  brands: string[];
   merchantId: string | null;
   merchantName: string | null;
   dealKind: DealKind;
@@ -106,6 +108,7 @@ export function deriveFeedItemMetadata(item: {
   }
 
   return {
+    brands: detectFeedItemBrands(item.categories),
     merchantId,
     merchantName: merchantId ? STORE_NAME.get(merchantId) ?? null : null,
     dealKind,
