@@ -39,4 +39,11 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("to service_role");
     expect(sql).toContain("from public, anon, authenticated");
   });
+
+  it("locks the daily pipeline to at most one running row at a time", () => {
+    const sql = migration("016_pipeline_run_lock.sql");
+    expect(sql).toContain("create unique index");
+    expect(sql).toContain("daily_pipeline_runs");
+    expect(sql).toContain("where status = 'running'");
+  });
 });

@@ -93,7 +93,9 @@ beforeEach(() => {
     archived: 0,
     unknown: 0,
   });
-  startRunMock.mockReset().mockResolvedValue("run-1");
+  startRunMock
+    .mockReset()
+    .mockResolvedValue({ started: true, runId: "run-1" });
   finishRunMock.mockReset().mockResolvedValue(undefined);
   runDetectionMock.mockReset().mockResolvedValue({});
 });
@@ -207,5 +209,27 @@ describe("GET /api/cron/monitor-feeds", () => {
     expect(deps.persistence).toBeDefined();
     expect(typeof deps.persistence.upsertFeedItems).toBe("function");
     expect(typeof deps.selectFeeds).toBe("function");
+  });
+
+  it("skips the whole pipeline and returns 200 when another run is in flight", async () => {
+    vi.stubEnv("CRON_SECRET", SECRET);
+    vi.stubEnv("OZB_MONITOR_ENABLED", "true");
+    vi.stubEnv("OZB_MONITOR_USER_AGENT", UA);
+    isApprovedMock.mockResolvedValue(true);
+    startRunMock.mockResolvedValue({
+      started: false,
+      reason: "already-running",
+    });
+
+    const res = await GET(makeRequest(`Bearer ${SECRET}`));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ ok: true, ran: false, skipped: "already-running" });
+
+    expect(archiveExpiredMock).not.toHaveBeenCalled();
+    expect(validatePublishedMock).not.toHaveBeenCalled();
+    expect(runMonitorMock).not.toHaveBeenCalled();
+    expect(finishRunMock).not.toHaveBeenCalled();
+    expect(runDetectionMock).not.toHaveBeenCalled();
   });
 });

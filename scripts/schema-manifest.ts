@@ -46,6 +46,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "013_revoke_trigger_function_execute.sql",
   "014_signal_product_group.sql",
   "015_daily_deal_pipeline.sql",
+  // Index-only (adds the one-running-row lock on daily_pipeline_runs) — no
+  // schema shape change, same as 008 and 013.
+  "016_pipeline_run_lock.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */

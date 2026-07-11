@@ -72,7 +72,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const summary = await runDailyPipeline(
+    const outcome = await runDailyPipeline(
       {
         monitorEnabled,
         complianceApproved,
@@ -109,6 +109,13 @@ export async function GET(request: Request): Promise<Response> {
           ),
       }
     );
+
+    // Another invocation currently holds the one-running lock (migration 016)
+    // — nothing ran: no archive, no validation, no fetch, no run row written.
+    if (!outcome.started) {
+      return Response.json({ ok: true, ran: false, skipped: outcome.reason });
+    }
+    const summary = outcome.summary;
 
     const body: Record<string, unknown> = {
       ok: summary.status === "ok" || summary.status === "disabled",

@@ -2,12 +2,13 @@ import type { MonitorRunSummary } from "@/lib/monitor/runMonitor";
 import type {
   ArchiveSummary,
   PipelineRunPatch,
+  StartRunOutcome,
   ValidationSummary,
 } from "@/lib/admin/repos/dailyPipeline";
 
 export interface DailyPipelineDeps {
   now: () => Date;
-  startRun(startedAt: Date): Promise<string>;
+  startRun(startedAt: Date): Promise<StartRunOutcome>;
   finishRun(id: string, patch: PipelineRunPatch, finishedAt: Date): Promise<void>;
   archiveExpired(now: Date): Promise<ArchiveSummary>;
   validateLive(now: Date, userAgent: string): Promise<ValidationSummary>;
@@ -25,6 +26,16 @@ export interface DailyPipelineSummary extends PipelineRunPatch {
   runId: string;
 }
 
+/**
+ * `started: false` means another invocation currently holds the one-running
+ * lock (migration 016) — this call did nothing: no archive, no validation, no
+ * fetch, and no run row was written. The caller should treat that as a clean
+ * skip, not an error.
+ */
+export type DailyPipelineOutcome =
+  | { started: true; summary: DailyPipelineSummary }
+  | { started: false; reason: "already-running" };
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -32,9 +43,13 @@ function message(error: unknown): string {
 export async function runDailyPipeline(
   options: DailyPipelineOptions,
   deps: DailyPipelineDeps
-): Promise<DailyPipelineSummary> {
+): Promise<DailyPipelineOutcome> {
   const startedAt = deps.now();
-  const runId = await deps.startRun(startedAt);
+  const startOutcome = await deps.startRun(startedAt);
+  if (!startOutcome.started) {
+    return { started: false, reason: startOutcome.reason };
+  }
+  const runId = startOutcome.runId;
   const errors: string[] = [...(options.preflightErrors ?? [])];
   let expiredArchived = 0;
   let invalidArchived = 0;
@@ -109,5 +124,5 @@ export async function runDailyPipeline(
     errors,
   };
   await deps.finishRun(runId, patch, deps.now());
-  return { runId, ...patch };
+  return { started: true, summary: { runId, ...patch } };
 }

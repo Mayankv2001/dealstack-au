@@ -95,15 +95,59 @@ export async function validatePublishedSignals(
   return { checked: data?.length ?? 0, archived, unknown };
 }
 
-export async function startPipelineRun(startedAt: Date): Promise<string> {
+/** A 'running' row older than this is treated as crashed, not in-flight. */
+const STALE_RUN_MINUTES = 30;
+
+/** Postgres unique_violation SQLSTATE — the one-running-row lock (016). */
+const UNIQUE_VIOLATION = "23505";
+
+export type StartRunOutcome =
+  | { started: true; runId: string }
+  | { started: false; reason: "already-running" };
+
+/**
+ * Claim the single 'running' slot for a new pipeline run.
+ *
+ * Two steps: first supersede any 'running' row that has sat unfinished past
+ * STALE_RUN_MINUTES (the process that started it crashed before calling
+ * finishPipelineRun, so it must not hold the lock forever), then attempt the
+ * insert. A unique_violation on the partial index (migration 016) means
+ * another run is genuinely still in flight — return that as a typed outcome
+ * instead of throwing, so the caller can skip this invocation cleanly.
+ */
+export async function startPipelineRun(startedAt: Date): Promise<StartRunOutcome> {
   const db = getSupabaseAdmin();
+
+  const staleCutoff = new Date(
+    startedAt.getTime() - STALE_RUN_MINUTES * 60 * 1000
+  ).toISOString();
+  const { error: takeoverError } = await db
+    .from("daily_pipeline_runs")
+    .update({
+      status: "error",
+      finished_at: startedAt.toISOString(),
+      errors: [
+        `superseded: run exceeded ${STALE_RUN_MINUTES} minutes without finishing (stale takeover at ${startedAt.toISOString()})`,
+      ],
+    })
+    .eq("status", "running")
+    .lt("started_at", staleCutoff);
+  if (takeoverError) {
+    throw new Error(`startPipelineRun stale takeover failed: ${takeoverError.message}`);
+  }
+
   const { data, error } = await db
     .from("daily_pipeline_runs")
     .insert({ started_at: startedAt.toISOString(), status: "running" })
     .select("id")
     .single();
-  if (error) throw new Error(`startPipelineRun failed: ${error.message}`);
-  return data.id;
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) {
+      return { started: false, reason: "already-running" };
+    }
+    throw new Error(`startPipelineRun failed: ${error.message}`);
+  }
+  return { started: true, runId: data.id };
 }
 
 export async function finishPipelineRun(

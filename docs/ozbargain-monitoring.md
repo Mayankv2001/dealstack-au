@@ -593,81 +593,61 @@ Behaviour and guarantees (enforced in code, covered by `npm run test:monitor`):
 
 ## Scheduling the monitor
 
-There are two ways to trigger the **same** secret-gated route
-(`GET /api/cron/monitor-feeds`). Neither changes the route or monitor logic, and
-both pass through every gate below.
-
-### Vercel Cron — once daily (Hobby plan)
-
-`vercel.json` runs the route **once a day** at `02:00 UTC`:
+**One trigger drives the pipeline: Vercel Cron, once a day.** `vercel.json`
+runs `GET /api/cron/monitor-feeds` at `00:00 UTC`:
 
 ```json
-{ "crons": [{ "path": "/api/cron/monitor-feeds", "schedule": "0 2 * * *" }] }
+{ "crons": [{ "path": "/api/cron/monitor-feeds", "schedule": "0 0 * * *" }] }
 ```
 
-Keep this **once daily**. The Vercel Hobby plan only permits daily cron, and the
-daily entry is what keeps Vercel deploys valid — **do not** change it to every
-3 hours. When `CRON_SECRET` is set in the project env, Vercel sends
-`Authorization: Bearer ${CRON_SECRET}` automatically.
+Keep this **once daily** — the Vercel Hobby plan only permits one daily cron.
+When `CRON_SECRET` is set in the project env, Vercel sends
+`Authorization: Bearer ${CRON_SECRET}` automatically. Every authenticated call
+runs the **full daily pipeline** (`runDailyPipeline`, `lib/monitor/runDailyPipeline.ts`):
+archive expired public rows, then — when monitoring and compliance are both
+enabled — status-only HEAD validation of approved signals
+(`lib/monitor/validateSourcePost.ts`) followed by the feed fetch, all in one
+invocation. This is not the old "fetch-only" route: gate order and response
+shape changed with migration 015/016 — see below.
 
-### Optional external scheduler — every 3 hours
-
-For more frequent polling than once a day, use an **external** scheduler (e.g.
-[cron-job.org](https://cron-job.org)) to call the same route every 3 hours. This
-keeps Vercel's cron on its daily cadence while a third party drives the extra
-runs.
-
-| Setting | Value |
-|---|---|
-| **Method** | `GET` |
-| **URL** | `https://dealstack-au.vercel.app/api/cron/monitor-feeds` |
-| **Header** | `Authorization: Bearer ${CRON_SECRET}` |
-| **Frequency** | every 3 hours (`0 */3 * * *`) |
-
-Rules for the external scheduler:
-
-- It must call **only** the secret-gated cron route above — **never** a public
-  page (`/`, `/deals`, `/search`, `/stores/*`). Public pages must never trigger
-  any fetch.
-- Send the exact `CRON_SECRET` value as a Bearer token. A missing/blank secret
-  returns `503`; a wrong secret returns `401`. The route never runs open.
-- Use `GET` only. Do not retry aggressively; a single call every 3 hours is
-  enough.
-
-The route still obeys **every** gate before it fetches anything — exactly the
-same as the Vercel Cron path:
+### Current gate order and response
 
 1. `CRON_SECRET` configured (else `503`).
 2. Valid `Authorization: Bearer` (else `401`).
-3. `OZB_MONITOR_ENABLED=true` (else a no-op `200 { disabled: true }`, zero
-   outbound requests).
-4. An **approved compliance review** on file (else `200 { blockedByCompliance: true }`).
-5. At least one **enabled** `feed_sources` row that is **due**.
+3. **Run lock** (migration 016): if another invocation already holds the
+   single `status = 'running'` row in `daily_pipeline_runs`, this call does
+   nothing at all — no archive, no validation, no fetch, no run row written —
+   and returns `200 { ok: true, ran: false, skipped: "already-running" }`. A
+   `running` row older than 30 minutes is treated as crashed and is
+   superseded before the next attempt, so a dead invocation cannot wedge the
+   lock open forever.
+4. Otherwise the pipeline runs. `OZB_MONITOR_ENABLED` and compliance approval
+   gate the validation + fetch steps only — **archival always runs** (it
+   never makes an external request). The response body is the full
+   `daily_pipeline_runs` patch: `status` (`ok`/`partial`/`error`/`disabled`/`blocked`),
+   `expiredArchived`, `invalidArchived`, `validationChecked`,
+   `validationUnknown`, `feedsProcessed`, `itemsFetched`, `itemsNew`,
+   `itemsUpdated`, `itemsSkipped`, `errors`. HTTP status is `500` only when
+   `status === "error"`; every other outcome (including `disabled` and
+   `blocked`) is `200`.
 
-Even at a 3-hour trigger cadence, each feed is only actually fetched when it is
-**due** — `next_earliest_fetch_at` is governed by
-`OZB_MONITOR_MIN_INTERVAL_HOURS` (default **12h**). So calling every 3 hours is
-safe and largely idempotent: most calls find nothing due and return quickly.
-Lower `OZB_MONITOR_MIN_INTERVAL_HOURS` only if a feed's published rate limit
-allows it.
+### No external fetch-triggering scheduler is deployed
 
-A run still stages **only** `feed_items`, `feed_fetch_log` and `feed_sources`
-poll-state — it **never** writes `ozbargain_signals` and **nothing public is
-published automatically**. Admin review via `/admin/signals/queue` remains
-mandatory regardless of which scheduler triggered the run.
-
-#### cron-job.org setup (manual steps)
-
-1. Create an account at cron-job.org and add a new cronjob.
-2. **Title:** `DealStack monitor (every 3h)`.
-3. **URL:** `https://dealstack-au.vercel.app/api/cron/monitor-feeds`.
-4. **Schedule:** every 3 hours (expression `0 */3 * * *`).
-5. **Request method:** `GET`.
-6. Under request **headers**, add:
-   `Authorization: Bearer <your CRON_SECRET value>`.
-7. Save. Confirm the first execution returns HTTP `200`. A `200` with
-   `{ disabled: true }` or `{ blockedByCompliance: true }` means a gate is not
-   satisfied yet (enable the monitor / approve compliance / enable a feed).
+An earlier draft of this document recommended pointing an external service
+(e.g. cron-job.org) at this route every 3 hours for tighter polling. **That was
+never wired up in production.** The option actually chosen instead is a
+**read-only** health-check probe — `.github/workflows/monitor-health.yml` —
+which polls `GET /api/health/monitor` and `GET /api/health/data` every 3 hours
+and fails the GitHub Action (alerting via workflow-failure notifications) on
+any non-2xx. It never calls this cron route and never fetches OzBargain; it
+only reads our own health/data-freshness endpoints. **Do not** add a
+fetch-triggering external scheduler for this route without updating this
+section — the single daily Vercel Cron plus the run lock above is the current
+and only intended trigger of `runDailyPipeline`. If tighter polling is ever
+wanted, the run lock (migration 016) makes overlapping triggers safe by
+construction, but every step's idempotency was designed around one run per
+day and an extra trigger multiplies outbound HEAD-validation requests against
+OzBargain — record that decision here before enabling it.
 
 ## Testing checklist
 
@@ -719,6 +699,44 @@ mandatory regardless of which scheduler triggered the run.
 | Date | Reviewer | robots.txt OK? | ToS/feed policy OK? | Allowed feed URLs | Notes |
 |---|---|---|---|---|---|
 | see `/admin/compliance` | see admin UI | ✓ | ✓ | register in `feed_sources` (disabled) | Approved review on file in `compliance_reviews`; mirror the specifics here. |
+
+### Addendum: status-only post validation (2026-07-11)
+
+The 2026-06-20 review above covered **RSS feed polling**. Migration 015 added
+a second, distinct kind of outbound request: `lib/monitor/validateSourcePost.ts`
+sends a `HEAD` request to an individual approved signal's OzBargain post URL as
+part of the daily pipeline's live-signal validation, to detect posts that have
+been removed (`404`/`410`) so the linked public signal can be archived. This is
+recorded here as its own addendum rather than folded into the row above because
+it is a different request shape against the same host, not a new source.
+
+Scope and safeguards (mirrors the feed-fetch invariants):
+
+- **HEAD only** — no response body is ever downloaded or parsed; nothing is
+  scraped.
+- **Host- and path-allowlisted** — `isApprovedOzBargainPostUrl()`
+  (`lib/security/urlPolicy.ts`) accepts only `ozbargain.com.au` /
+  `www.ozbargain.com.au` and an exact `/node/<id>/` post path; anything else
+  is treated as `unknown` and never fetched. On a redirect, the target must
+  stay within that same approved host/path shape or the post is treated as
+  `removed`.
+- **Bounded** — 5 second timeout, at most 2 redirects, batches of 4 concurrent
+  checks, capped at 100 signals per run (the daily due-window is 20 hours, so
+  a signal is checked at most once per day).
+- **Same identifying `User-Agent`** as feed polling (`OZB_MONITOR_USER_AGENT`).
+- **Fails safe** — a network error, timeout, or any non-2xx/404/410 response
+  is recorded as `unknown` and never archives the signal; only a definitive
+  `404`/`410` (or a redirect leaving the approved post boundary) does.
+- Gated by the same `OZB_MONITOR_ENABLED` + compliance-approved checks as
+  feed fetching — off means zero validation requests, same as zero feed
+  requests.
+
+No separate `robots.txt`/ToS re-review was conducted for this addendum on the
+basis that it targets the same already-reviewed host with a lighter-weight,
+non-crawling request (a single `HEAD` per post, no pagination, no content
+retrieval). Re-review this addendum alongside the next scheduled compliance
+re-check (see the top-of-file re-review rule) rather than treating it as a
+standalone gate.
 
 ---
 
