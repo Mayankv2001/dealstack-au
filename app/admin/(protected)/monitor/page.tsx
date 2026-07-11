@@ -9,6 +9,7 @@ import {
   ListChecks,
   PowerOff,
   Radar,
+  RefreshCw,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -20,7 +21,11 @@ import {
 } from "@/lib/admin/repos/monitorStatus";
 import { getDetectionOpsStatus } from "@/lib/admin/repos/offerChanges";
 import { disableAllFeeds } from "./actions";
-import { ozbOfferDetectEnabled } from "@/lib/env";
+import {
+  ozbExpiryRecheckDryRun,
+  ozbExpiryRecheckEnabled,
+  ozbOfferDetectEnabled,
+} from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -255,6 +260,8 @@ export default async function MonitorStatusPage() {
     getDetectionOpsStatus(),
   ]);
   const detectionEnabled = ozbOfferDetectEnabled();
+  const recheckEnabled = ozbExpiryRecheckEnabled();
+  const recheckDryRun = ozbExpiryRecheckDryRun();
 
   const hasRisk = status.enabledWithoutApproval > 0;
   const checklist = cronChecklist(status);
@@ -636,13 +643,20 @@ export default async function MonitorStatusPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <CountPill label="New" value={status.feedItemCounts.new} />
             <CountPill label="Imported" value={status.feedItemCounts.imported} />
             <CountPill label="Ignored" value={status.feedItemCounts.ignored} />
             <CountPill label="Duplicate" value={status.feedItemCounts.duplicate} />
             <CountPill label="Rejected" value={status.feedItemCounts.rejected} />
+            <CountPill label="Archived" value={status.feedItemCounts.archived} />
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Archived</span> items had
+            their OzBargain source confirmed expired or removed by the expiry-recheck
+            job and were moved out of the review queue. They are kept for audit —
+            never deleted — and appear in Review → History.
+          </p>
         </CardContent>
       </Card>
 
@@ -887,6 +901,83 @@ export default async function MonitorStatusPage() {
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
                       {run.errors.join("; ") || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Recent expiry-recheck runs — SEPARATE cron from ingestion. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <RefreshCw className="size-5 text-muted-foreground" />
+            Recent expiry-recheck runs
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            The expiry-recheck job (
+            <code className="text-xs">GET /api/cron/recheck-ozbargain-expiry</code>)
+            re-probes pending OzBargain review items and archives only those whose
+            source post is explicitly <span className="font-medium">expired</span>{" "}
+            or <span className="font-medium">deleted</span>. It is independent of
+            ingestion, gated by{" "}
+            <code className="text-xs">OZB_EXPIRY_RECHECK_ENABLED</code> (currently{" "}
+            <code className="text-xs">{recheckEnabled ? "true" : "false"}</code>),
+            runs in preview by default (
+            <code className="text-xs">OZB_EXPIRY_RECHECK_DRY_RUN</code>, currently{" "}
+            <code className="text-xs">{recheckDryRun ? "true" : "false"}</code>),
+            and never publishes or deletes anything. Transient failures (timeout,
+            429, 5xx, anti-bot) never archive — the item stays in Review.
+          </p>
+          {status.recentRecheckRuns.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No expiry-recheck run recorded yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Started</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Mode</TableHead>
+                  <TableHead className="text-right">Scanned</TableHead>
+                  <TableHead className="text-right">Active</TableHead>
+                  <TableHead className="text-right">Expired</TableHead>
+                  <TableHead className="text-right">Deleted</TableHead>
+                  <TableHead className="text-right">Unknown</TableHead>
+                  <TableHead className="text-right">Fetch-failed</TableHead>
+                  <TableHead className="text-right">Would archive</TableHead>
+                  <TableHead className="text-right">Archived</TableHead>
+                  <TableHead className="text-right">Errors</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {status.recentRecheckRuns.map((run) => (
+                  <TableRow key={run.id}>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {formatDate(run.startedAt)}
+                    </TableCell>
+                    <TableCell className="capitalize">{run.status}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {run.dryRun ? "preview" : "live"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{run.scanned}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.active}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.expired}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.deleted}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.unknown}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.fetchFailed}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.wouldArchive}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.actuallyArchived}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {run.errors.length}
                     </TableCell>
                   </TableRow>
                 ))}

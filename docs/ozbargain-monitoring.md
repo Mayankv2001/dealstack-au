@@ -743,6 +743,51 @@ retrieval). Re-review this addendum alongside the next scheduled compliance
 re-check (see the top-of-file re-review rule) rather than treating it as a
 standalone gate.
 
+### Addendum: structured `ozb` feed fields captured (2026-07-11) — pending owner review
+
+**Status: implementation-time clarification awaiting owner sign-off — this entry
+does not grant approval and no new approval is claimed.** The reading below is
+presented for the owner to confirm (or correct) alongside the next compliance
+re-check, and in any case **before** `OZB_EXPIRY_RECHECK_ENABLED` is turned on
+in production.
+
+What changed: the ingestion parser now also **stores two structured fields**
+OzBargain publishes inside its own RSS items:
+
+- `<ozb:meta expiry="…">` → `feed_items.declared_expires_at` — the poster's
+  declared expiry timestamp (strictly validated ISO date/date-time only).
+- `<ozb:title-msg type="expired">` → `feed_items.source_marked_expired` — the
+  feed's explicit expired/out-of-stock state marker. Only the `type` attribute
+  is read; the marker's human text is **not** stored (no content copying).
+  Other or unknown marker types (`targeted`, `upcoming`, …) are ignored.
+
+Reading presented for owner review: parsing additional structured fields out of
+a feed response the monitor already fetches under the approval above adds **no
+new request shape, no additional request volume, and no new endpoint** — the
+change is entirely offline parsing of an already-permitted response. The field
+shape was verified manually on 2026-07-11 against the already-approved
+`tag/credit-card/feed` URL (one-off browser/curl check with an identifying UA —
+the same manual preflight method as the "Verified instance" note above), and
+`robots.txt` was re-checked the same day: feed paths and `/node/` remain
+permitted; `/api/` and `/ozbapi/` are disallowed.
+
+Unchanged prohibitions — this entry widens **nothing**:
+
+- ❌ No HTML page GETs and no body parsing (per-post checks stay HEAD-only per
+  the status-only addendum above).
+- ❌ No scraping, no crawling, no following links to fetch more pages.
+- ❌ No per-node/per-item feeds (e.g. `/node/<id>/feed`) — not in the approved
+  allowlist.
+- ❌ No `/api/`, `/ozbapi/`, or any endpoint disallowed by `robots.txt` or
+  absent from the approved allowlist.
+- ❌ No storing of marker free text — only the `type` attribute and the expiry
+  timestamp are read.
+
+The fields exist so the separate expiry-recheck job
+(`docs/ozbargain-expiry-recheck.md`, migration 020) can archive pending review
+items whose source deal is explicitly expired — from stored data, with zero
+additional outbound requests. Record any future widening here first.
+
 ### Addendum: card-offer source decision (2026-07-11)
 
 A second `compliance_reviews` row now exists, unrelated to the OzBargain

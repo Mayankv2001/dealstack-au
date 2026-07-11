@@ -4,6 +4,7 @@ import { CheckCircle2, History, Inbox, RefreshCw } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   countNewFeedItems,
+  listArchivedFeedItems,
   listNewFeedItems,
   listRecentlyReviewedFeedItems,
   QUEUE_PAGE_LIMIT,
@@ -125,11 +126,22 @@ async function ChangesReview() {
   return <OfferChangesClient items={items} />;
 }
 
+const ARCHIVE_REASON_LABEL: Record<string, string> = {
+  source_expired: "Source expired",
+  source_deleted: "Source deleted (404/410)",
+};
+
+function archiveReasonLabel(reason: string | null): string {
+  if (!reason) return "Archived";
+  return ARCHIVE_REASON_LABEL[reason] ?? reason;
+}
+
 async function ReviewHistory() {
-  const [monitor, audit, reviewed] = await Promise.all([
+  const [monitor, audit, reviewed, archived] = await Promise.all([
     getMonitorStatus(),
     listAuditLog({ pageSize: 20 }),
     listRecentlyReviewedFeedItems(20),
+    listArchivedFeedItems(20),
   ]);
   return (
     <div className="space-y-8">
@@ -188,6 +200,36 @@ async function ReviewHistory() {
                 <ActionButton run={restoreItem.bind(null, item.id)} className="gap-1.5">
                   <RefreshCw className="size-3.5" /> Restore to queue
                 </ActionButton>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-semibold">Archived (source expired or removed)</h2>
+        <p className="text-sm text-muted-foreground">
+          Items the expiry-recheck job moved out of active review after confirming
+          the OzBargain source was gone. Kept for audit — never deleted.
+        </p>
+        {archived.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No items archived by the expiry recheck yet.
+          </p>
+        ) : (
+          <div className="divide-y border">
+            {archived.map((item) => (
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{item.rawTitle}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Last confirmed active {formatDate(item.lastValidatedAt)} · last
+                    checked {formatDate(item.lastSourceCheckAt)}
+                  </p>
+                </div>
+                <Badge variant="outline" className="shrink-0">
+                  {archiveReasonLabel(item.archiveReason)}
+                </Badge>
               </div>
             ))}
           </div>

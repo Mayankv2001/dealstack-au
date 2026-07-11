@@ -54,6 +54,7 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "017_card_source_registry.sql",
   "018_card_offer_change_candidates.sql",
   "019_pipeline_lifecycle_retention.sql",
+  "020_ozb_expiry_recheck.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -143,12 +144,27 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "raw_summary", "categories", "posted_at", "fetched_at", "content_hash",
       "review_state", "promoted_signal_id", "created_at", "updated_at",
       "hidden_from_homepage", "thumbnail_url", "reviewed_at", "reviewed_by",
+      "source_status", "last_source_check_at", "last_validated_at",
+      "last_validation_error", "consecutive_validation_failures",
+      "failure_streak_started_at", "source_expired_at", "archived_at",
+      "archive_reason", "declared_expires_at", "source_marked_expired",
     ],
     {
       hidden_from_homepage: "005_feed_item_homepage_hidden.sql",
       thumbnail_url: "015_daily_deal_pipeline.sql",
       reviewed_at: "015_daily_deal_pipeline.sql",
       reviewed_by: "015_daily_deal_pipeline.sql",
+      source_status: "020_ozb_expiry_recheck.sql",
+      last_source_check_at: "020_ozb_expiry_recheck.sql",
+      last_validated_at: "020_ozb_expiry_recheck.sql",
+      last_validation_error: "020_ozb_expiry_recheck.sql",
+      consecutive_validation_failures: "020_ozb_expiry_recheck.sql",
+      failure_streak_started_at: "020_ozb_expiry_recheck.sql",
+      source_expired_at: "020_ozb_expiry_recheck.sql",
+      archived_at: "020_ozb_expiry_recheck.sql",
+      archive_reason: "020_ozb_expiry_recheck.sql",
+      declared_expires_at: "020_ozb_expiry_recheck.sql",
+      source_marked_expired: "020_ozb_expiry_recheck.sql",
     }
   ),
   feed_fetch_log: table("002_feed_import_queue.sql", [
@@ -227,6 +243,13 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     detection_detected: "019_pipeline_lifecycle_retention.sql",
     detection_inserted: "019_pipeline_lifecycle_retention.sql",
   }),
+  // 020_ozb_expiry_recheck.sql — narrowly scoped ledger for the expiry-recheck
+  // cron (independent one-running lock, separate from daily_pipeline_runs).
+  ozb_recheck_runs: table("020_ozb_expiry_recheck.sql", [
+    "id", "started_at", "finished_at", "status", "dry_run", "scanned",
+    "active", "expired", "deleted", "unknown", "fetch_failed", "would_archive",
+    "actually_archived", "skipped", "errors", "created_at",
+  ]),
 };
 
 /**

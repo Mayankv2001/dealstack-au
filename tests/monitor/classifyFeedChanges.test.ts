@@ -12,6 +12,8 @@ function item(id: string, hash: string): FeedItemInsert {
     posted_at: null,
     content_hash: hash,
     thumbnail_url: null,
+    declared_expires_at: null,
+    source_marked_expired: false,
   };
 }
 

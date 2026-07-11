@@ -78,6 +78,25 @@ export interface MonitorFeedItemSummary {
   fetchedAt: string;
 }
 
+/** One expiry-recheck run, summarised for the monitor page. */
+export interface RecheckRunEntry {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: string;
+  dryRun: boolean;
+  scanned: number;
+  active: number;
+  expired: number;
+  deleted: number;
+  unknown: number;
+  fetchFailed: number;
+  wouldArchive: number;
+  actuallyArchived: number;
+  skipped: number;
+  errors: string[];
+}
+
 /** Counts of staged feed_items by triage state. */
 export interface FeedItemStateCounts {
   new: number;
@@ -85,6 +104,7 @@ export interface FeedItemStateCounts {
   ignored: number;
   duplicate: number;
   rejected: number;
+  archived: number;
 }
 
 export interface MonitorStatus {
@@ -105,6 +125,8 @@ export interface MonitorStatus {
   feedItemCounts: FeedItemStateCounts;
   recentFetchLog: MonitorFetchLogEntry[];
   recentPipelineRuns: DailyPipelineRunEntry[];
+  /** Recent expiry-recheck runs (separate cron from ingestion). */
+  recentRecheckRuns: RecheckRunEntry[];
   /** Most recent run that completed without an error (ok / not-modified). */
   lastSuccessLog: MonitorFetchLogEntry | null;
   /** Most recent run that recorded an error (blocked / error). */
@@ -314,6 +336,46 @@ function mapPipelineRun(row: PipelineRunRow): DailyPipelineRunEntry {
   };
 }
 
+interface RecheckRunRow {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  dry_run: boolean;
+  scanned: number;
+  active: number;
+  expired: number;
+  deleted: number;
+  unknown: number;
+  fetch_failed: number;
+  would_archive: number;
+  actually_archived: number;
+  skipped: number;
+  errors: unknown;
+}
+
+function mapRecheckRun(row: RecheckRunRow): RecheckRunEntry {
+  return {
+    id: row.id,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    status: row.status,
+    dryRun: row.dry_run,
+    scanned: row.scanned,
+    active: row.active,
+    expired: row.expired,
+    deleted: row.deleted,
+    unknown: row.unknown,
+    fetchFailed: row.fetch_failed,
+    wouldArchive: row.would_archive,
+    actuallyArchived: row.actually_archived,
+    skipped: row.skipped,
+    errors: Array.isArray(row.errors)
+      ? row.errors.filter((item): item is string => typeof item === "string")
+      : [],
+  };
+}
+
 function mapFetchLog(r: FetchLogRow): MonitorFetchLogEntry {
   const source = Array.isArray(r.source) ? r.source[0] : r.source;
   return {
@@ -378,12 +440,14 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     ignoredCount,
     duplicateCount,
     rejectedCount,
+    archivedCount,
     pipelineRunData,
     fetchLogData,
     lastSuccessData,
     lastProblemData,
     latestItemsData,
     problemData,
+    recheckRunData,
   ] = await Promise.all([
     countRows(db, "compliance_reviews", {
       column: "approved_for_monitoring",
@@ -397,6 +461,7 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     countRows(db, "feed_items", { column: "review_state", value: "ignored" }),
     countRows(db, "feed_items", { column: "review_state", value: "duplicate" }),
     countRows(db, "feed_items", { column: "review_state", value: "rejected" }),
+    countRows(db, "feed_items", { column: "review_state", value: "archived" }),
     db
       .from("daily_pipeline_runs")
       .select("*")
@@ -434,6 +499,11 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
       .from("feed_sources")
       .select("id, label, last_status, failure_count, is_enabled")
       .in("last_status", ["error", "blocked"]),
+    db
+      .from("ozb_recheck_runs")
+      .select("*")
+      .order("started_at", { ascending: false })
+      .limit(5),
   ]);
 
   if (fetchLogData.error) {
@@ -454,6 +524,9 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   if (problemData.error) {
     throw new Error(`problem sources failed: ${problemData.error.message}`);
   }
+  if (recheckRunData.error) {
+    throw new Error(`recent recheck runs failed: ${recheckRunData.error.message}`);
+  }
 
   const recentFetchLog = (
     (fetchLogData.data ?? []) as unknown as FetchLogRow[]
@@ -461,6 +534,9 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   const recentPipelineRuns = (
     (pipelineRunData.data ?? []) as unknown as PipelineRunRow[]
   ).map(mapPipelineRun);
+  const recentRecheckRuns = (
+    (recheckRunData.data ?? []) as unknown as RecheckRunRow[]
+  ).map(mapRecheckRun);
 
   const lastSuccessLog = lastSuccessData.data
     ? mapFetchLog(lastSuccessData.data as unknown as FetchLogRow)
@@ -500,9 +576,11 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
       ignored: ignoredCount,
       duplicate: duplicateCount,
       rejected: rejectedCount,
+      archived: archivedCount,
     },
     recentFetchLog,
     recentPipelineRuns,
+    recentRecheckRuns,
     lastSuccessLog,
     lastProblemLog,
     latestFeedItems,

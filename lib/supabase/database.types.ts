@@ -333,6 +333,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ozb_recheck_runs: {
+        Row: {
+          active: number
+          actually_archived: number
+          created_at: string
+          deleted: number
+          dry_run: boolean
+          errors: Json
+          expired: number
+          fetch_failed: number
+          finished_at: string | null
+          id: string
+          scanned: number
+          skipped: number
+          started_at: string
+          status: string
+          unknown: number
+          would_archive: number
+        }
+        Insert: {
+          active?: number
+          actually_archived?: number
+          created_at?: string
+          deleted?: number
+          dry_run?: boolean
+          errors?: Json
+          expired?: number
+          fetch_failed?: number
+          finished_at?: string | null
+          id?: string
+          scanned?: number
+          skipped?: number
+          started_at?: string
+          status?: string
+          unknown?: number
+          would_archive?: number
+        }
+        Update: {
+          active?: number
+          actually_archived?: number
+          created_at?: string
+          deleted?: number
+          dry_run?: boolean
+          errors?: Json
+          expired?: number
+          fetch_failed?: number
+          finished_at?: string | null
+          id?: string
+          scanned?: number
+          skipped?: number
+          started_at?: string
+          status?: string
+          unknown?: number
+          would_archive?: number
+        }
+        Relationships: []
+      }
       cashback_offers: {
         Row: {
           cap_dollars: number | null
@@ -498,13 +555,21 @@ export type Database = {
       }
       feed_items: {
         Row: {
+          archive_reason: string | null
+          archived_at: string | null
           categories: string[]
+          consecutive_validation_failures: number
           content_hash: string | null
           created_at: string
+          declared_expires_at: string | null
+          failure_streak_started_at: string | null
           feed_source_id: string
           fetched_at: string
           hidden_from_homepage: boolean
           id: string
+          last_source_check_at: string | null
+          last_validated_at: string | null
+          last_validation_error: string | null
           link: string
           posted_at: string | null
           promoted_signal_id: string | null
@@ -513,18 +578,29 @@ export type Database = {
           review_state: string
           reviewed_at: string | null
           reviewed_by: string | null
+          source_expired_at: string | null
+          source_marked_expired: boolean
           source_native_id: string
+          source_status: string | null
           thumbnail_url: string | null
           updated_at: string
         }
         Insert: {
+          archive_reason?: string | null
+          archived_at?: string | null
           categories?: string[]
+          consecutive_validation_failures?: number
           content_hash?: string | null
           created_at?: string
+          declared_expires_at?: string | null
+          failure_streak_started_at?: string | null
           feed_source_id: string
           fetched_at?: string
           hidden_from_homepage?: boolean
           id?: string
+          last_source_check_at?: string | null
+          last_validated_at?: string | null
+          last_validation_error?: string | null
           link: string
           posted_at?: string | null
           promoted_signal_id?: string | null
@@ -533,18 +609,29 @@ export type Database = {
           review_state?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source_expired_at?: string | null
+          source_marked_expired?: boolean
           source_native_id: string
+          source_status?: string | null
           thumbnail_url?: string | null
           updated_at?: string
         }
         Update: {
+          archive_reason?: string | null
+          archived_at?: string | null
           categories?: string[]
+          consecutive_validation_failures?: number
           content_hash?: string | null
           created_at?: string
+          declared_expires_at?: string | null
+          failure_streak_started_at?: string | null
           feed_source_id?: string
           fetched_at?: string
           hidden_from_homepage?: boolean
           id?: string
+          last_source_check_at?: string | null
+          last_validated_at?: string | null
+          last_validation_error?: string | null
           link?: string
           posted_at?: string | null
           promoted_signal_id?: string | null
@@ -553,7 +640,10 @@ export type Database = {
           review_state?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source_expired_at?: string | null
+          source_marked_expired?: boolean
           source_native_id?: string
+          source_status?: string | null
           thumbnail_url?: string | null
           updated_at?: string
         }
@@ -1104,6 +1194,18 @@ export type Database = {
       archive_expired_deals: {
         Args: { p_archived_at: string; p_today: string }
         Returns: number
+      }
+      archive_recheck_feed_item: {
+        Args: {
+          p_archive_reason: string
+          p_checked_at: string
+          p_feed_item_id: string
+          p_run_id: string
+          p_signal?: string | null
+          p_source_identifier: string
+          p_source_status: string
+        }
+        Returns: boolean
       }
       archive_invalid_signal: {
         Args: { p_archived_at: string; p_reason: string; p_signal_id: string }

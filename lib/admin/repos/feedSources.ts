@@ -364,6 +364,8 @@ export async function upsertFeedItems(
       posted_at: item.posted_at,
       content_hash: item.content_hash,
       thumbnail_url: item.thumbnail_url,
+      declared_expires_at: item.declared_expires_at,
+      source_marked_expired: item.source_marked_expired,
       fetched_at: fetchedAt,
       // Existing moderation is immutable across source edits. Only new items
       // receive the category classifier's initial state.

@@ -137,3 +137,38 @@ export const cardDetectEnabled = (): boolean =>
 /** Maximum age of a successful live-signal validation before archival. */
 export const signalValidationDays = (): number =>
   optionalPositiveInt("SIGNAL_VALIDATION_DAYS", 45);
+
+// ── OzBargain expiry recheck (SERVER/SCRIPT ONLY) ────────────────────────────
+// A SEPARATE, independently-gated job from the ingestion monitor. It revalidates
+// PENDING review items against their OzBargain source post and archives the ones
+// whose source is confirmed gone. Disabled by default — stays off until an
+// operator flips it after production review. It still makes outbound HEAD
+// requests to OzBargain, so the cron route also requires compliance approval and
+// OZB_MONITOR_USER_AGENT before it does any network work.
+
+/**
+ * Expiry-recheck master switch. Defaults to FALSE — true only when the value is
+ * exactly "true". Off means the recheck cron route does zero DB or network work.
+ */
+export const ozbExpiryRecheckEnabled = (): boolean =>
+  process.env.OZB_EXPIRY_RECHECK_ENABLED === "true";
+
+/**
+ * Preview switch — DEFAULTS TO TRUE. In dry-run the recheck classifies and
+ * records run metrics (including would-archive counts) but writes NOTHING: no
+ * feed_items change, no archival, no audit. Real archival happens only when this
+ * is explicitly set to "false" AFTER a preview run has been reviewed. A missing
+ * or malformed value stays safe (true).
+ */
+export const ozbExpiryRecheckDryRun = (): boolean =>
+  process.env.OZB_EXPIRY_RECHECK_DRY_RUN !== "false";
+
+/** Items probed per recheck run — bounded to 25–50, default 40. */
+export const ozbExpiryRecheckBatchSize = (): number => {
+  const value = optionalPositiveInt("OZB_EXPIRY_RECHECK_BATCH_SIZE", 40);
+  return Math.min(50, Math.max(25, value));
+};
+
+/** Floor on how often a single item may be re-probed, in hours (default 20). */
+export const ozbExpiryRecheckMinIntervalHours = (): number =>
+  optionalPositiveNumber("OZB_EXPIRY_RECHECK_MIN_INTERVAL_HOURS", 20);

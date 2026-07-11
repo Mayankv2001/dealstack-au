@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LOCAL TEST FIXTURE ONLY — synthetic sample, never fetched.
+  Mirrors the `ozb` extension shape of real OzBargain RSS (shape verified
+  manually 2026-07-11 during compliance preflight, same method as the tag-feed
+  verification recorded in docs/ozbargain-monitoring.md): <ozb:meta expiry="…">
+  declared-expiry timestamps and <ozb:title-msg type="…"> state markers
+  (expired / targeted / upcoming). Titles and summaries are our own wording.
+  No Cashrewards.
+-->
+<rss version="2.0" xml:base="https://www.ozbargain.com.au" xmlns:media="http://search.yahoo.com/mrss/" xmlns:ozb="https://www.ozbargain.com.au">
+  <channel>
+    <title>OzBargain extension sample (fixture)</title>
+    <link>https://www.ozbargain.com.au/</link>
+    <description>Synthetic fixture for ozb source-state extension parsing.</description>
+    <item>
+      <title>Kogan 10% off sitewide for members</title>
+      <link>https://www.ozbargain.com.au/node/910001</link>
+      <guid isPermaLink="false">910001</guid>
+      <description>Member-only sitewide code, exclusions apply.</description>
+      <pubDate>Tue, 07 Jul 2026 00:31:31 +1000</pubDate>
+      <category>Discount Code</category>
+      <ozb:meta comment-count="25" click-count="229" expiry="2026-07-11T13:23:46+10:00" votes-pos="36" votes-neg="0" url="https://example.com/target" image="https://files.ozbargain.com.au/n/91/910001l.jpg" />
+      <ozb:title-msg type="expired">out of stock</ozb:title-msg>
+      <media:thumbnail url="https://files.ozbargain.com.au/n/91/910001l.jpg" />
+    </item>
+    <item>
+      <title>Chemist Warehouse 20% off vitamins</title>
+      <link>https://www.ozbargain.com.au/node/910002</link>
+      <guid isPermaLink="false">910002</guid>
+      <description>Storewide vitamins promotion, one week only.</description>
+      <pubDate>Wed, 08 Jul 2026 10:00:00 +1000</pubDate>
+      <category>Health</category>
+      <ozb:meta comment-count="3" click-count="40" expiry="2026-08-01T00:00:00+10:00" votes-pos="10" votes-neg="1" />
+    </item>
+    <item>
+      <title>Myer weekend code, targeted then expired</title>
+      <link>https://www.ozbargain.com.au/node/910003</link>
+      <guid isPermaLink="false">910003</guid>
+      <description>Targeted member code that later expired.</description>
+      <pubDate>Thu, 09 Jul 2026 09:00:00 +1000</pubDate>
+      <category>Discount Code</category>
+      <ozb:title-msg type="targeted">targeted </ozb:title-msg>
+      <ozb:title-msg type="expired">expired</ozb:title-msg>
+    </item>
+    <item>
+      <title>The Good Guys upcoming appliance sale</title>
+      <link>https://www.ozbargain.com.au/node/910004</link>
+      <guid isPermaLink="false">910004</guid>
+      <description>Starts later this month.</description>
+      <pubDate>Fri, 10 Jul 2026 11:00:00 +1000</pubDate>
+      <category>Appliances</category>
+      <ozb:title-msg type="upcoming">In 12 days</ozb:title-msg>
+    </item>
+  </channel>
+</rss>

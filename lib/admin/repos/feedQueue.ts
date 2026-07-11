@@ -323,6 +323,59 @@ export async function listRecentlyReviewedFeedItems(
   }));
 }
 
+/** An item archived by the expiry-recheck job (source confirmed gone). */
+export interface ArchivedFeedItem {
+  id: string;
+  rawTitle: string;
+  link: string;
+  archiveReason: string | null;
+  sourceStatus: string | null;
+  archivedAt: string | null;
+  lastValidatedAt: string | null;
+  lastSourceCheckAt: string | null;
+}
+
+/**
+ * Items archived out of active review because their OzBargain source was
+ * confirmed expired/removed. Kept forever (never in the purge set) so History
+ * and audit retain them. Read-only history view — not restorable via the queue.
+ */
+export async function listArchivedFeedItems(
+  limit = 30
+): Promise<ArchivedFeedItem[]> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("feed_items")
+    .select(
+      "id, raw_title, link, archive_reason, source_status, archived_at, last_validated_at, last_source_check_at"
+    )
+    .eq("review_state", "archived")
+    .order("archived_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) throw new Error(`listArchivedFeedItems failed: ${error.message}`);
+  return (
+    (data ?? []) as unknown as {
+      id: string;
+      raw_title: string;
+      link: string;
+      archive_reason: string | null;
+      source_status: string | null;
+      archived_at: string | null;
+      last_validated_at: string | null;
+      last_source_check_at: string | null;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    rawTitle: row.raw_title,
+    link: row.link,
+    archiveReason: row.archive_reason,
+    sourceStatus: row.source_status,
+    archivedAt: row.archived_at,
+    lastValidatedAt: row.last_validated_at,
+    lastSourceCheckAt: row.last_source_check_at,
+  }));
+}
+
 /** Lowercase, hyphenated, alnum-only slug for a readable PK segment. */
 function slugify(value: string): string {
   return (

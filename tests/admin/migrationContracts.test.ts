@@ -83,4 +83,38 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("to service_role");
     expect(sql).toContain("from public, anon, authenticated");
   });
+
+  it("archives review items in place only on explicit expired/deleted, never hard-deleting", () => {
+    const sql = migration("020_ozb_expiry_recheck.sql");
+    // New terminal 'archived' triage state, kept out of the retention purge set.
+    expect(sql).toMatch(
+      /check \(review_state in \('new', 'imported', 'ignored', 'duplicate', 'rejected', 'archived'\)\)/
+    );
+    // The archival RPC only ever touches PENDING items and writes an audit row.
+    expect(sql).toContain("if item.review_state <> 'new' then return false");
+    expect(sql).toContain("review_state = 'archived'");
+    expect(sql).toContain("'auto-archive-recheck'");
+    expect(sql).toContain("insert into public.audit_log");
+    // No hard delete of review records anywhere in this migration.
+    expect(sql).not.toMatch(/delete\s+from\s+public\.feed_items/i);
+    // Independent one-running lock for the separate recheck cron.
+    expect(sql).toContain("idx_ozb_recheck_runs_one_running");
+    expect(sql).toContain("where status = 'running'");
+    // Archive reasons are constrained to the two EXPLICIT source states only —
+    // the "unavailable after N failures" reason must NOT exist.
+    expect(sql).toContain("check (archive_reason in ('source_expired', 'source_deleted'))");
+    expect(sql).toContain("('source_expired', 'source_deleted')");
+    expect(sql).not.toContain("source_unavailable_confirmed");
+    // The compliant expiry producers: structured facts captured from the
+    // APPROVED feed XML at ingest (no HTML retrieval, no new request shape).
+    expect(sql).toContain("declared_expires_at timestamptz");
+    expect(sql).toMatch(/source_marked_expired boolean not null default false/);
+    // Audit rows record which signal produced each archival.
+    expect(sql).toContain("'signal', p_signal");
+    // Preview mode is a first-class, default-safe run column.
+    expect(sql).toMatch(/dry_run\s+boolean not null default true/);
+    // Service-role only.
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+  });
 });
