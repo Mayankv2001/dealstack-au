@@ -420,6 +420,14 @@ are correct or permitted:
 **Recommendation:** start with **1–2 store feeds** for tracked merchants, not the
 front-page firehose. Map each `Store.id` → its OzBargain store slug in preflight.
 
+**Verified instance (2026-07-11):** the tag/category pattern above was confirmed
+against `https://www.ozbargain.com.au/tag/credit-card/feed` — a live RSS 2.0
+feed ("OzBargain - Credit Card"), no `robots.txt` restriction on `/tag/` or
+`/feed`. Registered in `feed_sources` **disabled** (migration
+`017_card_source_registry.sql`) for a future card-offer detection-assist
+phase — see `docs/bank-card-offer-workflow.md`'s addendum for the full
+decision, including why Finder.com.au was rejected as an automation source.
+
 ### Required User-Agent format
 
 Descriptive, identifying, with a contact URL — **never** a spoofed browser
@@ -737,6 +745,19 @@ non-crawling request (a single `HEAD` per post, no pagination, no content
 retrieval). Re-review this addendum alongside the next scheduled compliance
 re-check (see the top-of-file re-review rule) rather than treating it as a
 standalone gate.
+
+### Addendum: card-offer source decision (2026-07-11)
+
+A second `compliance_reviews` row now exists, unrelated to the OzBargain
+monitor's own approval above: **Finder.com.au (credit card comparison)**,
+`approved_for_monitoring = false` — evaluated and rejected as a card-offer
+automation source (no public feed/API; this project does not scrape HTML
+regardless of `robots.txt`). It does not affect `isMonitoringApproved()` (an
+OR-gate over any approved row — the existing OzBargain approval is untouched)
+and it gates nothing here; it exists purely as an auditable record of the
+decision. Full write-up, and the compliant OzBargain tag-feed alternative
+registered alongside it, live in `docs/bank-card-offer-workflow.md`'s
+addendum.
 
 ---
 

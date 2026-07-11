@@ -46,4 +46,16 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("daily_pipeline_runs");
     expect(sql).toContain("where status = 'running'");
   });
+
+  it("registers the card-offer source decision without enabling or approving anything", () => {
+    const sql = migration("017_card_source_registry.sql");
+    // The new feed row must land disabled — a future admin enables it deliberately.
+    expect(sql).toMatch(/insert into public\.feed_sources[\s\S]*'category'[\s\S]*'ozbargain'[\s\S]*false/);
+    expect(sql).toContain("ozbargain.com.au/tag/credit-card/feed");
+    // The Finder review must land as a recorded rejection, not an approval.
+    expect(sql).toContain("Finder.com.au");
+    expect(sql).toMatch(/insert into public\.compliance_reviews[\s\S]*false,\s*\n\s*'mv2001erma@gmail\.com'/);
+    // Both inserts must be guarded so a re-run cannot duplicate the rows.
+    expect(sql).toContain("where not exists");
+  });
 });

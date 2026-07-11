@@ -129,6 +129,44 @@ exactly:
 - **No public UI** is built in this phase — see Phase 9
   (`docs/public-ui-expansion-plan.md`) for where this would surface.
 
+## Addendum: source decision for card-offer discovery automation (2026-07-11)
+
+The manual-entry-only posture above is unchanged and remains the way
+`card_offers` rows get **published**. This addendum records a compliance
+decision made in support of a future *detection-assist* phase — surfacing
+candidate new/changed card offers into the existing `offer_change_candidates`
+review queue (see the "No automatic rate-change detection" note above), never
+auto-publishing anything.
+
+**Finder.com.au (credit card comparison) — rejected.** It publishes no
+RSS/Atom feed or public API for card offers. Its `robots.txt` confirms this:
+the only API-shaped path present (`/wp-json/finder/v1/geoip/...`) is unrelated
+to card data and is itself disallowed. Building a fetcher there would mean
+parsing Finder's HTML, which this project's architecture rule prohibits
+outright ("RSS/Atom feed parsing only — no HTML scraping", `CLAUDE.md`)
+regardless of what any `robots.txt` permits. No Finder fetcher is planned or
+built. Recorded as a `compliance_reviews` row
+(`approved_for_monitoring = false`) in migration
+`017_card_source_registry.sql`, mirroring the rejection into the same table
+that gates the OzBargain monitor.
+
+**Compliant alternative: OzBargain's Credit Card tag feed.** A live RSS 2.0
+feed at `https://www.ozbargain.com.au/tag/credit-card/feed` (channel title
+"OzBargain - Credit Card") was verified on 2026-07-11 — `robots.txt` places no
+`Disallow` on `/tag/` or `/feed` paths. This uses the exact same
+already-approved OzBargain compliance review and feed-only posture the
+existing monitor operates under (`source_type = 'ozbargain'`, already in
+`APPROVED_FEED_SOURCE_TYPES` — see `lib/monitor/offerChanges.ts`); no new
+fetching capability was added, only a new row in the existing allowlist.
+Registered in `feed_sources` **disabled** (`kind = 'category'`) in the same
+migration — enabling it, and building the card-shaped detection heuristics
+that would read it, is future work, not done here.
+
+Issuer pages remain the manual verification source of truth for actually
+publishing a `card_offers` row, exactly as described above — a detected
+OzBargain post is, at most, a lead an admin still checks against the bank's
+own page before typing the row by hand.
+
 ## Next step (historical — superseded, see status note at top)
 
 This design needed explicit go-ahead before anything was created:

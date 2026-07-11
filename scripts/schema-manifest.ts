@@ -49,6 +49,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Index-only (adds the one-running-row lock on daily_pipeline_runs) — no
   // schema shape change, same as 008 and 013.
   "016_pipeline_run_lock.sql",
+  // Data-only (registers a disabled feed_sources row and a rejected
+  // compliance_reviews row) — no schema shape change, same as 008/013/016.
+  "017_card_source_registry.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
