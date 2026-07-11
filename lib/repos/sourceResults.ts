@@ -23,6 +23,7 @@ import {
   type DbClient,
 } from "@/lib/supabase/server";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { reportOperationalError } from "@/lib/observability/report-server-error";
 
 /**
  * Source-checks adapter — Supabase-backed "Checked sources" results.
@@ -124,6 +125,7 @@ export interface CardOfferResultRow {
   offer_summary: string;
   source_url: string;
   expiry_date: string | null;
+  review_by_date: string;
   last_checked_at: string;
   confidence: Confidence;
 }
@@ -280,6 +282,7 @@ function cardOfferRowIsPublicReady(
       sourceUrl: r.source_url,
       confidence: r.confidence,
       expiryDate: r.expiry_date,
+      reviewByDate: r.review_by_date,
     },
     today
   ).ready;
@@ -354,7 +357,7 @@ async function queryCardOffers(db: DbClient): Promise<CardOfferResultRow[]> {
   const { data, error } = await db
     .from("card_offers")
     .select(
-      "id, provider, card_name, offer_type, bonus_points, cashback_amount, statement_credit_amount, annual_fee, eligibility_notes, offer_summary, source_url, expiry_date, last_checked_at, confidence"
+      "id, provider, card_name, offer_type, bonus_points, cashback_amount, statement_credit_amount, annual_fee, eligibility_notes, offer_summary, source_url, expiry_date, review_by_date, last_checked_at, confidence"
     );
   if (error) throw error;
   return (data ?? []) as unknown as CardOfferResultRow[];
@@ -452,11 +455,7 @@ export async function loadDbSourceResults(): Promise<DealSourceResult[] | null> 
       signals,
     });
   } catch (err) {
-    console.warn(
-      `[sourceResults] DB read failed; returning no checked sources (static samples are never a live fallback). ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    );
+    await reportOperationalError("source-results-read", err);
     return [];
   }
 }

@@ -134,6 +134,9 @@ const PUBLIC_ROUTES: { path: string; marker: string }[] = [
   { path: "/stores", marker: "All stores" },
   { path: "/cards", marker: "DealStack" },
   { path: "/resources", marker: "DealStack" },
+  { path: "/privacy", marker: "Privacy" },
+  { path: "/terms", marker: "Terms of use" },
+  { path: "/editorial-policy", marker: "Editorial policy" },
   { path: "/stores/myer", marker: "Myer" },
   { path: "/stores/jb-hifi", marker: "JB" },
   { path: "/stores/woolworths", marker: "Woolworths" },
@@ -183,6 +186,14 @@ async function expectCronGateClosed(): Promise<void> {
 async function expectMonitorHealthGateClosed(): Promise<void> {
   const res = await fetchWithRetry("/api/health/monitor");
   if (res.status === 200) throw new Error("monitor health gate is open without auth");
+  if (res.status !== 401 && res.status !== 503) {
+    throw new Error(`expected 401 or 503, got ${res.status}`);
+  }
+}
+
+async function expectDataHealthGateClosed(): Promise<void> {
+  const res = await fetchWithRetry("/api/health/data");
+  if (res.status === 200) throw new Error("data health gate is open without auth");
   if (res.status !== 401 && res.status !== 503) {
     throw new Error(`expected 401 or 503, got ${res.status}`);
   }
@@ -249,6 +260,13 @@ async function expectSecurityHeaders(): Promise<void> {
     if (actual !== expected) {
       mismatches.push(`${name}: expected "${expected}", got "${actual ?? "(missing)"}"`);
     }
+  }
+  const csp = res.headers.get("content-security-policy-report-only") ?? "";
+  if (!csp.includes("'strict-dynamic'") || !/'nonce-[^']+'/.test(csp)) {
+    mismatches.push("content-security-policy-report-only: missing nonce/strict-dynamic");
+  }
+  if (csp.includes("'unsafe-inline'")) {
+    mismatches.push("content-security-policy-report-only: unsafe-inline present");
   }
   if (mismatches.length > 0) throw new Error(mismatches.join("; "));
 }
@@ -365,6 +383,10 @@ async function main(): Promise<void> {
   await check(
     "GET /api/health/monitor without auth never returns 200",
     expectMonitorHealthGateClosed
+  );
+  await check(
+    "GET /api/health/data without auth never returns 200",
+    expectDataHealthGateClosed
   );
 
   await check("GET /robots.txt", expectRobotsTxt);

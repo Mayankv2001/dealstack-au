@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import DealsClient from "@/components/DealsClient";
 import HotBuys from "@/components/HotBuys";
+import SiteFooter from "@/components/SiteFooter";
 import {
-  AlertsComingSoonSection,
   DealsHeader,
   DealsHero,
   HowWeCheckSection,
@@ -55,7 +56,7 @@ export default async function DealsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
       <DealsHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
@@ -72,19 +73,21 @@ export default async function DealsPage() {
         <WeeklyPicksSection picks={weeklyPicks} />
 
         {/* Programme guide, filter chips and the filtered sections. */}
-        <DealsClient
-          stackRecommendations={stackRecommendations}
-          stores={data.stores}
-          giftCardOffers={data.giftCardOffers}
-          cashbackOffers={data.cashbackOffers}
-          pointsOffers={data.pointsOffers}
-          ozBargainSignals={data.ozBargainSignals}
-        />
+        <Suspense fallback={null}>
+          <DealsClient
+            stackRecommendations={stackRecommendations}
+            stores={data.stores}
+            giftCardOffers={data.giftCardOffers}
+            cashbackOffers={data.cashbackOffers}
+            pointsOffers={data.pointsOffers}
+            ozBargainSignals={data.ozBargainSignals}
+          />
+        </Suspense>
 
         <HowWeCheckSection />
-        <AlertsComingSoonSection />
         <VerifySection />
       </main>
+      <SiteFooter />
     </div>
   );
 }

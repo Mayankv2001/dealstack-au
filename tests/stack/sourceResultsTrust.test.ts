@@ -107,6 +107,7 @@ function makeReadyCardOffer(
     offer_summary: "Earn 100,000 bonus points on sign-up.",
     source_url: "https://www.americanexpress.com/en-au/",
     expiry_date: "2026-12-31",
+    review_by_date: "2026-08-10",
     last_checked_at: "2026-07-01T00:00:00+10:00",
     confidence: "confirmed",
     ...over,
@@ -174,9 +175,17 @@ describe("buildSourceResultPool — card offer readiness gate", () => {
     expect(buildSourceResultPool(rows, NOW)).toEqual([]);
   });
 
-  it("excludes a card offer with no expiry date", () => {
+  it("includes an ongoing card offer with no issuer expiry while review is current", () => {
     const rows = emptyRows();
     rows.cardOffers = [makeReadyCardOffer({ expiry_date: null })];
+    expect(buildSourceResultPool(rows, NOW)).toHaveLength(1);
+  });
+
+  it("excludes an ongoing card offer after its review deadline", () => {
+    const rows = emptyRows();
+    rows.cardOffers = [
+      makeReadyCardOffer({ expiry_date: null, review_by_date: "2026-07-09" }),
+    ];
     expect(buildSourceResultPool(rows, NOW)).toEqual([]);
   });
 

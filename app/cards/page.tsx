@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { CardsClient } from "@/components/CardsClient";
 import { getCardOffers } from "@/lib/repos";
 
@@ -22,5 +23,9 @@ export const revalidate = 300;
 
 export default async function CardsPage() {
   const offers = await getCardOffers();
-  return <CardsClient offers={offers} />;
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-emerald-500/[0.04]" />}>
+      <CardsClient offers={offers} />
+    </Suspense>
+  );
 }

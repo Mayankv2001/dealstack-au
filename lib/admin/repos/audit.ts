@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getAdminAuditActor } from "@/lib/admin/audit-context";
 import type { Json } from "@/lib/supabase/database.types";
 
 /**
@@ -64,6 +65,10 @@ function mapAudit(r: AuditRow): AuditEntry {
  * primary write succeeds and BEFORE any redirect().
  */
 export async function logAudit(event: AuditEvent): Promise<void> {
+  // Admin mutations are audited transactionally by migration 011. Keep this
+  // explicit path for scripts/cron calls, which intentionally have no request
+  // actor context and therefore do not activate the trigger.
+  if (getAdminAuditActor()) return;
   try {
     const db = getSupabaseAdmin();
     const { error } = await db.from("audit_log").insert({

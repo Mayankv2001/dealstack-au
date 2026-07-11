@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import Logo from "@/components/Logo";
 import SearchBar from "@/components/SearchBar";
 import StoreCard from "@/components/StoreCard";
+import SiteFooter from "@/components/SiteFooter";
 import { getStores } from "@/lib/repos";
 import type { Store } from "@/lib/data";
 
@@ -38,7 +39,7 @@ export default async function StoresIndexPage() {
   const groups = groupByCategory(stores);
 
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
       <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
@@ -80,8 +81,10 @@ export default async function StoresIndexPage() {
               <SearchX className="size-8 text-muted-foreground" />
               <p className="font-medium">No stores available right now</p>
               <p className="max-w-sm text-sm text-muted-foreground">
-                Check back shortly — our store list refreshes automatically.
+                Published stores are temporarily unavailable. Browse current
+                deals or try again after the data source recovers.
               </p>
+              <Button asChild variant="outline" size="sm"><Link href="/deals">Browse deals</Link></Button>
             </CardContent>
           </Card>
         ) : (
@@ -99,6 +102,7 @@ export default async function StoresIndexPage() {
           ))
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

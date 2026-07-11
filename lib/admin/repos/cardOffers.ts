@@ -6,6 +6,8 @@ import {
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { toNumberOrNull } from "@/lib/supabase/server";
 import type { Confidence } from "@/lib/sources/types";
+import type { CardBonusStage } from "@/lib/offers/types";
+import type { Json } from "@/lib/supabase/database.types";
 
 /**
  * Admin-side card-offer repository — SERVICE-ROLE ONLY.
@@ -50,11 +52,16 @@ export interface AdminCardOffer {
   minimumSpend: number | null;
   minimumSpendPeriod: string | null;
   annualFee: number | null;
+  bonusStages: CardBonusStage[];
+  pointValueCents: number | null;
   eligibilityNotes: string;
   offerSummary: string;
   sourceUrl: string;
   confidence: Confidence;
   expiryDate: string | null;
+  reviewByDate: string;
+  isArchived: boolean;
+  archivedAt: string | null;
   lastCheckedAt: string;
   isPublished: boolean;
   createdAt: string;
@@ -72,11 +79,14 @@ export interface CardOfferInput {
   minimumSpend: number | null;
   minimumSpendPeriod: string | null;
   annualFee: number | null;
+  bonusStages: CardBonusStage[];
+  pointValueCents: number | null;
   eligibilityNotes: string;
   offerSummary: string;
   sourceUrl: string;
   confidence: Confidence;
   expiryDate: string | null;
+  reviewByDate: string;
   isPublished: boolean;
 }
 
@@ -97,11 +107,16 @@ interface CardOfferRow {
   minimum_spend: number | string | null;
   minimum_spend_period: string | null;
   annual_fee: number | string | null;
+  bonus_stages: unknown;
+  point_value_cents: number | string | null;
   eligibility_notes: string;
   offer_summary: string;
   source_url: string;
   confidence: Confidence;
   expiry_date: string | null;
+  review_by_date: string;
+  is_archived: boolean;
+  archived_at: string | null;
   last_checked_at: string;
   is_published: boolean;
   created_at: string;
@@ -109,6 +124,20 @@ interface CardOfferRow {
 }
 
 function mapAdminCardOffer(r: CardOfferRow): AdminCardOffer {
+  const bonusStages = Array.isArray(r.bonus_stages)
+    ? r.bonus_stages.flatMap((stage) => {
+        if (typeof stage !== "object" || stage === null) return [];
+        const value = stage as Record<string, unknown>;
+        const points = Number(value.points);
+        if (!Number.isFinite(points) || points <= 0) return [];
+        return [{
+          points,
+          requirement: String(value.requirement ?? "").trim(),
+          timing: String(value.timing ?? "").trim(),
+          withinFirstYear: value.withinFirstYear !== false,
+        }];
+      })
+    : [];
   return {
     id: r.id,
     provider: r.provider,
@@ -120,11 +149,16 @@ function mapAdminCardOffer(r: CardOfferRow): AdminCardOffer {
     minimumSpend: toNumberOrNull(r.minimum_spend),
     minimumSpendPeriod: r.minimum_spend_period,
     annualFee: toNumberOrNull(r.annual_fee),
+    bonusStages,
+    pointValueCents: toNumberOrNull(r.point_value_cents),
     eligibilityNotes: r.eligibility_notes,
     offerSummary: r.offer_summary,
     sourceUrl: r.source_url,
     confidence: r.confidence,
     expiryDate: r.expiry_date,
+    reviewByDate: r.review_by_date,
+    isArchived: r.is_archived,
+    archivedAt: r.archived_at,
     lastCheckedAt: r.last_checked_at,
     isPublished: r.is_published,
     createdAt: r.created_at,
@@ -144,11 +178,21 @@ function toRow(input: CardOfferInput) {
     minimum_spend: input.minimumSpend,
     minimum_spend_period: input.minimumSpendPeriod,
     annual_fee: input.annualFee,
+    bonus_stages: input.bonusStages.map(
+      (stage): Json => ({
+        points: stage.points,
+        requirement: stage.requirement,
+        timing: stage.timing,
+        withinFirstYear: stage.withinFirstYear,
+      })
+    ),
+    point_value_cents: input.pointValueCents,
     eligibility_notes: input.eligibilityNotes,
     offer_summary: input.offerSummary,
     source_url: input.sourceUrl,
     confidence: input.confidence,
     expiry_date: input.expiryDate,
+    review_by_date: input.reviewByDate,
     is_published: input.isPublished,
     // The admin is hand-verifying the data on every save, so stamp it now.
     last_checked_at: new Date().toISOString(),
@@ -182,8 +226,21 @@ export async function listCardOffers(): Promise<AdminCardOffer[]> {
   const { data, error } = await db
     .from("card_offers")
     .select("*")
+    .eq("is_archived", false)
     .order("updated_at", { ascending: false });
   if (error) throw new Error(`listCardOffers failed: ${error.message}`);
+  return ((data ?? []) as unknown as CardOfferRow[]).map(mapAdminCardOffer);
+}
+
+/** Archived rows stay queryable for history but out of the active work queue. */
+export async function listArchivedCardOffers(): Promise<AdminCardOffer[]> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("card_offers")
+    .select("*")
+    .eq("is_archived", true)
+    .order("archived_at", { ascending: false });
+  if (error) throw new Error(`listArchivedCardOffers failed: ${error.message}`);
   return ((data ?? []) as unknown as CardOfferRow[]).map(mapAdminCardOffer);
 }
 
@@ -251,5 +308,29 @@ export async function setCardOfferPublished(
     .update({ is_published: isPublished })
     .eq("id", id);
   if (error) throw new Error(`setCardOfferPublished failed: ${error.message}`);
+  return { ok: true };
+}
+
+/** Archive only unpublished rows; restore returns them to the draft queue. */
+export async function setCardOfferArchived(
+  id: string,
+  isArchived: boolean
+): Promise<CardOfferMutationResult> {
+  const offer = await getCardOffer(id);
+  if (!offer) return { ok: false, error: "Card offer was not found." };
+  if (isArchived && offer.isPublished) {
+    return { ok: false, error: "Unpublish the card offer before archiving it." };
+  }
+
+  const db = getSupabaseAdmin();
+  const { error } = await db
+    .from("card_offers")
+    .update({
+      is_archived: isArchived,
+      archived_at: isArchived ? new Date().toISOString() : null,
+      is_published: false,
+    })
+    .eq("id", id);
+  if (error) throw new Error(`setCardOfferArchived failed: ${error.message}`);
   return { ok: true };
 }

@@ -130,6 +130,7 @@ describe("card offers in the Supabase-backed public source pool", () => {
       offer_summary: "Earn 100,000 bonus points on sign-up.",
       source_url: "https://www.americanexpress.com/en-au/",
       expiry_date: "2026-12-31",
+      review_by_date: "2026-08-10",
       last_checked_at: "2026-07-01T00:00:00+10:00",
       confidence: "confirmed",
       ...over,

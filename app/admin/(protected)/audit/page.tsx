@@ -28,6 +28,8 @@ const TABLE_OPTIONS = [
   "feed_items",
   "compliance_reviews",
   "offer_change_candidates",
+  "card_offers",
+  "card_offer_correction_reports",
 ];
 
 const ACTION_OPTIONS = [
@@ -44,6 +46,8 @@ const ACTION_OPTIONS = [
   "apply",
   "hide-from-homepage",
   "show-on-homepage",
+  "archive",
+  "restore",
 ];
 
 const controlClass =
@@ -262,11 +266,7 @@ export default async function AuditLogPage({
               <Button asChild variant="outline" size="sm">
                 <Link href={pageHref(pageNum - 1)}>Previous</Link>
               </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled>
-                Previous
-              </Button>
-            )}
+            ) : null}
             <span className="px-1 text-xs text-muted-foreground tabular-nums">
               Page {pageNum}
             </span>
@@ -274,11 +274,7 @@ export default async function AuditLogPage({
               <Button asChild variant="outline" size="sm">
                 <Link href={pageHref(pageNum + 1)}>Next</Link>
               </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled>
-                Next
-              </Button>
-            )}
+            ) : null}
           </div>
         </div>
         </>

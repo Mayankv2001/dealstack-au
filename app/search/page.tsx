@@ -8,6 +8,7 @@ import SearchBar from "@/components/SearchBar";
 import SmartStackResultCard from "@/components/SmartStackResultCard";
 import SourceResultCard from "@/components/SourceResultCard";
 import StoreCard from "@/components/StoreCard";
+import SiteFooter from "@/components/SiteFooter";
 import type { Store } from "@/lib/data";
 import { getStores } from "@/lib/repos";
 import { searchSourceResults } from "@/lib/repos/sourceResults";
@@ -72,7 +73,7 @@ export default async function SearchPage({
   const stackedCount = smartStackResults.filter((r) => r.recommendation).length;
 
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
       <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
@@ -80,13 +81,13 @@ export default async function SearchPage({
             <Button asChild size="sm" variant="ghost">
               <Link href="/deals">Deals</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost">
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
               <Link href="/stores">Stores</Link>
             </Button>
             <Button asChild size="sm" variant="ghost">
               <Link href="/cards">Cards</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost">
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
               <Link href="/resources">Resources</Link>
             </Button>
             <Button
@@ -208,6 +209,7 @@ export default async function SearchPage({
           </p>
         </section>
       </main>
+      <SiteFooter />
     </div>
   );
 }

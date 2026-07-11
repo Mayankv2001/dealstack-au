@@ -346,6 +346,8 @@ export const cardOffers: CardOffer[] = [
     minimumSpend: 3000,
     minimumSpendPeriod: "3 months",
     annualFee: 450,
+    bonusStages: [{ points: 100000, requirement: "Spend $3,000 in 3 months", timing: "Initial bonus", withinFirstYear: true }],
+    pointValueCents: 1,
     eligibilityNotes:
       "Sample only. Typically new customers, subject to not holding/having held a similar Amex Qantas card recently — check current terms.",
     offerSummary:
@@ -353,6 +355,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.americanexpress.com/en-au/",
     confidence: "needs-verification",
     expiryDate: null,
+    reviewByDate: "2026-08-31",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -366,6 +369,8 @@ export const cardOffers: CardOffer[] = [
     minimumSpend: 4000,
     minimumSpendPeriod: "3 months",
     annualFee: 195,
+    bonusStages: [{ points: 90000, requirement: "Spend $4,000 in 3 months", timing: "Initial bonus", withinFirstYear: true }],
+    pointValueCents: 0.5,
     eligibilityNotes:
       "Sample only. Typically new-to-product customers — check current terms before applying.",
     offerSummary:
@@ -373,6 +378,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.nab.com.au/personal/credit-cards",
     confidence: "needs-verification",
     expiryDate: null,
+    reviewByDate: "2026-08-31",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -386,6 +392,8 @@ export const cardOffers: CardOffer[] = [
     minimumSpend: 1500,
     minimumSpendPeriod: "60 days",
     annualFee: 59,
+    bonusStages: [],
+    pointValueCents: null,
     eligibilityNotes:
       "Sample only. Typically new cardholders — check current terms before applying.",
     offerSummary:
@@ -393,6 +401,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.commbank.com.au/credit-cards.html",
     confidence: "needs-verification",
     expiryDate: null,
+    reviewByDate: "2026-08-31",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -406,6 +415,8 @@ export const cardOffers: CardOffer[] = [
     minimumSpend: 3000,
     minimumSpendPeriod: "90 days",
     annualFee: 250,
+    bonusStages: [{ points: 120000, requirement: "Spend $3,000 in 90 days", timing: "Initial bonus", withinFirstYear: true }],
+    pointValueCents: 0.4,
     eligibilityNotes:
       "Sample only. Typically new-to-bank or new-to-product customers — check current terms before applying.",
     offerSummary:
@@ -413,6 +424,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.westpac.com.au/personal-banking/credit-cards/",
     confidence: "needs-verification",
     expiryDate: null,
+    reviewByDate: "2026-08-31",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -426,6 +438,8 @@ export const cardOffers: CardOffer[] = [
     minimumSpend: 3000,
     minimumSpendPeriod: "3 months",
     annualFee: 375,
+    bonusStages: [{ points: 100000, requirement: "Spend $3,000 in 3 months", timing: "Initial bonus", withinFirstYear: true }],
+    pointValueCents: 0.5,
     eligibilityNotes:
       "Sample only. Typically new-to-product customers — check current terms before applying.",
     offerSummary:
@@ -433,6 +447,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.anz.com.au/personal/credit-cards/",
     confidence: "needs-verification",
     expiryDate: null,
+    reviewByDate: "2026-08-31",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
 ];

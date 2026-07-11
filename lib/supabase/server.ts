@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "@/lib/env";
 import type { Database } from "@/lib/supabase/database.types";
+import { reportOperationalError } from "@/lib/observability/report-server-error";
 
 /**
  * Server-side Supabase access for PUBLIC reads.
@@ -55,11 +56,7 @@ export async function fromDbOrDemo<T>(
   try {
     return (await query(supabase)) ?? [];
   } catch (err) {
-    console.warn(
-      `[repos] ${label}: DB read failed; returning no rows (demo data is never a live fallback). ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    );
+    await reportOperationalError(`public-repo-${label}`, err);
     return [];
   }
 }

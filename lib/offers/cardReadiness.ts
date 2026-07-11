@@ -18,6 +18,7 @@ export interface CardOfferReadinessInput {
   sourceUrl: string;
   confidence: Confidence;
   expiryDate: string | null;
+  reviewByDate: string | null;
 }
 
 export type CardOfferReadiness =
@@ -71,10 +72,14 @@ export function cardOfferReadiness(
     reasons.push("confidence must be Confirmed");
   }
 
-  if (!offer.expiryDate) {
-    reasons.push("expiry date is required");
-  } else if (isPastExpiry(offer.expiryDate, today)) {
+  if (offer.expiryDate && isPastExpiry(offer.expiryDate, today)) {
     reasons.push("expiry date has passed");
+  }
+
+  if (!offer.reviewByDate) {
+    reasons.push("review-by date is required");
+  } else if (isPastExpiry(offer.reviewByDate, today)) {
+    reasons.push("review-by date has passed; verify the offer again");
   }
 
   if (!offer.sourceUrl.trim()) {

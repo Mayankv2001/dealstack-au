@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   CreditCard,
@@ -74,8 +75,43 @@ export default function DealsClient({
   pointsOffers,
   ozBargainSignals,
 }: DealsClientProps) {
-  const [active, setActive] = useState<FilterId>("all");
-  const [giftSub, setGiftSub] = useState<GiftSub>("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const pendingParams = useRef(searchParams.toString());
+  useEffect(() => {
+    pendingParams.current = searchParams.toString();
+  }, [searchParams]);
+  const validFilters = new Set<FilterId>([
+    "all",
+    ...LAYER_FILTERS.map((filter) => filter.id),
+    ...PROGRAM_FILTERS.map((filter) => filter.id),
+  ]);
+  const requestedFilter = searchParams.get("view") as FilterId | null;
+  const active: FilterId = requestedFilter && validFilters.has(requestedFilter)
+    ? requestedFilter
+    : "all";
+  const requestedGift = searchParams.get("gift") as GiftSub | null;
+  const giftSub: GiftSub = requestedGift && ["all", "discount", "bonus", "multi"].includes(requestedGift)
+    ? requestedGift
+    : "all";
+
+  function updateParam(name: "view" | "gift" | "store" | "confidence", value: string): void {
+    const params = new URLSearchParams(pendingParams.current);
+    if (value === "all") params.delete(name);
+    else params.set(name, value);
+    const query = params.toString();
+    pendingParams.current = query;
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+  const setActive = (value: FilterId) => updateParam("view", value);
+  const setGiftSub = (value: GiftSub) => updateParam("gift", value);
+  const requestedStore = searchParams.get("store") ?? "";
+  const selectedStore = stores.find((store) => store.id === requestedStore) ?? null;
+  const requestedConfidence = searchParams.get("confidence") ?? "";
+  const selectedConfidence = ["confirmed", "needs-verification"].includes(requestedConfidence)
+    ? requestedConfidence
+    : "";
 
   // Merchant id → name lookup, derived from the injected stores.
   const storeNameById = useMemo(() => {
@@ -110,7 +146,15 @@ export default function DealsClient({
     [ozBargainSignals, nameOf]
   );
 
-  const matchDeal = (d: TaggedDeal) => active === "all" || d.tags.has(active);
+  const matchDeal = (d: TaggedDeal) => {
+    if (active !== "all" && !d.tags.has(active)) return false;
+    if (selectedConfidence && d.data.confidence !== selectedConfidence) return false;
+    if (selectedStore) {
+      const searchable = JSON.stringify(d.data).toLowerCase();
+      if (!searchable.includes(selectedStore.name.toLowerCase())) return false;
+    }
+    return true;
+  };
   const visGift = giftCardDeals.filter(matchDeal);
   const shownGift = visGift.filter(
     (d) => giftSub === "all" || d.sub.has(giftSub)
@@ -125,7 +169,10 @@ export default function DealsClient({
     active === "all"
       ? []
       : taggedStacks.filter(
-          ({ tags }) => active === "best-stacks" || tags.has(active)
+          ({ rec, tags }) =>
+            (active === "best-stacks" || tags.has(active)) &&
+            (!selectedStore || rec.merchantId === selectedStore.id) &&
+            (!selectedConfidence || rec.confidence === selectedConfidence)
         );
 
   const totalVisible =
@@ -224,6 +271,27 @@ export default function DealsClient({
         {PROGRAM_FILTERS.map((f) => (
           <Chip key={f.id} id={f.id} label={f.label} />
         ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <select
+          aria-label="Store"
+          value={selectedStore?.id ?? ""}
+          onChange={(event) => updateParam("store", event.target.value)}
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+        >
+          <option value="">All stores</option>
+          {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+        </select>
+        <select
+          aria-label="Confidence"
+          value={selectedConfidence}
+          onChange={(event) => updateParam("confidence", event.target.value)}
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+        >
+          <option value="">All confidence levels</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="needs-verification">Needs verification</option>
+        </select>
       </div>
 
       {/* Empty state */}

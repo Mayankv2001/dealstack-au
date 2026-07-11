@@ -51,11 +51,14 @@ function offerForm(
     minimum_spend: "3000",
     minimum_spend_period: "90 days",
     annual_fee: "249",
+    point_value_cents: "1",
+    bonus_stages: "80000 | Spend $3,000 in 90 days | Initial bonus | yes",
     eligibility_notes: "New primary cardholders who meet the issuer's criteria.",
     offer_summary: "Earn bonus points after meeting the minimum spend.",
     source_url: "https://issuer.example/cards/rewards-platinum",
     confidence: "confirmed",
     expiry_date: "2999-12-31",
+    review_by_date: "2999-11-30",
     is_published: false,
     ...overrides,
   };
@@ -69,7 +72,7 @@ function offerForm(
 }
 
 const PUBLISH_ERROR =
-  "Cannot publish: confidence must be Confirmed; expiry date is required; " +
+  "Cannot publish: confidence must be Confirmed; review-by date is required; " +
   "source URL must be a valid HTTPS URL; bonus points must be greater than " +
   "zero for sign-up and points bonus offers; remove placeholder wording " +
   "(illustrative).";
@@ -127,7 +130,7 @@ describe("card-offer publish actions", () => {
 
     expect(createResult.error).toContain("Cannot publish:");
     expect(createResult.error).toContain("confidence must be Confirmed");
-    expect(createResult.error).toContain("expiry date is required");
+    expect(createResult.error).toContain("review-by date is required");
     expect(createResult.error).toContain("valid HTTPS URL");
     expect(createResult.error).toContain("bonus points must be greater than zero");
     expect(createResult.error).toContain("remove placeholder wording (illustrative)");
@@ -139,7 +142,7 @@ describe("card-offer publish actions", () => {
 
   it("returns the repository's expected error from the list-page toggle", async () => {
     const error =
-      "Cannot publish: confidence must be Confirmed; expiry date is required; " +
+      "Cannot publish: confidence must be Confirmed; review-by date is required; " +
       "remove placeholder wording (demo row).";
     mocks.setCardOfferPublished.mockResolvedValueOnce({ ok: false, error });
 

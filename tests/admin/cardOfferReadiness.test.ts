@@ -24,6 +24,7 @@ function readyOffer(
     sourceUrl: "https://www.issuer.example/cards/qantas-premier",
     confidence: "confirmed",
     expiryDate: "2026-07-10",
+    reviewByDate: "2026-07-10",
     ...overrides,
   };
 }
@@ -47,6 +48,7 @@ describe("cardOfferReadiness", () => {
     const offer = readyOffer({
       confidence: "needs-verification",
       expiryDate: null,
+      reviewByDate: null,
       sourceUrl: "http://issuer.example/card",
       bonusPoints: null,
       offerSummary: "Illustrative sign-up offer.",
@@ -56,14 +58,14 @@ describe("cardOfferReadiness", () => {
       ready: false,
       reasons: [
         "confidence must be Confirmed",
-        "expiry date is required",
+        "review-by date is required",
         "source URL must be a valid HTTPS URL",
         "bonus points must be greater than zero for sign-up and points bonus offers",
         "remove placeholder wording (illustrative)",
       ],
     });
     expect(cardOfferPublishErrorMessage(offer, TODAY)).toBe(
-      "Cannot publish: confidence must be Confirmed; expiry date is required; " +
+      "Cannot publish: confidence must be Confirmed; review-by date is required; " +
         "source URL must be a valid HTTPS URL; bonus points must be greater than " +
         "zero for sign-up and points bonus offers; remove placeholder wording " +
         "(illustrative)."
@@ -78,6 +80,27 @@ describe("cardOfferReadiness", () => {
     expect(
       isPublicReadyCardOffer(readyOffer({ expiryDate: "2026-07-11" }), TODAY)
     ).toBe(true);
+  });
+
+  it("allows a genuinely ongoing offer while its review deadline is current", () => {
+    expect(
+      cardOfferReadiness(
+        readyOffer({ expiryDate: null, reviewByDate: "2026-08-10" }),
+        TODAY
+      )
+    ).toEqual({ ready: true });
+  });
+
+  it("fails closed when an ongoing offer passes its review deadline", () => {
+    expect(
+      cardOfferReadiness(
+        readyOffer({ expiryDate: null, reviewByDate: "2026-07-09" }),
+        TODAY
+      )
+    ).toEqual({
+      ready: false,
+      reasons: ["review-by date has passed; verify the offer again"],
+    });
   });
 
   it("requires the headline field that matches the selected offer type", () => {

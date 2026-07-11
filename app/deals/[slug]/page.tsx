@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { JsonLd } from "@/components/JsonLd";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import {
   CitationLinks,
   ConfidencePill,
@@ -178,6 +179,7 @@ export default async function DealDetailPage({ params }: DealPageParams) {
         sources before purchasing.
       </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }

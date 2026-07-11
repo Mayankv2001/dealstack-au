@@ -1,17 +1,20 @@
-import { deriveConfidence, isExpired } from "./normalise";
+import { deriveConfidence, isExpired, normaliseText } from "./normalise";
 import { SOURCE_META, type RankedDealResult } from "./types";
 
 export interface RankingContext {
   /** Store.id the query resolved to, if any */
   queryMerchantId: string | null;
   now: Date;
+  /** Normalised user query, used to reward exact entity/category matches. */
+  queryText?: string;
 }
 
 const WEIGHTS = {
-  merchantMatch: 0.3,
-  confidence: 0.25,
-  savings: 0.2,
-  trust: 0.15,
+  exactMatch: 0.25,
+  merchantMatch: 0.2,
+  confidence: 0.2,
+  savings: 0.15,
+  trust: 0.1,
   recency: 0.1,
 };
 
@@ -36,6 +39,25 @@ function confidenceScore(result: RankedDealResult, now: Date): number {
     case "expired-unknown":
       return 0;
   }
+}
+
+function exactMatchScore(result: RankedDealResult, queryText?: string): number {
+  const query = normaliseText(queryText ?? "");
+  if (!query) return 0.75;
+  const primary = [
+    result.merchant,
+    result.title,
+    result.cardOrProvider,
+    result.giftCardBrand,
+    result.pointsProgram,
+    result.kind,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map(normaliseText);
+  if (primary.some((value) => value === query)) return 1;
+  if (primary.some((value) => value.startsWith(query))) return 0.8;
+  if (primary.some((value) => value.includes(query))) return 0.65;
+  return 0.2;
 }
 
 /**
@@ -77,6 +99,7 @@ export function scoreResult(
   ctx: RankingContext
 ): number {
   return (
+    WEIGHTS.exactMatch * exactMatchScore(result, ctx.queryText) +
     WEIGHTS.merchantMatch * merchantScore(result, ctx) +
     WEIGHTS.confidence * confidenceScore(result, ctx.now) +
     WEIGHTS.savings * savingsScore(result) +

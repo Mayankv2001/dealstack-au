@@ -23,6 +23,7 @@ import { JsonLd } from "@/components/JsonLd";
 import SiteHeader from "@/components/SiteHeader";
 import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
+import SiteFooter from "@/components/SiteFooter";
 import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, type Store } from "@/lib/data";
@@ -377,6 +378,7 @@ export default async function StorePage({
           any retailer or rewards program listed.
         </p>
       </main>
+      <SiteFooter />
       </div>
     </>
   );

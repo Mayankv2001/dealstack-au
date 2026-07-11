@@ -47,11 +47,14 @@ export default async function EditCardOfferPage({
           minimumSpend: offer.minimumSpend,
           minimumSpendPeriod: offer.minimumSpendPeriod,
           annualFee: offer.annualFee,
+          bonusStages: offer.bonusStages,
+          pointValueCents: offer.pointValueCents,
           eligibilityNotes: offer.eligibilityNotes,
           offerSummary: offer.offerSummary,
           sourceUrl: offer.sourceUrl,
           confidence: offer.confidence,
           expiryDate: offer.expiryDate,
+          reviewByDate: offer.reviewByDate,
           isPublished: offer.isPublished,
         }}
       />

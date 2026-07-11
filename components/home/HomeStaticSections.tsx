@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   ArrowRight,
   BarChart3,
@@ -12,7 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import DealStackCalculator from "@/components/DealStackCalculator";
-import Logo from "@/components/Logo";
+import SiteFooter from "@/components/SiteFooter";
 import type { Store } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
@@ -256,73 +255,5 @@ export function FinalCTASection() {
 
 /** Homepage footer with in-page anchors and the sourcing disclaimer. */
 export function HomeFooter() {
-  return (
-    <footer className="border-t bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
-          <div className="max-w-xs">
-            <Logo />
-            <p className="mt-3 text-sm text-muted-foreground">
-              Stack cashback, discounted gift cards, points and community
-              signals into one effective price.
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-x-10 gap-y-2 text-sm">
-            <a
-              href="#stores"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Stores
-            </a>
-            <Link
-              href="/deals"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Deal stacks
-            </Link>
-            <Link
-              href="/cards"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Card offers
-            </Link>
-            <a
-              href="#calculator"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Calculator
-            </a>
-            <Link
-              href="/resources"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Resources
-            </Link>
-            <a
-              href="#trust"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Trust &amp; safety
-            </a>
-          </nav>
-        </div>
-
-        <div id="disclaimer" className="mt-10 scroll-mt-16 border-t pt-6">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            <strong>Disclaimer:</strong> All discount codes, cashback rates,
-            gift card discounts, points rates and expiry dates on DealStack AU
-            are manually curated and served from a cache — offers change or
-            expire without notice, so what you see here may be out of date.
-            Always confirm current offers directly with the retailer and
-            providers such as ShopBack, TopCashback, Flybuys and Everyday
-            Rewards before purchasing. DealStack AU is not affiliated with any
-            retailer or rewards program listed.
-          </p>
-          <p className="mt-3 text-xs text-muted-foreground">
-            © {new Date().getFullYear()} DealStack AU
-          </p>
-        </div>
-      </div>
-    </footer>
-  );
+  return <SiteFooter />;
 }

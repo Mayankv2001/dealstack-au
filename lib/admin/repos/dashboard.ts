@@ -386,6 +386,7 @@ export type DataQualityIssueCode =
   | "expired"
   | "missing-source"
   | "stale"
+  | "review-overdue"
   | "missing-expiry"
   | "stale-week-of"
   | "placeholder-copy"
@@ -419,6 +420,7 @@ export interface DataQualityCounts {
   missingSourceUrl: number;
   missingExpiry: number;
   staleChecked: number;
+  reviewOverdue: number;
   staleWeekOf: number;
   placeholderCopy: number;
   unsafeUrl: number;
@@ -426,6 +428,8 @@ export interface DataQualityCounts {
 
 export interface DataQualityReport {
   counts: DataQualityCounts;
+  /** Distinct stale/review-overdue rows, grouped for operational triage. */
+  staleByType: Record<RecentItemType, number>;
   /** Distinct items with at least one high/medium issue. */
   flaggedItems: number;
   /** Every flagged item, highest severity first (the page caps the display). */
@@ -508,6 +512,7 @@ interface CardOfferDqRow {
   provider: string;
   card_name: string;
   expiry_date: string | null;
+  review_by_date: string;
   source_url: string;
   last_checked_at: string | null;
   offer_summary: string | null;
@@ -584,7 +589,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       db
         .from("card_offers")
         .select(
-          "id, provider, card_name, expiry_date, source_url, last_checked_at, offer_summary, eligibility_notes"
+          "id, provider, card_name, expiry_date, review_by_date, source_url, last_checked_at, offer_summary, eligibility_notes"
         )
         .eq("is_published", true),
       db
@@ -616,11 +621,22 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     missingSourceUrl: 0,
     missingExpiry: 0,
     staleChecked: 0,
+    reviewOverdue: 0,
     staleWeekOf: 0,
     placeholderCopy: 0,
     unsafeUrl: 0,
   };
   const flags: DataQualityFlag[] = [];
+  const staleByType: Record<RecentItemType, number> = {
+    stores: 0,
+    cashback: 0,
+    giftCards: 0,
+    points: 0,
+    signals: 0,
+    weeklyDeals: 0,
+    cardOffers: 0,
+    feedSources: 0,
+  };
 
   /** Classify one row, tallying counts and (for high/medium) adding a flag. */
   function consider(opts: {
@@ -632,6 +648,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     expiryDate: string | null;
     citations?: unknown;
     lastChecked: string | null;
+    reviewByDate?: string | null;
     /** Offers cite sources + should have an expiry; signals do neither here. */
     checkSource: boolean;
     checkMissingExpiry: boolean;
@@ -642,6 +659,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
   }): void {
     const issues: DataQualityIssue[] = [];
     let severity: DataQualitySeverity | null = null;
+    let staleForType = false;
 
     if (opts.expiryDate != null && opts.expiryDate < todayStr) {
       counts.expiredPublished += 1;
@@ -684,9 +702,20 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       Date.parse(opts.lastChecked) < staleBeforeMs
     ) {
       counts.staleChecked += 1;
+      staleForType = true;
       issues.push({ code: "stale", label: "Not re-checked in 30+ days" });
       if (severity == null) severity = "medium";
     }
+    if (opts.reviewByDate != null && opts.reviewByDate < todayStr) {
+      counts.reviewOverdue += 1;
+      staleForType = true;
+      issues.push({
+        code: "review-overdue",
+        label: `Review deadline ${opts.reviewByDate} has passed`,
+      });
+      severity = "high";
+    }
+    if (staleForType) staleByType[opts.type] += 1;
     if (opts.checkMissingExpiry && opts.expiryDate == null) {
       counts.missingExpiry += 1;
       // Low severity: counted, and listed only if the item is already flagged.
@@ -785,6 +814,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       title: `${r.provider} · ${r.card_name}`,
       editHref: `/admin/card-offers/${r.id}/edit`,
       expiryDate: r.expiry_date,
+      reviewByDate: r.review_by_date,
       // card_offers stores a single source_url string; adapt it to the
       // citations shape hasSourceUrl() expects.
       citations:
@@ -793,7 +823,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
           : [],
       lastChecked: r.last_checked_at,
       checkSource: true,
-      checkMissingExpiry: true,
+      checkMissingExpiry: false,
       placeholderTexts: [r.offer_summary, r.eligibility_notes, r.card_name],
       urls: [r.source_url],
     });
@@ -927,6 +957,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
 
   return {
     counts,
+    staleByType,
     flaggedItems: mergedFlags.length,
     flags: mergedFlags,
   };

@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Landmark, SearchX, ShieldCheck } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, GitCompareArrows, Landmark, SearchX, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardOfferCard } from "@/components/CardOfferCard";
 import Logo from "@/components/Logo";
+import SiteFooter from "@/components/SiteFooter";
 import { isExpiringSoonAU } from "@/lib/offers/expiry";
 import type { CardOffer, CardOfferType } from "@/lib/offers/types";
 import { cn } from "@/lib/utils";
@@ -74,12 +76,41 @@ function Chip({
 }
 
 export function CardsClient({ offers }: { offers: CardOffer[] }) {
-  const [active, setActive] = useState<FilterId>("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const banks = useMemo(
     () => [...new Set(offers.map((o) => o.provider))].sort(),
     [offers]
   );
+
+  const requestedFilter = searchParams.get("filter") ?? "all";
+  const active: FilterId =
+    requestedFilter === "all" ||
+    requestedFilter === "no-fee" ||
+    requestedFilter === "expiring-soon" ||
+    OFFER_TYPE_FILTERS.some((filter) => filter.id === requestedFilter) ||
+    (requestedFilter.startsWith("bank:") && banks.includes(requestedFilter.slice(5)))
+      ? (requestedFilter as FilterId)
+      : "all";
+
+  function setActive(next: FilterId): void {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("filter");
+    else params.set("filter", next);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  function setSelected(id: string, selected: boolean): void {
+    setSelectedIds((current) => {
+      if (!selected) return current.filter((item) => item !== id);
+      if (current.includes(id) || current.length >= 3) return current;
+      return [...current, id];
+    });
+  }
 
   const visible = useMemo(
     () => offers.filter((o) => matches(o, active)),
@@ -87,7 +118,7 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
   );
 
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
       <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
@@ -191,6 +222,27 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
           )}
         </div>
 
+        {offers.length > 1 ? (
+          <div className="mt-4 flex min-h-9 items-center justify-between gap-3 border-y py-2">
+            <p className="text-xs text-muted-foreground">
+              Select 2–3 cards for a side-by-side first-year comparison.
+            </p>
+            {selectedIds.length >= 2 ? (
+              <Button asChild size="sm">
+                <Link href={`/cards/compare?ids=${selectedIds.map(encodeURIComponent).join(",")}`}>
+                  <GitCompareArrows />
+                  Compare {selectedIds.length}
+                </Link>
+              </Button>
+            ) : (
+              <Button size="sm" disabled>
+                <GitCompareArrows />
+                Compare
+              </Button>
+            )}
+          </div>
+        ) : null}
+
         {/* Grid / empty state */}
         {visible.length === 0 ? (
           <div className="mt-5 flex flex-col items-center gap-2 rounded-2xl border bg-card py-12 text-center shadow-sm">
@@ -198,23 +250,32 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
             <p className="font-medium">
               {offers.length === 0
                 ? "No card offers published yet"
-                : `No ${filterLabel(active)} card offers right now`}
+                : `No card offers match ${filterLabel(active)}`}
             </p>
             <p className="max-w-sm text-sm text-muted-foreground">
               {offers.length === 0
-                ? "Check back soon — new offers are added after manual review."
+                ? "Unverified, expired, or overdue offers are withheld. Browse the research guides while current issuer terms are being checked."
                 : "Try another filter — new offers are added after manual review."}
             </p>
-            {offers.length > 0 && (
+            {offers.length > 0 ? (
               <Button size="sm" variant="outline" onClick={() => setActive("all")}>
                 Show all
+              </Button>
+            ) : (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/resources">Browse research guides</Link>
               </Button>
             )}
           </div>
         ) : (
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {visible.map((offer) => (
-              <CardOfferCard key={offer.id} offer={offer} />
+              <CardOfferCard
+                key={offer.id}
+                offer={offer}
+                selected={selectedIds.includes(offer.id)}
+                onSelectionChange={(selected) => setSelected(offer.id, selected)}
+              />
             ))}
           </div>
         )}
@@ -244,6 +305,7 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
           </div>
         </section>
       </main>
+      <SiteFooter />
     </div>
   );
 }

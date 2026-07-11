@@ -65,3 +65,25 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Probe /api/health/data (published freshness counts only)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not configured — a blind health check must not look green."
+            exit 2
+          fi
+          status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 --retry 2 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://dealstack-au.vercel.app/api/health/data)" || {
+            echo "::error::curl could not reach the data-health endpoint."
+            exit 1
+          }
+          echo "HTTP $status"
+          case "$status" in
+            2??) echo "Published offer data is within its review intervals." ;;
+            *)
+              echo "::error::Published data is stale or unreadable — check /admin/dashboard."
+              exit 1
+              ;;
+          esac

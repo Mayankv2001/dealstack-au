@@ -2,14 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
-import { listCardOffers, type AdminCardOffer } from "@/lib/admin/repos/cardOffers";
+import {
+  listArchivedCardOffers,
+  listCardOffers,
+  type AdminCardOffer,
+} from "@/lib/admin/repos/cardOffers";
 import {
   AdminListTable,
   type AdminColumn,
   type AdminRow,
 } from "@/components/admin/AdminListTable";
 import { Button } from "@/components/ui/button";
-import { setPublished } from "./actions";
+import { ActionButton } from "@/components/admin/ActionButton";
+import { setArchived, setPublished } from "./actions";
 
 export const metadata: Metadata = {
   title: "Card offers | DealStack AU admin",
@@ -96,6 +101,9 @@ function toRow(offer: AdminCardOffer, todayStr: string): AdminRow {
         action: setPublished.bind(null, offer.id, !offer.isPublished),
         label: offer.isPublished ? "Unpublish" : "Publish",
       },
+      ...(!offer.isPublished
+        ? [{ action: setArchived.bind(null, offer.id, true), label: "Archive" }]
+        : []),
     ],
   };
 }
@@ -104,7 +112,10 @@ export default async function CardOfferListPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
-  const offers = await listCardOffers();
+  const [offers, archivedOffers] = await Promise.all([
+    listCardOffers(),
+    listArchivedCardOffers(),
+  ]);
   const todayStr = TODAY_FMT.format(new Date());
 
   return (
@@ -131,10 +142,10 @@ export default async function CardOfferListPage() {
               Verify before publishing
             </p>
             <p className="text-[11px] leading-normal text-muted-foreground/80">
-              Publishing checks confidence, expiry, source, headline value and
-              placeholder copy. Re-open the draft and confirm the bonus, fee,
-              minimum spend and eligibility still match the bank&rsquo;s own current
-              page before publishing.
+              Publishing checks confidence, review deadline, optional issuer
+              expiry, source, headline value and placeholder copy. Re-open the
+              draft and confirm the bonus, fee, minimum spend and eligibility
+              still match the bank&rsquo;s own current page before publishing.
             </p>
           </div>
         </div>
@@ -162,6 +173,24 @@ export default async function CardOfferListPage() {
           }}
         />
       )}
+
+      {archivedOffers.length > 0 ? (
+        <details className="border-t pt-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Archived offers ({archivedOffers.length})
+          </summary>
+          <div className="mt-3 space-y-2">
+            {archivedOffers.map((offer) => (
+              <div key={offer.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <span><strong>{offer.provider}</strong> · {offer.cardName}</span>
+                <ActionButton run={setArchived.bind(null, offer.id, false)}>
+                  Restore draft
+                </ActionButton>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

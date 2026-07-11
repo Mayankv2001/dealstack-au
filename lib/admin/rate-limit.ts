@@ -17,7 +17,9 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
  *   await repo.save(...);
  *
  * Design notes:
- *   - FAIL-OPEN: any storage error (including the table not existing yet)
+ *   - Production uses one Postgres RPC with an advisory transaction lock, so
+ *     concurrent requests cannot race between a count and insert.
+ *   - FAIL-OPEN: any storage error (including the function not existing yet)
  *     returns success. A rate-limiter outage must never lock trusted admins
  *     out of their own panel; availability beats strict throttling here.
  *   - It only ever talks to our own Supabase project via getSupabaseAdmin()
@@ -66,35 +68,6 @@ export interface RateLimitStore {
   cleanup?(beforeIso: string): Promise<void>;
 }
 
-/** The production store: counts/records/prunes rows in admin_rate_limits. */
-function supabaseRateLimitStore(): RateLimitStore {
-  return {
-    async countSince({ adminEmail, actionKey, sinceIso }) {
-      const db = getSupabaseAdmin();
-      const { count, error } = await db
-        .from("admin_rate_limits")
-        .select("*", { count: "exact", head: true })
-        .eq("admin_email", adminEmail)
-        .eq("action_key", actionKey)
-        .gte("created_at", sinceIso);
-      if (error) throw new Error(error.message);
-      return count ?? 0;
-    },
-    async record({ adminEmail, actionKey }) {
-      const db = getSupabaseAdmin();
-      const { error } = await db
-        .from("admin_rate_limits")
-        .insert({ admin_email: adminEmail, action_key: actionKey });
-      if (error) throw new Error(error.message);
-    },
-    async cleanup(beforeIso) {
-      const db = getSupabaseAdmin();
-      // Best-effort: ignore errors, this is housekeeping only.
-      await db.from("admin_rate_limits").delete().lt("created_at", beforeIso);
-    },
-  };
-}
-
 export interface CheckAdminRateLimitParams {
   /**
    * The email to key the limit on. Usually the authenticated admin email from
@@ -131,11 +104,29 @@ export async function checkAdminRateLimit(
   const max = params.max ?? ADMIN_RATE_LIMIT_MAX;
   const windowSeconds = params.windowSeconds ?? ADMIN_RATE_LIMIT_WINDOW_SECONDS;
   const now = params.now ?? new Date();
-  const store = params.store ?? supabaseRateLimitStore();
+  const store = params.store;
 
   const sinceIso = new Date(now.getTime() - windowSeconds * 1000).toISOString();
 
   try {
+    if (!store) {
+      const db = getSupabaseAdmin();
+      const { data, error } = await db.rpc("consume_admin_rate_limit", {
+        p_admin_email: adminEmail,
+        p_action_key: actionKey,
+        p_max: max,
+        p_window_seconds: windowSeconds,
+      });
+      if (error) throw new Error(error.message);
+      return data
+        ? { success: true }
+        : {
+            success: false,
+            error: RATE_LIMIT_MESSAGE,
+            retryAfterSeconds: windowSeconds,
+          };
+    }
+
     const count = await store.countSince({ adminEmail, actionKey, sinceIso });
 
     if (count >= max) {

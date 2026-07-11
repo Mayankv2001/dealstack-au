@@ -117,6 +117,13 @@ export type CardOfferType =
   | "points_bonus"
   | "annual_fee_discount";
 
+export interface CardBonusStage {
+  points: number;
+  requirement: string;
+  timing: string;
+  withinFirstYear: boolean;
+}
+
 export interface CardOffer {
   id: string;
   provider: string;
@@ -128,12 +135,25 @@ export interface CardOffer {
   minimumSpend: number | null;
   minimumSpendPeriod: string | null;
   annualFee: number | null;
+  bonusStages: CardBonusStage[];
+  pointValueCents: number | null;
   eligibilityNotes: string;
   offerSummary: string;
   sourceUrl: string;
   confidence: Confidence;
   expiryDate: string | null;
+  /** Mandatory editorial freshness deadline, independent of issuer expiry. */
+  reviewByDate: string;
   lastCheckedAt: string;
+}
+
+export interface CardOfferHistoryEntry {
+  id: string;
+  cardOfferId: string;
+  changeSummary: string;
+  changedFields: string[];
+  checkedAt: string;
+  createdAt: string;
 }
 
 export interface OzBargainSignal {

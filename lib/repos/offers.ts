@@ -6,6 +6,7 @@ import {
   pointsOffers as staticPoints,
 } from "@/lib/offers/manualOffers";
 import type {
+  CardOfferHistoryEntry,
   CardOffer,
   CashbackOffer,
   GiftCardOffer,
@@ -119,15 +120,32 @@ interface CardOfferRow {
   minimum_spend: number | string | null;
   minimum_spend_period: string | null;
   annual_fee: number | string | null;
+  bonus_stages: unknown;
+  point_value_cents: number | string | null;
   eligibility_notes: string;
   offer_summary: string;
   source_url: string;
   confidence: Confidence;
   expiry_date: string | null;
+  review_by_date: string;
   last_checked_at: string;
 }
 
 function mapCardOffer(r: CardOfferRow): CardOffer {
+  const bonusStages = Array.isArray(r.bonus_stages)
+    ? r.bonus_stages.flatMap((stage) => {
+        if (typeof stage !== "object" || stage === null) return [];
+        const value = stage as Record<string, unknown>;
+        const points = Number(value.points);
+        if (!Number.isFinite(points) || points <= 0) return [];
+        return [{
+          points,
+          requirement: String(value.requirement ?? "").trim(),
+          timing: String(value.timing ?? "").trim(),
+          withinFirstYear: value.withinFirstYear !== false,
+        }];
+      })
+    : [];
   return {
     id: r.id,
     provider: r.provider,
@@ -139,11 +157,14 @@ function mapCardOffer(r: CardOfferRow): CardOffer {
     minimumSpend: toNumberOrNull(r.minimum_spend),
     minimumSpendPeriod: r.minimum_spend_period,
     annualFee: toNumberOrNull(r.annual_fee),
+    bonusStages,
+    pointValueCents: toNumberOrNull(r.point_value_cents),
     eligibilityNotes: r.eligibility_notes,
     offerSummary: r.offer_summary,
     sourceUrl: r.source_url,
     confidence: r.confidence,
     expiryDate: r.expiry_date,
+    reviewByDate: r.review_by_date,
     lastCheckedAt: r.last_checked_at,
   };
 }
@@ -192,6 +213,52 @@ export async function getCardOffers(
   return demoMode
     ? liveRows
     : liveRows.filter((offer) => isPublicReadyCardOffer(offer, today));
+}
+
+/** Public detail lookup inherits the exact same RLS/readiness gate as /cards. */
+export async function getPublicCardOffer(
+  id: string
+): Promise<CardOffer | null> {
+  const offers = await getCardOffers();
+  return offers.find((offer) => offer.id === id) ?? null;
+}
+
+interface CardOfferHistoryRow {
+  id: string;
+  card_offer_id: string;
+  change_summary: string;
+  changed_fields: string[];
+  checked_at: string;
+  created_at: string;
+}
+
+/** Public-safe history only; RLS denies history for drafts/stale/archived rows. */
+export async function getCardOfferHistory(
+  cardOfferId: string
+): Promise<CardOfferHistoryEntry[]> {
+  return fromDbOrDemo(
+    "card_offer_history",
+    [],
+    async (db) => {
+      const { data, error } = await db
+        .from("card_offer_history")
+        .select(
+          "id, card_offer_id, change_summary, changed_fields, checked_at, created_at"
+        )
+        .eq("card_offer_id", cardOfferId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return ((data ?? []) as CardOfferHistoryRow[]).map((row) => ({
+        id: row.id,
+        cardOfferId: row.card_offer_id,
+        changeSummary: row.change_summary,
+        changedFields: row.changed_fields,
+        checkedAt: row.checked_at,
+        createdAt: row.created_at,
+      }));
+    }
+  );
 }
 
 // ── Cashback (ShopBack / TopCashback only) ───────────────────────────────────

@@ -51,11 +51,14 @@ export interface CardOfferFormDefaults {
   minimumSpend?: number | null;
   minimumSpendPeriod?: string | null;
   annualFee?: number | null;
+  bonusStages?: { points: number; requirement: string; timing: string; withinFirstYear: boolean }[];
+  pointValueCents?: number | null;
   eligibilityNotes?: string;
   offerSummary?: string;
   sourceUrl?: string;
   confidence?: string;
   expiryDate?: string | null;
+  reviewByDate?: string;
   isPublished?: boolean;
 }
 
@@ -107,6 +110,12 @@ export function CardOfferForm({
   const sourceHref = defaultValues?.sourceUrl
     ? safeHttpsUrl(defaultValues.sourceUrl)
     : null;
+  const bonusStagesText = (defaultValues?.bonusStages ?? [])
+    .map(
+      (stage) =>
+        `${stage.points} | ${stage.requirement} | ${stage.timing} | ${stage.withinFirstYear ? "yes" : "no"}`
+    )
+    .join("\n");
 
   return (
     <Card className="max-w-2xl">
@@ -289,9 +298,25 @@ export function CardOfferForm({
             </Field>
 
             <Field
+              label="Estimated point value (cents)"
+              htmlFor="point_value_cents"
+              hint="Editorial valuation assumption used only for comparison estimates."
+            >
+              <Input
+                id="point_value_cents"
+                name="point_value_cents"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                defaultValue={defaultValues?.pointValueCents ?? ""}
+              />
+            </Field>
+
+            <Field
               label="Expiry date"
               htmlFor="expiry_date"
-              hint="Required before publishing; cards without an expiry stay draft-only."
+              hint="Issuer end date only. Leave blank for a genuinely ongoing offer."
             >
               <Input
                 id="expiry_date"
@@ -301,7 +326,37 @@ export function CardOfferForm({
                 className="max-w-[200px]"
               />
             </Field>
+
+            <Field
+              label="Review-by date"
+              htmlFor="review_by_date"
+              hint="Required. The offer is hidden automatically after this date until re-verified."
+            >
+              <Input
+                id="review_by_date"
+                name="review_by_date"
+                type="date"
+                required
+                defaultValue={defaultValues?.reviewByDate ?? ""}
+                className="max-w-[200px]"
+              />
+            </Field>
           </div>
+
+          <Field
+            label="Bonus stages"
+            htmlFor="bonus_stages"
+            hint="One per line: points | requirement | timing | yes/no for first year."
+          >
+            <textarea
+              id="bonus_stages"
+              name="bonus_stages"
+              rows={4}
+              defaultValue={bonusStagesText}
+              placeholder="80000 | Spend $5,000 in 90 days | Initial bonus | yes"
+              className={cn(controlClass, "min-h-24 font-mono text-xs")}
+            />
+          </Field>
 
           <Field
             label="Offer summary"

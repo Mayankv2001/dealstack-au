@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Logo from "@/components/Logo";
+import SiteFooter from "@/components/SiteFooter";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -260,7 +261,7 @@ const warnings: ResourceItem[] = [
 
 export default function ResourcesPage() {
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
       <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Logo />
@@ -446,6 +447,7 @@ export default function ResourcesPage() {
           any program, bank or retailer mentioned.
         </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }

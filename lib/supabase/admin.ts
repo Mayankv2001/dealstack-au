@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseServiceRoleKey, supabaseUrl } from "@/lib/env";
 import type { DbClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
+import { getAdminAuditActor } from "@/lib/admin/audit-context";
 
 /**
  * Service-role Supabase client for ADMIN writes and privileged reads.
@@ -30,6 +31,15 @@ export function getSupabaseAdmin(): DbClient {
   if (!cached) {
     cached = createClient<Database>(supabaseUrl(), supabaseServiceRoleKey(), {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch(input, init = {}) {
+          const actor = getAdminAuditActor();
+          if (!actor) return globalThis.fetch(input, init);
+          const headers = new Headers(init.headers);
+          headers.set("x-dealstack-admin-actor", actor);
+          return globalThis.fetch(input, { ...init, headers });
+        },
+      },
     });
   }
   return cached;

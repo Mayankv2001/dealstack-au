@@ -2,6 +2,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/ssr";
+import { setAdminAuditActor } from "@/lib/admin/audit-context";
 
 /**
  * Admin authentication / authorization Data Access Layer.
@@ -50,5 +51,6 @@ export const getAdminSession = cache(async (): Promise<AdminSession | null> => {
 export async function requireAdmin(): Promise<AdminSession> {
   const session = await getAdminSession();
   if (!session) redirect("/admin/login");
+  setAdminAuditActor(session.email);
   return session;
 }

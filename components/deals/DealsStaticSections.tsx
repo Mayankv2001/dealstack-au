@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   AlertTriangle,
-  Bell,
   Gift,
   Layers,
   ShieldCheck,
@@ -211,50 +210,6 @@ export function HowWeCheckSection() {
           ))}
         </CardContent>
       </Card>
-    </section>
-  );
-}
-
-/** Coming soon: weekly stack alerts (static UI only). */
-export function AlertsComingSoonSection() {
-  return (
-    <section className="mt-10">
-      <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-emerald-500/40 bg-emerald-500/5 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-            <Bell className="size-4.5" />
-          </span>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold tracking-tight">
-                Weekly stack alerts
-              </h2>
-              <Badge
-                variant="outline"
-                className="border-emerald-500/25 bg-emerald-500/10 text-[10px] text-emerald-700 dark:text-emerald-400"
-              >
-                Coming soon
-              </Badge>
-            </div>
-            <p className="mt-0.5 max-w-md text-xs text-muted-foreground">
-              Get the week&apos;s best stacks in your inbox. Not live yet —
-              no emails are collected.
-            </p>
-          </div>
-        </div>
-        <div className="flex w-full gap-2 sm:w-auto">
-          <input
-            type="email"
-            disabled
-            placeholder="you@example.com"
-            aria-label="Email (coming soon)"
-            className="h-9 w-full rounded-md border bg-background/60 px-3 text-sm text-muted-foreground sm:w-56"
-          />
-          <Button size="sm" disabled className="shrink-0">
-            Notify me
-          </Button>
-        </div>
-      </div>
     </section>
   );
 }

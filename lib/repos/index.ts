@@ -12,6 +12,8 @@
 export { getStores } from "./stores";
 export {
   getCardOffers,
+  getPublicCardOffer,
+  getCardOfferHistory,
   getGiftCardOffers,
   getCashbackOffers,
   getPointsOffers,

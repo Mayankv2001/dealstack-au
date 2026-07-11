@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeDiagnostic, sanitizePath } from "@/lib/observability/sanitize";
 
 /**
  * Client-error intake — the beacon target for instrumentation-client.ts.
@@ -51,9 +52,9 @@ export async function POST(request: NextRequest) {
     console.error(
       `[client-error] ${JSON.stringify({
         type: pick(body.type, 30) ?? "error",
-        message,
-        stack: pick(body.stack, 1500),
-        url: pick(body.url, 200),
+        message: sanitizeDiagnostic(message, 500),
+        stack: sanitizeDiagnostic(pick(body.stack, 1500), 1500),
+        url: sanitizePath(pick(body.url, 200) ?? "/"),
         ua: request.headers.get("user-agent")?.slice(0, 150),
       })}`
     );

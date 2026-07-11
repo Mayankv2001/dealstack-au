@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ChevronDown, CreditCard, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,15 @@ function headline(offer: CardOffer): { value: string; caption?: string } {
   }
 }
 
-export function CardOfferCard({ offer }: { offer: CardOffer }) {
+export function CardOfferCard({
+  offer,
+  selected = false,
+  onSelectionChange,
+}: {
+  offer: CardOffer;
+  selected?: boolean;
+  onSelectionChange?: (selected: boolean) => void;
+}) {
   const sourceHref = safeHttpsUrl(offer.sourceUrl);
   const tone = TONE_BY_TYPE[offer.offerType];
   const { value, caption } = headline(offer);
@@ -134,6 +143,17 @@ export function CardOfferCard({ offer }: { offer: CardOffer }) {
         </div>
 
         <div className="flex h-full flex-col gap-2 p-4">
+          {onSelectionChange ? (
+            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={(event) => onSelectionChange(event.target.checked)}
+                className="size-4 accent-emerald-600"
+              />
+              Add to comparison
+            </label>
+          ) : null}
           <div className="flex items-center gap-1.5">
             <Badge variant="secondary" className="text-[10px]">
               {OFFER_TYPE_LABELS[offer.offerType]}
@@ -188,8 +208,12 @@ export function CardOfferCard({ offer }: { offer: CardOffer }) {
               />
               <CheckedLine lastCheckedAt={offer.lastCheckedAt} />
             </div>
-            {sourceHref ? (
-              <Button asChild variant="outline" size="sm" className="w-full">
+            <div className="grid grid-cols-2 gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/cards/${encodeURIComponent(offer.id)}`}>Details</Link>
+              </Button>
+              {sourceHref ? (
+              <Button asChild variant="outline" size="sm">
                 <a
                   href={sourceHref}
                   target="_blank"
@@ -199,7 +223,8 @@ export function CardOfferCard({ offer }: { offer: CardOffer }) {
                   <ExternalLink className="size-3" />
                 </a>
               </Button>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </div>
       </CardContent>

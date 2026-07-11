@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { cronSecret } from "@/lib/env";
 import { getMonitorHealthSnapshot } from "@/lib/admin/repos/monitorStatus";
 import { deriveMonitorHealth } from "@/lib/monitor/health";
+import { reportOperationalError } from "@/lib/observability/report-server-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,11 +41,7 @@ export async function GET(request: Request): Promise<Response> {
       headers: NO_STORE,
     });
   } catch (err) {
-    console.error(
-      `[health/monitor] state read failed: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    );
+    await reportOperationalError("monitor-health-read", err);
     return Response.json(
       { ok: false, error: "Health check failed." },
       { status: 503, headers: NO_STORE }

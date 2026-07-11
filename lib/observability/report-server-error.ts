@@ -1,4 +1,5 @@
 import { alertWebhookUrl } from "@/lib/env";
+import { sanitizeDiagnostic, sanitizePath } from "@/lib/observability/sanitize";
 
 /**
  * Server-side error reporting — SERVER ONLY.
@@ -46,7 +47,14 @@ export async function reportServerError(
   report: ServerErrorReport
 ): Promise<void> {
   try {
-    console.error(`[server-error] ${JSON.stringify(report)}`);
+    const safeReport = {
+      ...report,
+      name: sanitizeDiagnostic(report.name, 100),
+      message: sanitizeDiagnostic(report.message, 500),
+      path: sanitizePath(report.path),
+      routePath: sanitizePath(report.routePath),
+    };
+    console.error(`[server-error] ${JSON.stringify(safeReport)}`);
 
     const webhook = alertWebhookUrl();
     if (!webhook) return;
@@ -59,9 +67,9 @@ export async function reportServerError(
         // "text" is the lowest-common-denominator payload (Slack-compatible;
         // most webhook receivers accept or ignore it).
         text:
-          `DealStack server error: ${report.name}: ${report.message}\n` +
-          `route: ${report.method} ${report.routePath} (${report.routeType})\n` +
-          `path: ${report.path}\ndigest: ${report.digest}`,
+          `DealStack server error: ${safeReport.name}: ${safeReport.message}\n` +
+          `route: ${safeReport.method} ${safeReport.routePath} (${safeReport.routeType})\n` +
+          `path: ${safeReport.path}\ndigest: ${safeReport.digest}`,
       }),
       signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
     });
@@ -69,4 +77,20 @@ export async function reportServerError(
     // Reporting must never cascade into a second failure.
     console.error("[server-error] reporter failed:", err);
   }
+}
+
+/** Reports caught operational failures that Next's onRequestError never sees. */
+export async function reportOperationalError(
+  area: string,
+  error: unknown
+): Promise<void> {
+  await reportServerError({
+    digest: `operational-${area}`,
+    name: "OperationalError",
+    message: `${area}: ${sanitizeDiagnostic(error, 350)}`,
+    path: `/internal/${area}`,
+    method: "INTERNAL",
+    routePath: area,
+    routeType: "operational",
+  });
 }

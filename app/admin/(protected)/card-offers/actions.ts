@@ -12,12 +12,14 @@ import {
   CONFIDENCE_LEVELS,
   OFFER_TYPES,
   insertCardOffer,
+  setCardOfferArchived,
   setCardOfferPublished,
   updateCardOffer as persistCardOffer,
   type CardOfferInput,
   type OfferType,
 } from "@/lib/admin/repos/cardOffers";
 import type { Confidence } from "@/lib/sources/types";
+import type { CardBonusStage } from "@/lib/offers/types";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
@@ -85,6 +87,40 @@ function parseOptionalDate(
   return isRealDate ? { ok: true, value: text } : { ok: false };
 }
 
+/** One stage per line: points | requirement | timing. */
+function parseBonusStages(
+  raw: FormDataEntryValue | null
+): { ok: true; value: CardBonusStage[] } | { ok: false } {
+  const text = String(raw ?? "").trim();
+  if (!text) return { ok: true, value: [] };
+
+  const stages: CardBonusStage[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const [pointsRaw, requirementRaw, timingRaw, firstYearRaw, ...extra] = line
+      .split("|")
+      .map((part) => part.trim());
+    const points = Number(pointsRaw);
+    if (
+      extra.length > 0 ||
+      !Number.isInteger(points) ||
+      points <= 0 ||
+      !requirementRaw ||
+      !timingRaw ||
+      !["yes", "no"].includes(firstYearRaw?.toLowerCase() ?? "")
+    ) {
+      return { ok: false };
+    }
+    stages.push({
+      points,
+      requirement: requirementRaw,
+      timing: timingRaw,
+      withinFirstYear: firstYearRaw.toLowerCase() === "yes",
+    });
+  }
+  return { ok: true, value: stages };
+}
+
 function parseCardOfferForm(formData: FormData): ParseResult {
   const provider = String(formData.get("provider") ?? "").trim();
   if (!provider) return { ok: false, error: "Provider/bank is required." };
@@ -132,6 +168,20 @@ function parseCardOfferForm(formData: FormData): ParseResult {
     return { ok: false, error: "Annual fee must be a non-negative number." };
   }
 
+  const pointValueCents = parseOptionalAmount(formData.get("point_value_cents"));
+  if (!pointValueCents.ok) {
+    return { ok: false, error: "Point value must be a non-negative number." };
+  }
+
+  const bonusStages = parseBonusStages(formData.get("bonus_stages"));
+  if (!bonusStages.ok) {
+    return {
+      ok: false,
+      error:
+        "Bonus stages must use one line per stage: points | requirement | timing | yes/no for first year.",
+    };
+  }
+
   const isPublished = parseBool(formData, "is_published");
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   const safeSourceUrl = sourceUrl === "" ? "" : safeHttpsUrl(sourceUrl);
@@ -147,6 +197,15 @@ function parseCardOfferForm(formData: FormData): ParseResult {
     };
   }
 
+
+  const reviewByDate = parseOptionalDate(formData.get("review_by_date"));
+  if (!reviewByDate.ok || !reviewByDate.value) {
+    return {
+      ok: false,
+      error: "Review-by date is required and must be a real date in YYYY-MM-DD format.",
+    };
+  }
+
   return {
     ok: true,
     input: {
@@ -159,6 +218,8 @@ function parseCardOfferForm(formData: FormData): ParseResult {
       minimumSpend: minimumSpend.value,
       minimumSpendPeriod: parseOptionalText(formData.get("minimum_spend_period")),
       annualFee: annualFee.value,
+      bonusStages: bonusStages.value,
+      pointValueCents: pointValueCents.value,
       eligibilityNotes: String(formData.get("eligibility_notes") ?? "").trim(),
       offerSummary: String(formData.get("offer_summary") ?? "").trim(),
       // Published submissions reach the repository readiness gate so it can
@@ -166,6 +227,7 @@ function parseCardOfferForm(formData: FormData): ParseResult {
       sourceUrl: safeSourceUrl ?? sourceUrl,
       confidence: confidence as Confidence,
       expiryDate: expiryDate.value,
+      reviewByDate: reviewByDate.value,
       isPublished,
     },
   };
@@ -286,6 +348,31 @@ export async function setPublished(
     tableName: "card_offers",
     rowId: id,
     diff: { isPublished },
+  });
+  revalidateCardOffers();
+  return { ok: true };
+}
+
+export async function setArchived(
+  id: string,
+  isArchived: boolean
+): Promise<AdminActionResult> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+
+  try {
+    const result = await setCardOfferArchived(id, isArchived);
+    if (!result.ok) return { error: result.error };
+  } catch (err) {
+    return { error: writeFailed(err, isArchived ? "archive" : "restore") };
+  }
+  await logAudit({
+    actorEmail: email,
+    action: isArchived ? "archive" : "restore",
+    tableName: "card_offers",
+    rowId: id,
+    diff: { isArchived },
   });
   revalidateCardOffers();
   return { ok: true };

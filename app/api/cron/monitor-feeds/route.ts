@@ -16,6 +16,7 @@ import {
   recordFeedPollState,
   upsertFeedItems,
 } from "@/lib/admin/repos/feedSources";
+import { reportOperationalError } from "@/lib/observability/report-server-error";
 
 /**
  * Secret-gated OzBargain monitor cron route — Phase 1 cron.
@@ -89,6 +90,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     complianceApproved = await isMonitoringApproved();
   } catch (err) {
+    await reportOperationalError("monitor-compliance-check", err);
     return Response.json(
       { ok: false, ran: false, error: `Compliance check failed: ${errMessage(err)}` },
       { status: 500 }
@@ -171,13 +173,14 @@ export async function GET(request: Request): Promise<Response> {
           dryRun: false,
         });
       } catch (err) {
-        console.error("Offer-change detection failed:", errMessage(err));
+        await reportOperationalError("offer-change-detection", err);
         body.detection = { error: errMessage(err) };
       }
     }
 
     return Response.json(body);
   } catch (err) {
+    await reportOperationalError("monitor-cron-run", err);
     // A failure must not 500 the page or leak secrets — return a JSON summary.
     return Response.json(
       { ok: false, ran: false, error: errMessage(err) },

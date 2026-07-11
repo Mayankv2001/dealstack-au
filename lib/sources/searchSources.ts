@@ -140,7 +140,7 @@ export function rankSourceResults(
     confidence: deriveConfidence(result, now),
   }));
 
-  return rankResults(deduped, { queryMerchantId, now });
+  return rankResults(deduped, { queryMerchantId, queryText: query, now });
 }
 
 /** Core: every result in `results` for one store, deduped + derived + ranked. */

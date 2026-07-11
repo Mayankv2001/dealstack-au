@@ -92,6 +92,8 @@ export type Database = {
       card_offers: {
         Row: {
           annual_fee: number | null
+          archived_at: string | null
+          bonus_stages: Json
           bonus_points: number | null
           card_name: string
           cashback_amount: number | null
@@ -100,19 +102,24 @@ export type Database = {
           eligibility_notes: string
           expiry_date: string | null
           id: string
+          is_archived: boolean
           is_published: boolean
           last_checked_at: string
           minimum_spend: number | null
           minimum_spend_period: string | null
           offer_summary: string
           offer_type: string
+          point_value_cents: number | null
           provider: string
+          review_by_date: string
           source_url: string
           statement_credit_amount: number | null
           updated_at: string
         }
         Insert: {
           annual_fee?: number | null
+          archived_at?: string | null
+          bonus_stages?: Json
           bonus_points?: number | null
           card_name: string
           cashback_amount?: number | null
@@ -121,19 +128,24 @@ export type Database = {
           eligibility_notes?: string
           expiry_date?: string | null
           id: string
+          is_archived?: boolean
           is_published?: boolean
           last_checked_at?: string
           minimum_spend?: number | null
           minimum_spend_period?: string | null
           offer_summary?: string
           offer_type: string
+          point_value_cents?: number | null
           provider: string
+          review_by_date: string
           source_url?: string
           statement_credit_amount?: number | null
           updated_at?: string
         }
         Update: {
           annual_fee?: number | null
+          archived_at?: string | null
+          bonus_stages?: Json
           bonus_points?: number | null
           card_name?: string
           cashback_amount?: number | null
@@ -142,17 +154,108 @@ export type Database = {
           eligibility_notes?: string
           expiry_date?: string | null
           id?: string
+          is_archived?: boolean
           is_published?: boolean
           last_checked_at?: string
           minimum_spend?: number | null
           minimum_spend_period?: string | null
           offer_summary?: string
           offer_type?: string
+          point_value_cents?: number | null
           provider?: string
+          review_by_date?: string
           source_url?: string
           statement_credit_amount?: number | null
           updated_at?: string
         }
+        Relationships: []
+      }
+      card_offer_history: {
+        Row: {
+          card_offer_id: string
+          change_summary: string
+          changed_fields: string[]
+          checked_at: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          card_offer_id: string
+          change_summary: string
+          changed_fields?: string[]
+          checked_at: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          card_offer_id?: string
+          change_summary?: string
+          changed_fields?: string[]
+          checked_at?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_offer_history_card_offer_id_fkey"
+            columns: ["card_offer_id"]
+            isOneToOne: false
+            referencedRelation: "card_offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      card_offer_correction_reports: {
+        Row: {
+          card_offer_id: string | null
+          created_at: string
+          details: string
+          id: string
+          reason: string
+          reported_offer_label: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          card_offer_id?: string | null
+          created_at?: string
+          details: string
+          id?: string
+          reason: string
+          reported_offer_label: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          card_offer_id?: string | null
+          created_at?: string
+          details?: string
+          id?: string
+          reason?: string
+          reported_offer_label?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_offer_correction_reports_card_offer_id_fkey"
+            columns: ["card_offer_id"]
+            isOneToOne: false
+            referencedRelation: "card_offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      correction_report_rate_limits: {
+        Row: { created_at: string; id: number; request_fingerprint: string }
+        Insert: { created_at?: string; id?: number; request_fingerprint: string }
+        Update: { created_at?: string; id?: number; request_fingerprint?: string }
         Relationships: []
       }
       cashback_offers: {
@@ -876,7 +979,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      consume_admin_rate_limit: {
+        Args: {
+          p_action_key: string
+          p_admin_email: string
+          p_max: number
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
+      submit_card_offer_correction: {
+        Args: {
+          p_card_offer_id: string
+          p_details: string
+          p_reason: string
+          p_request_fingerprint: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

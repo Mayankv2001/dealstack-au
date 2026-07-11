@@ -37,6 +37,10 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "006_admin_rate_limits.sql",
   "007_card_offers.sql",
   "008_pin_function_search_path.sql",
+  "009_card_offer_lifecycle.sql",
+  "010_atomic_admin_rate_limit.sql",
+  "011_transactional_admin_audit.sql",
+  "012_card_offer_correction_reports.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -148,6 +152,25 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "minimum_spend_period", "annual_fee", "eligibility_notes",
     "offer_summary", "source_url", "confidence", "expiry_date",
     "last_checked_at", "is_published", "created_at", "updated_at",
+    "review_by_date", "bonus_stages", "point_value_cents", "is_archived",
+    "archived_at",
+  ], {
+    review_by_date: "009_card_offer_lifecycle.sql",
+    bonus_stages: "009_card_offer_lifecycle.sql",
+    point_value_cents: "009_card_offer_lifecycle.sql",
+    is_archived: "009_card_offer_lifecycle.sql",
+    archived_at: "009_card_offer_lifecycle.sql",
+  }),
+  card_offer_history: table("009_card_offer_lifecycle.sql", [
+    "id", "card_offer_id", "change_summary", "changed_fields", "checked_at",
+    "created_at",
+  ]),
+  card_offer_correction_reports: table("012_card_offer_correction_reports.sql", [
+    "id", "card_offer_id", "reported_offer_label", "reason", "details",
+    "status", "reviewed_by", "reviewed_at", "created_at", "updated_at",
+  ]),
+  correction_report_rate_limits: table("012_card_offer_correction_reports.sql", [
+    "id", "request_fingerprint", "created_at",
   ]),
 };
 

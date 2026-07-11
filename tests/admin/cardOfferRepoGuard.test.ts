@@ -22,11 +22,14 @@ const INVALID_PUBLISHED_OFFER: CardOfferInput = {
   minimumSpend: null,
   minimumSpendPeriod: null,
   annualFee: null,
+  bonusStages: [],
+  pointValueCents: null,
   eligibilityNotes: "Check the issuer's current criteria.",
   offerSummary: "Illustrative offer",
   sourceUrl: "http://issuer.example/card",
   confidence: "needs-verification",
   expiryDate: null,
+  reviewByDate: "2026-07-09",
   isPublished: true,
 };
 
@@ -45,7 +48,7 @@ describe("card-offer repository publish guard", () => {
     if (result.ok) throw new Error("Expected the published insert to be rejected.");
     expect(result.error).toContain("Cannot publish:");
     expect(result.error).toContain("confidence must be Confirmed");
-    expect(result.error).toContain("expiry date is required");
+    expect(result.error).toContain("review-by date has passed");
     expect(getSupabaseAdminMock).not.toHaveBeenCalled();
   });
 

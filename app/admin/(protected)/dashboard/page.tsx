@@ -113,6 +113,12 @@ const DQ_ISSUE_INFO: Record<
       "Hasn't been re-checked in over 30 days and may be out of date.",
     tone: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
   },
+  "review-overdue": {
+    label: "Review deadline passed",
+    explanation:
+      "A published offer passed its mandatory review-by date and is hidden publicly until it is verified again.",
+    tone: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
   "missing-expiry": {
     label: "Missing expiry date",
     explanation:
@@ -138,6 +144,7 @@ const DQ_TILE_ORDER: {
   { code: "missing-source", count: (c) => c.missingSourceUrl },
   { code: "missing-expiry", count: (c) => c.missingExpiry },
   { code: "stale", count: (c) => c.staleChecked },
+  { code: "review-overdue", count: (c) => c.reviewOverdue },
   { code: "stale-week-of", count: (c) => c.staleWeekOf },
 ];
 
@@ -496,6 +503,19 @@ export default async function AdminDashboardPage({
               </div>
             ))}
           </div>
+
+          {Object.values(dataQuality.staleByType).some((count) => count > 0) ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-medium">Stale by type:</span>
+              {Object.entries(dataQuality.staleByType)
+                .filter(([, count]) => count > 0)
+                .map(([type, count]) => (
+                  <Badge key={type} variant="outline">
+                    {type}: {count}
+                  </Badge>
+                ))}
+            </div>
+          ) : null}
 
           {dataQuality.flaggedItems === 0 ? (
             <div className="flex items-start gap-2.5 rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
