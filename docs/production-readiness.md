@@ -4,6 +4,14 @@
 > Check items off as you complete them. Nothing here auto-applies — every step
 > requires a deliberate manual action.
 
+## Public Deals discovery
+
+The current `/deals` implementation is documented in
+`docs/deals-discovery.md`. Production verification should include its default
+Discover page, URL-backed search and filters, sorting, clamped pagination,
+mobile filter disclosure, community detail route and stack calculations.
+Run `npm run test:deals` alongside the existing validation commands.
+
 ---
 
 ## 1. Supabase — Apply migrations

@@ -21,6 +21,7 @@
     "types:gen": "supabase gen types typescript --project-id numgsivlrglflsnqehac --schema public",
     "test:monitor": "vitest run tests/monitor",
     "test:stack": "vitest run tests/stack",
+    "test:deals": "vitest run tests/deals",
     "test:admin": "vitest run tests/admin",
     "test:e2e": "playwright test"
   },

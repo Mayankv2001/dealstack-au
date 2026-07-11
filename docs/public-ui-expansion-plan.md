@@ -8,15 +8,19 @@
 > remained optional. The rest of this document is kept as the original
 > planning rationale — read "nothing below exists yet" and the "Explicit
 > non-goals" section as describing the state *at planning time*, not today.
+>
+> **Deals update (2026-07-12):** the old `DealsClient` chip/feed implementation
+> referenced below has been retired. `/deals` now uses server-rendered,
+> URL-backed views and the architecture documented in `docs/deals-discovery.md`.
 
 ## What's already live (no plan needed — shipped in Phases 3–5)
 
 | Category | Where it already surfaces |
 |---|---|
 | Grocery, automotive, electronics, beauty, fashion, household | `/deals` (via `ozbargain_signals`), `/search`, homepage Top 5, matched store pages — already ranked/classified as preferred by Phases 3–4 |
-| ShopBack/TopCashback cashback | `/deals` cashback filter chip, stack calculator, store pages — fully live already (Phase 1 finding) |
-| Gift cards | `/deals` "Gift cards" filter chip — fully live already |
-| Qantas/Velocity/Flybuys/Everyday Rewards points | `/deals` "Points" filter + the 4 dedicated `PROGRAM_FILTERS` chips (`components/DealsClient.tsx`) — fully live already |
+| ShopBack/TopCashback cashback | `/deals?view=cashback`, stack calculator, store pages — live |
+| Gift cards | `/deals?view=gift-cards` — live |
+| Qantas/Velocity/Flybuys/Everyday Rewards points | `/deals?view=points` plus the `program` URL filter — live |
 | Uber Eats/DoorDash dining delivery | `/deals` "OzBargain signals" filter (via `ozbargain_signals`) once imported — pipeline unblocked in Phase 3, admin queue presets added in Phase 5 |
 
 **No UI work is needed for these** — they ride on data that already exists

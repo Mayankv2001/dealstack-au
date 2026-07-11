@@ -1,7 +1,7 @@
 import { CalendarClock, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ConfidencePill } from "@/components/WeeklyDealCard";
+import { ConfidencePill } from "@/components/deals/DealMeta";
 import type { Store } from "@/lib/data";
 import { expiryUrgencyLabelAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import { formatDateAU } from "@/lib/sources/normalise";

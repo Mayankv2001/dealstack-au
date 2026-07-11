@@ -12,7 +12,7 @@ import {
   CitationLinks,
   ConfidencePill,
   ExpiryLine,
-} from "@/components/WeeklyDealCard";
+} from "@/components/deals/DealMeta";
 import { siteUrl } from "@/lib/env";
 import {
   dealIdFromSlug,
@@ -93,7 +93,7 @@ export default async function DealDetailPage({ params }: DealPageParams) {
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
-        All weekly deals
+        All deals
       </Link>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">

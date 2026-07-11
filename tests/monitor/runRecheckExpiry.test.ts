@@ -37,7 +37,7 @@ function classifyAs(status: SourceStatus) {
 function makeDeps(over: Partial<RunRecheckDeps> = {}): RunRecheckDeps {
   return {
     now: () => NOW,
-    startRun: vi.fn(async () => ({ started: true, runId: "run-1" })),
+    startRun: vi.fn(async () => ({ started: true as const, runId: "run-1" })),
     finishRun: vi.fn(async () => {}),
     listCandidates: vi.fn(async () => []),
     classify: vi.fn(async () => classifyAs("active")),
@@ -149,7 +149,7 @@ describe("runRecheckExpiry — live mode", () => {
     const classify = vi.fn(async () => classifyAs("deleted"));
     const finishRun = vi.fn(async () => {});
     const deps = makeDeps({
-      startRun: vi.fn(async () => ({ started: false, reason: "already-running" as const })),
+      startRun: vi.fn(async () => ({ started: false as const, reason: "already-running" as const })),
       classify,
       finishRun,
       listCandidates: vi.fn(async () => [candidate("n1")]),

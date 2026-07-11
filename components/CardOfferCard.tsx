@@ -7,7 +7,7 @@ import {
   CheckedLine,
   ConfidencePill,
   ExpiryLine,
-} from "@/components/WeeklyDealCard";
+} from "@/components/deals/DealMeta";
 import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { CardOffer, CardOfferType } from "@/lib/offers/types";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
@@ -15,9 +15,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Presentational card for a single bank/credit-card offer on the public
- * /cards page. Not a WeeklyDealCard variant: CardOffer carries a single
- * sourceUrl (the bank's own page), not a Citation[] tied to the closed
- * SourceId union WeeklyDealCard's citation rendering depends on.
+ * /cards page. CardOffer carries a single sourceUrl (the bank's own page),
+ * rather than a Citation[] tied to the closed SourceId union.
  */
 
 const OFFER_TYPE_LABELS: Record<CardOfferType, string> = {

@@ -1,5 +1,4 @@
-import type { WeeklyDealCardData, WeeklyDealTone } from "@/components/WeeklyDealCard";
-import type { Citation, DealKind } from "@/lib/sources/types";
+import type { Citation, Confidence, DealKind } from "@/lib/sources/types";
 import { safePublicHref } from "@/lib/security/urlPolicy";
 import { weeklyDealPath } from "./dealSlug";
 import { isExpiringSoonAU } from "./expiry";
@@ -12,8 +11,28 @@ import type {
   WeeklyHighlight,
 } from "./types";
 
+export type WeeklyDealTone = "emerald" | "violet" | "amber" | "rose" | "orange" | "sky";
+
+/** Legacy-neutral DTO retained for weekly-pick mapping and detail tests. */
+export interface WeeklyPickCardData {
+  kind: DealKind;
+  category: string;
+  title: string;
+  titleHref?: string | null;
+  summary: string;
+  subject?: string | null;
+  highlight?: string | null;
+  tone?: WeeklyDealTone;
+  variant?: "default";
+  expiryDate: string | null;
+  expiringSoon?: boolean;
+  lastCheckedAt?: string | null;
+  confidence: Confidence;
+  citations: Citation[];
+}
+
 /**
- * Pure mapper: admin-curated WeeklyDeal rows -> WeeklyDealCardData for the
+ * Pure mapper: admin-curated WeeklyDeal rows -> WeeklyPickCardData for the
  * "This week's picks" section on /deals. No React/lucide imports — plain data
  * in, plain data out, so tests cover it without a DOM.
  *
@@ -36,7 +55,7 @@ export interface WeeklyPickLookups {
 /** One curated card, keyed by the deal id (titles can repeat across weeks). */
 export interface WeeklyPickCard {
   id: string;
-  data: WeeklyDealCardData;
+  data: WeeklyPickCardData;
 }
 
 const MAX_PICKS = 6;
@@ -128,12 +147,12 @@ function dedupeCitations(citations: Citation[]): Citation[] {
   return out;
 }
 
-/** Map one WeeklyDeal to WeeklyDealCardData (default variant). */
+/** Map one WeeklyDeal to the compact weekly-pick DTO. */
 export function buildWeeklyPickCard(
   deal: WeeklyDeal,
   lookups: WeeklyPickLookups,
   now: Date = new Date()
-): WeeklyDealCardData {
+): WeeklyPickCardData {
   const { kind, tone } = highlightMeta(deal.highlight);
   const labels = resolveComponentLabels(deal.componentIds, lookups);
   const signalCitations = resolveSignalCitations(deal.componentIds, lookups.signals);

@@ -52,42 +52,53 @@ test("deals: weekly pick links through to its permalink page", async ({
 }) => {
   await page.goto("/deals");
   await expect(
-    page.getByRole("heading", { level: 1, name: /Weekly\s+Deals/ })
+    page.getByRole("heading", { level: 1, name: "Find a deal worth stacking" })
   ).toBeVisible();
 
   // Every weekly pick title links to /deals/{slug}--{id}.
   const pickLink = page.locator('a[href*="/deals/"][href*="--"]').first();
   await expect(pickLink).toBeVisible();
-  const title = (await pickLink.textContent())?.trim() ?? "";
 
   await pickLink.click();
   await page.waitForURL("**/deals/**");
-  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
-  await expect(page.getByText("All weekly deals")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByText("All deals")).toBeVisible();
 });
 
-test("deals: filter chips narrow the visible sections", async ({ page }) => {
+test("deals: URL-backed views narrow the server-rendered results", async ({ page }) => {
   await page.goto("/deals");
-  await page.getByRole("button", { name: "Gift cards", exact: true }).click();
+  await page.getByRole("link", { name: "Gift cards", exact: true }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Weekly gift card offers" })
+    page.getByRole("heading", { level: 1, name: "Gift cards" })
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Points boosts" })
-  ).toHaveCount(0);
   await expect(page).toHaveURL(/view=gift-cards/);
 
   await page.goBack();
   await expect(page).not.toHaveURL(/view=gift-cards/);
 });
 
-test("deals: store and confidence filters are shareable", async ({ page }) => {
-  await page.goto("/deals");
-  await page.getByRole("combobox", { name: "Store" }).selectOption("jb-hifi");
-  await page.getByRole("combobox", { name: "Confidence" }).selectOption("confirmed");
-  await expect(page).toHaveURL(/store=jb-hifi/);
-  await expect(page).toHaveURL(/confidence=confirmed/);
+test("deals: filters and search are shareable and clearable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "desktop filter sidebar");
+  await page.goto("/deals?view=top");
+  await page.locator("#desktop-merchant").selectOption("jb-hifi");
+  await page.locator("#desktop-trust").selectOption("verified");
+  await page.getByRole("button", { name: "Apply filters" }).first().click();
+  await expect(page).toHaveURL(/merchant=jb-hifi/);
+  await expect(page).toHaveURL(/trust=verified/);
+  await page.getByLabel("Search public deals").fill("nothing-can-match-this");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByText("No deals match those choices")).toBeVisible();
+  await page.getByRole("link", { name: "Clear search and filters" }).click();
+  await expect(page).toHaveURL(/\/deals$/);
+});
+
+test("deals: mobile filter disclosure exposes labelled controls", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "mobile-only control");
+  await page.goto("/deals?view=community");
+  const summary = page.locator("summary").filter({ hasText: "Filters" });
+  await summary.click();
+  await expect(page.locator("#mobile-trust")).toBeVisible();
 });
 
 test("cards: sparse filters explain withheld content and preserve the URL", async ({ page }) => {

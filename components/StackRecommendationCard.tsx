@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import StoreLogo from "@/components/StoreLogo";
-import { CitationLinks, ConfidencePill } from "@/components/WeeklyDealCard";
+import { CitationLinks, ConfidencePill } from "@/components/deals/DealMeta";
 import { formatAUD } from "@/lib/calculateStack";
 import type { Store } from "@/lib/data";
 import type {

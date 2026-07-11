@@ -8,7 +8,7 @@ A deal-stacking platform for Australian shoppers that combines cashback portals,
 
 ### Public Site
 - **Homepage** — Top 5 OzBargain signals (admin-curated), popular stores, and search entry point
-- **Deals directory** — Browse and filter curated deals with AUD pricing
+- **Deals discovery** — URL-backed search, filters, sorting and pagination across current public deals, plus traced compatible stacks and community detail pages
 - **Store pages** — Per-store cashback, gift-card, and points stacking details
 - **Search** — Live cross-entity search across deals, stores, and card offers
 - **Card offers** — compare bank & credit-card sign-up offers at /cards (manually verified, admin-published)
@@ -47,6 +47,7 @@ lib/
   monitor/                Feed monitor logic — pure, tested, no DB side-effects
   stack/                  Deal-stacking calculation helpers
 tests/
+  deals/                  Vitest tests for public deal normalisation, URL state, filters, grouping and pagination
   monitor/                Vitest tests for feed parsing, signal ranking, and top-deals logic
   stack/                  Vitest tests for stacking calculations and source result ranking
 supabase/migrations/      Postgres migrations (apply manually or via Supabase CLI)
@@ -81,6 +82,7 @@ npm run cleanup:old-deals  # dry-run expiry cleanup (add -- --write to apply)
 ```bash
 npm run test:monitor   # monitor/feed/ranking logic
 npm run test:stack     # deal-stacking calculations
+npm run test:deals     # deal discovery model, URL state and query logic
 npm run test:admin     # admin rate-limit & DB-fallback logic
 npm run lint           # ESLint
 npm run build          # production build

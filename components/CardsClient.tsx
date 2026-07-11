@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 /**
  * Interactive client for the public /cards page. Holds filter state only —
  * app/cards/page.tsx loads the published offers (Supabase repo with static
- * fallback) and passes them in as props. Mirrors components/DealsClient.tsx's
+ * fallback) and passes them in as props. Mirrors the Deals route's
  * server/client split and Chip filter pattern.
  */
 
