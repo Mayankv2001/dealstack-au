@@ -229,6 +229,8 @@ export interface StackComponent {
   valuePercent?: number;
   /** Dollar value of this layer against the example spend. */
   valueDollars?: number;
+  /** Copy-able coupon code for a discount layer, when one exists. */
+  code?: string;
   pointsEarned?: number;
   /** True when this layer is a "could add" rather than part of the chosen stack. */
   optional: boolean;
@@ -257,10 +259,23 @@ export interface StackWarning {
 /** Alias kept for readability where the domain language is "risk". */
 export type StackRisk = StackWarning;
 
+/**
+ * How a stack should be presented to a shopper:
+ *   - "cash"        : reduces the out-of-pocket price (discount / gift card /
+ *                     cashback with a real dollar saving). Qualifies for the
+ *                     default Best stacks list.
+ *   - "points-only" : the cash price is unchanged; the only benefit is earned
+ *                     loyalty points. Surfaced under Rewards opportunities, never
+ *                     shown as "0% off".
+ */
+export type StackKind = "cash" | "points-only";
+
 export interface StackRecommendation {
   merchantId: string;
   merchantName: string;
   title: string;
+  /** Cash-saving stack vs a points-only rewards opportunity (set by the engine). */
+  kind: StackKind;
   /** Example basket used for the estimate. */
   basePrice: number;
   components: StackComponent[];

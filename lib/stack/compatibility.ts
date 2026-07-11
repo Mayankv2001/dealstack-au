@@ -1,4 +1,9 @@
-import { EXPIRY_SOON_DAYS, isExpiringSoonAU } from "@/lib/offers/expiry";
+import {
+  EXPIRY_SOON_DAYS,
+  expiryUrgencyLabelAU,
+  isExpiringSoonAU,
+} from "@/lib/offers/expiry";
+import { formatDateAU } from "@/lib/sources/normalise";
 import type { Confidence } from "@/lib/sources/types";
 import type {
   CashbackOffer,
@@ -65,10 +70,14 @@ export function expirySoonWarning(
   label: string
 ): StackWarning | null {
   if (!isExpiringSoonAU(expiryDate, now, EXPIRY_SOON_DAYS)) return null;
+  const urgency = expiryUrgencyLabelAU(expiryDate, now, EXPIRY_SOON_DAYS);
+  const when = urgency
+    ? `${urgency.toLowerCase()} (${formatDateAU(expiryDate)})`
+    : `expires ${formatDateAU(expiryDate)}`;
   return {
     level: "caution",
     code: "expiry-soon",
-    message: `${label} expires on ${expiryDate} — verify it is still live before relying on it.`,
+    message: `${label} ${when} — check it is still live before you rely on it.`,
   };
 }
 
@@ -85,7 +94,7 @@ export function staleDataWarning(
   return {
     level: "info",
     code: "stale-data",
-    message: `${label} was last checked on ${lastCheckedAt.slice(0, 10)} — data may be out of date.`,
+    message: `${label} was last checked ${formatDateAU(lastCheckedAt)} — the terms may have changed.`,
   };
 }
 

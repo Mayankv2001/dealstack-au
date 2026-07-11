@@ -14,6 +14,7 @@ import type {
   OzBargainSignal,
   PointsOffer,
   StackComponent,
+  StackKind,
   StackRecommendation,
   StackWarning,
 } from "@/lib/offers/types";
@@ -64,6 +65,39 @@ export const DEFAULT_SPEND = 500;
 const round = (value: number) => Math.round(value * 100) / 100;
 
 const MANUAL_CITATION: Citation = { source: "manual", sourceUrl: "/" };
+
+/**
+ * Development-oriented words that must never reach a public card. Offer sample
+ * data (and any DB rows seeded from it) prefixes free text with "Sample:",
+ * "Illustrative", etc.; this scrubs them so shoppers see accurate wording.
+ */
+const DEV_TOKEN_RE =
+  /\b(?:samples?|illustrative|demonstration|demo|fixture|placeholder)\b/gi;
+
+/** Strip development wording from a public string and tidy the result. */
+export function sanitisePublicText(text: string): string {
+  if (!text) return text;
+  const cleaned = text
+    .replace(DEV_TOKEN_RE, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s:;,.\-–—]+/, "")
+    .trim();
+  return cleaned.replace(/^([a-z])/, (m) => m.toUpperCase());
+}
+
+/** Codes we can safely tell the shopper to "use at checkout" (no spaces/phrases). */
+function looksLikeCouponCode(code: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{1,19}$/.test(code.trim());
+}
+
+/** Customer-facing cashback wording derived from structured fields. */
+function cashbackNote(cashback: CashbackOffer): string {
+  const rate = `${cashback.ratePercent}%${cashback.isUpsized ? " (upsized rate)" : ""}`;
+  const base = `Track your purchase through ${cashback.provider} to earn up to ${rate} cashback on eligible purchases.`;
+  return cashback.excludesGiftCardPayment
+    ? `${base} Not eligible when paying with gift cards.`
+    : base;
+}
 
 /** Highest-discount gift card accepted at this merchant, or null. */
 function bestGiftCard(
@@ -149,10 +183,13 @@ function buildForStore(
       label: `${store.discountPercent}% off with ${store.discountCode}`,
       valuePercent: store.discountPercent,
       valueDollars: discountSaving,
+      code: looksLikeCouponCode(store.discountCode) ? store.discountCode : undefined,
       optional: false,
       citation: MANUAL_CITATION,
       confidence: "needs-verification",
-      note: "Public promo code from the existing store listing.",
+      note: looksLikeCouponCode(store.discountCode)
+        ? `Use code ${store.discountCode} at checkout. Exclusions may apply.`
+        : `Apply the ${store.discountPercent}% offer at checkout. Exclusions may apply.`,
     });
     citations.push(MANUAL_CITATION);
     confidences.push("needs-verification");
@@ -177,10 +214,18 @@ function buildForStore(
     ? round(dollarCappedSaving(checkoutPrice, cashback.ratePercent, cashback.capDollars))
     : 0;
 
-  // If both exist and cashback excludes gift card payment, keep the larger.
-  let useGiftCard = giftCard !== null;
-  let useCashback = cashback !== null;
-  if (giftCard && cashback && cashback.excludesGiftCardPayment) {
+  // A layer that saves nothing (e.g. a 0%-discount gift card that only earns
+  // bonus points) is not a cash layer — it must never render as "0% off".
+  let useGiftCard = giftCard !== null && giftCardSaving > 0;
+  let useCashback = cashback !== null && cashbackSaving > 0;
+  // Only a genuine choice between two saving layers is a conflict.
+  if (
+    giftCard &&
+    cashback &&
+    cashback.excludesGiftCardPayment &&
+    giftCardSaving > 0 &&
+    cashbackSaving > 0
+  ) {
     if (giftCardSaving >= cashbackSaving) {
       useCashback = false;
     } else {
@@ -228,7 +273,7 @@ function buildForStore(
       `The ${giftCard.brand} gift card offer`
     );
     if (gcCap) warnings.push(gcCap);
-  } else if (giftCard) {
+  } else if (giftCard && giftCardSaving > 0) {
     // Dropped due to conflict — surface as an optional layer.
     components.push({
       layer: "gift-card",
@@ -252,7 +297,7 @@ function buildForStore(
       optional: false,
       citation: cashback.citations[0] ?? MANUAL_CITATION,
       confidence: cashback.confidence,
-      note: cashback.termsSummary,
+      note: cashbackNote(cashback),
     });
     citations.push(...cashback.citations);
     confidences.push(cashback.confidence);
@@ -279,7 +324,7 @@ function buildForStore(
       `The ${cashback.provider} cashback offer`
     );
     if (cbCap) warnings.push(cbCap);
-  } else if (cashback) {
+  } else if (cashback && cashbackSaving > 0) {
     components.push({
       layer: "cashback",
       label: `${cashback.ratePercent}% ${cashback.provider} cashback (alternative to gift card)`,
@@ -341,12 +386,33 @@ function buildForStore(
   const effectiveDiscountPercent =
     spend > 0 ? round((totalSaving / spend) * 100) : 0;
 
+  // Final scrub: no development wording ("Sample", "Illustrative", …) ever
+  // reaches a public card, whatever the data source.
+  const publicComponents: StackComponent[] = components.map((c) => ({
+    ...c,
+    label: sanitisePublicText(c.label),
+    note: c.note ? sanitisePublicText(c.note) : c.note,
+  }));
+
+  // A stack is a cash saving when a non-optional discount/gift-card/cashback
+  // layer actually reduces the price; otherwise, if it still earns points, it is
+  // a points-only rewards opportunity (cash price unchanged).
+  const hasCashSaving = publicComponents.some(
+    (c) => !c.optional && c.layer !== "points" && (c.valueDollars ?? 0) > 0
+  );
+  const kind: StackKind =
+    !hasCashSaving && pointsEarned > 0 ? "points-only" : "cash";
+
   return {
     merchantId: store.id,
     merchantName: store.name,
-    title: `${store.name} weekly stack`,
+    kind,
+    title:
+      kind === "points-only"
+        ? `${store.name} rewards opportunity`
+        : `${store.name} best available stack`,
     basePrice: spend,
-    components,
+    components: publicComponents,
     effectivePrice,
     effectiveDiscountPercent,
     totalSaving,

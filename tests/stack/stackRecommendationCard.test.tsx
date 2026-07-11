@@ -1,0 +1,214 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import StackRecommendationCard from "@/components/StackRecommendationCard";
+import type { Store } from "@/lib/data";
+import type { StackRecommendation } from "@/lib/offers/types";
+
+const stores: Store[] = [
+  {
+    id: "myer",
+    name: "Myer",
+    category: "Department Store",
+    logo: "MYER",
+    discountPercent: 10,
+    discountCode: "MYER10",
+    expiryDate: null,
+    cashbackPercent: 6,
+    cashbackProvider: "ShopBack",
+    giftCardDiscountPercent: 0,
+    giftCardSource: "",
+    pointsProgram: "MYER one",
+    pointsRate: "2 / $1",
+  },
+  {
+    id: "coles",
+    name: "Coles",
+    category: "Supermarket",
+    logo: "Coles",
+    discountPercent: 0,
+    discountCode: "-",
+    expiryDate: null,
+    cashbackPercent: 0,
+    cashbackProvider: "—",
+    giftCardDiscountPercent: 0,
+    giftCardSource: "",
+    pointsProgram: "Flybuys",
+    pointsRate: "1 / $1",
+  },
+];
+
+function cashRec(over: Partial<StackRecommendation> = {}): StackRecommendation {
+  return {
+    merchantId: "myer",
+    merchantName: "Myer",
+    kind: "cash",
+    title: "Myer best available stack",
+    basePrice: 500,
+    components: [
+      {
+        layer: "discount",
+        label: "10% off with MYER10",
+        valuePercent: 10,
+        valueDollars: 50,
+        code: "MYER10",
+        optional: false,
+        citation: { source: "manual", sourceUrl: "/" },
+        confidence: "needs-verification",
+        note: "Use code MYER10 at checkout. Exclusions may apply.",
+      },
+      {
+        layer: "cashback",
+        label: "6% ShopBack cashback",
+        valuePercent: 6,
+        valueDollars: 27,
+        optional: false,
+        citation: { source: "manual", sourceUrl: "https://www.shopback.com.au" },
+        confidence: "confirmed",
+        note: "Track your purchase through ShopBack to earn up to 6% cashback.",
+      },
+    ],
+    effectivePrice: 423,
+    effectiveDiscountPercent: 15.4,
+    totalSaving: 77,
+    pointsEarned: 0,
+    pointsValueDollars: 0,
+    confidence: "needs-verification",
+    warnings: [],
+    citations: [
+      { source: "manual", sourceUrl: "/" },
+      { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
+      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001" },
+      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900002" },
+      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900003" },
+      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900004" },
+    ],
+    weekOf: "2026-06-15",
+    ...over,
+  };
+}
+
+function pointsRec(): StackRecommendation {
+  return {
+    merchantId: "coles",
+    merchantName: "Coles",
+    kind: "points-only",
+    title: "Coles rewards opportunity",
+    basePrice: 500,
+    components: [
+      {
+        layer: "points",
+        label: "1 point per $1 on Flybuys",
+        pointsEarned: 500,
+        valueDollars: 2.5,
+        optional: false,
+        citation: { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
+        confidence: "confirmed",
+        note: "Points value is indicative and is not subtracted from the cash price.",
+      },
+    ],
+    effectivePrice: 500,
+    effectiveDiscountPercent: 0,
+    totalSaving: 0,
+    pointsEarned: 500,
+    pointsValueDollars: 2.5,
+    confidence: "confirmed",
+    warnings: [],
+    citations: [
+      { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
+    ],
+    weekOf: "2026-06-15",
+  };
+}
+
+const occurrences = (haystack: string, needle: string) =>
+  haystack.split(needle).length - 1;
+
+describe("StackRecommendationCard — cash stack", () => {
+  it("collapses duplicate OzBargain citations to one visible source with an accurate count", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    // Four OzBargain records collapse into a single badge that carries the count.
+    expect(html).toContain("OzBargain ×4");
+    // The summary states the true number of distinct sources checked.
+    expect(html).toContain("6 sources checked");
+  });
+
+  it("keeps every citation reachable in the disclosure", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    // Full traceability: the individual node URLs remain in the expandable list.
+    expect(html).toContain("https://www.ozbargain.com.au/node/900004");
+    expect(html).toContain("<details");
+  });
+
+  it("shows the stack-level trust status exactly once", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    expect(occurrences(html, "1 layer needs verification")).toBe(1);
+  });
+
+  it("leads with the outcome and renders no raw ISO dates or sample wording", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    expect(html).toContain("Save $77.00");
+    expect(html).toContain("$423.00");
+    expect(html).toContain("15.4% total saving");
+    expect(html).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(html).not.toMatch(/sample/i);
+  });
+
+  it("offers an accessible copy-code action", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    expect(html).toContain('aria-label="Copy code MYER10"');
+  });
+
+  it("labels a mutually exclusive layer as choose-one", () => {
+    const rec = cashRec({
+      components: [
+        {
+          layer: "gift-card",
+          label: "5% off gift cards",
+          valuePercent: 5,
+          valueDollars: 25,
+          optional: false,
+          citation: { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
+          confidence: "confirmed",
+        },
+        {
+          layer: "cashback",
+          label: "6% ShopBack cashback",
+          valuePercent: 6,
+          valueDollars: 27,
+          optional: true,
+          citation: { source: "manual", sourceUrl: "https://www.shopback.com.au" },
+          confidence: "confirmed",
+          note: "Use instead of the gift card, not together.",
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={rec} stores={stores} />
+    );
+    expect(html).toContain("Choose one");
+  });
+});
+
+describe("StackRecommendationCard — points-only", () => {
+  it("presents earned points without a 0%-off headline", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={pointsRec()} stores={stores} />
+    );
+    expect(html).toContain("Cash price remains");
+    expect(html).toContain("$500.00");
+    expect(html).toContain("Earn approximately 500 points");
+    expect(html).toContain("not deducted from the cash price");
+    expect(html).not.toContain("0% off");
+    expect(html).not.toContain("% total saving");
+  });
+});

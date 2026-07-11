@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, ArrowRight, Layers3, Search, ShieldCheck, SlidersHorizontal, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Layers3, Search, ShieldCheck, SlidersHorizontal, Star, X } from "lucide-react";
 import { DealCard, DealGroupCard } from "@/components/deals/DealCard";
 import { DealsFilters } from "@/components/deals/DealsFilters";
 import SiteFooter from "@/components/SiteFooter";
@@ -22,6 +22,9 @@ import {
 } from "@/lib/deals/params";
 import { loadDealsBundle } from "@/lib/deals/load";
 import { queryDeals } from "@/lib/deals/query";
+import { formatAUD } from "@/lib/calculateStack";
+import { DEFAULT_SPEND } from "@/lib/stack/buildStack";
+import { BEST_STACK_INITIAL_COUNT, partitionStacks } from "@/lib/stack/present";
 import type { DealListItem, PublicDealKind } from "@/lib/deals/types";
 
 export const metadata: Metadata = {
@@ -69,6 +72,7 @@ function discoverItems(deals: Awaited<ReturnType<typeof loadDealsBundle>>["deals
 }
 
 function Discover({ bundle, params, now }: { bundle: Awaited<ReturnType<typeof loadDealsBundle>>; params: DealsParams; now: Date }) {
+  const featuredStack = partitionStacks(bundle.stackRecommendations).best[0];
   const top = discoverItems(bundle.deals, params, now, { view: "top", trust: "verified" }, 6);
   const fallbackTop = top.length ? top : discoverItems(bundle.deals, params, now, { view: "top" }, 6);
   const recent = discoverItems(bundle.deals, params, now, { view: "top", sort: "newest" }, 6);
@@ -78,7 +82,7 @@ function Discover({ bundle, params, now }: { bundle: Awaited<ReturnType<typeof l
     return discoverItems(bundle.deals, params, now, { view: view as DealsParams["view"] }, 1);
   });
   return <>
-    {bundle.stackRecommendations[0] ? <section className="mt-8 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 sm:p-6" aria-labelledby="featured-stack"><div className="mb-4 flex items-start justify-between gap-4"><div><p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400"><Layers3 aria-hidden className="size-4" /> DealStack advantage</p><h2 id="featured-stack" className="mt-1 text-xl font-bold">Best compatible stack</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">A traced combination from the stack engine. Incompatible gift-card and cashback layers are never added together.</p></div><Button asChild variant="outline" className="hidden bg-background sm:inline-flex"><Link href={dealsHref(params, { view: "stacks" })}>All stacks</Link></Button></div><StackRecommendationCard recommendation={bundle.stackRecommendations[0]} stores={bundle.stores} /></section> : null}
+    {featuredStack ? <section className="mt-8 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4 sm:p-6" aria-labelledby="featured-stack"><div className="mb-4 flex items-start justify-between gap-4"><div><p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400"><Layers3 aria-hidden className="size-4" /> DealStack advantage</p><h2 id="featured-stack" className="mt-1 text-xl font-bold">Best compatible stack</h2><p className="mt-1 max-w-2xl text-sm text-muted-foreground">A traced combination from the stack engine. Incompatible gift-card and cashback layers are never added together.</p></div><Button asChild variant="outline" className="hidden bg-background sm:inline-flex"><Link href={dealsHref(params, { view: "stacks" })}>All stacks</Link></Button></div><StackRecommendationCard recommendation={featuredStack} stores={bundle.stores} /></section> : null}
     <Section title="Top trusted deals" description="Strong current offers prioritised by trust, completeness and saving." items={fallbackTop} stores={bundle.stores} now={now} href={dealsHref(params, { view: "top" })} />
     <Section title="Recently added" description="Fresh public deals without the full community feed." items={recent} stores={bundle.stores} now={now} href={dealsHref(params, { view: "top", sort: "newest" })} />
     <Section title="Expiring soon" description="Active offers ending within seven Australia-local calendar days." items={expiring} stores={bundle.stores} now={now} href={dealsHref(params, { view: "expiring" })} />
@@ -104,22 +108,60 @@ function ActiveFilters({ params }: { params: DealsParams }) {
 
 function Results({ bundle, params, now }: { bundle: Awaited<ReturnType<typeof loadDealsBundle>>; params: DealsParams; now: Date }) {
   if (params.view === "stacks") {
-    const stacks = bundle.stackRecommendations;
+    const { best, rewards } = partitionStacks(bundle.stackRecommendations);
+    const initial = best.slice(0, BEST_STACK_INITIAL_COUNT);
+    const remaining = best.slice(BEST_STACK_INITIAL_COUNT);
     return (
       <section className="mt-8">
-        <div className="mb-5">
+        <div className="mb-4">
           <h1 className="text-2xl font-bold">Best stacks</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Compatible layers calculated by DealStack’s existing engine.
+            The strongest cash-saving combinations, calculated by DealStack’s engine.
           </p>
         </div>
-        {stacks.length ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {stacks.map((stack, index) => (
-              <StackRecommendationCard key={stack.merchantId} recommendation={stack} stores={bundle.stores} rank={index + 1} />
-            ))}
-          </div>
+        <div role="note" className="mb-6 flex items-start gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] p-3 text-sm text-emerald-900 dark:text-emerald-200">
+          <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span>Only compatible layers are combined and points are never counted as cash. Each stack shows an example on a {formatAUD(DEFAULT_SPEND)} purchase — confirm every layer at the source before you buy.</span>
+        </div>
+        {best.length ? (
+          <>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {initial.map((stack, index) => (
+                <StackRecommendationCard key={stack.merchantId} recommendation={stack} stores={bundle.stores} rank={index + 1} />
+              ))}
+            </div>
+            {remaining.length ? (
+              <details className="group mt-6">
+                <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-lg border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+                  View all {best.length} stacks
+                  <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  {remaining.map((stack, index) => (
+                    <StackRecommendationCard key={stack.merchantId} recommendation={stack} stores={bundle.stores} rank={BEST_STACK_INITIAL_COUNT + index + 1} />
+                  ))}
+                </div>
+              </details>
+            ) : null}
+          </>
         ) : <EmptyState filtered={false} />}
+
+        {rewards.length ? (
+          <section className="mt-12" aria-labelledby="rewards-opportunities">
+            <div className="mb-1 flex items-center gap-2">
+              <Star aria-hidden className="size-5 text-amber-500" />
+              <h2 id="rewards-opportunities" className="text-xl font-bold tracking-tight">Rewards opportunities</h2>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Points-only opportunities — the cash price is unchanged, but you earn loyalty points worth chasing. Estimated points value is indicative, not a guaranteed cash saving.
+            </p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {rewards.map((stack) => (
+                <StackRecommendationCard key={stack.merchantId} recommendation={stack} stores={bundle.stores} />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </section>
     );
   }

@@ -222,6 +222,91 @@ describe("buildStackRecommendations", () => {
     expect(rec.effectivePrice).toBe(470); // only the $30 cashback is deducted
   });
 
+  it("never leaks internal or sample wording into public labels/notes", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" })],
+      cashbackOffers: [
+        makeCashback({
+          ratePercent: 6,
+          termsSummary: "Sample upsized rate on full-priced items.",
+          isUpsized: true,
+        }),
+      ],
+      giftCardOffers: [
+        makeGiftCard({
+          discountPercent: 5,
+          acceptedAtMerchantIds: ["myer"],
+          excludesGiftCardPayment: false,
+          pointsOnPurchase: {
+            program: "Flybuys",
+            earnNote: "Sample: 2,000 bonus points on gift cards",
+          },
+          confidence: "confirmed",
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const text = rec.components
+      .flatMap((c) => [c.label, c.note ?? ""])
+      .join(" | ");
+    expect(text).not.toMatch(/sample/i);
+    expect(text).not.toMatch(/illustrative/i);
+    expect(text).not.toMatch(/existing store listing/i);
+    expect(text).not.toMatch(/\bdemo\b/i);
+  });
+
+  it("omits a zero-saving gift card so it never renders as 0% off", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "coles", name: "Coles", discountPercent: 0 })],
+      giftCardOffers: [
+        makeGiftCard({ discountPercent: 0, acceptedAtMerchantIds: ["coles"] }),
+      ],
+      pointsOffers: [makePoints({ merchantId: "coles", earnMultiple: 1 })],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    expect(rec.components.some((c) => c.layer === "gift-card")).toBe(false);
+    expect(rec.components.every((c) => !c.label.includes("0% off"))).toBe(true);
+    expect(rec.kind).toBe("points-only");
+  });
+
+  it("titles a cash stack as the best available stack, not a weekly stack", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", name: "Myer", discountPercent: 10, discountCode: "MYER10" })],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    expect(rec.title).toBe("Myer best available stack");
+    expect(rec.title).not.toMatch(/weekly stack/i);
+  });
+
+  it("classifies cash vs points-only stacks", () => {
+    const cashData = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" })],
+    });
+    expect(buildStackRecommendations(undefined, 500, cashData, TEST_NOW)[0].kind).toBe("cash");
+
+    const pointsData = makeStackData({
+      stores: [makeStore({ id: "coles", discountPercent: 0 })],
+      pointsOffers: [makePoints({ merchantId: "coles", earnMultiple: 1 })],
+    });
+    expect(buildStackRecommendations(undefined, 500, pointsData, TEST_NOW)[0].kind).toBe(
+      "points-only"
+    );
+  });
+
+  it("exposes a copyable code only for coupon-like discount codes", () => {
+    const coded = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" })],
+    });
+    const codedRec = buildStackRecommendations(undefined, 500, coded, TEST_NOW)[0];
+    expect(codedRec.components.find((c) => c.layer === "discount")?.code).toBe("MYER10");
+
+    const phrase = makeStackData({
+      stores: [makeStore({ id: "amazon", discountPercent: 5, discountCode: "Subscribe & Save" })],
+    });
+    const phraseRec = buildStackRecommendations(undefined, 500, phrase, TEST_NOW)[0];
+    expect(phraseRec.components.find((c) => c.layer === "discount")?.code).toBeUndefined();
+  });
+
   it("stamps weekOf with the AU-calendar Monday, not the server-TZ week", () => {
     // TEST_NOW is Monday 2026-06-15 00:00 AEST — still Sunday in UTC. The old
     // server-local isoWeekMonday stamped the PREVIOUS week ("2026-06-08") on a

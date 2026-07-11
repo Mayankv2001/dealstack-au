@@ -71,11 +71,63 @@ against a second browser clock.
 ## Stack calculations
 
 Best stacks and the featured stack render `StackRecommendation` values from the
-existing stack engine. The Deals layer never recomputes effective prices.
-Gift-card and cashback savings are not combined when cashback excludes
-gift-card payment; the engine selects the stronger compatible layer and exposes
-the other as an alternative with a warning. Points value remains indicative
-and is not deducted from cash price.
+existing stack engine (`lib/stack/buildStack.ts`). The Deals layer never
+recomputes effective prices or which layers are compatible; presentation helpers
+in `lib/stack/present.ts` only read fields the engine already produced.
+
+Gift-card and cashback savings are not combined when cashback excludes gift-card
+payment; the engine selects the stronger compatible layer, marks it
+non-optional, and exposes the other as an `optional` alternative with a
+risk warning. A layer that saves nothing (for example a 0%-discount gift card
+that only earns bonus points) is never added as a cash layer, so "0% off" is
+never shown.
+
+### What qualifies as a Best stack
+
+`partitionStacks` splits raw engine output into two shopper-facing groups:
+
+- **Best stacks** — cash-saving stacks (`kind === "cash"`) with a positive total
+  saving, an effective discount of at least
+  `MIN_BEST_STACK_DISCOUNT_PERCENT` (1%), and at least one non-optional
+  discount / gift-card / cashback layer that actually reduces the price. They are
+  ranked by cash saving, then effective discount, then confidence, then a stable
+  merchant tiebreak. Only the strongest `BEST_STACK_INITIAL_COUNT` (5) show
+  first; the rest sit behind a "View all stacks" disclosure.
+- **Rewards opportunities** — points-only stacks (`kind === "points-only"`),
+  where the cash price is unchanged. These render a dedicated card showing the
+  unchanged cash price, the approximate points earned and an indicative points
+  value that is explicitly **not** deducted from the cash price and never claimed
+  as a guaranteed cash saving.
+
+Stacks that neither save cash nor earn points are dropped from both groups.
+
+### Source de-duplication
+
+A stack draws citations from every matching offer and every corroborating
+OzBargain signal, so the same source repeats — once per node URL.
+`summariseCitations` (`lib/stack/citationSummary.ts`) collapses them for display
+without losing traceability: it dedupes by source and normalised URL, groups the
+result into distinct providers ranked by trust weight, and a collapsed card
+shows at most three provider badges plus an "N sources checked" count. The full,
+distinct citation list stays reachable in a native `<details>` disclosure, so
+every source is one keyboard-accessible interaction away.
+
+### Trust and compatibility presentation
+
+Each card shows one stack-level trust line derived from the engine's
+worst-of-component confidence and its verification warnings ("All layers source
+checked", "1 layer needs verification", "Terms may have changed") instead of
+repeating a per-citation "verified" badge. Community corroboration is never
+presented as price or terms verification. Per-layer confidence detail remains
+available in the card's expanded sections.
+
+Layer compatibility is explicit: combinable layers are badged "Can be combined"
+and the mutually exclusive side of a gift-card/cashback conflict is badged
+"Choose one", mirroring the engine's `optional` flag. Generic "check before you
+buy" text is replaced by one trust notice beside the page heading; within a card
+only stack-specific warnings appear (expiry soon, needs verification, cap
+reached, gift-card/cashback conflict, stale data), each with human-readable
+Australia-local dates rather than raw ISO strings.
 
 ## Publication and failure boundaries
 
@@ -95,9 +147,19 @@ top-level source failure can preserve available public content.
 
 The route is a Server Component. URL parsing, normalisation, filtering,
 deduplication, grouping, sorting and pagination execute on the server; cards do
-not receive the unpaginated pool. The compact mobile filter disclosure uses
-native keyboard/focus behaviour and avoids a page-sized hydrated client
-island.
+not receive the unpaginated pool. The compact mobile filter disclosure and the
+per-card source disclosure use native `<details>` keyboard/focus behaviour and
+avoid a page-sized hydrated client island. The only client island on a stack
+card is the copy-code button, which reports success through an `aria-live`
+region and degrades gracefully without the Clipboard API.
+
+Stack behaviour is covered by `tests/stack/citationSummary.test.ts` (source
+de-duplication, counts, preserved traceability), `tests/stack/present.test.ts`
+(Best-stack qualification, points-only routing, ranking, trust status, layer
+compatibility), `tests/stack/buildStack.test.ts` (no sample/internal wording,
+outcome-based titles, cash vs points-only classification, copyable codes) and
+`tests/stack/stackRecommendationCard.test.tsx` (collapsed sources, single trust
+line, no raw ISO dates, points-not-deducted, "Choose one" and copy-code).
 
 Run:
 

@@ -85,6 +85,7 @@ describe("SmartStackComparisonCard", () => {
           recommendation: {
             merchantId: "retailer-b",
             merchantName: "Retailer B",
+            kind: "cash",
             title: "Fallback estimate",
             basePrice: 500,
             components: [],

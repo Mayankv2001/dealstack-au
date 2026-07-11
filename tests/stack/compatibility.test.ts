@@ -98,7 +98,9 @@ describe("staleDataWarning", () => {
     const w = staleDataWarning("2026-05-01T00:00:00+10:00", NOW, "The offer");
     expect(w?.code).toBe("stale-data");
     expect(w?.level).toBe("info");
-    expect(w?.message).toContain("2026-05-01");
+    // Human-readable AU date, never a raw ISO string.
+    expect(w?.message).toContain("1 May 2026");
+    expect(w?.message).not.toContain("2026-05-01");
   });
 
   it("returns null for missing or unparseable dates", () => {
