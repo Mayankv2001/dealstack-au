@@ -197,6 +197,12 @@ export interface OzBargainSignal {
   merchantUrl?: string | null;
   /** Exact product/category page at the retailer, if the post points to one. */
   productUrl?: string | null;
+  /**
+   * Admin-assigned key linking signals for the SAME product across retailers
+   * (e.g. "airpods-pro-3"). Search groups shared-key signals into one product
+   * with a retailer price-comparison. Null = ungrouped (renders standalone).
+   */
+  productGroup?: string | null;
 }
 
 export interface WeeklyDeal {

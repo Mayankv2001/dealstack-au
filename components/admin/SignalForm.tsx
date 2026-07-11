@@ -70,6 +70,7 @@ export interface SignalFormDefaults {
   sourceUrl?: string;
   merchantUrl?: string | null;
   productUrl?: string | null;
+  productGroup?: string | null;
   postedAt?: string | null;
   expiryDate?: string | null;
   tags?: string[];
@@ -356,6 +357,21 @@ export function SignalForm({
               />
             </Field>
           </div>
+
+          <Field
+            label="Product group"
+            htmlFor="product_group"
+            hint="Optional exact key shared only by the same product at other retailers, e.g. airpods-pro-3. Lowercase letters, numbers and hyphens only."
+          >
+            <Input
+              id="product_group"
+              name="product_group"
+              maxLength={80}
+              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+              placeholder="airpods-pro-3"
+              defaultValue={defaultValues?.productGroup ?? ""}
+            />
+          </Field>
 
           <Field
             label="Source URL"

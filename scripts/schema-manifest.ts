@@ -44,6 +44,7 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Grants-only (revokes EXECUTE on the 009/011 trigger functions) — no
   // schema shape change, so no EXPECTED_SCHEMA entry, same as 008.
   "013_revoke_trigger_function_execute.sql",
+  "014_signal_product_group.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -88,13 +89,19 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "point_value_cents", "mechanism", "expiry_date", "citations", "confidence",
     "last_checked_at", "is_published", "created_at", "updated_at",
   ]),
-  ozbargain_signals: table("001_initial_schema.sql", [
-    "id", "source_native_id", "merchant_id", "title", "summary",
-    "votes_sample", "comment_count", "sentiment", "deal_kind", "source_url",
-    "merchant_url", "product_url", "posted_at", "expiry_date", "tags",
-    "promo_code", "price_text", "signal_score", "confidence",
-    "last_checked_at", "is_sample", "status", "created_at", "updated_at",
-  ]),
+  // 001_initial_schema.sql — extended by 014 (product_group).
+  ozbargain_signals: table(
+    "001_initial_schema.sql",
+    [
+      "id", "source_native_id", "merchant_id", "title", "summary",
+      "votes_sample", "comment_count", "sentiment", "deal_kind", "source_url",
+      "merchant_url", "product_url", "posted_at", "expiry_date", "tags",
+      "promo_code", "price_text", "signal_score", "confidence",
+      "last_checked_at", "is_sample", "status", "created_at", "updated_at",
+      "product_group",
+    ],
+    { product_group: "014_signal_product_group.sql" }
+  ),
   weekly_deals: table("001_initial_schema.sql", [
     "id", "week_of", "merchant_id", "title", "summary", "highlight",
     "component_ids", "citations", "expiry_date", "confidence",

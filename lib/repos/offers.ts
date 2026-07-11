@@ -377,6 +377,7 @@ interface SignalRow {
   last_checked_at: string;
   is_sample: boolean;
   status: NonNullable<OzBargainSignal["status"]>;
+  product_group: string | null;
 }
 
 function mapSignal(r: SignalRow): OzBargainSignal {
@@ -403,6 +404,7 @@ function mapSignal(r: SignalRow): OzBargainSignal {
     lastCheckedAt: r.last_checked_at,
     isSample: r.is_sample,
     status: r.status,
+    productGroup: r.product_group ?? null,
   };
 }
 

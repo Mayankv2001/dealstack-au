@@ -82,6 +82,7 @@ export interface SignalInput {
   confidence: Confidence;
   isSample: boolean;
   status: SignalStatus;
+  productGroup: string | null;
 }
 
 // ── Row mapping ──────────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ interface AdminSignalRow {
   last_checked_at: string;
   is_sample: boolean;
   status: SignalStatus;
+  product_group: string | null;
   updated_at: string;
   // Embedded one-to-one store (PostgREST returns an object, but type defensively).
   store: { name: string } | { name: string }[] | null;
@@ -138,6 +140,7 @@ function mapAdminSignal(r: AdminSignalRow): AdminSignal {
     lastCheckedAt: r.last_checked_at,
     isSample: r.is_sample,
     status: r.status,
+    productGroup: r.product_group ?? null,
     storeName: store?.name ?? null,
     updatedAt: r.updated_at,
   };
@@ -165,6 +168,7 @@ function toRow(input: SignalInput) {
     confidence: input.confidence,
     is_sample: input.isSample,
     status: input.status,
+    product_group: input.productGroup,
     // The admin is hand-verifying the data on every save, so stamp it now.
     last_checked_at: new Date().toISOString(),
   };

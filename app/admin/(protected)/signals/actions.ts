@@ -21,6 +21,7 @@ import {
   type SignalStatus,
 } from "@/lib/admin/repos/signals";
 import type { Confidence, DealKind } from "@/lib/sources/types";
+import { parseProductGroup } from "@/lib/offers/productGroup";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
@@ -135,6 +136,15 @@ function parseSignalForm(formData: FormData): ParseResult {
     return { ok: false, error: "Product URL must be a valid URL (including https://)." };
   }
 
+  const productGroup = parseProductGroup(formData.get("product_group"));
+  if (!productGroup.ok) {
+    return {
+      ok: false,
+      error:
+        "Product group must be 1-80 characters of lowercase letters, numbers and single hyphens.",
+    };
+  }
+
   const votesSample = parseOptionalInt(formData.get("votes_sample"));
   if (!votesSample.ok) {
     return { ok: false, error: "Votes must be a non-negative whole number." };
@@ -176,6 +186,7 @@ function parseSignalForm(formData: FormData): ParseResult {
       confidence: confidence as Confidence,
       isSample: parseBool(formData, "is_sample"),
       status: status as SignalStatus,
+      productGroup: productGroup.value,
     },
   };
 }
@@ -185,6 +196,7 @@ function revalidateSignals(): void {
   revalidatePath("/");
   revalidatePath("/deals");
   revalidatePath("/admin/signals");
+  revalidatePath("/search");
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
@@ -211,6 +223,7 @@ export async function createSignal(
       title: parsed.input.title,
       status: parsed.input.status,
       isSample: parsed.input.isSample,
+      productGroup: parsed.input.productGroup,
     },
   });
   revalidateSignals();
@@ -238,6 +251,7 @@ export async function updateSignal(
     rowId: id,
     diff: {
       title: parsed.input.title,
+      productGroup: parsed.input.productGroup,
       status: parsed.input.status,
       isSample: parsed.input.isSample,
     },

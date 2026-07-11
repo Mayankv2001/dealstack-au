@@ -6,13 +6,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import Logo from "@/components/Logo";
 import SearchBar from "@/components/SearchBar";
 import SmartStackResultCard from "@/components/SmartStackResultCard";
+import SmartStackComparisonCard from "@/components/SmartStackComparisonCard";
 import SourceResultCard from "@/components/SourceResultCard";
 import StoreCard from "@/components/StoreCard";
 import SiteFooter from "@/components/SiteFooter";
 import type { Store } from "@/lib/data";
 import { getStores } from "@/lib/repos";
 import { searchSourceResults } from "@/lib/repos/sourceResults";
-import { loadSmartStackResults } from "@/lib/stack/smartStack";
+import {
+  buildSmartStackView,
+  loadSmartStackResults,
+} from "@/lib/stack/smartStack";
 
 export async function generateMetadata({
   searchParams,
@@ -70,6 +74,7 @@ export default async function SearchPage({
   // every other source). Each is stacked at the signal's own price where the
   // store has an offer; those without a stack still surface as deal cards.
   const smartStackResults = query ? await loadSmartStackResults(query) : [];
+  const smartStackView = buildSmartStackView(smartStackResults);
   const stackedCount = smartStackResults.filter((r) => r.recommendation).length;
 
   return (
@@ -134,13 +139,21 @@ export default async function SearchPage({
               {`${smartStackResults.length} ${smartStackResults.length === 1 ? "match" : "matches"} across Costco Hot Buys, OzBargain and your stores${stackedCount > 0 ? ` — ${stackedCount} stacked instantly with the best gift card, cashback and points` : ""}.`}
             </p>
             <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {smartStackResults.map((result) => (
-                <SmartStackResultCard
-                  key={result.signal.id}
-                  result={result}
-                  stores={stores}
-                />
-              ))}
+              {smartStackView.map((item) =>
+                item.kind === "comparison" ? (
+                  <SmartStackComparisonCard
+                    key={`comparison-${item.productGroup}`}
+                    comparison={item}
+                    stores={stores}
+                  />
+                ) : (
+                  <SmartStackResultCard
+                    key={item.result.signal.id}
+                    result={item.result}
+                    stores={stores}
+                  />
+                )
+              )}
             </div>
           </section>
         ) : null}

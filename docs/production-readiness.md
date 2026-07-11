@@ -28,6 +28,12 @@ supabase db push
 | 006 | `supabase/migrations/006_admin_rate_limits.sql` | `admin_rate_limits` (per-admin mutation rate-limit ledger) |
 | 007 | `supabase/migrations/007_card_offers.sql` | `card_offers` (bank/credit-card offers shown on `/cards`) |
 | 008 | `supabase/migrations/008_pin_function_search_path.sql` | Pins `set_updated_at()`'s search_path to `''` — no schema shape change, clears Supabase advisor WARN `function_search_path_mutable` (lint 0011) |
+| 009 | `supabase/migrations/009_card_offer_lifecycle.sql` | Card-offer lifecycle history and publication safeguards |
+| 010 | `supabase/migrations/010_atomic_admin_rate_limit.sql` | Atomic admin mutation rate limiting |
+| 011 | `supabase/migrations/011_transactional_admin_audit.sql` | Transactional audited admin write functions |
+| 012 | `supabase/migrations/012_card_offer_correction_reports.sql` | Public card-offer correction reports and rate limits |
+| 013 | `supabase/migrations/013_revoke_trigger_function_execute.sql` | Revokes direct execution of privileged trigger functions |
+| 014 | `supabase/migrations/014_signal_product_group.sql` | Optional admin-assigned product key for multi-retailer signal comparison |
 
 **Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss). The expected tables/columns live in `scripts/schema-manifest.ts` with per-column migration ownership; `tests/admin/schemaManifest.test.ts` fails `npm run test:admin` if a committed migration is missing from that manifest, so the probe cannot silently under-cover new migrations. Local runs need **Node 22** (`nvm use 22`) — on Node 20, `@supabase/supabase-js` aborts before probing ("no native WebSocket support").
 
@@ -254,7 +260,7 @@ is read-only, uncached, and makes no external feed request.
 
 ## 13. Pre-launch verification checklist
 
-- [ ] All 7 migrations applied and verified in Supabase Dashboard
+- [ ] All 14 migrations applied and verified in Supabase Dashboard
 - [ ] Admin user created and email inserted into `admins` table
 - [ ] All required Vercel env vars set (no placeholder values)
 - [ ] `npm run build` passes locally with production env vars

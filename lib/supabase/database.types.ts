@@ -709,6 +709,7 @@ export type Database = {
           merchant_url: string | null
           posted_at: string | null
           price_text: string | null
+          product_group: string | null
           product_url: string | null
           promo_code: string | null
           sentiment: string
@@ -735,6 +736,7 @@ export type Database = {
           merchant_url?: string | null
           posted_at?: string | null
           price_text?: string | null
+          product_group?: string | null
           product_url?: string | null
           promo_code?: string | null
           sentiment: string
@@ -761,6 +763,7 @@ export type Database = {
           merchant_url?: string | null
           posted_at?: string | null
           price_text?: string | null
+          product_group?: string | null
           product_url?: string | null
           promo_code?: string | null
           sentiment?: string

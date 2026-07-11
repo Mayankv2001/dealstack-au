@@ -221,6 +221,7 @@ const signalRows: (Row & SignalSeedRow)[] = ozBargainSignals.map((o) => ({
   source_url: o.sourceUrl,
   merchant_url: o.merchantUrl ?? null,
   product_url: o.productUrl ?? null,
+  product_group: o.productGroup ?? null,
   posted_at: o.postedAt ?? null,
   expiry_date: o.expiryDate ?? null,
   tags: o.tags ?? [],

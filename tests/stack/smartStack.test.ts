@@ -4,6 +4,8 @@ import type { OzBargainSignal } from "@/lib/offers/types";
 import type { StackData } from "@/lib/stack/buildStack";
 import {
   buildSmartStackResults,
+  buildSmartStackView,
+  comparablePrice,
   parsePriceText,
 } from "@/lib/stack/smartStack";
 
@@ -143,5 +145,103 @@ describe("buildSmartStackResults", () => {
 
   it("returns nothing when no signal matches the query", () => {
     expect(buildSmartStackResults("refrigerator", DATA)).toEqual([]);
+  });
+});
+
+describe("buildSmartStackView", () => {
+  function resultsFor(signals: OzBargainSignal[]) {
+    return buildSmartStackResults("macbook", {
+      ...DATA,
+      ozBargainSignals: signals,
+    });
+  }
+
+  it("groups an exact product key across distinct retailers", () => {
+    const results = resultsFor(
+      DATA.ozBargainSignals.slice(0, 2).map((item) => ({
+        ...item,
+        productGroup: "macbook-air-m3",
+      }))
+    );
+
+    const view = buildSmartStackView(results);
+    expect(view).toHaveLength(1);
+    expect(view[0].kind).toBe("comparison");
+    if (view[0].kind !== "comparison") throw new Error("expected comparison");
+    expect(view[0].options.map((option) => option.signal.id)).toEqual([
+      "sig-macbook-jb",
+      "sig-macbook-costco",
+    ]);
+  });
+
+  it("keeps single-retailer, merchant-less and malformed groups standalone", () => {
+    const results = resultsFor([
+      signal({
+        id: "same-retailer-a",
+        title: "MacBook one",
+        merchantId: "jb-hifi",
+        productGroup: "macbook-air-m3",
+        priceText: "$1,800",
+      }),
+      signal({
+        id: "same-retailer-b",
+        title: "MacBook two",
+        merchantId: "jb-hifi",
+        productGroup: "macbook-air-m3",
+        priceText: "$1,700",
+      }),
+      signal({
+        id: "missing-retailer",
+        title: "MacBook unknown seller",
+        productGroup: "macbook-air-m3",
+        priceText: "$1,600",
+      }),
+      signal({
+        id: "invalid-group",
+        title: "MacBook invalid group",
+        merchantId: "costco",
+        productGroup: "MacBook Air M3",
+        priceText: "$1,500",
+      }),
+    ]);
+
+    const view = buildSmartStackView(results);
+    expect(view.every((item) => item.kind === "standalone")).toBe(true);
+    expect(view).toHaveLength(4);
+  });
+
+  it("keeps the cheapest effective option per retailer and puts unknown prices last", () => {
+    const results = resultsFor([
+      signal({
+        id: "jb-expensive",
+        title: "MacBook JB expensive",
+        merchantId: "jb-hifi",
+        productGroup: "macbook-air-m3",
+        priceText: "$1,900",
+      }),
+      signal({
+        id: "jb-cheap",
+        title: "MacBook JB cheap",
+        merchantId: "jb-hifi",
+        productGroup: "macbook-air-m3",
+        priceText: "$1,700",
+      }),
+      signal({
+        id: "costco-unpriced",
+        title: "MacBook Costco call for price",
+        merchantId: "costco",
+        productGroup: "macbook-air-m3",
+        priceText: "Member special",
+      }),
+    ]);
+
+    const view = buildSmartStackView(results);
+    expect(view).toHaveLength(1);
+    if (view[0].kind !== "comparison") throw new Error("expected comparison");
+    expect(view[0].options.map((option) => option.signal.id)).toEqual([
+      "jb-cheap",
+      "costco-unpriced",
+    ]);
+    expect(comparablePrice(view[0].options[1])).toBeNull();
   });
 });

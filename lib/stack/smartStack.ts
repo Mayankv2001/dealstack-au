@@ -1,5 +1,6 @@
 import { findMerchantIdInText, normaliseText } from "@/lib/sources/normalise";
 import type { OzBargainSignal, StackRecommendation } from "@/lib/offers/types";
+import { isValidProductGroup } from "@/lib/offers/productGroup";
 import {
   DEFAULT_SPEND,
   buildStackRecommendations,
@@ -36,6 +37,22 @@ export interface SmartStackResult {
   /** Base price parsed from the signal, or null when none could be read. */
   signalPrice: number | null;
 }
+
+export interface SmartStackComparison {
+  kind: "comparison";
+  productGroup: string;
+  /** Best-priced option supplies the public heading; the key stays internal. */
+  title: string;
+  /** One best current signal per retailer, cheapest effective price first. */
+  options: SmartStackResult[];
+}
+
+export interface SmartStackStandalone {
+  kind: "standalone";
+  result: SmartStackResult;
+}
+
+export type SmartStackViewItem = SmartStackComparison | SmartStackStandalone;
 
 /**
  * Pull the first AUD amount out of a price string.
@@ -101,6 +118,85 @@ export function buildSmartStackResults(
     if (aHas !== bHas) return bHas - aHas;
     return (b.signal.signalScore ?? 0) - (a.signal.signalScore ?? 0);
   });
+}
+
+/** A price is comparable only when it came from the signal, not DEFAULT_SPEND. */
+export function comparablePrice(result: SmartStackResult): number | null {
+  if (result.signalPrice === null) return null;
+  return result.recommendation?.effectivePrice ?? result.signalPrice;
+}
+
+function compareRetailerOptions(
+  a: SmartStackResult,
+  b: SmartStackResult
+): number {
+  const aPrice = comparablePrice(a);
+  const bPrice = comparablePrice(b);
+  if (aPrice === null && bPrice !== null) return 1;
+  if (aPrice !== null && bPrice === null) return -1;
+  if (aPrice !== null && bPrice !== null && aPrice !== bPrice) {
+    return aPrice - bPrice;
+  }
+  const scoreDiff = (b.signal.signalScore ?? 0) - (a.signal.signalScore ?? 0);
+  if (scoreDiff !== 0) return scoreDiff;
+  return a.signal.id.localeCompare(b.signal.id);
+}
+
+function retailerId(result: SmartStackResult): string | null {
+  return result.recommendation?.merchantId ?? result.signal.merchantId ?? null;
+}
+
+/**
+ * Project flat results into public cards. A key only becomes a comparison when
+ * it has at least two known retailers; malformed, single-retailer and
+ * merchant-less groups remain standalone to avoid misleading public merges.
+ */
+export function buildSmartStackView(
+  results: SmartStackResult[]
+): SmartStackViewItem[] {
+  const grouped = new Map<string, SmartStackResult[]>();
+  const standalone = new Set(results);
+
+  for (const result of results) {
+    const key = result.signal.productGroup;
+    if (!key || !isValidProductGroup(key)) continue;
+    const members = grouped.get(key) ?? [];
+    members.push(result);
+    grouped.set(key, members);
+  }
+
+  const comparisons: SmartStackComparison[] = [];
+  for (const [productGroup, members] of grouped) {
+    const bestByRetailer = new Map<string, SmartStackResult>();
+    for (const member of members) {
+      const merchant = retailerId(member);
+      if (!merchant) continue;
+      const current = bestByRetailer.get(merchant);
+      if (!current || compareRetailerOptions(member, current) < 0) {
+        bestByRetailer.set(merchant, member);
+      }
+    }
+
+    if (bestByRetailer.size < 2) continue;
+    const options = [...bestByRetailer.values()].sort(compareRetailerOptions);
+    for (const member of members) standalone.delete(member);
+    comparisons.push({
+      kind: "comparison",
+      productGroup,
+      title: options[0].signal.title,
+      options,
+    });
+  }
+
+  comparisons.sort((a, b) =>
+    compareRetailerOptions(a.options[0], b.options[0])
+  );
+  return [
+    ...comparisons,
+    ...results
+      .filter((result) => standalone.has(result))
+      .map((result): SmartStackStandalone => ({ kind: "standalone", result })),
+  ];
 }
 
 /** Server entry point: load the authoritative repo bundle, then build results. */
