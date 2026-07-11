@@ -10,9 +10,11 @@ import {
 } from "@/lib/monitor/offerChanges";
 import type { FeedItemInsert } from "@/lib/monitor/mapFeedItem";
 import { feedItemReviewState } from "@/lib/monitor/feedItemPreference";
+import { classifyFeedChanges } from "@/lib/monitor/classifyFeedChanges";
 import { isApprovedFeedUrl } from "@/lib/security/urlPolicy";
 import type {
   FeedFetchLogEntry,
+  FeedUpsertResult,
   FeedPollStatePatch,
   MonitorFeed,
 } from "@/lib/monitor/runMonitor";
@@ -20,15 +22,15 @@ import type {
 /**
  * Admin-side feed sources repository — SERVICE-ROLE ONLY.
  *
- * Manages the `feed_sources` allowlist for the PLANNED OzBargain monitor. Like
+ * Manages the `feed_sources` allowlist for the OzBargain monitor. Like
  * the other admin repos it talks to Supabase through getSupabaseAdmin() (which
  * bypasses RLS) and must only run on the server behind requireAdmin(); the
  * browser guard inside getSupabaseAdmin() is the backstop.
  *
  * This is registration/config only. There is NO fetcher, cron, or agent — and
  * nothing here makes an external request. Enabling a feed merely flags it as
- * eligible for a future monitor run; the poll-state columns (etag, last_status,
- * failure_count, next_earliest_fetch_at) are written by that future monitor, so
+ * eligible for a monitor run; the poll-state columns (etag, last_status,
+ * failure_count, next_earliest_fetch_at) are written by the monitor, so
  * the admin UI treats them as read-only.
  */
 
@@ -284,10 +286,9 @@ export async function listDueEnabledFeeds(opts: {
 }
 
 /**
- * Stage parsed items as `feed_items`, ignoring conflicts on source_native_id so
- * re-runs are idempotent and never clobber an admin's triage. Returns the number
- * of NEW rows inserted. Never publishes — promotion to a pending signal stays a
- * separate manual queue action.
+ * Stage parsed items as `feed_items`. Native id, canonical link and content hash
+ * dedupe repeat deals; changed source content refreshes the private ledger while
+ * preserving prior moderation. Fetching never publishes.
  *
  * Each new row's INITIAL review_state is chosen by the offline category
  * classifier (lib/monitor/feedItemPreference): preferred / uncertain items are
@@ -299,29 +300,85 @@ export async function listDueEnabledFeeds(opts: {
 export async function upsertFeedItems(
   feedSourceId: string,
   items: FeedItemInsert[]
-): Promise<number> {
-  if (items.length === 0) return 0;
+): Promise<FeedUpsertResult> {
+  if (items.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
   const db = getSupabaseAdmin();
+  const existing: {
+    sourceNativeId: string;
+    contentHash: string | null;
+    reviewState: string;
+    link: string;
+  }[] = [];
+  const nativeIds = [...new Set(items.map((item) => item.source_native_id))];
+  for (let index = 0; index < nativeIds.length; index += 100) {
+    const { data, error } = await db
+      .from("feed_items")
+      .select("source_native_id, content_hash, review_state, link")
+      .in("source_native_id", nativeIds.slice(index, index + 100));
+    if (error) throw new Error(`upsertFeedItems lookup failed: ${error.message}`);
+    for (const row of data ?? []) {
+      existing.push({
+        sourceNativeId: row.source_native_id,
+        contentHash: row.content_hash,
+        reviewState: row.review_state,
+        link: row.link,
+      });
+    }
+  }
+  const hashes = [...new Set(items.map((item) => item.content_hash))];
+  const links = [...new Set(items.map((item) => item.link).filter(Boolean))];
+  for (const [column, values] of [
+    ["content_hash", hashes],
+    ["link", links],
+  ] as const) {
+    for (let index = 0; index < values.length; index += 100) {
+      const { data, error } = await db
+        .from("feed_items")
+        .select("source_native_id, content_hash, review_state, link")
+        .in(column, values.slice(index, index + 100));
+      if (error) throw new Error(`upsertFeedItems ${column} lookup failed: ${error.message}`);
+      for (const row of data ?? []) {
+        if (existing.some((item) => item.sourceNativeId === row.source_native_id)) continue;
+        existing.push({
+          sourceNativeId: row.source_native_id,
+          contentHash: row.content_hash,
+          reviewState: row.review_state,
+          link: row.link,
+        });
+      }
+    }
+  }
+
   const fetchedAt = new Date().toISOString();
-  const rows = items.map((item) => ({
-    feed_source_id: feedSourceId,
-    source_native_id: item.source_native_id,
-    link: item.link,
-    raw_title: item.raw_title,
-    raw_summary: item.raw_summary,
-    categories: item.categories,
-    posted_at: item.posted_at,
-    content_hash: item.content_hash,
-    fetched_at: fetchedAt,
-    // preferred / uncertain → 'new'; non-preferred categories → 'ignored'.
-    review_state: feedItemReviewState(item),
-  }));
+  const { changes, inserted, updated, skipped } = classifyFeedChanges(
+    items,
+    existing
+  );
+  const rows = changes.map(({ item, previousReviewState }) => ({
+      feed_source_id: feedSourceId,
+      source_native_id: item.source_native_id,
+      link: item.link,
+      raw_title: item.raw_title,
+      raw_summary: item.raw_summary,
+      categories: item.categories,
+      posted_at: item.posted_at,
+      content_hash: item.content_hash,
+      thumbnail_url: item.thumbnail_url,
+      fetched_at: fetchedAt,
+      // Existing moderation is immutable across source edits. Only new items
+      // receive the category classifier's initial state.
+      review_state: previousReviewState ?? feedItemReviewState(item),
+    }));
+  if (rows.length === 0) return { inserted, updated, skipped };
   const { data, error } = await db
     .from("feed_items")
-    .upsert(rows, { onConflict: "source_native_id", ignoreDuplicates: true })
+    .upsert(rows, { onConflict: "source_native_id", ignoreDuplicates: false })
     .select("id");
   if (error) throw new Error(`upsertFeedItems failed: ${error.message}`);
-  return data?.length ?? 0;
+  if ((data?.length ?? 0) !== rows.length) {
+    throw new Error("upsertFeedItems did not persist every changed candidate.");
+  }
+  return { inserted, updated, skipped };
 }
 
 /** Update ONLY the monitor-managed poll-state columns of a feed source. */
@@ -361,6 +418,8 @@ export async function insertFeedFetchLog(
     http_status: entry.httpStatus,
     items_seen: entry.itemsSeen,
     items_new: entry.itemsNew,
+    items_updated: entry.itemsUpdated,
+    items_skipped: entry.itemsSkipped,
     error: entry.error,
   });
   if (error) throw new Error(`insertFeedFetchLog failed: ${error.message}`);

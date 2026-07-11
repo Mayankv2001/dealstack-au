@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import QueueClient from "./QueueClient";
 
 export const metadata: Metadata = {
-  title: "Feed import queue | DealStack AU admin",
+  title: "Deal review queue | DealStack AU admin",
 };
 
 export default async function FeedQueuePage() {
@@ -32,10 +32,10 @@ export default async function FeedQueuePage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <h1 className="font-heading text-2xl font-semibold">
-            Feed import queue
+            Deal review queue
           </h1>
           <p className="text-sm text-muted-foreground">
-            Staged OzBargain feed items awaiting manual review.
+            New OzBargain deals awaiting one human publication decision.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -44,14 +44,9 @@ export default async function FeedQueuePage() {
       </header>
 
       <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">Two steps to publish.</span>{" "}
-        <strong className="font-medium text-foreground">Import</strong> creates
-        a <em>pending</em> signal — it is not public yet. A second manual step in{" "}
-        <Link href="/admin/signals" className="underline">
-          Signals
-        </Link>{" "}
-        is required to approve and publish it. Ignore and Mark duplicate never
-        touch public data.
+        <span className="font-medium text-foreground">One review step.</span>{" "}
+        Approve publishes the selected deal; Reject archives the queue record
+        without deleting history. Fetching never publishes automatically.
       </p>
 
       {totalNew > items.length ? (
@@ -60,13 +55,7 @@ export default async function FeedQueuePage() {
           <strong className="font-medium text-foreground">{items.length}</strong>{" "}
           of{" "}
           <strong className="font-medium text-foreground">{totalNew}</strong>{" "}
-          staged items. Older items appear as these are triaged. To clear
-          abandoned items in bulk, use the keyword presets with
-          &ldquo;Ignore visible&rdquo;, or run{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            npm run cleanup:old-deals
-          </code>{" "}
-          locally to ignore items staged more than 60 days ago.
+          review items. Older items appear as these are approved or rejected.
         </p>
       ) : null}
 
@@ -76,14 +65,13 @@ export default async function FeedQueuePage() {
             <Inbox className="size-8 text-muted-foreground" />
             <p className="font-medium">The queue is empty</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              No feed items are waiting for review. Imported, ignored and
-              duplicate items are hidden here.
+              No feed items are waiting for review. Approved and rejected items
+              remain archived in the database.
             </p>
           </CardContent>
         </Card>
       ) : (
-        // Client island: in-memory search / filter / presets + scoped bulk ignore.
-        // The Import / Ignore / Mark duplicate actions are unchanged.
+        // Client island: in-memory search/filter/sort and scoped bulk moderation.
         <QueueClient items={items} />
       )}
     </div>

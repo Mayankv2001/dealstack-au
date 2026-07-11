@@ -4,8 +4,8 @@ import { XMLParser } from "fast-xml-parser";
  * Pure RSS/Atom feed parser — OFFLINE ONLY.
  *
  * Takes a feed XML STRING and returns normalised entries. There is NO network
- * here: this module never calls fetch and never reaches OzBargain — the future
- * fetcher (a separate, compliance-gated module) is the only thing allowed to
+ * here: this module never calls fetch and never reaches OzBargain — the
+ * compliance-gated fetcher is the only thing allowed to
  * make a request, and it will hand the response body to this parser. Tests feed
  * it local fixture XML only.
  *
@@ -26,6 +26,8 @@ export interface ParsedFeedItem {
   /** Raw pubDate/updated/published string; null when absent. */
   published: string | null;
   categories: string[];
+  /** Optional feed-supplied image URL; never fetched by the monitor. */
+  thumbnailUrl?: string | null;
 }
 
 type XmlNode = Record<string, unknown>;
@@ -97,6 +99,19 @@ function categoriesOf(node: unknown): string[] {
   return out;
 }
 
+function thumbnailOf(item: XmlNode): string | null {
+  for (const key of ["media:thumbnail", "media:content", "thumbnail", "enclosure"]) {
+    const raw = item[key];
+    const candidates = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== "object") continue;
+      const value = textOf((candidate as XmlNode)["@_url"])?.trim();
+      if (value) return value;
+    }
+  }
+  return null;
+}
+
 function mapRssItem(item: XmlNode): ParsedFeedItem {
   return {
     title: textOf(item.title) ?? "",
@@ -105,6 +120,7 @@ function mapRssItem(item: XmlNode): ParsedFeedItem {
     summary: textOf(item.description) ?? "",
     published: textOf(item.pubDate),
     categories: categoriesOf(item.category),
+    thumbnailUrl: thumbnailOf(item),
   };
 }
 
@@ -116,6 +132,7 @@ function mapAtomEntry(entry: XmlNode): ParsedFeedItem {
     summary: textOf(entry.summary) ?? textOf(entry.content) ?? "",
     published: textOf(entry.updated) ?? textOf(entry.published),
     categories: categoriesOf(entry.category),
+    thumbnailUrl: thumbnailOf(entry),
   };
 }
 

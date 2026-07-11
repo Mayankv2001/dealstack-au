@@ -78,6 +78,19 @@ export function isApprovedFeedUrl(sourceType: string, value: string): boolean {
   return approvedHosts.has(url.hostname.toLowerCase());
 }
 
+/** Exact OzBargain deal-post URL permitted for status-only HEAD validation. */
+export function isApprovedOzBargainPostUrl(value: string): boolean {
+  const canonical = safeHttpsUrl(value);
+  if (!canonical) return false;
+  const url = new URL(canonical);
+  return (
+    APPROVED_FEED_HOSTS.ozbargain.has(url.hostname.toLowerCase()) &&
+    /^\/node\/\d+\/?$/.test(url.pathname) &&
+    url.search === "" &&
+    url.hash === ""
+  );
+}
+
 /** Resolve and validate one feed redirect without exposing the target to callers. */
 export function resolveApprovedFeedRedirect(
   sourceType: string,

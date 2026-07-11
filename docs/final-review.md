@@ -8,6 +8,11 @@
 > past the 145 tests counted here; `npm run test:admin` and
 > `npm run cleanup:old-deals` now exist. Figures and file lists below
 > describe the 2026-06-25 state.
+>
+> **Workflow superseded 2026-07-11:** migration 015 replaced the historical
+> two-step import/pending flow below with direct human approval from the private
+> review queue. This file remains historical; `docs/production-readiness.md` is
+> authoritative for current operations.
 
 > Review conducted: 2026-06-25.
 > This is a no-code review. No production logic was changed.

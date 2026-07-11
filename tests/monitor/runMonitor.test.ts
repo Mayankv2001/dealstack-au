@@ -34,7 +34,7 @@ const okOutcome = (): FetchFeedOutcome => ({
 
 function makePersistence() {
   return {
-    upsertFeedItems: vi.fn(async () => 2),
+    upsertFeedItems: vi.fn(async () => ({ inserted: 2, updated: 0, skipped: 0 })),
     recordPollState: vi.fn(async () => {}),
     insertFetchLog: vi.fn(async () => {}),
   };

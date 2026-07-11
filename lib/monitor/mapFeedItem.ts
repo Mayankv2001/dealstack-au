@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import type { ParsedFeedItem } from "./parseFeed";
+import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Pure mapper: ParsedFeedItem → an object shaped for a `feed_items` insert.
  *
  * OFFLINE ONLY — no network, no DB. It strips HTML, normalises dates, and
- * derives a stable `source_native_id` and a `content_hash`. The future fetcher
+ * derives a stable `source_native_id` and a `content_hash`. The fetcher
  * adds the insert-time fields (`feed_source_id`, `fetched_at`, `review_state`);
  * those are not this module's concern.
  */
@@ -20,6 +21,7 @@ export interface FeedItemInsert {
   /** ISO 8601 timestamp, or null when the feed date was absent/unparseable. */
   posted_at: string | null;
   content_hash: string;
+  thumbnail_url: string | null;
 }
 
 const SUMMARY_MAX = 500;
@@ -92,6 +94,7 @@ export function mapFeedItem(item: ParsedFeedItem): FeedItemInsert {
     categories,
     posted_at: postedAt,
     content_hash: contentHash,
+    thumbnail_url: item.thumbnailUrl ? safeHttpsUrl(item.thumbnailUrl) : null,
   };
 }
 

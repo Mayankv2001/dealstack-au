@@ -106,9 +106,9 @@ export const ozbMonitorEnabled = (): boolean =>
 export const ozbMonitorUserAgent = (): string =>
   requireEnv("OZB_MONITOR_USER_AGENT");
 
-/** Hard cap on feeds touched per run (default 1). */
+/** Hard cap on feeds touched per daily run (default 10). */
 export const ozbMonitorMaxFeedsPerRun = (): number =>
-  optionalPositiveInt("OZB_MONITOR_MAX_FEEDS_PER_RUN", 1);
+  optionalPositiveInt("OZB_MONITOR_MAX_FEEDS_PER_RUN", 10);
 
 /** Floor on per-feed polling interval, in hours (default 12). */
 export const ozbMonitorMinIntervalHours = (): number =>

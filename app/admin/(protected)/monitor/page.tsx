@@ -113,7 +113,8 @@ function FetchLogSummary({
       <p className="font-medium">{log.feedSourceLabel ?? "—"}</p>
       <p className="text-xs text-muted-foreground tabular-nums">
         {formatDate(log.startedAt)} · HTTP {log.httpStatus ?? "—"} · seen{" "}
-        {log.itemsSeen} · new {log.itemsNew}
+        {log.itemsSeen} seen · {log.itemsNew} new · {log.itemsUpdated} updated ·{" "}
+        {log.itemsSkipped} skipped
       </p>
       {log.error ? (
         <p className="break-words text-xs text-destructive">{log.error}</p>
@@ -222,7 +223,7 @@ function recommendedAction(status: MonitorStatus): NextAction {
   if (!status.lastSuccessLog) {
     return {
       message:
-        "Configured — waiting for the first successful run. The cron runs daily at 02:00 UTC; check Recent fetch runs below.",
+        "Configured — waiting for the first successful run. The pipeline runs daily at 00:00 UTC; check Recent pipeline runs below.",
       tone: "info",
     };
   }
@@ -239,7 +240,7 @@ function recommendedAction(status: MonitorStatus): NextAction {
     } in the queue.`,
     tone: "ok",
     href: "/admin/signals/queue",
-    hrefLabel: "Feed import queue",
+    hrefLabel: "Deal review queue",
   };
 }
 
@@ -287,7 +288,7 @@ export default async function MonitorStatusPage() {
           (and anything uncertain) are staged as <code className="text-xs">new</code>{" "}
           for review in the{" "}
           <Link href="/admin/signals/queue" className="underline">
-            feed queue
+            deal review queue
           </Link>
           . Clearly off-theme items (alcohol, anime/collectibles, gaming
           pre-orders, snacks, supplements, pets, travel) are staged as{" "}
@@ -635,11 +636,12 @@ export default async function MonitorStatusPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <CountPill label="New" value={status.feedItemCounts.new} />
             <CountPill label="Imported" value={status.feedItemCounts.imported} />
             <CountPill label="Ignored" value={status.feedItemCounts.ignored} />
             <CountPill label="Duplicate" value={status.feedItemCounts.duplicate} />
+            <CountPill label="Rejected" value={status.feedItemCounts.rejected} />
           </div>
         </CardContent>
       </Card>
@@ -823,6 +825,62 @@ export default async function MonitorStatusPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Recent daily pipeline runs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {status.recentPipelineRuns.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No daily pipeline run recorded yet.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Started</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Archived</TableHead>
+                  <TableHead className="text-right">Validated</TableHead>
+                  <TableHead className="text-right">Unknown</TableHead>
+                  <TableHead className="text-right">Fetched</TableHead>
+                  <TableHead className="text-right">New</TableHead>
+                  <TableHead className="text-right">Updated</TableHead>
+                  <TableHead className="text-right">Skipped</TableHead>
+                  <TableHead>Errors</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {status.recentPipelineRuns.map((run) => (
+                  <TableRow key={run.id}>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {formatDate(run.startedAt)}
+                    </TableCell>
+                    <TableCell className="capitalize">{run.status}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {run.expiredArchived + run.invalidArchived}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {run.validationChecked}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {run.validationUnknown}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{run.itemsFetched}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.itemsNew}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.itemsUpdated}</TableCell>
+                    <TableCell className="text-right tabular-nums">{run.itemsSkipped}</TableCell>
+                    <TableCell className="max-w-xs truncate text-muted-foreground">
+                      {run.errors.join("; ") || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Recent fetch runs (latest 5). */}
       <Card>
         <CardHeader>
@@ -844,6 +902,8 @@ export default async function MonitorStatusPage() {
                   <TableHead className="text-right">HTTP</TableHead>
                   <TableHead className="text-right">Seen</TableHead>
                   <TableHead className="text-right">New</TableHead>
+                  <TableHead className="text-right">Updated</TableHead>
+                  <TableHead className="text-right">Skipped</TableHead>
                   <TableHead>Error</TableHead>
                 </TableRow>
               </TableHeader>
@@ -867,6 +927,12 @@ export default async function MonitorStatusPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {entry.itemsNew}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {entry.itemsUpdated}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {entry.itemsSkipped}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
                       {entry.error ?? "—"}

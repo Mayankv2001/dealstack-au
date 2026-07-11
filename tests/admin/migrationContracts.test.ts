@@ -26,5 +26,17 @@ describe("production safety migration contracts", () => {
     expect(sql).not.toMatch(/create policy[\s\S]+card_offer_correction_reports/i);
     expect(sql).not.toMatch(/update\s+public\.card_offers/i);
   });
-});
 
+  it("makes queue approval and automated archival transactional and service-role only", () => {
+    const sql = migration("015_daily_deal_pipeline.sql");
+    expect(sql).toContain("for update");
+    expect(sql).toContain("item.content_hash is distinct from p_expected_content_hash");
+    expect(sql).toContain("insert into public.ozbargain_signals");
+    expect(sql).toContain("status = 'approved'");
+    expect(sql).toContain("auto-archive-expired");
+    expect(sql).toContain("auto-archive-invalid");
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+  });
+});

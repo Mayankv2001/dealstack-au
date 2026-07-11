@@ -27,7 +27,26 @@ export interface MonitorFetchLogEntry {
   httpStatus: number | null;
   itemsSeen: number;
   itemsNew: number;
+  itemsUpdated: number;
+  itemsSkipped: number;
   error: string | null;
+}
+
+export interface DailyPipelineRunEntry {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: string;
+  expiredArchived: number;
+  invalidArchived: number;
+  validationChecked: number;
+  validationUnknown: number;
+  feedsProcessed: number;
+  itemsFetched: number;
+  itemsNew: number;
+  itemsUpdated: number;
+  itemsSkipped: number;
+  errors: string[];
 }
 
 /** A feed source whose last run errored or was blocked. */
@@ -57,6 +76,7 @@ export interface FeedItemStateCounts {
   imported: number;
   ignored: number;
   duplicate: number;
+  rejected: number;
 }
 
 export interface MonitorStatus {
@@ -76,6 +96,7 @@ export interface MonitorStatus {
   /** Staged feed_items broken down by triage state. */
   feedItemCounts: FeedItemStateCounts;
   recentFetchLog: MonitorFetchLogEntry[];
+  recentPipelineRuns: DailyPipelineRunEntry[];
   /** Most recent run that completed without an error (ok / not-modified). */
   lastSuccessLog: MonitorFetchLogEntry | null;
   /** Most recent run that recorded an error (blocked / error). */
@@ -157,8 +178,48 @@ interface FetchLogRow {
   http_status: number | null;
   items_seen: number | string | null;
   items_new: number | string | null;
+  items_updated: number | string | null;
+  items_skipped: number | string | null;
   error: string | null;
   source: { label: string } | { label: string }[] | null;
+}
+
+interface PipelineRunRow {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  expired_archived: number;
+  invalid_archived: number;
+  validation_checked: number;
+  validation_unknown: number;
+  feeds_processed: number;
+  items_fetched: number;
+  items_new: number;
+  items_updated: number;
+  items_skipped: number;
+  errors: unknown;
+}
+
+function mapPipelineRun(row: PipelineRunRow): DailyPipelineRunEntry {
+  return {
+    id: row.id,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    status: row.status,
+    expiredArchived: row.expired_archived,
+    invalidArchived: row.invalid_archived,
+    validationChecked: row.validation_checked,
+    validationUnknown: row.validation_unknown,
+    feedsProcessed: row.feeds_processed,
+    itemsFetched: row.items_fetched,
+    itemsNew: row.items_new,
+    itemsUpdated: row.items_updated,
+    itemsSkipped: row.items_skipped,
+    errors: Array.isArray(row.errors)
+      ? row.errors.filter((item): item is string => typeof item === "string")
+      : [],
+  };
 }
 
 function mapFetchLog(r: FetchLogRow): MonitorFetchLogEntry {
@@ -171,6 +232,8 @@ function mapFetchLog(r: FetchLogRow): MonitorFetchLogEntry {
     httpStatus: r.http_status,
     itemsSeen: r.items_seen == null ? 0 : Number(r.items_seen),
     itemsNew: r.items_new == null ? 0 : Number(r.items_new),
+    itemsUpdated: r.items_updated == null ? 0 : Number(r.items_updated),
+    itemsSkipped: r.items_skipped == null ? 0 : Number(r.items_skipped),
     error: r.error,
   };
 }
@@ -222,6 +285,8 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     importedCount,
     ignoredCount,
     duplicateCount,
+    rejectedCount,
+    pipelineRunData,
     fetchLogData,
     lastSuccessData,
     lastProblemData,
@@ -239,6 +304,12 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     countRows(db, "feed_items", { column: "review_state", value: "imported" }),
     countRows(db, "feed_items", { column: "review_state", value: "ignored" }),
     countRows(db, "feed_items", { column: "review_state", value: "duplicate" }),
+    countRows(db, "feed_items", { column: "review_state", value: "rejected" }),
+    db
+      .from("daily_pipeline_runs")
+      .select("*")
+      .order("started_at", { ascending: false })
+      .limit(5),
     db
       .from("feed_fetch_log")
       .select("*, source:feed_sources(label)")
@@ -276,6 +347,9 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   if (fetchLogData.error) {
     throw new Error(`recent fetch log failed: ${fetchLogData.error.message}`);
   }
+  if (pipelineRunData.error) {
+    throw new Error(`recent pipeline runs failed: ${pipelineRunData.error.message}`);
+  }
   if (lastSuccessData.error) {
     throw new Error(`last success log failed: ${lastSuccessData.error.message}`);
   }
@@ -292,6 +366,9 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   const recentFetchLog = (
     (fetchLogData.data ?? []) as unknown as FetchLogRow[]
   ).map(mapFetchLog);
+  const recentPipelineRuns = (
+    (pipelineRunData.data ?? []) as unknown as PipelineRunRow[]
+  ).map(mapPipelineRun);
 
   const lastSuccessLog = lastSuccessData.data
     ? mapFetchLog(lastSuccessData.data as unknown as FetchLogRow)
@@ -330,8 +407,10 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
       imported: importedCount,
       ignored: ignoredCount,
       duplicate: duplicateCount,
+      rejected: rejectedCount,
     },
     recentFetchLog,
+    recentPipelineRuns,
     lastSuccessLog,
     lastProblemLog,
     latestFeedItems,

@@ -45,6 +45,7 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // schema shape change, so no EXPECTED_SCHEMA entry, same as 008.
   "013_revoke_trigger_function_execute.sql",
   "014_signal_product_group.sql",
+  "015_daily_deal_pipeline.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -98,9 +99,14 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "merchant_url", "product_url", "posted_at", "expiry_date", "tags",
       "promo_code", "price_text", "signal_score", "confidence",
       "last_checked_at", "is_sample", "status", "created_at", "updated_at",
-      "product_group",
+      "product_group", "archived_at", "archive_reason", "last_validated_at",
     ],
-    { product_group: "014_signal_product_group.sql" }
+    {
+      product_group: "014_signal_product_group.sql",
+      archived_at: "015_daily_deal_pipeline.sql",
+      archive_reason: "015_daily_deal_pipeline.sql",
+      last_validated_at: "015_daily_deal_pipeline.sql",
+    }
   ),
   weekly_deals: table("001_initial_schema.sql", [
     "id", "week_of", "merchant_id", "title", "summary", "highlight",
@@ -128,14 +134,23 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "id", "feed_source_id", "source_native_id", "link", "raw_title",
       "raw_summary", "categories", "posted_at", "fetched_at", "content_hash",
       "review_state", "promoted_signal_id", "created_at", "updated_at",
-      "hidden_from_homepage",
+      "hidden_from_homepage", "thumbnail_url", "reviewed_at", "reviewed_by",
     ],
-    { hidden_from_homepage: "005_feed_item_homepage_hidden.sql" }
+    {
+      hidden_from_homepage: "005_feed_item_homepage_hidden.sql",
+      thumbnail_url: "015_daily_deal_pipeline.sql",
+      reviewed_at: "015_daily_deal_pipeline.sql",
+      reviewed_by: "015_daily_deal_pipeline.sql",
+    }
   ),
   feed_fetch_log: table("002_feed_import_queue.sql", [
     "id", "feed_source_id", "started_at", "finished_at", "http_status",
-    "items_seen", "items_new", "error", "created_at",
-  ]),
+    "items_seen", "items_new", "error", "created_at", "items_skipped",
+    "items_updated",
+  ], {
+    items_skipped: "015_daily_deal_pipeline.sql",
+    items_updated: "015_daily_deal_pipeline.sql",
+  }),
   // 003_compliance_review.sql
   compliance_reviews: table("003_compliance_review.sql", [
     "id", "source_name", "robots_txt_checked", "terms_checked",
@@ -181,6 +196,12 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
   ]),
   correction_report_rate_limits: table("012_card_offer_correction_reports.sql", [
     "id", "request_fingerprint", "created_at",
+  ]),
+  daily_pipeline_runs: table("015_daily_deal_pipeline.sql", [
+    "id", "started_at", "finished_at", "status", "expired_archived",
+    "invalid_archived", "validation_checked", "validation_unknown",
+    "feeds_processed", "items_fetched", "items_new",
+    "items_updated", "items_skipped", "errors", "created_at",
   ]),
 };
 

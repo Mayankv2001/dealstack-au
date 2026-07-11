@@ -258,6 +258,60 @@ export type Database = {
         Update: { created_at?: string; id?: number; request_fingerprint?: string }
         Relationships: []
       }
+      daily_pipeline_runs: {
+        Row: {
+          created_at: string
+          errors: Json
+          expired_archived: number
+          feeds_processed: number
+          finished_at: string | null
+          id: string
+          invalid_archived: number
+          items_fetched: number
+          items_new: number
+          items_skipped: number
+          items_updated: number
+          started_at: string
+          status: string
+          validation_checked: number
+          validation_unknown: number
+        }
+        Insert: {
+          created_at?: string
+          errors?: Json
+          expired_archived?: number
+          feeds_processed?: number
+          finished_at?: string | null
+          id?: string
+          invalid_archived?: number
+          items_fetched?: number
+          items_new?: number
+          items_skipped?: number
+          items_updated?: number
+          started_at?: string
+          status?: string
+          validation_checked?: number
+          validation_unknown?: number
+        }
+        Update: {
+          created_at?: string
+          errors?: Json
+          expired_archived?: number
+          feeds_processed?: number
+          finished_at?: string | null
+          id?: string
+          invalid_archived?: number
+          items_fetched?: number
+          items_new?: number
+          items_skipped?: number
+          items_updated?: number
+          started_at?: string
+          status?: string
+          validation_checked?: number
+          validation_unknown?: number
+        }
+        Relationships: []
+      }
       cashback_offers: {
         Row: {
           cap_dollars: number | null
@@ -381,6 +435,8 @@ export type Database = {
           id: string
           items_new: number
           items_seen: number
+          items_skipped: number
+          items_updated: number
           started_at: string
         }
         Insert: {
@@ -392,6 +448,8 @@ export type Database = {
           id?: string
           items_new?: number
           items_seen?: number
+          items_skipped?: number
+          items_updated?: number
           started_at?: string
         }
         Update: {
@@ -403,6 +461,8 @@ export type Database = {
           id?: string
           items_new?: number
           items_seen?: number
+          items_skipped?: number
+          items_updated?: number
           started_at?: string
         }
         Relationships: [
@@ -430,7 +490,10 @@ export type Database = {
           raw_summary: string
           raw_title: string
           review_state: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           source_native_id: string
+          thumbnail_url: string | null
           updated_at: string
         }
         Insert: {
@@ -447,7 +510,10 @@ export type Database = {
           raw_summary?: string
           raw_title: string
           review_state?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           source_native_id: string
+          thumbnail_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -464,7 +530,10 @@ export type Database = {
           raw_summary?: string
           raw_title?: string
           review_state?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           source_native_id?: string
+          thumbnail_url?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -697,6 +766,8 @@ export type Database = {
       }
       ozbargain_signals: {
         Row: {
+          archive_reason: string | null
+          archived_at: string | null
           comment_count: number | null
           confidence: string
           created_at: string
@@ -705,6 +776,7 @@ export type Database = {
           id: string
           is_sample: boolean
           last_checked_at: string
+          last_validated_at: string | null
           merchant_id: string | null
           merchant_url: string | null
           posted_at: string | null
@@ -724,6 +796,8 @@ export type Database = {
           votes_sample: number | null
         }
         Insert: {
+          archive_reason?: string | null
+          archived_at?: string | null
           comment_count?: number | null
           confidence: string
           created_at?: string
@@ -732,6 +806,7 @@ export type Database = {
           id: string
           is_sample?: boolean
           last_checked_at?: string
+          last_validated_at?: string | null
           merchant_id?: string | null
           merchant_url?: string | null
           posted_at?: string | null
@@ -751,6 +826,8 @@ export type Database = {
           votes_sample?: number | null
         }
         Update: {
+          archive_reason?: string | null
+          archived_at?: string | null
           comment_count?: number | null
           confidence?: string
           created_at?: string
@@ -759,6 +836,7 @@ export type Database = {
           id?: string
           is_sample?: boolean
           last_checked_at?: string
+          last_validated_at?: string | null
           merchant_id?: string | null
           merchant_url?: string | null
           posted_at?: string | null
@@ -982,6 +1060,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_feed_item: {
+        Args: {
+          p_deal_kind: string
+          p_expiry_date: string | null
+          p_expected_content_hash: string | null
+          p_feed_item_id: string
+          p_merchant_id: string | null
+          p_price_text: string | null
+          p_promo_code: string | null
+          p_signal_id: string
+          p_signal_score: number | null
+        }
+        Returns: {
+          created: boolean
+          signal_id: string
+        }[]
+      }
+      archive_expired_deals: {
+        Args: { p_archived_at: string; p_today: string }
+        Returns: number
+      }
+      archive_invalid_signal: {
+        Args: { p_archived_at: string; p_reason: string; p_signal_id: string }
+        Returns: boolean
+      }
       consume_admin_rate_limit: {
         Args: {
           p_action_key: string

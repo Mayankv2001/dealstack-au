@@ -1,23 +1,30 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { findMerchantIdInText } from "@/lib/sources/normalise";
-import type { DealKind } from "@/lib/sources/types";
+import {
+  deriveFeedItemMetadata,
+  type FeedItemMetadata,
+} from "@/lib/admin/feedItemMetadata";
+import { isApprovedOzBargainPostUrl } from "@/lib/security/urlPolicy";
 
 /**
- * Feed import queue repository — SERVICE-ROLE ONLY.
+ * Deal review queue repository — SERVICE-ROLE ONLY.
  *
- * Reads the staged `feed_items` (RLS service-role only) and promotes them into
- * PENDING `ozbargain_signals` for manual moderation. Like the other admin repos
+ * Reads staged `feed_items` and approves them directly into public signals in
+ * one reviewed transaction. Like the other admin repos
  * this must only run on the server behind requireAdmin(); the browser guard
  * inside getSupabaseAdmin() is the backstop.
  *
  * There is NO OzBargain fetching / scraping / agent here — it only reads/writes
- * our own Supabase project. Nothing here publishes: imports always land as
- * `status = 'pending'`, so they stay invisible to the public site until a human
- * approves them through the existing signals CRUD.
+ * our own Supabase project. Approval is always initiated by an authenticated
+ * admin; fetching never calls it.
  */
 
-export type FeedReviewState = "new" | "imported" | "ignored" | "duplicate";
+export type FeedReviewState =
+  | "new"
+  | "imported"
+  | "ignored"
+  | "duplicate"
+  | "rejected";
 
 /**
  * Cap on rows the queue page loads per render — newest first. Matches
@@ -59,20 +66,21 @@ export interface FeedQueueItem {
   promotedSignalId: string | null;
   /**
    * Admin-set homepage-visibility flag. When true the item is excluded from the
-   * public homepage Top 5 ONLY — it stays in this queue and remains importable.
+   * public homepage Top 5 ONLY — it stays in this queue and remains reviewable.
    * Orthogonal to reviewState (see migration 005).
    */
   hiddenFromHomepage: boolean;
+  thumbnailUrl: string | null;
+  metadata: FeedItemMetadata;
   /**
    * A signal that already exists with this source_native_id, if any. When set,
-   * importing will LINK to it rather than create a new one (idempotent) — so the
-   * admin can treat the item as a likely duplicate / already imported.
+   * approval will LINK to it rather than create a new one (idempotent).
    */
   existingSignal: ExistingSignalRef | null;
 }
 
-/** Result of an import: which signal it maps to, and whether it was just made. */
-export interface ImportResult {
+/** Result of approval: which signal it maps to, and whether it was just made. */
+export interface ApprovalResult {
   signalId: string;
   /** false = an existing signal with the same source_native_id was reused. */
   created: boolean;
@@ -94,6 +102,7 @@ interface FeedItemRow {
   review_state: FeedReviewState;
   promoted_signal_id: string | null;
   hidden_from_homepage: boolean;
+  thumbnail_url: string | null;
   // Embedded one-to-one feed source (PostgREST returns an object; type defensively).
   source: { label: string } | { label: string }[] | null;
 }
@@ -118,6 +127,12 @@ function mapItem(
     reviewState: r.review_state,
     promotedSignalId: r.promoted_signal_id,
     hiddenFromHomepage: r.hidden_from_homepage ?? false,
+    thumbnailUrl: r.thumbnail_url,
+    metadata: deriveFeedItemMetadata({
+      rawTitle: r.raw_title,
+      rawSummary: r.raw_summary,
+      categories: r.categories ?? [],
+    }),
     existingSignal,
   };
 }
@@ -201,36 +216,6 @@ export async function countNewFeedItems(): Promise<number> {
   return count ?? 0;
 }
 
-// ── Promotion helpers ────────────────────────────────────────────────────────
-
-const SUMMARY_MAX = 200;
-
-/**
- * A short, safe summary: strip any markup from the raw feed text, collapse
- * whitespace, fall back to the title, and cap to ~200 chars. The admin reviews
- * and rewrites this on the pending signal before approval.
- */
-function safeSummary(rawSummary: string, rawTitle: string): string {
-  const base = (rawSummary || "").trim() || rawTitle;
-  const text = base
-    .replace(/<[^>]*>/g, " ") // drop any HTML tags from the stored raw text
-    .replace(/\s+/g, " ")
-    .trim();
-  if (text.length <= SUMMARY_MAX) return text;
-  return `${text.slice(0, SUMMARY_MAX - 1).trimEnd()}…`;
-}
-
-/** Best-effort deal-kind guess from the title + categories. Admin can change it. */
-function guessDealKind(title: string, categories: string[]): DealKind {
-  const hay = `${title} ${categories.join(" ")}`.toLowerCase();
-  if (/gift\s*card/.test(hay)) return "gift-card";
-  if (/cashback/.test(hay)) return "cashback";
-  if (/points|qantas|velocity|flybuys|everyday rewards|frequent flyer/.test(hay))
-    return "points";
-  if (/\bguide\b|how to|explained|comparison/.test(hay)) return "guide";
-  return "discount-code";
-}
-
 /** Lowercase, hyphenated, alnum-only slug for a readable PK segment. */
 function slugify(value: string): string {
   return (
@@ -243,15 +228,14 @@ function slugify(value: string): string {
 }
 
 /**
- * Infer a merchant only when it's both matchable AND a real store row, so the
+ * Accept an inferred merchant only when it is also a real store row, so the
  * ozbargain_signals.merchant_id FK can never be violated. Returns null otherwise
  * — the admin can assign the store later.
  */
 async function inferMerchantId(
   db: AdminDb,
-  title: string
+  candidate: string | null
 ): Promise<string | null> {
-  const candidate = findMerchantIdInText(title);
   if (!candidate) return null;
   const { data, error } = await db
     .from("stores")
@@ -262,57 +246,13 @@ async function inferMerchantId(
   return data ? candidate : null;
 }
 
-/** Inserts a PENDING signal carrying the feed's source_native_id; returns its id. */
-async function insertPendingSignalFromItem(
-  db: AdminDb,
-  item: FeedItemRow
-): Promise<string> {
-  const categories = item.categories ?? [];
-  const merchantId = await inferMerchantId(db, item.raw_title);
-  const id = `sig-${slugify(item.raw_title)}-${randomUUID().slice(0, 8)}`;
-
-  const { error } = await db.from("ozbargain_signals").insert({
-    id,
-    // The dedupe key — lets a future re-import (or re-run) link instead of dupe.
-    source_native_id: item.source_native_id,
-    merchant_id: merchantId,
-    title: item.raw_title,
-    summary: safeSummary(item.raw_summary, item.raw_title),
-    votes_sample: null,
-    comment_count: null,
-    sentiment: "neutral",
-    deal_kind: guessDealKind(item.raw_title, categories),
-    source_url: item.link,
-    merchant_url: null,
-    product_url: null,
-    // feed_items.posted_at is a timestamptz; the signals column is a date.
-    posted_at: item.posted_at ? item.posted_at.slice(0, 10) : null,
-    expiry_date: null,
-    tags: categories,
-    promo_code: null,
-    price_text: null,
-    signal_score: null,
-    confidence: "needs-verification",
-    is_sample: false,
-    // Never published by the importer — a human approves it later.
-    status: "pending",
-    last_checked_at: new Date().toISOString(),
-  });
-  if (error) {
-    throw new Error(`insertPendingSignalFromItem failed: ${error.message}`);
-  }
-  return id;
-}
-
 // ── Writes ───────────────────────────────────────────────────────────────────
 
 /**
- * Promote a staged item into a PENDING signal, idempotently:
- *   - if a signal already exists with this source_native_id, reuse it;
- *   - otherwise create one (status 'pending');
- * then mark the feed item 'imported' and link it. Never publishes.
+ * Human approval in one DB transaction: create/reuse an APPROVED signal and
+ * mark the queue row imported. The RPC locks the row and dedupes by native id.
  */
-export async function importFeedItem(feedItemId: string): Promise<ImportResult> {
+export async function approveFeedItem(feedItemId: string): Promise<ApprovalResult> {
   const db = getSupabaseAdmin();
 
   const { data: itemData, error: itemErr } = await db
@@ -320,56 +260,63 @@ export async function importFeedItem(feedItemId: string): Promise<ImportResult> 
     .select("*")
     .eq("id", feedItemId)
     .maybeSingle();
-  if (itemErr) throw new Error(`importFeedItem read failed: ${itemErr.message}`);
+  if (itemErr) throw new Error(`approveFeedItem read failed: ${itemErr.message}`);
   if (!itemData) throw new Error("Feed item not found.");
   const item = itemData as unknown as FeedItemRow;
-
-  // Idempotency: reuse any existing signal with the same source_native_id.
-  const { data: existing, error: existErr } = await db
-    .from("ozbargain_signals")
-    .select("id")
-    .eq("source_native_id", item.source_native_id)
-    .maybeSingle();
-  if (existErr) {
-    throw new Error(`importFeedItem dedupe check failed: ${existErr.message}`);
+  if (!isApprovedOzBargainPostUrl(item.link)) {
+    throw new Error("Feed item does not link to an approved OzBargain post.");
   }
 
-  let signalId: string;
-  let created: boolean;
-  if (existing) {
-    signalId = (existing as { id: string }).id;
-    created = false;
-  } else {
-    signalId = await insertPendingSignalFromItem(db, item);
-    created = true;
-  }
-
-  const { error: updErr } = await db
-    .from("feed_items")
-    .update({ review_state: "imported", promoted_signal_id: signalId })
-    .eq("id", feedItemId);
-  if (updErr) throw new Error(`importFeedItem link failed: ${updErr.message}`);
-
-  return { signalId, created };
+  const metadata = deriveFeedItemMetadata({
+    rawTitle: item.raw_title,
+    rawSummary: item.raw_summary,
+    categories: item.categories ?? [],
+  });
+  const merchantId = await inferMerchantId(db, metadata.merchantId);
+  const signalId = `sig-${slugify(item.raw_title)}-${randomUUID().slice(0, 8)}`;
+  const { data, error } = await db.rpc("approve_feed_item", {
+    p_feed_item_id: feedItemId,
+    p_expected_content_hash: item.content_hash,
+    p_signal_id: signalId,
+    p_merchant_id: merchantId,
+    p_deal_kind: metadata.dealKind,
+    p_price_text: metadata.priceText,
+    p_promo_code: metadata.couponCode,
+    p_expiry_date: metadata.expiryDate,
+    p_signal_score: metadata.score,
+  });
+  if (error) throw new Error(`approveFeedItem failed: ${error.message}`);
+  const result = data?.[0];
+  if (!result) throw new Error("approveFeedItem returned no result.");
+  return { signalId: result.signal_id, created: result.created };
 }
 
-/** Triage a staged item without importing it (ignore / mark duplicate). */
-export async function setFeedItemReviewState(
+/** Archive a rejected item; no source data is deleted. */
+export async function rejectFeedItem(
   feedItemId: string,
-  state: Extract<FeedReviewState, "ignored" | "duplicate">
+  reviewerEmail: string
 ): Promise<void> {
   const db = getSupabaseAdmin();
-  const { error } = await db
+  const { data, error } = await db
     .from("feed_items")
-    .update({ review_state: state })
-    .eq("id", feedItemId);
-  if (error) throw new Error(`setFeedItemReviewState failed: ${error.message}`);
+    .update({
+      review_state: "rejected",
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: reviewerEmail.toLowerCase(),
+    })
+    .eq("id", feedItemId)
+    .eq("review_state", "new")
+    .select("id");
+  if (error) throw new Error(`rejectFeedItem failed: ${error.message}`);
+  if ((data?.length ?? 0) !== 1) {
+    throw new Error("Feed item is no longer awaiting review.");
+  }
 }
 
 /**
  * Toggle whether a staged item is excluded from the public homepage Top 5.
  * This ONLY flips hidden_from_homepage — it deliberately leaves review_state
- * untouched, so the item stays in the import queue and remains importable. It
+ * untouched, so the item stays in the review queue. It
  * never publishes anything (the homepage shows already-staged items either way).
  */
 export async function setFeedItemHomepageHidden(

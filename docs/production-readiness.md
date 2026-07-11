@@ -34,8 +34,16 @@ supabase db push
 | 012 | `supabase/migrations/012_card_offer_correction_reports.sql` | Public card-offer correction reports and rate limits |
 | 013 | `supabase/migrations/013_revoke_trigger_function_execute.sql` | Revokes direct execution of privileged trigger functions |
 | 014 | `supabase/migrations/014_signal_product_group.sql` | Optional admin-assigned product key for multi-retailer signal comparison |
+| 015 | `supabase/migrations/015_daily_deal_pipeline.sql` | Direct review approval, archival/validation fields, complete fetch/pipeline counts, transactional cleanup RPCs |
 
 **Verify:** In the Supabase Dashboard → Table Editor, all tables above should be present with RLS enabled. Then run `npm run verify:schema` — a read-only script that probes the configured project for every table/column the migrations declare and fails loudly on any gap (catches drift that a table-name-only check would miss). The expected tables/columns live in `scripts/schema-manifest.ts` with per-column migration ownership; `tests/admin/schemaManifest.test.ts` fails `npm run test:admin` if a committed migration is missing from that manifest, so the probe cannot silently under-cover new migrations. Local runs need **Node 22** (`nvm use 22`) — on Node 20, `@supabase/supabase-js` aborts before probing ("no native WebSocket support").
+
+For migration 015, apply and verify the migration **before** deploying the
+matching application code. The new cron and review queue depend on its columns
+and service-role RPCs. The migration is additive; if application rollback is
+needed, promote the previous Vercel deployment and leave the added columns and
+functions in place. Do not attempt a destructive down migration during an
+incident.
 
 ### 1a. Create a multi-retailer product comparison
 
@@ -112,7 +120,7 @@ Set these in Vercel Dashboard → Project → Settings → Environment Variables
 
 | Variable | Default | Notes |
 |---|---|---|
-| `OZB_MONITOR_MAX_FEEDS_PER_RUN` | `1` | Hard cap per cron run |
+| `OZB_MONITOR_MAX_FEEDS_PER_RUN` | `10` | Hard cap per daily pipeline run |
 | `OZB_MONITOR_MIN_INTERVAL_HOURS` | `12` | Per-feed polling floor |
 | `DATA_SOURCE` | `supabase` | Set to `static` to force static fallback data |
 
@@ -162,11 +170,16 @@ The monitor will refuse to run until an approved compliance review exists in the
 
 ## 7. Vercel Cron — once daily (built-in)
 
-The cron is already configured in `vercel.json` at `0 2 * * *` (02:00 UTC daily). **Do not change this to sub-daily** — Vercel Hobby plan allows only one cron and it must be at most daily.
+The single cron is configured in `vercel.json` at `0 0 * * *` (00:00 UTC, Vercel's server timezone). **Do not add another cron or change this to sub-daily** — Vercel Hobby permits one daily cron.
 
 The cron calls `GET /api/cron/monitor-feeds` with the `Authorization: Bearer CRON_SECRET` header automatically (Vercel injects it when `CRON_SECRET` is set).
 
-**Verify:** After the first cron run, check `/admin/monitor → Recent fetch runs`.
+Every authenticated run archives expired public rows first. When monitoring and
+compliance are enabled it then checks live OzBargain post status with bounded
+HEAD requests, fetches every due eligible feed (up to the configured cap),
+deduplicates, and fills the private review queue. Fetching never publishes.
+
+**Verify:** After the first cron run, check `/admin/monitor → Recent daily pipeline runs` and `Recent fetch runs`. Each run reports validity checks, unknown checks, fetched, new, updated, skipped, archived, and errors.
 
 ---
 
@@ -186,19 +199,26 @@ For more frequent feed checks without upgrading Vercel:
 
 ---
 
-## 9. Queue cleanup workflow
+## 9. Deal review workflow
 
 After the first successful feed run, staged items appear in `/admin/signals/queue`.
 
 For each staged item:
-- **Import as pending signal** — creates a row in `ozbargain_signals` with `status = pending`. Still NOT public.
-- **Ignore** — moves item to `review_state = ignored`. Removed from queue view. Nothing published.
-- **Mark duplicate** — moves item to `review_state = duplicate`. Nothing published.
-- **Hide from Top 5** — sets `hidden_from_homepage = true`. Item stays in the queue and remains importable, but will not appear in the public homepage Top 5 section.
+- **Preview** — expands the stored feed title and summary; no write.
+- **Open original OzBargain post** — opens the HTTPS source in a new tab.
+- **Approve** — the single human publication step. A service-role-only RPC locks the queue row, deduplicates by native id, creates/reuses an approved signal, links the source row, and transactionally audits both mutations.
+- **Reject** — archives the queue row as `rejected` with reviewer/time. It never deletes source history.
+- **Hide from Top 5** — adds an independent homepage veto without changing review state.
 
-To narrow a long queue before acting, use the keyword **presets** to filter the visible list to specific merchants/deal types. **Ignore visible** then bulk-ignores every item currently matching the filter in one pass (capped per call) — it uses the same per-item `review_state = ignored` write as **Ignore**, so it never imports and never publishes. Import stays one-at-a-time; nothing is ever bulk-imported or auto-published.
+Search, store/category/cashback-provider filters, expiring-soon, relevance presets,
+four sort modes, checkboxes, select-all-shown/filtered, **Approve selected**, and
+**Reject selected** support rapid moderation. There is no import-as-pending step.
 
-To make a pending signal **public**, navigate to **Signals** (`/admin/signals`) and approve it there.
+Validity checks are deliberately evidence-based: fixed expiry dates are archived
+automatically; OzBargain 404/410 responses archive linked live signals; transient
+HTTP errors are recorded as unknown and never remove a deal. Coupon checkout and
+cashback-provider status are not probed by scraping: they are archived from known
+expiry data, and deeper checks require an approved official provider integration.
 
 ---
 

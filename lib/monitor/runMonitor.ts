@@ -8,12 +8,12 @@ import {
 } from "./backoff";
 
 /**
- * Feed monitor orchestrator — shared core for the manual script (and a future
- * cron route). It selects enabled, due feeds, conditionally GETs each one
+ * Feed monitor orchestrator — shared by the manual script and daily cron. It
+ * selects enabled, due feeds, conditionally GETs each one
  * SEQUENTIALLY (concurrency = 1), parses + maps the XML, and — only when NOT a
  * dry run — stages new `feed_items`, writes a `feed_fetch_log` row, and updates
- * `feed_sources` poll-state. It NEVER writes `ozbargain_signals`; promotion to a
- * (still pending, still admin-approved) signal stays a manual queue action.
+ * `feed_sources` poll-state. It NEVER writes `ozbargain_signals`; an admin queue
+ * approval remains mandatory.
  *
  * Safety invariants enforced here:
  *   - the kill switch (`config.enabled`) short-circuits with ZERO outbound calls;
@@ -70,13 +70,24 @@ export interface FeedFetchLogEntry {
   httpStatus: number | null;
   itemsSeen: number;
   itemsNew: number;
+  itemsUpdated: number;
+  itemsSkipped: number;
   error: string | null;
+}
+
+export interface FeedUpsertResult {
+  inserted: number;
+  updated: number;
+  skipped: number;
 }
 
 /** Side-effecting writes — supplied only for a non-dry run. */
 export interface MonitorPersistence {
   /** Insert new feed_items (ignore conflicts on source_native_id); returns inserted count. */
-  upsertFeedItems(feedSourceId: string, items: FeedItemInsert[]): Promise<number>;
+  upsertFeedItems(
+    feedSourceId: string,
+    items: FeedItemInsert[]
+  ): Promise<FeedUpsertResult>;
   recordPollState(feedSourceId: string, patch: FeedPollStatePatch): Promise<void>;
   insertFetchLog(entry: FeedFetchLogEntry): Promise<void>;
 }
@@ -118,6 +129,8 @@ export interface FeedRunResult {
   itemsSeen: number;
   /** Live: rows inserted. Dry run: unique candidates that WOULD be staged. */
   itemsNew: number;
+  itemsUpdated: number;
+  itemsSkipped: number;
   error: string | null;
   /** A few parsed items, for the dry-run report. */
   sampleItems: { sourceNativeId: string; rawTitle: string }[];
@@ -192,6 +205,8 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen: 0,
         itemsNew: 0,
+        itemsUpdated: 0,
+        itemsSkipped: 0,
         error: null,
       });
     }
@@ -202,6 +217,8 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen: 0,
         itemsNew: 0,
+        itemsUpdated: 0,
+        itemsSkipped: 0,
         error: null,
         sampleItems: [],
       },
@@ -217,9 +234,14 @@ async function handleFeed(
     }));
     // Dry run reports unique candidates; a live run reports rows actually inserted.
     let itemsNew = mapped.length;
+    let itemsUpdated = 0;
+    let itemsSkipped = Math.max(0, itemsSeen - mapped.length);
     if (!dryRun && persistence) {
       const ts = now();
-      itemsNew = await persistence.upsertFeedItems(feed.id, mapped);
+      const upsert = await persistence.upsertFeedItems(feed.id, mapped);
+      itemsNew = upsert.inserted;
+      itemsUpdated = upsert.updated;
+      itemsSkipped += upsert.skipped;
       await persistence.recordPollState(feed.id, {
         etag: outcome.etag,
         lastModified: outcome.lastModified,
@@ -235,6 +257,8 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen,
         itemsNew,
+        itemsUpdated,
+        itemsSkipped,
         error: null,
       });
     }
@@ -245,6 +269,8 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen,
         itemsNew,
+        itemsUpdated,
+        itemsSkipped,
         error: null,
         sampleItems,
       },
@@ -282,6 +308,8 @@ async function handleFeed(
       httpStatus: outcome.httpStatus,
       itemsSeen: 0,
       itemsNew: 0,
+      itemsUpdated: 0,
+      itemsSkipped: 0,
       error: outcome.reason,
     });
   }
@@ -292,6 +320,8 @@ async function handleFeed(
       httpStatus: outcome.httpStatus,
       itemsSeen: 0,
       itemsNew: 0,
+      itemsUpdated: 0,
+      itemsSkipped: 0,
       error: outcome.reason,
       sampleItems: [],
     },

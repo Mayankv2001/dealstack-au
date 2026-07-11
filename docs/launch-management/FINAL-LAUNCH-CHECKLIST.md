@@ -24,7 +24,7 @@
 **Only when enabling the feed monitor (post-compliance, see §4):**
 - [ ] `OZB_MONITOR_ENABLED=true` — master kill switch (defaults off)
 - [ ] `OZB_MONITOR_USER_AGENT` — identifying UA with contact URL; never a spoofed browser string
-- [ ] `OZB_MONITOR_MAX_FEEDS_PER_RUN` (default 1), `OZB_MONITOR_MIN_INTERVAL_HOURS` (default 12) — optional caps
+- [ ] `OZB_MONITOR_MAX_FEEDS_PER_RUN` (default 10), `OZB_MONITOR_MIN_INTERVAL_HOURS` (default 12) — optional caps
 
 **Leave OFF for launch:**
 - [ ] `OZB_OFFER_DETECT_ENABLED` — offer-change detection; keep unset/`false` until precision is reviewed (§4)

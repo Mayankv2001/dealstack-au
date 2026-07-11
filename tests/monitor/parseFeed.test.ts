@@ -47,6 +47,18 @@ describe("parseFeed (RSS)", () => {
     expect(parseFeed("<html><body>not a feed</body></html>")).toEqual([]);
     expect(parseFeed("")).toEqual([]);
   });
+
+  it("captures an optional feed thumbnail without fetching it", () => {
+    const xml = `<rss xmlns:media="http://search.yahoo.com/mrss/"><channel><item>
+      <title>Deal</title><guid>thumb-1</guid>
+      <media:thumbnail url="https://static.ozbargain.com.au/example.jpg" />
+    </item></channel></rss>`;
+    const [item] = parseFeed(xml);
+    expect(item.thumbnailUrl).toBe("https://static.ozbargain.com.au/example.jpg");
+    expect(mapFeedItem(item).thumbnail_url).toBe(
+      "https://static.ozbargain.com.au/example.jpg"
+    );
+  });
 });
 
 describe("parseFeed (Atom)", () => {

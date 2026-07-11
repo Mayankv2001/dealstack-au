@@ -12,6 +12,15 @@
 > feed-only (no scraping/crawling/anti-bot bypass), no user-triggered fetches,
 > writes only to the staging tables (never `ozbargain_signals`), and **admin
 > approval stays mandatory**.
+>
+> **Current workflow update (migration 015, 2026-07-11):** the historical
+> planning sections below describe the original two-step import design. The
+> implemented daily pipeline now runs once at **00:00 UTC**, archives expired
+> rows, performs status-only validation of approved OzBargain post URLs, fetches
+> due feeds, and records fetched/new/updated/skipped/error counts. New feed rows
+> land directly in `/admin/signals/queue`; **Approve** is the single human
+> publication step and **Reject** archives without deletion. Fetch code itself
+> still writes staging tables only and never invokes approval.
 
 ---
 

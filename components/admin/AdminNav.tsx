@@ -30,7 +30,7 @@ const GROUPS: NavLink[][] = [
   ],
   [
     { href: "/admin/signals", label: "Signals" },
-    { href: "/admin/signals/queue", label: "Feed Queue" },
+    { href: "/admin/signals/queue", label: "Review Queue" },
     { href: "/admin/signals/sources", label: "Feed Sources" },
     { href: "/admin/offer-changes", label: "Offer Changes" },
     { href: "/admin/compliance", label: "Compliance" },

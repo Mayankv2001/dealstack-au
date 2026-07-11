@@ -1,8 +1,8 @@
 /**
- * Manual OzBargain feed monitor runner — Phase 1 (dry run by default).
+ * Manual OzBargain feed monitor runner (dry run by default).
  *
- * The FIRST and ONLY way to run the monitor today (no cron, no agent, no route).
- * It runs the shared runMonitor() core against the enabled, due feeds in
+ * It runs the same shared runMonitor() core as the daily cron against enabled,
+ * due feeds in
  * feed_sources, conditionally GETs each one, parses the RSS/Atom XML, and reports
  * what it found.
  *
@@ -14,10 +14,10 @@
  *     failed gate read also refuses). A dry run without approval is allowed for
  *     pre-approval testing, with a loud warning.
  *   - DRY RUN IS THE DEFAULT. Nothing is written unless you pass --write.
- *   - Only enabled feeds are fetched (concurrency 1, max 1 feed/run by default).
+ *   - Only enabled feeds are fetched (concurrency 1, max 10 feeds/run by default).
  *   - A blocked/HTML/Cloudflare-like response stops the run; no bypass.
  *   - Writes (only with --write) touch ONLY feed_items, feed_fetch_log, and
- *     feed_sources poll-state — NEVER ozbargain_signals. Imported signals still
+ *     feed_sources poll-state — NEVER ozbargain_signals. Queue items still
  *     require manual admin approval via /admin/signals/queue.
  *
  * Usage:
@@ -29,7 +29,7 @@
  *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (service-role; script only)
  *   OZB_MONITOR_ENABLED=true                              (kill switch)
  *   OZB_MONITOR_USER_AGENT=...                            (required when enabled)
- *   OZB_MONITOR_MAX_FEEDS_PER_RUN (default 1), OZB_MONITOR_MIN_INTERVAL_HOURS (default 12)
+ *   OZB_MONITOR_MAX_FEEDS_PER_RUN (default 10), OZB_MONITOR_MIN_INTERVAL_HOURS (default 12)
  */
 
 import {
@@ -112,6 +112,8 @@ function printSummary(summary: MonitorRunSummary): void {
       const verb = summary.dryRun ? "would stage" : "staged";
       console.log(`   items seen: ${r.itemsSeen}`);
       console.log(`   ${verb}:    ${r.itemsNew} new (deduped)`);
+      console.log(`   updated:    ${r.itemsUpdated}`);
+      console.log(`   skipped:    ${r.itemsSkipped}`);
       r.sampleItems.forEach((s) =>
         console.log(`     - ${s.sourceNativeId}  ${s.rawTitle}`)
       );

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isApprovedFeedUrl,
+  isApprovedOzBargainPostUrl,
   resolveApprovedFeedRedirect,
   safeHttpsUrl,
   safeLogoPath,
@@ -88,5 +89,17 @@ describe("monitor URL allowlist", () => {
     expect(
       resolveApprovedFeedRedirect("ozbargain", current, "http://localhost")
     ).toBeNull();
+  });
+
+  it("allows only exact HTTPS OzBargain deal-post URLs for validation", () => {
+    expect(
+      isApprovedOzBargainPostUrl("https://www.ozbargain.com.au/node/123456")
+    ).toBe(true);
+    expect(
+      isApprovedOzBargainPostUrl("https://www.ozbargain.com.au/node/123?next=/")
+    ).toBe(false);
+    expect(
+      isApprovedOzBargainPostUrl("https://evil.test/node/123456")
+    ).toBe(false);
   });
 });

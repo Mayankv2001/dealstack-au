@@ -45,24 +45,20 @@ maintenance (see "If volume grows" below).
 
 No further category/filter copy changes are needed this phase.
 
-## Admin workflow (today, no new code)
+## Admin workflow
 
 1. A dining-delivery post is staged automatically by the existing OzBargain
    monitor (unchanged fetch/cron logic) and now correctly lands as
    `review_state = 'new'` in the queue rather than being auto-ignored.
 2. Admin opens `/admin/signals/queue`, filters by the "Uber Eats"/"DoorDash"
    preset (or searches), reviews the raw title/summary.
-3. Admin clicks **Import as pending signal** — reuses the existing signal
-   create form, prefilled; the admin writes their own short paraphrase (never
-   copies raw content), confirms/edits `deal_kind`, `price_text`,
-   `promo_code`, `expiry_date`.
-4. The new `ozbargain_signals` row is `status = 'pending'` — **not public**
-   until a second, separate admin action (`setSignalStatus` → `approved`) on
-   `/admin/signals`.
+3. Admin previews the stored source details, then clicks **Approve** (or selects
+   several and uses **Approve selected**). This is the sole human publication
+   step; the transactional queue RPC creates/reuses the approved signal and
+   links the source row. **Reject** archives an unwanted source row.
 
-This is the **exact same** two-step staging→approval pipeline every other
-OzBargain signal already goes through (`docs/ozbargain-monitoring.md`) —
-nothing dining-delivery-specific was added to the review/publish gate.
+The feed still never publishes automatically. Dining delivery uses the same
+direct review queue as every other OzBargain deal.
 
 ## What the public card already shows
 
