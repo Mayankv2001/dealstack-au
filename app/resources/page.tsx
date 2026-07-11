@@ -269,7 +269,9 @@ export default function ResourcesPage() {
             <Button asChild size="sm" variant="ghost">
               <Link href="/deals">Deals</Link>
             </Button>
-            <Button asChild size="sm" variant="ghost">
+            {/* Hidden on mobile so the row fits a 390px viewport (same
+                treatment as the /deals header). */}
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
               <Link href="/stores">Stores</Link>
             </Button>
             <Button asChild size="sm" variant="ghost">
