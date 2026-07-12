@@ -137,3 +137,36 @@ The `/gift-cards` page shows one **effective saving** figure per offer, from
 4. Enable the source row (`enabled` + `automated_fetch_allowed`).
 5. Watch the first runs in `gift_card_ingest_runs`; review staged candidates at
    `/admin/gift-cards/review`. **Approve** is the only publication step.
+
+---
+
+## Offer detail experience (migration 022)
+
+The public `/gift-cards/[id]` page answers the eight buyer questions (what /
+how to claim / which cards / where they work / MCC restrictions / limits /
+stackability / what to verify) from **structured fields only** — the page
+composes pure models in `lib/giftcards/` and never touches raw source
+payloads (`tests/giftcards/noSourceProse.test.ts` enforces this with a
+property-access trap):
+
+- `claimSteps.ts` — original numbered claim flow; steps appear only when the
+  data behind them exists.
+- `termsRows.ts` — structured terms table (promo code, exact expiry
+  time+timezone, caps, formats, shipping, geography, combinability, official
+  terms link) with explicit "not recorded" fallbacks.
+- `stackability.ts` — two-stage analysis (acquisition vs redemption) using
+  the same five-status vocabulary as `compatibility.ts`.
+- `acceptanceModel.ts` — per-product acceptance views (merchants, categories,
+  supported/unsupported MCCs, confidence tiers) with the mandatory
+  "acceptance depends on the MCC" disclaimer.
+- `value.ts#buildWorkedExample` — face-value worked example; cash savings and
+  points/bonus estimates are kept strictly separate.
+
+Migration `022_gift_card_offer_detail.sql` (additive, **review before
+applying**) adds the offer columns behind these sections plus
+`gift_card_products.unsupported_mccs`, and extends the approve RPC. Until 022
+is applied the repos map the missing columns to null and every section
+degrades to its honest fallback. Candidate review at
+`/admin/gift-cards/review` captures the new fields and **blocks approval**
+without seller, promotion value, source URL and an expiry date (or an
+explicit "ongoing" tick).

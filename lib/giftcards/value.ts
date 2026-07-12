@@ -129,6 +129,85 @@ export interface GiftCardAcquisition {
   saving: number;
 }
 
+// ── Worked example (detail page) ─────────────────────────────────────────────
+
+export interface WorkedExampleInputs extends OfferValueInputs {
+  /** Per-order face-value cap the saving applies to, if any. */
+  capDollars?: number | null;
+}
+
+/**
+ * One fully-worked purchase at a chosen face value. Cash effects and reward
+ * estimates are kept strictly separate: `acquisitionSaving` is immediate cash
+ * only; points/bonus value appear in their own fields and never inflate it.
+ */
+export interface WorkedExample {
+  /** The face value the user asked about. */
+  requestedFaceValue: number;
+  /** Face value the saving actually covers (≤ requested when capped). */
+  coveredFaceValue: number;
+  /** Requested minus covered — bought at full price if still wanted. */
+  uncoveredFaceValue: number;
+  /** Cash handed over for the covered face value. */
+  cashPaid: number;
+  /** Immediate CASH saving from a % discount (0 for bonus/points offers). */
+  acquisitionSaving: number;
+  /** Extra spending power from a bonus-value promotion, in dollars. */
+  bonusValueDollars: number | null;
+  /** Points earned on the covered purchase, if a multiplier applies. */
+  points: number | null;
+  /** Disclosed estimate of those points, in dollars — never cash. */
+  rewardValueDollars: number | null;
+  pointValueCents: number | null;
+  /** Face value you can spend (covered face + bonus value). */
+  totalSpendingPower: number;
+  /** cashPaid − rewardValue estimate: the effective economic cost. */
+  effectiveCost: number;
+}
+
+/** Null when the offer has no quantifiable value at this face value. */
+export function buildWorkedExample(
+  offer: WorkedExampleInputs,
+  requestedFaceValue: number
+): WorkedExample | null {
+  if (!Number.isFinite(requestedFaceValue) || requestedFaceValue <= 0) return null;
+
+  const cap = offer.capDollars ?? null;
+  const covered =
+    cap != null && cap > 0 ? Math.min(requestedFaceValue, cap) : requestedFaceValue;
+  const uncovered = round2(requestedFaceValue - covered);
+
+  const discount =
+    offer.discountPercent && offer.discountPercent > 0 ? offer.discountPercent : 0;
+  const bonus = offer.bonusPercent && offer.bonusPercent > 0 ? offer.bonusPercent : 0;
+  const pointsValuation = valuePointsOffer(
+    offer.pointsMultiplier,
+    covered,
+    offer.pointsProgram,
+    offer.pointsValueCents
+  );
+  if (discount <= 0 && bonus <= 0 && !pointsValuation) return null;
+
+  const cashPaid = round2(covered * (1 - discount / 100));
+  const acquisitionSaving = round2(covered - cashPaid);
+  const bonusValueDollars = bonus > 0 ? round2(covered * (bonus / 100)) : null;
+  const rewardValueDollars = pointsValuation?.valueDollars ?? null;
+
+  return {
+    requestedFaceValue: round2(requestedFaceValue),
+    coveredFaceValue: round2(covered),
+    uncoveredFaceValue: uncovered,
+    cashPaid,
+    acquisitionSaving,
+    bonusValueDollars,
+    points: pointsValuation?.points ?? null,
+    rewardValueDollars,
+    pointValueCents: pointsValuation?.pointValueCents ?? null,
+    totalSpendingPower: round2(covered + (bonusValueDollars ?? 0)),
+    effectiveCost: round2(cashPaid - (rewardValueDollars ?? 0)),
+  };
+}
+
 /**
  * Cost of acquiring gift cards to cover `spend`, at a % discount off face
  * value, honouring an optional per-order face-value cap and denomination

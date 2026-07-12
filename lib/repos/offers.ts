@@ -69,6 +69,16 @@ interface GiftCardRow {
   source_name: string | null;
   product_id: string | null;
   source_last_seen_at: string | null;
+  // Migration 022 detail terms — optional so pre-022 databases keep working.
+  promo_code?: string | null;
+  expiry_time?: string | null;
+  expiry_timezone?: string | null;
+  uses_per_customer?: number | string | null;
+  shipping_may_apply?: boolean | null;
+  australia_only?: boolean | null;
+  combinable_with_seller_promotions?: boolean | null;
+  terms_url?: string | null;
+  included_product_ids?: string[] | null;
   citations: Citation[];
   confidence: Confidence;
   last_checked_at: string;
@@ -116,6 +126,15 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
     sourceName: r.source_name,
     productId: r.product_id,
     sourceLastSeenAt: r.source_last_seen_at,
+    promoCode: r.promo_code ?? null,
+    expiryTime: r.expiry_time ?? null,
+    expiryTimezone: r.expiry_timezone ?? null,
+    usesPerCustomer: toNumberOrNull(r.uses_per_customer ?? null),
+    shippingMayApply: r.shipping_may_apply ?? false,
+    australiaOnly: r.australia_only ?? null,
+    combinableWithSellerPromotions: r.combinable_with_seller_promotions ?? null,
+    termsUrl: r.terms_url ? (safeHttpsUrl(r.terms_url) ?? null) : null,
+    includedProductIds: r.included_product_ids ?? [],
     citations: safeCitations(r.citations),
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,

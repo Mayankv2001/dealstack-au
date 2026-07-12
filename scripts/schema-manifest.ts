@@ -56,6 +56,7 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "019_pipeline_lifecycle_retention.sql",
   "020_ozb_expiry_recheck.sql",
   "021_gift_card_pipeline.sql",
+  "022_gift_card_offer_detail.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -96,6 +97,9 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "points_value_cents", "membership_required", "activation_required",
       "coupon_required", "min_spend", "denomination_note", "format",
       "source_name", "product_id", "source_last_seen_at",
+      "promo_code", "expiry_time", "expiry_timezone", "uses_per_customer",
+      "shipping_may_apply", "australia_only",
+      "combinable_with_seller_promotions", "terms_url", "included_product_ids",
     ],
     {
       promotion_type: "021_gift_card_pipeline.sql",
@@ -112,6 +116,15 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       source_name: "021_gift_card_pipeline.sql",
       product_id: "021_gift_card_pipeline.sql",
       source_last_seen_at: "021_gift_card_pipeline.sql",
+      promo_code: "022_gift_card_offer_detail.sql",
+      expiry_time: "022_gift_card_offer_detail.sql",
+      expiry_timezone: "022_gift_card_offer_detail.sql",
+      uses_per_customer: "022_gift_card_offer_detail.sql",
+      shipping_may_apply: "022_gift_card_offer_detail.sql",
+      australia_only: "022_gift_card_offer_detail.sql",
+      combinable_with_seller_promotions: "022_gift_card_offer_detail.sql",
+      terms_url: "022_gift_card_offer_detail.sql",
+      included_product_ids: "022_gift_card_offer_detail.sql",
     }
   ),
   cashback_offers: table("001_initial_schema.sql", [
@@ -297,12 +310,16 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "first_seen_at", "last_seen_at", "processing_status", "parser_error",
     "created_at", "updated_at",
   ]),
-  gift_card_products: table("021_gift_card_pipeline.sql", [
-    "id", "brand", "slug", "issuer", "card_network", "format", "variable_load",
-    "min_denomination", "max_denomination", "category_restricted",
-    "supported_mccs", "mobile_wallet", "redemption_notes", "is_active",
-    "source_evidence", "created_at", "updated_at",
-  ]),
+  gift_card_products: table(
+    "021_gift_card_pipeline.sql",
+    [
+      "id", "brand", "slug", "issuer", "card_network", "format", "variable_load",
+      "min_denomination", "max_denomination", "category_restricted",
+      "supported_mccs", "unsupported_mccs", "mobile_wallet", "redemption_notes",
+      "is_active", "source_evidence", "created_at", "updated_at",
+    ],
+    { unsupported_mccs: "022_gift_card_offer_detail.sql" }
+  ),
   gift_card_merchant_acceptance: table("021_gift_card_pipeline.sql", [
     "id", "product_id", "store_id", "merchant_name", "merchant_category", "mcc",
     "status", "outcome", "is_public", "source_url", "checked_at", "notes",

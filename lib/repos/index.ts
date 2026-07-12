@@ -20,3 +20,7 @@ export {
   getOzBargainSignals,
 } from "./offers";
 export { getWeeklyDeals } from "./weeklyDeals";
+export {
+  getGiftCardProducts,
+  getGiftCardAcceptance,
+} from "./giftCardProducts";

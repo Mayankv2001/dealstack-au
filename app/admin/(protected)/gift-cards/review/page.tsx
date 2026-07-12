@@ -2,10 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
-import { listGiftCardCandidates } from "@/lib/admin/repos/giftCardPipeline";
+import {
+  listGiftCardCandidates,
+  listPublishedOfferSummaries,
+} from "@/lib/admin/repos/giftCardPipeline";
 import { listStores } from "@/lib/admin/repos/stores";
 import { Button } from "@/components/ui/button";
 import { GiftCardReviewCard } from "@/components/admin/GiftCardReviewCard";
+import { findDuplicateOffers } from "@/lib/giftcards/duplicateDetection";
 
 /**
  * Gift-card candidate review queue — the human gate between the GCDB ingest
@@ -20,11 +24,34 @@ export const metadata: Metadata = {
 
 export default async function GiftCardReviewPage() {
   await requireAdmin();
-  const [candidates, stores] = await Promise.all([
+  const [candidates, stores, publishedOffers] = await Promise.all([
     listGiftCardCandidates(),
     listStores(),
+    listPublishedOfferSummaries(),
   ]);
   const storeOptions = stores.map((s) => ({ id: s.id, name: s.name }));
+  const today = new Date().toISOString().slice(0, 10);
+  const duplicatesByCandidate = new Map(
+    candidates.map((candidate) => [
+      candidate.id,
+      findDuplicateOffers(
+        {
+          sellerName: candidate.sellerName,
+          giftCardBrands: candidate.giftCardBrands,
+          promotionType: candidate.promotionType,
+          discountPercent: candidate.discountPercent,
+          bonusPercent: candidate.bonusPercent,
+          pointsMultiplier: candidate.pointsMultiplier,
+          pointsProgram: candidate.pointsProgram,
+          startsAt: candidate.startsAt,
+          expiresAt: candidate.expiresAt,
+          sourceUrl: candidate.sourceUrl,
+        },
+        publishedOffers,
+        today
+      ),
+    ])
+  );
 
   return (
     <div className="space-y-6">
@@ -67,6 +94,7 @@ export default async function GiftCardReviewPage() {
               key={candidate.id}
               candidate={candidate}
               stores={storeOptions}
+              duplicates={duplicatesByCandidate.get(candidate.id) ?? []}
             />
           ))}
         </div>

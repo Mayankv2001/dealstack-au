@@ -175,8 +175,38 @@ test("gift-cards: a card links through to its detail page", async ({ page }) => 
   await page.getByRole("link", { name: "View details" }).first().click();
   await page.waitForURL("**/gift-cards/**");
   await expect(page.getByText(/Stacking compatibility/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: /What it/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "How to claim" })).toBeVisible();
   await expect(page.getByRole("link", { name: /All gift cards/i })).toBeVisible();
+});
+
+test("gift-cards: the detail page renders every structured section", async ({ page }) => {
+  await page.goto("/gift-cards/gc-coles-group-bonus-points");
+  for (const heading of [
+    "How to claim",
+    "Included gift cards",
+    "Where each card works",
+    "Stackability analysis",
+    "Worked example",
+    "Terms and limits",
+    "Source and trust",
+  ]) {
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+  }
+  // Acceptance is never presented as guaranteed.
+  await expect(
+    page.getByText(/Acceptance depends on the merchant category code/i).first()
+  ).toBeVisible();
+  // Two-stage stackability: acquisition and redemption are separate panels.
+  await expect(page.getByRole("heading", { name: /Buying the card/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Spending the card/i })).toBeVisible();
+  // Points offers must disclose that point values are estimates, not cash.
+  await expect(page.getByText(/not cash/i).first()).toBeVisible();
+  // The worked example responds to the face-value selector.
+  await page.getByRole("button", { name: "$500" }).click();
+  await expect(page.getByRole("button", { name: "$500" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
 });
 
 test("gift-cards: an unknown offer id is a 404, not a stale page", async ({ page }) => {

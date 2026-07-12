@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import type { ExtractedOffer } from "@/lib/giftcards/extractOffer";
 import type { GcdbFeedItem } from "@/lib/giftcards/parseGcdbFeed";
+import type { PublishedOfferSummary } from "@/lib/giftcards/duplicateDetection";
 import type {
   IngestMetrics,
   RawItemState,
@@ -455,6 +456,55 @@ export async function listGiftCardCandidates(
       approvedOfferId: row.approved_offer_id,
     };
   });
+}
+
+interface PublishedOfferRow {
+  id: string;
+  brand: string;
+  purchase_location: string | null;
+  promotion_type: string;
+  discount_percent: number | string | null;
+  bonus_percent: number | string | null;
+  points_multiplier: number | string | null;
+  points_program: string | null;
+  start_date: string | null;
+  expiry_date: string | null;
+  source_detail_url: string | null;
+}
+
+/**
+ * Every currently-published offer, shaped for lib/giftcards/duplicateDetection
+ * — the review page compares each candidate against this list so an admin
+ * sees a same-source or same-seller/card overlap before approving. Service
+ * role bypasses RLS deliberately: a since-expired offer must still surface
+ * here so a renewal candidate is flagged as superseding it, not as new.
+ */
+export async function listPublishedOfferSummaries(): Promise<
+  PublishedOfferSummary[]
+> {
+  const db = pipelineDb();
+  const { data, error } = await db
+    .from("gift_card_offers")
+    .select(
+      "id, brand, purchase_location, promotion_type, discount_percent, bonus_percent, points_multiplier, points_program, start_date, expiry_date, source_detail_url"
+    )
+    .eq("is_published", true);
+  if (error) {
+    throw new Error(`listPublishedOfferSummaries failed: ${error.message}`);
+  }
+  return ((data ?? []) as unknown as PublishedOfferRow[]).map((row) => ({
+    id: row.id,
+    brand: row.brand,
+    seller: row.purchase_location,
+    promotionType: row.promotion_type,
+    discountPercent: num(row.discount_percent),
+    bonusPercent: num(row.bonus_percent),
+    pointsMultiplier: num(row.points_multiplier),
+    pointsProgram: row.points_program,
+    startDate: row.start_date,
+    expiryDate: row.expiry_date,
+    sourceDetailUrl: row.source_detail_url,
+  }));
 }
 
 export async function approveGiftCardCandidate(

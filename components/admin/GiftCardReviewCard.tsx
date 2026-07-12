@@ -3,6 +3,10 @@
 import { useActionState } from "react";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import type { AdminGiftCardCandidate } from "@/lib/admin/repos/giftCardPipeline";
+import {
+  DUPLICATE_VERDICT_LABEL,
+  type DuplicateMatch,
+} from "@/lib/giftcards/duplicateDetection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,9 +82,11 @@ function Check({
 export function GiftCardReviewCard({
   candidate,
   stores,
+  duplicates = [],
 }: {
   candidate: AdminGiftCardCandidate;
   stores: { id: string; name: string }[];
+  duplicates?: DuplicateMatch[];
 }) {
   const [approveState, approve, approving] = useActionState<
     ReviewActionState,
@@ -137,6 +143,31 @@ export function GiftCardReviewCard({
               ? ` — review against the approved offer ${candidate.approvedOfferId}.`
               : ""}
           </p>
+        ) : null}
+
+        {duplicates.length > 0 ? (
+          <ul className="space-y-1.5">
+            {duplicates.map((match) => (
+              <li
+                key={match.offer.id}
+                className={
+                  match.verdict === "exact-duplicate"
+                    ? "rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
+                    : "rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-800 dark:text-amber-300"
+                }
+              >
+                <div className="flex flex-wrap items-center gap-1.5 font-medium">
+                  <AlertTriangle aria-hidden className="size-3 shrink-0" />
+                  {DUPLICATE_VERDICT_LABEL[match.verdict]} — {match.offer.id}
+                </div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 font-normal">
+                  {match.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
         ) : null}
 
         {candidate.warnings.length > 0 ? (
@@ -198,8 +229,12 @@ export function GiftCardReviewCard({
             <Field label="Point value (cents)" name="points_value_cents" type="number" placeholder="0.5 = 2,000 pts → $10" />
             <Field label="Start date" name="start_date" type="date" defaultValue={candidate.startsAt} />
             <Field label="Expiry date" name="expiry_date" type="date" defaultValue={candidate.expiresAt} />
+            <Field label="Expiry time (24h)" name="expiry_time" placeholder="23:59" />
+            <Field label="Expiry timezone" name="expiry_timezone" placeholder="AEST" />
+            <Field label="Promo code" name="promo_code" placeholder="e.g. FEELING10" />
             <Field label="Min spend $" name="min_spend" type="number" defaultValue={candidate.terms.minSpend ?? null} />
             <Field label="Face-value cap $" name="cap_dollars" type="number" />
+            <Field label="Uses per customer" name="uses_per_customer" type="number" placeholder="1" />
             <Field label="Limit per customer" name="limit_per_customer" defaultValue={candidate.terms.purchaseLimitNote ?? null} />
             <Field label="Denominations" name="denomination_note" placeholder="e.g. $20–$500 variable load" />
             <label className="grid gap-1 text-xs font-medium">
@@ -209,6 +244,22 @@ export function GiftCardReviewCard({
                 <option value="digital">Digital</option>
                 <option value="physical">Physical</option>
                 <option value="digital-and-physical">Digital & physical</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-medium">
+              Australia only?
+              <select name="australia_only" defaultValue="" className="h-8 rounded-md border bg-background px-2 text-sm font-normal">
+                <option value="">Not stated</option>
+                <option value="yes">Yes — AU customers only</option>
+                <option value="no">No — broader eligibility</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-medium">
+              Combines with other seller promos?
+              <select name="combinable_with_seller_promotions" defaultValue="" className="h-8 rounded-md border bg-background px-2 text-sm font-normal">
+                <option value="">Not stated</option>
+                <option value="yes">Yes — combinable</option>
+                <option value="no">No — one promotion only</option>
               </select>
             </label>
           </div>
@@ -226,13 +277,27 @@ export function GiftCardReviewCard({
             <Field label="Usage notes (comma/newline separated)" name="usage_notes" />
             <Field label="Stack notes" name="stack_notes" placeholder="e.g. Cashback usually excludes gift-card payment" />
             <Field label="Source URL" name="source_url" defaultValue={candidate.sourceUrl} />
+            <Field label="Official terms URL" name="terms_url" placeholder="https://seller.example/terms" />
+            <Field
+              label="Included product ids (comma-separated)"
+              name="included_product_ids"
+              placeholder="e.g. tcn-shop, tcn-love"
+            />
             <Field label="Offer id (blank = derived)" name="offer_id" />
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <Check label="Membership required" name="membership_required" defaultChecked={candidate.terms.membershipRequired} />
             <Check label="Activation required" name="activation_required" defaultChecked={candidate.terms.activationRequired} />
             <Check label="Coupon required" name="coupon_required" defaultChecked={candidate.terms.couponRequired} />
+            <Check label="Shipping may apply" name="shipping_may_apply" />
+            <Check label="Ongoing offer (no expiry)" name="ongoing" />
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Approval is blocked without a seller, a promotion value, a source
+            URL and an expiry date (or an explicit “Ongoing” tick). MCC and
+            merchant-acceptance evidence is managed on the gift-card product
+            records, not per offer.
+          </p>
           <div className="flex flex-wrap items-center gap-2 border-t pt-3">
             <Button type="submit" size="sm" disabled={approving}>
               {approving ? "Publishing…" : "Approve & publish"}

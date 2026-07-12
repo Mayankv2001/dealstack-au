@@ -88,9 +88,69 @@ export interface GiftCardOffer {
   sourceName?: string | null;
   productId?: string | null;
   sourceLastSeenAt?: string | null;
+  // ── Structured detail terms (migration 022; all optional) ──
+  /** The literal promo code entered at checkout, when published. */
+  promoCode?: string | null;
+  /** Exact end time on expiryDate as "HH:MM" 24h (e.g. "23:59"). */
+  expiryTime?: string | null;
+  /** Timezone label the seller states for expiryTime (e.g. "AEST"). */
+  expiryTimezone?: string | null;
+  /** Stated number of uses per customer (limitPerCustomer keeps the prose). */
+  usesPerCustomer?: number | null;
+  /** Physical cards may attract a shipping fee. */
+  shippingMayApply?: boolean;
+  /** true = Australian customers only; false = broader; null/undefined = unknown. */
+  australiaOnly?: boolean | null;
+  /** false = explicitly cannot combine with the seller's other promos; null = not stated. */
+  combinableWithSellerPromotions?: boolean | null;
+  /** The seller/issuer's official terms page for this promotion. */
+  termsUrl?: string | null;
+  /** Every gift-card product included in the promotion (productId is the primary). */
+  includedProductIds?: string[];
   citations: Citation[];
   confidence: Confidence;
   lastCheckedAt: string;
+}
+
+/**
+ * A gift-card product (the instrument itself, separate from any promotion) —
+ * the admin-activated public subset of gift_card_products (RLS is_active).
+ */
+export interface GiftCardProduct {
+  id: string;
+  brand: string;
+  slug: string;
+  issuer: string | null;
+  cardNetwork: "visa" | "mastercard" | "eftpos" | "closed-loop" | "unknown" | null;
+  format: "digital" | "physical" | "digital-and-physical" | "unknown";
+  variableLoad: boolean | null;
+  minDenomination: number | null;
+  maxDenomination: number | null;
+  categoryRestricted: boolean;
+  /** MCCs the card is known to work at. Empty = not recorded, NOT "none". */
+  supportedMccs: number[];
+  /** MCCs the card is known NOT to work at. Empty = not recorded. */
+  unsupportedMccs: number[];
+  mobileWallet: "supported" | "unsupported" | "partial" | "unknown";
+  redemptionNotes: string | null;
+}
+
+/**
+ * One admin-published merchant-acceptance fact for a gift-card product
+ * (RLS is_public). `status` is the acceptance confidence tier.
+ */
+export interface GiftCardAcceptanceRow {
+  id: string;
+  productId: string;
+  storeId: string | null;
+  merchantName: string | null;
+  merchantCategory: string | null;
+  mcc: number | null;
+  status: "verified" | "claimed" | "community";
+  outcome: "successful" | "unsuccessful" | null;
+  sourceUrl: string | null;
+  checkedAt: string | null;
+  notes: string | null;
 }
 
 export interface CashbackOffer {
