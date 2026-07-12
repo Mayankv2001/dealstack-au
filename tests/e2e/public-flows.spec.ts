@@ -82,7 +82,10 @@ test("deals: weekly pick links through to its permalink page", async ({
 
 test("deals: URL-backed views narrow the server-rendered results", async ({ page }) => {
   await page.goto("/deals");
-  await page.getByRole("link", { name: "Gift cards", exact: true }).click();
+  await page
+    .getByLabel("Deals sections")
+    .getByRole("link", { name: "Gift cards", exact: true })
+    .click();
 
   await expect(
     page.getByRole("heading", { level: 1, name: "Gift cards" })

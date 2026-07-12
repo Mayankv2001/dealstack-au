@@ -17,4 +17,9 @@ export default defineConfig({
     // Regex form so only "@/…" matches — never scoped packages like "@supabase/…".
     alias: [{ find: /^@\//, replacement: `${rootDir}/` }],
   },
+  test: {
+    // Playwright owns browser specs; loading them in Vitest invokes an
+    // incompatible test runtime before any application test can run.
+    exclude: ["tests/e2e/**", "**/node_modules/**", "**/.git/**"],
+  },
 });

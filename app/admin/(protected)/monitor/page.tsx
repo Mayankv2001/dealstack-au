@@ -275,10 +275,12 @@ function GiftCardPipelineCard({
   status,
   envEnabled,
   fmt,
+  nowMs,
 }: {
   status: GiftCardPipelineStatus | null;
   envEnabled: boolean;
   fmt: (iso: string | null) => string;
+  nowMs: number;
 }) {
   if (!status) {
     return (
@@ -307,7 +309,7 @@ function GiftCardPipelineCard({
     sourceEnabled &&
     fetchAllowed &&
     (!Number.isFinite(lastSuccessMs) ||
-      Date.now() - lastSuccessMs > GC_STALE_SOURCE_HOURS * 3_600_000);
+      nowMs - lastSuccessMs > GC_STALE_SOURCE_HOURS * 3_600_000);
   const oldestPendingLabel = status.oldestPendingAt ? fmt(status.oldestPendingAt) : "—";
 
   const stat = (label: string, value: React.ReactNode) => (
@@ -407,6 +409,7 @@ export default async function MonitorStatusPage() {
   const detectionEnabled = ozbOfferDetectEnabled();
   const recheckEnabled = ozbExpiryRecheckEnabled();
   const recheckDryRun = ozbExpiryRecheckDryRun();
+  const nowMs = new Date().getTime();
 
   const hasRisk = status.enabledWithoutApproval > 0;
   const checklist = cronChecklist(status);
@@ -455,6 +458,7 @@ export default async function MonitorStatusPage() {
         status={giftCardPipeline}
         envEnabled={gcdbEnabled}
         fmt={formatDate}
+        nowMs={nowMs}
       />
 
       {/* Most severe: the master switch is armed but compliance is NOT approved. */}

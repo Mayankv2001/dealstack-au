@@ -1,206 +1,224 @@
+import Image from "next/image";
 import Link from "next/link";
-import { CalendarClock, ExternalLink, Store, Ticket } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  BadgeCheck,
+  CalendarDays,
+  CheckCircle2,
+  Layers3,
+  LockKeyhole,
+  Sparkles,
+} from "lucide-react";
 import type { GiftCardOffer } from "@/lib/offers/types";
+import { isMultiRetailer } from "@/lib/giftcards/publicQuery";
 import { expiryUrgencyLabelAU } from "@/lib/offers/expiry";
-import { offerEffectiveSaving } from "@/lib/giftcards/publicQuery";
-import { bonusEffectiveDiscountPercent, valuePointsOffer } from "@/lib/giftcards/value";
 import { cn } from "@/lib/utils";
 
-/**
- * Public gift-card offer card. Every figure comes from the shared valuation in
- * lib/giftcards/value.ts, and points/bonus offers carry an explicit disclosure
- * of HOW the effective saving is derived — cash paid and reward value are never
- * blurred into one "cash back" number. Offers reach here only after admin
- * approval (RLS is_published), so nothing on this card is raw or unreviewed.
- */
+const LOGOS: Record<string, string> = {
+  "amazon au": "/logos/amazon-au.png",
+  "chemist warehouse": "/logos/chemist-warehouse.avif",
+  coles: "/logos/coles.svg",
+  "coles group": "/logos/coles.svg",
+  "jb hi-fi": "/logos/jb-hi-fi.png",
+  kogan: "/logos/kogan.png",
+  myer: "/logos/myer.png",
+  "the good guys": "/logos/the-good-guys.svg",
+  woolworths: "/logos/woolworths.webp",
+  wish: "/logos/woolworths.webp",
+};
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
+const CHANNEL_LABEL: Record<GiftCardOffer["channel"], string> = {
+  "membership-portal": "Member offer",
+  "supermarket-promo": "Supermarket promo",
+  "bank-benefit": "Benefits offer",
+};
 
-/**
- * Badge label derived from the offer's actual content, so it always agrees with
- * the headline even for legacy rows whose promotion_type defaults to "discount"
- * (e.g. a $0-discount card that exists only for points-on-purchase).
- */
-function promoLabel(offer: GiftCardOffer): string {
-  if (offer.promotionType === "bonus-value" || (offer.bonusPercent ?? 0) > 0) {
-    return "Bonus value";
-  }
-  if (
-    offer.promotionType === "points" ||
-    (offer.pointsMultiplier ?? 0) > 0 ||
-    (offer.discountPercent <= 0 && offer.pointsOnPurchase != null)
-  ) {
-    return "Points";
-  }
-  if (offer.discountPercent > 0) return "Discount";
-  if (
-    offer.promotionType === "membership" ||
-    offer.membershipRequired ||
-    offer.channel === "membership-portal"
-  ) {
-    return "Membership offer";
-  }
-  return "Offer";
-}
+const round1 = (value: number) => Math.round(value * 10) / 10;
+const displayNumber = (value: number) =>
+  Number.isInteger(round1(value)) ? String(round1(value)) : round1(value).toFixed(1);
 
-/** Headline saving + an honest sub-line explaining how it is derived. */
-function savingDisplay(offer: GiftCardOffer): { headline: string; sub: string | null } {
-  const program = offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null;
-
+function savingBadge(offer: GiftCardOffer): string {
   if (offer.promotionType === "bonus-value" && offer.bonusPercent) {
-    const eff = bonusEffectiveDiscountPercent(offer.bonusPercent);
-    return {
-      headline: `≈${round1(eff)}% effective`,
-      sub: `${round1(offer.bonusPercent)}% bonus value — $${round1(
-        100 + offer.bonusPercent
-      )} to spend for every $100 paid`,
-    };
+    return `${displayNumber(offer.bonusPercent)}% BONUS`;
   }
-
-  if (offer.promotionType === "points" && offer.pointsMultiplier && program) {
-    const v = valuePointsOffer(offer.pointsMultiplier, 100, program, offer.pointsValueCents);
-    if (v) {
-      return {
-        headline: `≈${round1(v.effectiveDiscountPercent)}% effective`,
-        sub: `${round1(offer.pointsMultiplier)}× ${program} ≈ $${round1(
-          v.valueDollars
-        )} reward value per $100 (valued at ${v.pointValueCents}c/pt)`,
-      };
-    }
-    return { headline: `${round1(offer.pointsMultiplier)}× ${program}`, sub: "Reward value varies — see programme terms." };
+  if (offer.promotionType === "points" && offer.pointsMultiplier) {
+    return `${displayNumber(offer.pointsMultiplier)}x POINTS`;
   }
-
-  // A direct discount is the headline; a points-on-purchase bonus rides along.
+  if (offer.discountPercent > 0 &&
+      (offer.membershipRequired || offer.channel === "membership-portal")) {
+    return `${displayNumber(offer.discountPercent)}% MEMBER RATE`;
+  }
   if (offer.discountPercent > 0) {
-    return {
-      headline: `${round1(offer.discountPercent)}% off`,
-      sub: offer.pointsOnPurchase?.earnNote ?? null,
-    };
+    return `${displayNumber(offer.discountPercent)}% OFF`;
   }
-
-  // No discount, but earning points for BUYING the card is a real stacking
-  // trick — surface it honestly rather than as a fake percentage.
-  if (offer.pointsOnPurchase) {
-    return { headline: "Points on purchase", sub: offer.pointsOnPurchase.earnNote };
-  }
-
-  // Genuine membership/portal offer with no quantified headline value.
-  if (
-    offer.promotionType === "membership" ||
-    offer.membershipRequired ||
-    offer.channel === "membership-portal"
-  ) {
-    return { headline: "Member offer", sub: null };
-  }
-
-  const effective = offerEffectiveSaving(offer);
-  return {
-    headline: effective != null ? `≈${round1(effective)}% effective` : "See offer details",
-    sub: null,
-  };
+  if (offer.pointsOnPurchase) return "BONUS POINTS";
+  return "MEMBER OFFER";
 }
 
-function ConditionBadges({ offer }: { offer: GiftCardOffer }) {
-  const conditions: string[] = [];
-  if (offer.membershipRequired) conditions.push("Membership required");
-  if (offer.activationRequired) conditions.push("Activation required");
-  if (offer.couponRequired) conditions.push("Coupon / code");
-  if (offer.minSpend) conditions.push(`Min spend $${round1(offer.minSpend)}`);
-  if (conditions.length === 0) return null;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {conditions.map((c) => (
-        <span
-          key={c}
-          className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
-        >
-          {c}
-        </span>
-      ))}
-    </div>
-  );
+function offerTitle(offer: GiftCardOffer): string {
+  if (offer.promotionType === "bonus-value" && offer.bonusPercent) {
+    return `${displayNumber(offer.bonusPercent)}% bonus value on ${offer.brand} gift cards`;
+  }
+  if (offer.promotionType === "points" && offer.pointsMultiplier) {
+    return `${displayNumber(offer.pointsMultiplier)}x ${offer.pointsProgram ?? "points"} on ${offer.brand} gift cards`;
+  }
+  if (offer.discountPercent > 0) {
+    return `${displayNumber(offer.discountPercent)}% off ${offer.brand} gift cards`;
+  }
+  if (offer.pointsOnPurchase) {
+    return `${offer.pointsOnPurchase.program} bonus on ${offer.brand} gift cards`;
+  }
+  return `${offer.brand} gift card member offer`;
+}
+
+function dateLabel(value: string | null): string {
+  if (!value) return "Ongoing";
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Australia/Melbourne",
+  }).format(new Date(`${value}T00:00:00+10:00`));
+}
+
+function logoFor(offer: GiftCardOffer): string | null {
+  const candidates = [offer.brand, offer.purchaseLocation, offer.source]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLowerCase());
+  for (const candidate of candidates) {
+    const exact = LOGOS[candidate];
+    if (exact) return exact;
+    const match = Object.entries(LOGOS).find(([name]) => candidate.includes(name));
+    if (match) return match[1];
+  }
+  return null;
+}
+
+function initials(brand: string): string {
+  return brand
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
 }
 
 export function GiftCardOfferCard({ offer }: { offer: GiftCardOffer }) {
-  const { headline, sub } = savingDisplay(offer);
+  const logo = logoFor(offer);
   const urgency = expiryUrgencyLabelAU(offer.expiryDate);
-  const acceptedAt = offer.acceptedAt ?? [];
-  const purchaseFrom = offer.purchaseLocation ?? offer.source;
+  const seller = offer.purchaseLocation ?? offer.source;
+  const verified = offer.confidence === "confirmed";
+  const compatibility = isMultiRetailer(offer) ? "Multi-retailer" : "Selected retailers";
 
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="truncate font-semibold tracking-tight">
-            <Link href={`/gift-cards/${offer.id}`} className="hover:text-primary hover:underline">
-              {offer.brand}
-            </Link>
-          </h3>
-          {purchaseFrom ? (
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <Store aria-hidden className="size-3" />
-              <span className="truncate">Buy from {purchaseFrom}</span>
-            </p>
-          ) : null}
-        </div>
-        <Badge
-          variant="outline"
-          className="shrink-0 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-        >
-          {promoLabel(offer)}
-        </Badge>
-      </div>
-
-      <div>
-        <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-          {headline}
-        </p>
-        {sub ? (
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{sub}</p>
-        ) : null}
-      </div>
-
-      <ConditionBadges offer={offer} />
-
-      {acceptedAt.length > 0 ? (
-        <p className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Spend at:</span>{" "}
-          {acceptedAt.slice(0, 6).join(", ")}
-          {acceptedAt.length > 6 ? ` +${acceptedAt.length - 6} more` : ""}
-        </p>
-      ) : null}
-
-      {offer.denominationNote ? (
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Ticket aria-hidden className="size-3" />
-          {offer.denominationNote}
-        </p>
-      ) : null}
-
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <CalendarClock aria-hidden className="size-3" />
-          {offer.expiryDate ? (
-            <span className={cn(urgency && "font-medium text-amber-700 dark:text-amber-300")}>
-              {urgency ?? `Ends ${offer.expiryDate}`}
+    <article className="group flex min-h-[340px] flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-500/35 hover:shadow-md">
+      <div className="relative flex min-h-[166px] flex-[1.05] flex-col overflow-hidden border-b bg-stone-100 p-4 dark:bg-stone-900">
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-60 [background-image:radial-gradient(circle_at_1px_1px,rgba(16,185,129,0.18)_1px,transparent_0)] [background-size:18px_18px]"
+        />
+        <div aria-hidden className="absolute -right-12 -top-14 size-40 rounded-full bg-emerald-400/15 blur-2xl" />
+        <div className="relative flex items-start justify-between gap-3">
+          {logo ? (
+            <span className="flex h-12 min-w-20 max-w-28 items-center justify-center rounded-lg border bg-white px-2 py-1 shadow-sm">
+              <Image
+                src={logo}
+                alt={`${offer.brand} logo`}
+                width={96}
+                height={40}
+                unoptimized
+                className="max-h-9 w-auto object-contain"
+              />
             </span>
           ) : (
-            "No end date listed"
+            <span
+              role="img"
+              aria-label={`${offer.brand} logo treatment`}
+              className="flex size-12 items-center justify-center rounded-xl bg-stone-900 text-sm font-black tracking-tight text-white shadow-sm dark:bg-white dark:text-stone-900"
+            >
+              {initials(offer.brand)}
+            </span>
           )}
-        </span>
-        <Link
-          href={`/gift-cards/${offer.id}`}
-          className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-        >
-          View details <ExternalLink aria-hidden className="size-3" />
-        </Link>
+          <span className="rounded-full border border-white/70 bg-white/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-600 shadow-sm dark:border-stone-700 dark:bg-stone-950/90 dark:text-stone-300">
+            {CHANNEL_LABEL[offer.channel]}
+          </span>
+        </div>
+
+        <div className="relative mt-auto flex items-end justify-between gap-2 pt-5">
+          <p className="max-w-[8rem] text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+            {offer.brand} gift card
+          </p>
+          <div className="flex min-h-20 min-w-20 max-w-32 items-center justify-center rounded-full bg-emerald-600 px-3 text-center text-lg font-black leading-[1.05] tracking-tight text-white shadow-[0_8px_24px_rgba(5,150,105,0.25)]">
+            {savingBadge(offer)}
+          </div>
+        </div>
+
+        <div className="absolute bottom-3 left-3 flex gap-1.5">
+          {offer.membershipRequired ? (
+            <span title="Membership required" className="rounded-full bg-amber-100 p-1.5 text-amber-800">
+              <LockKeyhole aria-label="Membership required" className="size-3" />
+            </span>
+          ) : null}
+          {offer.activationRequired ? (
+            <span title="Activation required" className="rounded-full bg-sky-100 p-1.5 text-sky-800">
+              <Sparkles aria-label="Activation required" className="size-3" />
+            </span>
+          ) : null}
+        </div>
       </div>
 
-      <p className="text-[11px] text-muted-foreground/80">
-        {offer.sourceName ? `Via ${offer.sourceName} · ` : ""}
-        Checked {offer.lastCheckedAt.slice(0, 10)} · confirm current terms before buying.
-      </p>
+      <div className="flex flex-1 flex-col p-3.5">
+        <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 tracking-tight">
+          <Link href={`/gift-cards/${offer.id}`} className="hover:text-emerald-700">
+            {offerTitle(offer)}
+          </Link>
+        </h3>
+        <p className="mt-1 truncate text-xs text-muted-foreground">From {seller}</p>
+
+        <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+          <CalendarDays aria-hidden className="size-3 shrink-0" />
+          <span>{dateLabel(offer.startDate)} – {dateLabel(offer.expiryDate)}</span>
+          {urgency ? (
+            <span className="ml-auto shrink-0 font-semibold text-amber-700 dark:text-amber-300">{urgency}</span>
+          ) : null}
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold">
+          <span className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-1",
+            verified
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+              : "bg-sky-500/10 text-sky-700 dark:text-sky-300"
+          )}>
+            {verified ? <BadgeCheck className="size-3" /> : <CheckCircle2 className="size-3" />}
+            {verified ? "Verified by DealStack" : "Source checked"}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-muted-foreground">
+            <Layers3 className="size-3" /> {compatibility}
+          </span>
+        </div>
+
+        {offer.promotionType === "points" || offer.pointsOnPurchase ? (
+          <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground">Points are rewards, not cash.</p>
+        ) : null}
+
+        <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+          <Link
+            href={`/gift-cards/${offer.id}`}
+            className="inline-flex h-8 flex-1 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700"
+          >
+            View details
+          </Link>
+          {offer.acceptedAtMerchantIds[0] ? (
+            <Link
+              href={`/?stack=${encodeURIComponent(offer.acceptedAtMerchantIds[0])}#calculator`}
+              className="inline-flex h-8 items-center justify-center rounded-md border px-2.5 text-xs font-semibold hover:bg-muted"
+            >
+              Build stack
+            </Link>
+          ) : null}
+        </div>
+      </div>
     </article>
   );
 }

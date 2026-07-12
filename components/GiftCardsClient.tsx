@@ -1,10 +1,19 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Gift, Info, SearchX } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Filter,
+  Gift,
+  Info,
+  Search,
+  SearchX,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GiftCardOfferCard } from "@/components/GiftCardOfferCard";
 import Logo from "@/components/Logo";
@@ -22,17 +31,11 @@ import {
 } from "@/lib/giftcards/publicQuery";
 import { cn } from "@/lib/utils";
 
-/**
- * Interactive client for the public /gift-cards page. Holds URL-derived filter
- * state only — app/gift-cards/page.tsx loads the APPROVED offers (RLS
- * is_published) and passes them in. All filtering/sorting is the pure,
- * unit-tested lib/giftcards/publicQuery so the UI and tests can't diverge.
- */
-
 export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const params = useMemo(() => {
     const raw: Record<string, string> = {};
@@ -42,80 +45,140 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
     return parseGiftCardParams(raw);
   }, [searchParams]);
 
-  const visible = useMemo(
-    () => queryGiftCardOffers(offers, params),
-    [offers, params]
+  const visible = useMemo(() => queryGiftCardOffers(offers, params), [offers, params]);
+  const sellers = useMemo(
+    () => Array.from(new Set(offers.map((offer) => offer.source).filter(Boolean))).sort(),
+    [offers]
   );
+  const activeFilters = [
+    params.seller,
+    params.membership,
+    params.activation,
+    params.format,
+    params.minSave,
+  ].filter(Boolean).length;
 
   function update(overrides: Partial<GiftCardQueryParams>): void {
-    const href = giftCardHref(params, overrides);
-    router.replace(href, { scroll: false });
+    router.replace(giftCardHref(params, overrides), { scroll: false });
   }
 
+  const filterControls = (
+    <>
+      <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground sm:flex-row sm:items-center">
+        Seller
+        <select
+          value={params.seller ?? ""}
+          onChange={(event) => update({ seller: event.target.value || null })}
+          className="h-9 min-w-36 rounded-md border bg-background px-2 text-xs text-foreground"
+        >
+          <option value="">All sellers</option>
+          {sellers.map((seller) => <option key={seller} value={seller}>{seller}</option>)}
+        </select>
+      </label>
+      <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground sm:flex-row sm:items-center">
+        Format
+        <select
+          value={params.format ?? ""}
+          onChange={(event) => update({ format: (event.target.value || null) as GiftCardQueryParams["format"] })}
+          className="h-9 min-w-28 rounded-md border bg-background px-2 text-xs text-foreground"
+        >
+          <option value="">Any format</option>
+          <option value="digital">Digital</option>
+          <option value="physical">Physical</option>
+        </select>
+      </label>
+      <label className="flex min-w-0 flex-col gap-1 text-[11px] font-medium text-muted-foreground sm:flex-row sm:items-center">
+        Min saving
+        <select
+          value={params.minSave ?? ""}
+          onChange={(event) => update({ minSave: event.target.value ? Number(event.target.value) : null })}
+          className="h-9 min-w-24 rounded-md border bg-background px-2 text-xs text-foreground"
+        >
+          <option value="">Any</option>
+          <option value="3">3%+</option>
+          <option value="5">5%+</option>
+          <option value="10">10%+</option>
+        </select>
+      </label>
+      <label className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs font-medium">
+        <input
+          type="checkbox"
+          checked={params.membership}
+          onChange={(event) => update({ membership: event.target.checked })}
+          className="accent-emerald-600"
+        />
+        Membership
+      </label>
+      <label className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs font-medium">
+        <input
+          type="checkbox"
+          checked={params.activation}
+          onChange={(event) => update({ activation: event.target.checked })}
+          className="accent-emerald-600"
+        />
+        Activation
+      </label>
+    </>
+  );
+
   return (
-    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+    <div className="flex min-h-screen flex-col bg-stone-50/70 dark:bg-stone-950">
+      <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <Logo />
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Deals</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-              <Link href="/stores">Stores</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/cards">Cards</Link>
-            </Button>
-            <span
-              aria-current="page"
-              className="inline-flex h-8 items-center rounded-md bg-emerald-500/10 px-3 text-sm font-medium text-emerald-700 dark:text-emerald-400"
-            >
+          <nav className="flex items-center gap-1 sm:gap-2" aria-label="Primary navigation">
+            <Button asChild size="sm" variant="ghost"><Link href="/deals">Deals</Link></Button>
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex"><Link href="/stores">Stores</Link></Button>
+            <Button asChild size="sm" variant="ghost" className="hidden min-[430px]:inline-flex"><Link href="/cards">Cards</Link></Button>
+            <span aria-current="page" className="inline-flex h-8 items-center rounded-md bg-emerald-500/10 px-2.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
               Gift cards
             </span>
           </nav>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        {/* Hero */}
-        <div className="rounded-2xl border bg-gradient-to-br from-emerald-500/10 via-background to-background p-4 shadow-sm sm:p-5">
-          <div className="max-w-2xl">
-            <Badge
-              variant="outline"
-              className="gap-1 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-            >
-              <Gift className="size-3" />
-              Gift card offers
-            </Badge>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-              Gift card{" "}
-              <span className="text-emerald-600 dark:text-emerald-400">deals</span>
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Discounted, bonus-value and points gift-card promotions — a core
-              stacking layer for Australian shoppers. Every offer here is{" "}
-              <span className="font-medium text-foreground">
-                reviewed by a person before it is published
-              </span>
-              , with the source and last-checked date on each card.
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6">
+        <section className="flex flex-col justify-between gap-3 rounded-xl border bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 px-5 py-4 text-white shadow-sm sm:flex-row sm:items-center sm:px-6">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
+              <Gift className="size-4" /> Reviewed Australian offers
+            </div>
+            <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Gift card deals</h1>
+            <p className="mt-1 max-w-2xl text-sm text-emerald-50/80">
+              Find discounts, bonus value and points promotions worth adding to your next stack.
             </p>
           </div>
+          <div className="flex shrink-0 items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-emerald-50">
+            <CheckCircle2 className="size-4 text-emerald-300" />
+            Human-reviewed before publication
+          </div>
+        </section>
 
-          <p className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs leading-relaxed text-emerald-900 dark:text-emerald-200">
-            <Info className="mt-0.5 size-3.5 shrink-0" />
-            <span>
-              <span className="font-medium">How we value offers:</span> discounts
-              show as-is. Bonus value and points show an <em>effective saving</em>{" "}
-              against the net cost — points use our published valuation (e.g.
-              Everyday Rewards and Flybuys at 0.5c/point). The cash you pay and
-              the reward value are always shown separately, never merged.
-            </span>
-          </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <label className="relative flex-1">
+            <Search aria-hidden className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={params.q}
+              placeholder="Search gift cards, sellers or rewards programmes"
+              onChange={(event) => update({ q: event.target.value })}
+              className="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm shadow-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+              aria-label="Search gift card offers"
+            />
+          </label>
+          <label className="flex h-10 items-center gap-2 rounded-lg border bg-background px-3 text-xs text-muted-foreground shadow-sm">
+            Sort
+            <select
+              value={params.sort}
+              onChange={(event) => update({ sort: event.target.value as GiftCardQueryParams["sort"] })}
+              className="min-w-40 bg-transparent text-sm font-medium text-foreground outline-none"
+            >
+              {GIFT_CARD_SORTS.map((sort) => <option key={sort} value={sort}>{GC_SORT_LABEL[sort]}</option>)}
+            </select>
+          </label>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-6 flex flex-wrap items-center gap-1.5">
+        <nav className="mt-3 flex gap-1.5 overflow-x-auto pb-1" aria-label="Gift card categories">
           {GIFT_CARD_TABS.map((tab) => (
             <button
               key={tab}
@@ -123,101 +186,85 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
               onClick={() => update({ tab })}
               aria-pressed={params.tab === tab}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
                 params.tab === tab
-                  ? "border-emerald-600 bg-emerald-600 text-white"
-                  : "border-border bg-background text-muted-foreground hover:border-emerald-500/40 hover:text-foreground"
+                  ? "border-emerald-700 bg-emerald-700 text-white"
+                  : "bg-background text-muted-foreground hover:border-emerald-500/50 hover:text-foreground"
               )}
             >
               {TAB_LABEL[tab]}
             </button>
           ))}
+        </nav>
+
+        <div className="mt-2 hidden items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-sm lg:flex">
+          <SlidersHorizontal className="size-4 shrink-0 text-muted-foreground" />
+          {filterControls}
+          {activeFilters > 0 ? (
+            <button onClick={() => router.replace(pathname, { scroll: false })} className="ml-auto text-xs font-semibold text-emerald-700 hover:underline">
+              Clear {activeFilters}
+            </button>
+          ) : null}
         </div>
 
-        {/* Search + sort */}
-        <div className="mt-4 flex flex-col gap-2 border-y py-3 sm:flex-row sm:items-center sm:justify-between">
-          <input
-            type="search"
-            defaultValue={params.q}
-            placeholder="Search brand, retailer or programme…"
-            onChange={(e) => update({ q: e.target.value })}
-            className="h-9 w-full rounded-lg border bg-background px-3 text-sm sm:max-w-xs"
-            aria-label="Search gift card offers"
-          />
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Sort
-            <select
-              value={params.sort}
-              onChange={(e) => update({ sort: e.target.value as GiftCardQueryParams["sort"] })}
-              className="h-9 rounded-lg border bg-background px-2 text-sm text-foreground"
-            >
-              {GIFT_CARD_SORTS.map((sort) => (
-                <option key={sort} value={sort}>
-                  {GC_SORT_LABEL[sort]}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="mt-2 flex items-center justify-between lg:hidden">
+          <Button type="button" size="sm" variant="outline" onClick={() => setFiltersOpen(true)} className="gap-2 bg-background">
+            <Filter className="size-3.5" /> Filters{activeFilters ? ` (${activeFilters})` : ""}
+          </Button>
+          <p className="text-xs text-muted-foreground">{visible.length} offer{visible.length === 1 ? "" : "s"}</p>
         </div>
 
-        {/* Grid / empty state */}
         {visible.length === 0 ? (
-          <div className="mt-5 flex flex-col items-center gap-2 rounded-2xl border bg-card py-12 text-center shadow-sm">
+          <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border bg-card py-12 text-center shadow-sm">
             <SearchX className="size-8 text-muted-foreground" />
-            <p className="font-medium">
+            <p className="font-semibold">{offers.length === 0 ? "No gift card offers published yet" : "No offers match these filters"}</p>
+            <p className="max-w-md px-4 text-sm text-muted-foreground">
               {offers.length === 0
-                ? "No gift card offers published yet"
-                : "No gift card offers match these filters"}
+                ? "New reviewed offers will appear here as they are approved. Unreviewed offers are never shown."
+                : "Try another category or clear your filters. New offers appear only after manual review."}
             </p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {offers.length === 0
-                ? "Unverified, expired or overdue offers are withheld until an admin reviews them. Check back soon."
-                : "Try another tab or clear the search — new offers are added after manual review."}
-            </p>
-            {offers.length > 0 ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => router.replace(pathname, { scroll: false })}
-              >
-                Clear filters
-              </Button>
-            ) : (
-              <Button asChild size="sm" variant="outline">
-                <Link href="/deals">Browse deals</Link>
-              </Button>
-            )}
+            {offers.length > 0 ? <Button size="sm" variant="outline" onClick={() => router.replace(pathname, { scroll: false })}>Clear filters</Button> : null}
           </div>
         ) : (
           <>
-            <p className="mt-4 text-xs text-muted-foreground">
-              {visible.length} offer{visible.length === 1 ? "" : "s"}
-            </p>
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {visible.map((offer) => (
-                <GiftCardOfferCard key={offer.id} offer={offer} />
-              ))}
+            <div className="mt-3 hidden items-center justify-between lg:flex">
+              <p className="text-xs text-muted-foreground">Showing {visible.length} approved offer{visible.length === 1 ? "" : "s"}</p>
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {visible.map((offer) => <GiftCardOfferCard key={offer.id} offer={offer} />)}
             </div>
           </>
         )}
 
-        {/* Footer disclaimer */}
-        <section className="mt-8">
-          <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 shadow-sm sm:p-5">
-            <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-              <span>
-                <strong>Disclaimer:</strong> general information only, not
-                financial advice. Gift-card discounts, bonus rates, points
-                valuations, denominations and eligibility change without notice
-                and vary by person — always confirm current terms with the
-                seller and check whether a card is accepted before you buy.
-                Points values are estimates, not guaranteed cash.
-              </span>
-            </p>
+        <section className="mt-7 grid gap-3 rounded-xl border bg-background p-4 text-xs text-muted-foreground shadow-sm sm:grid-cols-2 sm:p-5">
+          <div className="flex items-start gap-2">
+            <Info className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+            <p><strong className="text-foreground">How we value offers:</strong> direct discounts are shown as stated. Bonus value and points use disclosed estimates; points are not cash and redemption value varies.</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <p><strong className="text-foreground">Freshness and sourcing:</strong> every listing is reviewed before publication. Check dates, eligibility and current terms on the detail page before buying.</p>
           </div>
         </section>
       </main>
+
+      {filtersOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Gift card filters">
+          <button type="button" aria-label="Close filters" className="absolute inset-0 bg-black/45" onClick={() => setFiltersOpen(false)} />
+          <div className="absolute inset-y-0 right-0 flex w-[min(88vw,360px)] flex-col bg-background p-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-4">
+              <div><p className="font-bold">Filter offers</p><p className="text-xs text-muted-foreground">Narrow approved listings</p></div>
+              <Button type="button" size="icon" variant="ghost" onClick={() => setFiltersOpen(false)} aria-label="Close filter drawer"><X /></Button>
+            </div>
+            <div className="flex flex-col gap-4 overflow-y-auto py-5 [&>label]:items-stretch">{filterControls}</div>
+            <div className="mt-auto grid grid-cols-2 gap-2 border-t pt-4">
+              <Button variant="outline" onClick={() => router.replace(pathname, { scroll: false })}>Clear</Button>
+              <Button onClick={() => setFiltersOpen(false)} className="bg-emerald-700 hover:bg-emerald-800">Show {visible.length}</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <SiteFooter />
     </div>
   );
