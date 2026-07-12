@@ -128,7 +128,7 @@ export function GiftCardOfferCard({
             {vm.compatibilityLabel}
           </span>
           <span className="inline-flex items-center gap-1 text-muted-foreground">
-            {vm.trustLabel === "Verified" ? (
+            {vm.trustLabel === "Verified by DealStack" ? (
               <BadgeCheck className="size-3 text-emerald-600" />
             ) : (
               <CheckCircle2 className="size-3" />

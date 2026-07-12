@@ -134,7 +134,7 @@ describe("evaluateGiftCardCompatibility — shared caveats", () => {
 
   it("exposes a readable status label", () => {
     expect(compatibilityStatusLabel("requires-verification")).toBe(
-      "Requires verification"
+      "Verify stacking"
     );
   });
 });

@@ -71,7 +71,7 @@ describe("date truthfulness", () => {
       makeOffer({ expiryDate: null, startDate: null }),
       NOW
     );
-    expect(vm.dateLabel).toBe("No end date listed");
+    expect(vm.dateLabel).toBe("Dates not recorded — verify at source");
     expect(vm.dateLabel).not.toMatch(/ongoing/i);
   });
 
@@ -86,6 +86,22 @@ describe("date truthfulness", () => {
       NOW
     );
     expect(far.urgencyLabel).toBeUndefined();
+  });
+
+  it("shows Ongoing only for an explicit reviewed ongoing flag", () => {
+    const vm = buildGiftCardOfferCardViewModel(
+      makeOffer({ expiryDate: null, startDate: null, isOngoing: true }),
+      NOW
+    );
+    expect(vm.dateLabel).toBe("Ongoing");
+  });
+
+  it("labels a future promotion by its start and end dates", () => {
+    const vm = buildGiftCardOfferCardViewModel(
+      makeOffer({ startDate: "2026-07-15", expiryDate: "2026-07-21" }),
+      NOW
+    );
+    expect(vm.dateLabel).toBe("Starts 15 Jul 2026 · ends 21 Jul 2026");
   });
 });
 
@@ -147,6 +163,35 @@ describe("mechanic classification", () => {
     expect(vm.headline).not.toMatch(/sample/i);
     expect(vm.pointsDisclosure).toBe("Points are rewards, not cash.");
   });
+
+  it("keeps promo credit separate from a checkout discount", () => {
+    const vm = buildGiftCardOfferCardViewModel(
+      makeOffer({
+        promotionType: "promo-credit",
+        discountPercent: 0,
+        promoCreditDollars: 10,
+        thresholdDollars: 100,
+      }),
+      NOW
+    );
+    expect(vm.mechanicLabel).toBe("Promo credit");
+    expect(vm.valueBadge).toBe("$10 CREDIT");
+    expect(vm.headline).toContain("future seller credit");
+  });
+
+  it("shows a fee waiver as a fee waiver", () => {
+    const vm = buildGiftCardOfferCardViewModel(
+      makeOffer({
+        promotionType: "fee-waiver",
+        discountPercent: 0,
+        feeWaiverDollars: 4.95,
+        thresholdDollars: 100,
+      }),
+      NOW
+    );
+    expect(vm.mechanicLabel).toBe("Fee waiver");
+    expect(vm.headline).toBe("Purchase fee waived");
+  });
 });
 
 describe("seller / source separation", () => {
@@ -176,11 +221,24 @@ describe("seller / source separation", () => {
 describe("trust and compatibility", () => {
   it("maps a confirmed offer to a positive, verified card", () => {
     const vm = buildGiftCardOfferCardViewModel(
+      makeBareOffer({
+        confidence: "confirmed",
+        expiryDate: "2026-09-30",
+        acceptedAtMerchantIds: ["jb-hifi"],
+      }),
+      NOW
+    );
+    expect(vm.trustLabel).toBe("Verified by DealStack");
+    expect(vm.compatibilityTone).toBe("positive");
+  });
+
+  it("defaults an imported offer with no acceptance evidence to Verify stacking", () => {
+    const vm = buildGiftCardOfferCardViewModel(
       makeBareOffer({ confidence: "confirmed", expiryDate: "2026-09-30" }),
       NOW
     );
-    expect(vm.trustLabel).toBe("Verified");
-    expect(vm.compatibilityTone).toBe("positive");
+    expect(vm.compatibilityLabel).toBe("Verify stacking");
+    expect(vm.compatibilityTone).toBe("warning");
   });
 
   it("maps a needs-verification offer to a warning tone with a source-checked trust label", () => {
@@ -188,8 +246,8 @@ describe("trust and compatibility", () => {
       makeBareOffer({ confidence: "needs-verification", expiryDate: "2026-09-30" }),
       NOW
     );
-    expect(vm.trustLabel).toBe("Source-checked");
-    expect(vm.compatibilityLabel).toBe("Verify terms");
+    expect(vm.trustLabel).toBe("Source checked");
+    expect(vm.compatibilityLabel).toBe("Verify stacking");
     expect(vm.compatibilityTone).toBe("warning");
   });
 });

@@ -55,7 +55,11 @@ export function buildTermsRows(offer: GiftCardOffer): TermsRow[] {
   if (offer.startDate) {
     add("starts", "Starts", formatDateAU(offer.startDate));
   }
-  add("expires", "Expires", formatExpiry(offer));
+  add(
+    "expires",
+    "Expires",
+    formatExpiry(offer) ?? (offer.isOngoing ? "Ongoing" : null)
+  );
 
   if (offer.capDollars != null) {
     add(
@@ -66,6 +70,22 @@ export function buildTermsRows(offer: GiftCardOffer): TermsRow[] {
   }
   if (offer.minSpend != null && offer.minSpend > 0) {
     add("min-spend", "Minimum spend", `$${offer.minSpend.toLocaleString("en-AU")}`);
+  }
+  if (offer.thresholdDollars != null && offer.thresholdDollars > 0) {
+    add(
+      "threshold",
+      "Qualifying gift-card value",
+      `$${offer.thresholdDollars.toLocaleString("en-AU")}`
+    );
+  }
+  if (offer.promotionType === "promo-credit") {
+    add("reward-destination", "Reward destination", "Future seller promo credit");
+  } else if (offer.promotionType === "points") {
+    add("reward-destination", "Reward destination", "Loyalty points (not cash)");
+  } else if (offer.promotionType === "fee-waiver") {
+    add("reward-destination", "Reward destination", "Waived purchase fee");
+  } else if (offer.promotionType === "bonus-value") {
+    add("reward-destination", "Reward destination", "Extra gift-card face value");
   }
   if (offer.denominationNote) {
     add("denominations", "Denominations", offer.denominationNote);

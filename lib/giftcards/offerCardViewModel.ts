@@ -1,6 +1,7 @@
 import type { GiftCardOffer } from "@/lib/offers/types";
 import { expiryUrgencyLabelAU } from "@/lib/offers/expiry";
 import { evaluateGiftCardCompatibility } from "@/lib/giftcards/compatibility";
+import { giftCardDateState } from "@/lib/giftcards/dateState";
 
 /**
  * Pure presentation view-model for one public gift-card offer card.
@@ -102,14 +103,22 @@ export function splitBrandList(brand: string): string[] {
 
 type Mechanic =
   | "discount"
+  | "fixed-dollar-discount"
   | "member-discount"
   | "bonus-value"
   | "points"
   | "bonus-points"
+  | "promo-credit"
+  | "fee-waiver"
   | "offer";
 
 /** One authoritative classification so mechanic/badge/headline can never diverge. */
 function classify(offer: GiftCardOffer): Mechanic {
+  if (offer.promotionType === "promo-credit") return "promo-credit";
+  if (offer.promotionType === "fee-waiver") return "fee-waiver";
+  if (offer.promotionType === "fixed-dollar-discount") {
+    return "fixed-dollar-discount";
+  }
   if ((offer.bonusPercent ?? 0) > 0 || offer.promotionType === "bonus-value") {
     return "bonus-value";
   }
@@ -135,12 +144,18 @@ function mechanicLabel(mechanic: Mechanic): string {
       return "Discount";
     case "member-discount":
       return "Member rate";
+    case "fixed-dollar-discount":
+      return "Fixed discount";
     case "bonus-value":
       return "Bonus value";
     case "points":
       return "Points";
     case "bonus-points":
       return "Bonus points";
+    case "promo-credit":
+      return "Promo credit";
+    case "fee-waiver":
+      return "Fee waiver";
     case "offer":
       return "Member offer";
   }
@@ -156,10 +171,18 @@ function valueBadge(offer: GiftCardOffer, mechanic: Mechanic): string {
         : "POINTS";
     case "member-discount":
       return `${displayNumber(offer.discountPercent)}% MEMBER`;
+    case "fixed-dollar-discount":
+      return `$${displayNumber(offer.fixedDiscountDollars ?? 0)} OFF`;
     case "discount":
       return `${displayNumber(offer.discountPercent)}% OFF`;
     case "bonus-points":
       return "BONUS POINTS";
+    case "promo-credit":
+      return `$${displayNumber(offer.promoCreditDollars ?? 0)} CREDIT`;
+    case "fee-waiver":
+      return offer.feeWaiverDollars
+        ? `$${displayNumber(offer.feeWaiverDollars)} FEE SAVED`
+        : "NO FEE";
     case "offer":
       return "OFFER";
   }
@@ -171,6 +194,8 @@ function headline(offer: GiftCardOffer, mechanic: Mechanic): string {
       return `${displayNumber(offer.discountPercent)}% off face value`;
     case "member-discount":
       return `${displayNumber(offer.discountPercent)}% off for members`;
+    case "fixed-dollar-discount":
+      return `$${displayNumber(offer.fixedDiscountDollars ?? 0)} off at checkout`;
     case "bonus-value":
       return `${displayNumber(offer.bonusPercent ?? 0)}% bonus value`;
     case "points":
@@ -179,17 +204,21 @@ function headline(offer: GiftCardOffer, mechanic: Mechanic): string {
         : `${pointsProgram(offer)} points`;
     case "bonus-points":
       return `Bonus ${pointsProgram(offer)} points`;
+    case "promo-credit":
+      return `$${displayNumber(offer.promoCreditDollars ?? 0)} future seller credit`;
+    case "fee-waiver":
+      return "Purchase fee waived";
     case "offer":
       return "Reviewed member offer";
   }
 }
 
 const COMPAT_LABEL = {
-  compatible: "Ready to stack",
+  compatible: "Compatible",
   "likely-compatible": "Likely compatible",
-  "requires-verification": "Verify terms",
-  "insufficient-evidence": "Evidence pending",
-  incompatible: "Not stackable",
+  "requires-verification": "Verify stacking",
+  "insufficient-evidence": "Insufficient evidence",
+  incompatible: "Incompatible",
 } as const;
 
 const COMPAT_TONE: Record<
@@ -245,12 +274,23 @@ export function buildGiftCardOfferCardViewModel(
       ? sourceCandidate
       : undefined;
 
-  const dateLabel = offer.expiryDate
-    ? `Ends ${formatAuDate(offer.expiryDate)}`
-    : "No end date listed";
+  const dateState = giftCardDateState(offer, now);
+  const dateLabel =
+    dateState === "future" && offer.startDate
+      ? `Starts ${formatAuDate(offer.startDate)}${
+          offer.expiryDate ? ` · ends ${formatAuDate(offer.expiryDate)}` : ""
+        }`
+      : offer.expiryDate
+        ? `Ends ${formatAuDate(offer.expiryDate)}`
+        : dateState === "ongoing"
+          ? "Ongoing"
+          : offer.startDate
+            ? "Expiry not recorded — verify at source"
+            : "Dates not recorded — verify at source";
   const urgencyLabel = expiryUrgencyLabelAU(offer.expiryDate, now) ?? undefined;
 
-  const trustLabel = offer.confidence === "confirmed" ? "Verified" : "Source-checked";
+  const trustLabel =
+    offer.confidence === "confirmed" ? "Verified by DealStack" : "Source checked";
 
   const status = evaluateGiftCardCompatibility(offer, { now }).status;
   const compatibilityLabel = COMPAT_LABEL[status];

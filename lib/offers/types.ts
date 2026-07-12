@@ -69,8 +69,16 @@ export interface GiftCardOffer {
   /** Link to a fuller offer-detail page at the source, if any. */
   sourceDetailUrl?: string | null;
   // ── Structured promotion values (migration 021; all optional) ──
-  /** discount | bonus-value | points | membership. Defaults to discount. */
-  promotionType?: "discount" | "bonus-value" | "points" | "membership";
+  /** Atomic acquisition mechanic. `mixed` is staging-only and must not publish. */
+  promotionType?:
+    | "discount"
+    | "fixed-dollar-discount"
+    | "bonus-value"
+    | "points"
+    | "promo-credit"
+    | "fee-waiver"
+    | "membership"
+    | "mixed";
   /** "10% bonus value" style promotions (NOT a percentage off). */
   bonusPercent?: number | null;
   /** "20x points" style promotions. */
@@ -78,6 +86,27 @@ export interface GiftCardOffer {
   pointsProgram?: string | null;
   /** Cents-per-point for the disclosed valuation (overrides the default). */
   pointsValueCents?: number | null;
+  /** Fixed amount removed at checkout, with thresholdDollars required. */
+  fixedDiscountDollars?: number | null;
+  /** Future seller-account credit, not a checkout discount. */
+  promoCreditDollars?: number | null;
+  /** Purchase fee removed by this offer; null when the amount is not stated. */
+  feeWaiverDollars?: number | null;
+  /** Qualifying gift-card spend/face value for fixed-dollar mechanics. */
+  thresholdDollars?: number | null;
+  rewardDestination?:
+    | "checkout-discount"
+    | "gift-card-value"
+    | "seller-credit"
+    | "loyalty-points"
+    | "waived-fee"
+    | null;
+  /** Null expiry is only ongoing when this explicit reviewed flag is true. */
+  isOngoing?: boolean;
+  /** Targeted offers are not generally available to every eligible member. */
+  targeted?: boolean;
+  /** Stable source-child identity for compound campaign lineage. */
+  sourceSubOfferKey?: string | null;
   membershipRequired?: boolean;
   activationRequired?: boolean;
   couponRequired?: boolean;

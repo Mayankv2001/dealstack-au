@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { extractOffer } from "@/lib/giftcards/extractOffer";
+import {
+  extractOffer,
+  extractOffers,
+} from "@/lib/giftcards/extractOffer";
 import type { GcdbFeedItem } from "@/lib/giftcards/parseGcdbFeed";
 
 /**
@@ -19,6 +22,8 @@ function item(overrides: Partial<GcdbFeedItem> = {}): GcdbFeedItem {
     giftCardBrands: [],
     startsAt: null,
     endsAt: null,
+    isOngoing: false,
+    sourceMarkedExpired: false,
     excerpt: "",
     ...overrides,
   };
@@ -164,5 +169,87 @@ describe("extractOffer — conditions", () => {
     expect(result.confidence).toBeLessThan(0.5);
     expect(result.warnings).toContain("No seller found in the source item.");
     expect(result.warnings).toContain("No gift-card brand found in the source item.");
+  });
+});
+
+describe("extractOffers — Amazon-style compound campaign", () => {
+  const amazon = item({
+    externalId: "12680",
+    canonicalUrl: "https://gcdb.com.au/offer/12680/",
+    title: "$10 promo credit on $100 Apple and up to 10% off other gift cards",
+    sellerName: "Amazon",
+    giftCardBrands: ["Apple", "Uber & Uber Eats", "Amazon", "Activ Visa"],
+    endsAt: "2026-07-13",
+  });
+
+  it("keeps a compact multi-mechanic source private until it is split", () => {
+    const [summary] = extractOffers(amazon);
+    expect(summary.promotionType).toBe("mixed");
+    expect(summary.subOfferKey).toBe("compound-summary");
+    expect(summary.parentIsCompound).toBe(true);
+    expect(summary.warnings.join(" ")).toMatch(/split/i);
+  });
+
+  it("creates separately keyed candidates for each reviewed mechanic", () => {
+    const children = extractOffers(amazon, [
+      {
+        key: "apple-credit",
+        promotionType: "promo-credit",
+        giftCardBrands: ["Apple"],
+        promoCreditDollars: 10,
+        thresholdDollars: 100,
+        membershipRequired: true,
+      },
+      {
+        key: "uber-discount",
+        promotionType: "discount",
+        giftCardBrands: ["Uber & Uber Eats"],
+        discountPercent: 10,
+        membershipRequired: true,
+      },
+      {
+        key: "amazon-credit",
+        promotionType: "promo-credit",
+        giftCardBrands: ["Amazon"],
+        promoCreditDollars: 10,
+        thresholdDollars: 250,
+        membershipRequired: true,
+        activationRequired: true,
+      },
+      {
+        key: "activ-visa-fee",
+        promotionType: "fee-waiver",
+        giftCardBrands: ["Activ Visa"],
+        feeWaiverDollars: 4.95,
+        thresholdDollars: 100,
+        membershipRequired: true,
+      },
+    ]);
+    expect(children.map((child) => child.subOfferKey)).toEqual([
+      "apple-credit",
+      "uber-discount",
+      "amazon-credit",
+      "activ-visa-fee",
+    ]);
+    expect(children.every((child) => child.parentIsCompound)).toBe(true);
+    expect(children[0]).toMatchObject({
+      promotionType: "promo-credit",
+      promoCreditDollars: 10,
+      thresholdDollars: 100,
+      rewardDestination: "seller-credit",
+    });
+    expect(children[3]).toMatchObject({
+      promotionType: "fee-waiver",
+      rewardDestination: "waived-fee",
+    });
+  });
+
+  it("rejects duplicate source child keys", () => {
+    expect(() =>
+      extractOffers(amazon, [
+        { key: "same", promotionType: "discount", giftCardBrands: ["Apple"], discountPercent: 10 },
+        { key: "same", promotionType: "discount", giftCardBrands: ["Uber"], discountPercent: 10 },
+      ])
+    ).toThrow(/unique/i);
   });
 });

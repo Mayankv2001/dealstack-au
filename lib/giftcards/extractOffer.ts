@@ -8,30 +8,75 @@ import { bonusEffectiveDiscountPercent, effectiveDiscountPercent } from "./value
  * invents rates, dates or programmes.
  */
 
-export const EXTRACTOR_VERSION = 1;
+export const EXTRACTOR_VERSION = 2;
 
 export type PromotionType =
   | "discount"
+  | "fixed-dollar-discount"
   | "bonus-value"
   | "points"
+  | "promo-credit"
+  | "fee-waiver"
   | "membership"
+  | "mixed"
   | "unknown";
 
+export type RewardDestination =
+  | "checkout-discount"
+  | "gift-card-value"
+  | "seller-credit"
+  | "loyalty-points"
+  | "waived-fee";
+
+/** Optional structured child supplied by an approved source adapter/reviewer. */
+export interface SourceSubOffer {
+  /** Source-stable identity. Must not include mutable values or dates. */
+  key: string;
+  promotionType: Exclude<PromotionType, "mixed" | "unknown">;
+  giftCardBrands: string[];
+  discountPercent?: number | null;
+  fixedDiscountDollars?: number | null;
+  bonusPercent?: number | null;
+  pointsMultiplier?: number | null;
+  pointsProgram?: string | null;
+  promoCreditDollars?: number | null;
+  feeWaiverDollars?: number | null;
+  thresholdDollars?: number | null;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+  isOngoing?: boolean;
+  membershipRequired?: boolean;
+  activationRequired?: boolean;
+  couponRequired?: boolean;
+  targeted?: boolean;
+}
+
 export interface ExtractedOffer {
+  subOfferKey: string;
+  parentIsCompound: boolean;
+  sourcePresence: "present" | "removed";
   promotionType: PromotionType;
+  rewardDestination: RewardDestination | null;
   sellerName: string | null;
   giftCardBrands: string[];
   discountPercent: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
   pointsProgram: string | null;
+  fixedDiscountDollars: number | null;
+  promoCreditDollars: number | null;
+  feeWaiverDollars: number | null;
+  thresholdDollars: number | null;
   /** Shared-formula effective saving (see lib/giftcards/value.ts), or null. */
   effectiveDiscountPercent: number | null;
   startsAt: string | null;
   expiresAt: string | null;
+  isOngoing: boolean;
+  sourceMarkedExpired: boolean;
   membershipRequired: boolean;
   activationRequired: boolean;
   couponRequired: boolean;
+  targeted: boolean;
   minSpend: number | null;
   purchaseLimitNote: string | null;
   /** 0–1: how confidently the structured fields were extracted. */
@@ -56,13 +101,70 @@ function firstDollars(text: string, pattern: RegExp): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-export function extractOffer(item: GcdbFeedItem): ExtractedOffer {
+function rewardDestination(type: PromotionType): RewardDestination | null {
+  switch (type) {
+    case "discount":
+    case "fixed-dollar-discount":
+    case "membership":
+      return "checkout-discount";
+    case "bonus-value":
+      return "gift-card-value";
+    case "points":
+      return "loyalty-points";
+    case "promo-credit":
+      return "seller-credit";
+    case "fee-waiver":
+      return "waived-fee";
+    default:
+      return null;
+  }
+}
+
+function stableKey(raw: string): string {
+  const key = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  if (!key) throw new Error("A structured sub-offer needs a stable key.");
+  return key;
+}
+
+/** More than one distinct mechanic/value means the source must be split. */
+export function hasCompoundMechanics(text: string): boolean {
+  const mechanics = new Set<string>();
+  if (/\d+(?:\.\d+)?\s*%\s*(?:off|discount)/i.test(text)) {
+    mechanics.add("percentage-discount");
+  }
+  if (/\$\s*\d+(?:\.\d+)?\s+off\b/i.test(text)) {
+    mechanics.add("fixed-dollar-discount");
+  }
+  if (/\$\s*\d+(?:\.\d+)?\s+(?:promo\s+)?credit\b/i.test(text)) {
+    mechanics.add("promo-credit");
+  }
+  if (/\b(?:no|waived?)\s+(?:purchase\s+)?fee\b/i.test(text)) {
+    mechanics.add("fee-waiver");
+  }
+  if (/\bbonus\s+\d+(?:\.\d+)?\s*%\s+value\b|\d+(?:\.\d+)?\s*%\s+bonus\s+value\b/i.test(text)) {
+    mechanics.add("bonus-value");
+  }
+  const multipliers = [
+    ...text.matchAll(/\b(\d{1,3})\s*x\b/gi),
+  ].map((match) => match[1]);
+  for (const multiplier of new Set(multipliers)) mechanics.add(`points-${multiplier}`);
+  return mechanics.size > 1;
+}
+
+function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
   const warnings: string[] = [];
   const text = `${item.title} ${item.excerpt}`;
 
   // ── Promotion values ───────────────────────────────────────────────────
   // Order matters: "10% bonus value" must not be read as a plain discount.
-  const bonusMatch = text.match(/(\d{1,2}(?:\.\d)?)\s*%\s*(?:bonus|extra)\s*(?:value|credit)/i);
+  const bonusMatch = text.match(
+    /(?:bonus\s*)?(\d{1,2}(?:\.\d)?)\s*%\s*(?:bonus\s*)?(?:extra\s*)?(?:value|credit)/i
+  );
   const bonusPercent = bonusMatch ? Number(bonusMatch[1]) : null;
   const discountMatch = bonusMatch
     ? null
@@ -120,13 +222,21 @@ export function extractOffer(item: GcdbFeedItem): ExtractedOffer {
   confidence = Math.min(1, Math.round(confidence * 100) / 100);
 
   return {
+    subOfferKey: "primary",
+    parentIsCompound: false,
+    sourcePresence: "present",
     promotionType,
+    rewardDestination: rewardDestination(promotionType),
     sellerName: item.sellerName,
     giftCardBrands: item.giftCardBrands,
     discountPercent,
     bonusPercent,
     pointsMultiplier,
     pointsProgram,
+    fixedDiscountDollars: null,
+    promoCreditDollars: null,
+    feeWaiverDollars: null,
+    thresholdDollars: minSpend,
     effectiveDiscountPercent: effectiveDiscountPercent({
       promotionType,
       discountPercent,
@@ -136,14 +246,122 @@ export function extractOffer(item: GcdbFeedItem): ExtractedOffer {
     }),
     startsAt: item.startsAt,
     expiresAt: item.endsAt,
+    isOngoing: item.isOngoing === true,
+    sourceMarkedExpired: item.sourceMarkedExpired === true,
     membershipRequired,
     activationRequired,
     couponRequired,
+    targeted: /\btargeted\b/i.test(text),
     minSpend,
     purchaseLimitNote,
     confidence,
     warnings,
   };
+}
+
+function extractionFromSubOffer(
+  item: GcdbFeedItem,
+  child: SourceSubOffer,
+  parentIsCompound: boolean
+): ExtractedOffer {
+  const key = stableKey(child.key);
+  const type = child.promotionType;
+  const warnings: string[] = [];
+  if (child.giftCardBrands.length === 0) warnings.push("No gift-card brand found in the sub-offer.");
+  const expiresAt = child.expiresAt ?? item.endsAt;
+  const isOngoing = child.isOngoing ?? item.isOngoing ?? false;
+  if (!expiresAt && !isOngoing) warnings.push("No end date found — confirm at the source.");
+  const effective = effectiveDiscountPercent({
+    promotionType: type,
+    discountPercent: child.discountPercent ?? null,
+    bonusPercent: child.bonusPercent ?? null,
+    pointsMultiplier: child.pointsMultiplier ?? null,
+    pointsProgram: child.pointsProgram ?? null,
+    fixedDiscountDollars: child.fixedDiscountDollars ?? null,
+    promoCreditDollars: child.promoCreditDollars ?? null,
+    feeWaiverDollars: child.feeWaiverDollars ?? null,
+    thresholdDollars: child.thresholdDollars ?? null,
+  });
+  if (type !== "fee-waiver" && effective == null) {
+    warnings.push("No promotion value could be extracted.");
+  }
+  return {
+    subOfferKey: key,
+    parentIsCompound,
+    sourcePresence: "present",
+    promotionType: type,
+    rewardDestination: rewardDestination(type),
+    sellerName: item.sellerName,
+    giftCardBrands: [...new Set(child.giftCardBrands.map((brand) => brand.trim()).filter(Boolean))],
+    discountPercent: child.discountPercent ?? null,
+    bonusPercent: child.bonusPercent ?? null,
+    pointsMultiplier: child.pointsMultiplier ?? null,
+    pointsProgram: child.pointsProgram ?? null,
+    fixedDiscountDollars: child.fixedDiscountDollars ?? null,
+    promoCreditDollars: child.promoCreditDollars ?? null,
+    feeWaiverDollars: child.feeWaiverDollars ?? null,
+    thresholdDollars: child.thresholdDollars ?? null,
+    effectiveDiscountPercent: effective,
+    startsAt: child.startsAt ?? item.startsAt,
+    expiresAt,
+    isOngoing,
+    sourceMarkedExpired: item.sourceMarkedExpired === true,
+    membershipRequired: child.membershipRequired ?? false,
+    activationRequired: child.activationRequired ?? false,
+    couponRequired: child.couponRequired ?? false,
+    targeted: child.targeted ?? false,
+    minSpend: child.thresholdDollars ?? null,
+    purchaseLimitNote: null,
+    confidence: warnings.length === 0 ? 1 : 0.7,
+    warnings,
+  };
+}
+
+/**
+ * One source item may yield several private review candidates. A compact RSS
+ * item that merely hints at multiple mechanics is kept as a blocked compound
+ * summary; an approved structured adapter/reviewer can supply distinct children.
+ */
+export function extractOffers(
+  item: GcdbFeedItem,
+  subOffers: SourceSubOffer[] = []
+): ExtractedOffer[] {
+  if (subOffers.length > 0) {
+    const keys = subOffers.map((child) => stableKey(child.key));
+    if (new Set(keys).size !== keys.length) {
+      throw new Error("Structured sub-offer keys must be unique within a source item.");
+    }
+    return subOffers.map((child) => extractionFromSubOffer(item, child, subOffers.length > 1));
+  }
+
+  const text = `${item.title} ${item.excerpt}`;
+  if (hasCompoundMechanics(text) || /[,;]\s*(?:\d+\s*x|\$\s*\d+|\d+\s*%)/i.test(text)) {
+    const base = extractSingleOffer(item);
+    return [
+      {
+        ...base,
+        subOfferKey: "compound-summary",
+        parentIsCompound: true,
+        promotionType: "mixed",
+        rewardDestination: null,
+        discountPercent: null,
+        bonusPercent: null,
+        pointsMultiplier: null,
+        pointsProgram: null,
+        effectiveDiscountPercent: null,
+        warnings: [
+          ...base.warnings,
+          "Compound campaign detected — split into source-stable sub-offers before approval.",
+        ],
+      },
+    ];
+  }
+  return [extractSingleOffer(item)];
+}
+
+/** Backward-compatible helper for callers/tests that expect one result. */
+export function extractOffer(item: GcdbFeedItem): ExtractedOffer {
+  return extractOffers(item)[0];
 }
 
 export { bonusEffectiveDiscountPercent };

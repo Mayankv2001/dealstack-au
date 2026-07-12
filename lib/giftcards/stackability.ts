@@ -83,6 +83,35 @@ function analyseAcquisition(
       value: `${round1(offer.bonusPercent!)}% extra spending power (not a cash discount)`,
       tone: "positive",
     });
+  } else if (
+    offer.promotionType === "fixed-dollar-discount" &&
+    (offer.fixedDiscountDollars ?? 0) > 0
+  ) {
+    facts.push({
+      label: "Checkout discount",
+      value: `$${offer.fixedDiscountDollars} off when the recorded threshold is met`,
+      tone: "positive",
+    });
+  } else if (
+    offer.promotionType === "promo-credit" &&
+    (offer.promoCreditDollars ?? 0) > 0
+  ) {
+    facts.push({
+      label: "Future seller credit",
+      value: `$${offer.promoCreditDollars} seller promo credit — not a checkout discount`,
+      tone: "positive",
+    });
+    warnings.push(
+      "The reward is future seller promo credit, not a discount on the gift-card purchase."
+    );
+  } else if (offer.promotionType === "fee-waiver") {
+    facts.push({
+      label: "Purchase fee",
+      value: offer.feeWaiverDollars
+        ? `$${offer.feeWaiverDollars} fee waived`
+        : "Waived — amount not recorded",
+      tone: "positive",
+    });
   }
 
   // Points earned on purchase — always separated from cash savings.
@@ -159,6 +188,13 @@ function analyseAcquisition(
   if (offer.minSpend != null && offer.minSpend > 0) {
     warnings.push(`A minimum spend of $${offer.minSpend} applies.`);
   }
+  if (offer.thresholdDollars != null && offer.thresholdDollars > 0) {
+    facts.push({
+      label: "Qualifying threshold",
+      value: `$${offer.thresholdDollars.toLocaleString("en-AU")}`,
+      tone: "caution",
+    });
+  }
   if (offer.usesPerCustomer != null) {
     facts.push({
       label: "Uses per customer",
@@ -185,7 +221,10 @@ function analyseAcquisition(
     };
   }
   const hasValue =
-    effective != null || offer.pointsOnPurchase != null || offer.promotionType === "membership";
+    effective != null ||
+    offer.pointsOnPurchase != null ||
+    offer.promotionType === "membership" ||
+    offer.promotionType === "fee-waiver";
   if (!hasValue) {
     return {
       stage: "acquisition",
@@ -281,7 +320,7 @@ function analyseRedemption(
     warnings.push(cashbackWarning);
   } else {
     const generic =
-      "Most AU cashback programmes exclude purchases paid with gift cards — assume cashback will not track unless the portal's terms say otherwise.";
+      "Cashback may not track when paying with gift cards — check the portal's current terms.";
     facts.push({ label: "Cashback", value: generic, tone: "caution" });
     warnings.push(generic);
   }
@@ -290,7 +329,7 @@ function analyseRedemption(
   facts.push({
     label: "Retailer discount codes",
     value:
-      "Gift cards are a payment method, so retailer codes usually still apply — confirm in the retailer's terms.",
+      "Retailer codes may still apply, subject to the retailer's current terms.",
     tone: "caution",
   });
 
@@ -305,7 +344,7 @@ function analyseRedemption(
   facts.push({
     label: "Card-linked offers",
     value:
-      "Card-linked offers track the payment card, so paying with a gift card usually breaks them.",
+      "Card-linked offers may fail when the linked payment card is not used for the transaction.",
     tone: "caution",
   });
 

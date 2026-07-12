@@ -52,7 +52,7 @@ const STATUS_LABEL: Record<GiftCardCompatibilityStatus, string> = {
   compatible: "Compatible",
   "likely-compatible": "Likely compatible",
   incompatible: "Incompatible",
-  "requires-verification": "Requires verification",
+  "requires-verification": "Verify stacking",
   "insufficient-evidence": "Insufficient evidence",
 };
 
@@ -119,6 +119,14 @@ export function evaluateGiftCardCompatibility(
       "Bonus value is a saving against net cost, not a cash discount off the price."
     );
   }
+  if (offer.promotionType === "promo-credit") {
+    warnings.push(
+      "The reward is future seller promo credit, not a discount on the gift-card purchase."
+    );
+  }
+  if (offer.promotionType === "fee-waiver") {
+    warnings.push("The purchase fee is waived; the gift-card face value is not discounted.");
+  }
   if (context.hasDiscountCode && offer.couponRequired) {
     warnings.push(
       "This card needs its own code — it may not combine with the store's discount code."
@@ -184,6 +192,16 @@ export function evaluateGiftCardCompatibility(
     return {
       status: "requires-verification",
       reason: `Looks compatible${where}, but confirm the current terms at the source first.`,
+      warnings,
+    };
+  }
+  const hasAcceptanceEvidence =
+    offer.acceptedAtMerchantIds.length > 0 || (offer.acceptedAt?.length ?? 0) > 0;
+  if (!hasAcceptanceEvidence) {
+    return {
+      status: "requires-verification",
+      reason:
+        "No merchant-acceptance or stacking evidence is recorded — verify the retailer and payment terms first.",
       warnings,
     };
   }

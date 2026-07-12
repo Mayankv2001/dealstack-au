@@ -6,7 +6,7 @@ import {
   type RunIngestDeps,
   type StagedCandidate,
 } from "@/lib/giftcards/runIngest";
-import { extractOffer } from "@/lib/giftcards/extractOffer";
+import { extractOffer, extractOffers } from "@/lib/giftcards/extractOffer";
 import { parseGcdbFeed } from "@/lib/giftcards/parseGcdbFeed";
 
 /**
@@ -197,5 +197,83 @@ describe("runGiftCardIngest — cosmetic change to an APPROVED offer", () => {
     expect(metrics.candidatesNew).toBe(0);
     expect(metrics.candidatesChanged).toBe(0);
     expect(rec.staged).toHaveLength(0);
+  });
+});
+
+describe("runGiftCardIngest — compound sub-offers", () => {
+  const compoundChildren = (body: string) => {
+    const parsed = parseGcdbFeed(body)[0];
+    return extractOffers(parsed, [
+      {
+        key: "apple-credit",
+        promotionType: "promo-credit",
+        giftCardBrands: ["Apple"],
+        promoCreditDollars: 10,
+        thresholdDollars: 100,
+        membershipRequired: true,
+      },
+      {
+        key: "uber-discount",
+        promotionType: "discount",
+        giftCardBrands: ["Uber & Uber Eats"],
+        discountPercent: 10,
+        membershipRequired: true,
+      },
+    ]);
+  };
+
+  it("stages one private candidate per stable child key", async () => {
+    const body = feed(
+      offerItem(
+        "12680",
+        "$10 promo credit on $100 Apple and 10% off Uber gift cards"
+      )
+    );
+    const { deps, rec } = makeDeps(okFetch(body));
+    deps.extractItem = () => compoundChildren(body);
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+    expect(metrics.candidatesNew).toBe(2);
+    expect(rec.staged.map((candidate) => candidate.extraction.subOfferKey)).toEqual([
+      "apple-credit",
+      "uber-discount",
+    ]);
+    expect(rec.staged.every((candidate) => candidate.extraction.parentIsCompound)).toBe(true);
+  });
+
+  it("flags a removed child for review without changing the public offer", async () => {
+    const body = feed(offerItem("12680", "10% off Uber gift cards"));
+    const prior = compoundChildren(body);
+    const existing: RawItemState = {
+      id: "raw-12680",
+      externalId: "12680",
+      contentHash: "old-version-hash",
+      extraction: prior[0],
+      extractions: prior,
+      openCandidateId: null,
+      approvedOfferId: null,
+      candidateLinks: [
+        {
+          subOfferKey: "apple-credit",
+          openCandidateId: null,
+          approvedOfferId: "gc-amazon-apple-credit",
+        },
+        {
+          subOfferKey: "uber-discount",
+          openCandidateId: null,
+          approvedOfferId: "gc-amazon-uber",
+        },
+      ],
+    };
+    const { deps, rec } = makeDeps(okFetch(body), [existing]);
+    deps.extractItem = () => [prior[1]];
+    await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+    const removed = rec.staged.find(
+      (candidate) => candidate.changeKind === "source-removed"
+    );
+    expect(removed?.extraction).toMatchObject({
+      subOfferKey: "apple-credit",
+      sourcePresence: "removed",
+    });
+    expect(removed?.reviewStatus).toBe("changed");
   });
 });

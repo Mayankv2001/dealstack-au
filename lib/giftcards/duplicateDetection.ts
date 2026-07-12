@@ -73,6 +73,10 @@ export function canonicalSourceUrl(url: string | null | undefined): string | nul
   try {
     const parsed = new URL(url.trim());
     const path = parsed.pathname.replace(/\/+$/, "");
+    // A homepage/category page is evidence-poor and shared by unrelated rows;
+    // treating it as an exact identity created false duplicate warnings for the
+    // four legacy rows that all cite gcdb.com.au.
+    if (!path || path === "/") return null;
     return `${parsed.hostname.toLowerCase()}${path.toLowerCase()}`;
   } catch {
     return null;

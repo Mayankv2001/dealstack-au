@@ -11,7 +11,7 @@ import { XMLParser } from "fast-xml-parser";
  * article bodies, images, comment content or editorial prose.
  */
 
-export const GCDB_PARSER_VERSION = 1;
+export const GCDB_PARSER_VERSION = 2;
 
 /** Longest factual excerpt retained from a description (chars). */
 export const MAX_EXCERPT_LENGTH = 280;
@@ -32,6 +32,10 @@ export interface GcdbFeedItem {
   /** "Ends"/"Starts" dates from the description, as YYYY-MM-DD (AU dates). */
   startsAt: string | null;
   endsAt: string | null;
+  /** True only when the source explicitly labels the promotion ongoing. */
+  isOngoing: boolean;
+  /** True when the source explicitly labels the promotion expired. */
+  sourceMarkedExpired: boolean;
   /** Bounded plain-text factual excerpt (never the full body). */
   excerpt: string;
 }
@@ -89,6 +93,23 @@ export function parseAuDate(raw: string | null | undefined): string | null {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/** "8 Jul to 14 Jul 2026" -> both ISO dates, inferring the first year. */
+export function parseAuDateRange(
+  raw: string | null | undefined
+): { startsAt: string; endsAt: string } | null {
+  if (!raw) return null;
+  const match = raw.match(
+    /(\d{1,2}\s+[A-Za-z]{3,9}\.?(?:\s+\d{4})?)\s+(?:to|[-–—])\s+(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})/i
+  );
+  if (!match) return null;
+  const endsAt = parseAuDate(match[2]);
+  const year = match[2].match(/\b(\d{4})\b/)?.[1];
+  const startsAt = parseAuDate(
+    /\b\d{4}\b/.test(match[1]) ? match[1] : `${match[1]} ${year ?? ""}`
+  );
+  return startsAt && endsAt ? { startsAt, endsAt } : null;
+}
+
 /** WordPress guid "…?post_type=offer&p=12870" → "12870". */
 function externalIdFrom(guid: string | null, link: string | null): string | null {
   const fromGuid = guid?.match(/[?&]p=(\d+)/)?.[1];
@@ -126,9 +147,21 @@ function mapItem(item: XmlNode): GcdbFeedItem | null {
   if (!externalId) return null;
 
   const description = stripHtml(textOf(item.description) ?? "");
-  // Factual date markers GCDB writes into the body.
-  const endsAt = parseAuDate(description.match(/ends\s+([^.]{0,30})/i)?.[1]);
-  const startsAt = parseAuDate(description.match(/starts\s+([^.]{0,30})/i)?.[1]);
+  // Factual date markers GCDB writes into the body. Most supermarket offers
+  // use a compact range ("8 Jul to 14 Jul 2026"), while past items switch to
+  // "Expired 14 Jul 2026". Both were previously missed and therefore looked
+  // ongoing in production.
+  const range = parseAuDateRange(description);
+  const sourceMarkedExpired = /\bexpired\s+\d{1,2}\s+[A-Za-z]{3,9}/i.test(
+    description
+  );
+  const isOngoing = /\bongoing\s+offer\b/i.test(description);
+  const endsAt =
+    range?.endsAt ??
+    parseAuDate(description.match(/(?:ends|expired)\s+([^.]{0,30})/i)?.[1]);
+  const startsAt =
+    range?.startsAt ??
+    parseAuDate(description.match(/starts\s+([^.]{0,30})/i)?.[1]);
   // Bounded excerpt: keep only the leading factual sentence(s), drop the
   // boilerplate "See Gift Card Database for more info" tail.
   const excerpt = description
@@ -150,6 +183,8 @@ function mapItem(item: XmlNode): GcdbFeedItem | null {
     giftCardBrands: [...new Set(brands)],
     startsAt,
     endsAt,
+    isOngoing,
+    sourceMarkedExpired,
     excerpt,
   };
 }

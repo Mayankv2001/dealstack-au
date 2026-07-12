@@ -156,7 +156,7 @@ describe("redemption stage", () => {
     const { redemption } = analyseGiftCardStackability(makeOffer(), { now: NOW });
     const fact = redemption.facts.find((f) => f.label === "Cashback");
     expect(fact?.tone).toBe("caution");
-    expect(fact?.value).toContain("exclude purchases paid with gift cards");
+    expect(fact?.value).toContain("may not track when paying with gift cards");
   });
 
   it("is incompatible when the target store is not in the accepted list", () => {

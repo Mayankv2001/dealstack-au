@@ -13,6 +13,7 @@ import {
   GIFT_CARD_CHANNELS,
   PURCHASE_METHODS,
   insertGiftCardOffer,
+  getGiftCardPublishFacts,
   setGiftCardPublished,
   updateGiftCardOffer as persistGiftCardOffer,
   type GiftCardChannel,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/admin/repos/giftCards";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { giftCardPublishError } from "@/lib/giftcards/publishReadiness";
 
 /**
  * Gift-card admin server actions.
@@ -143,9 +145,7 @@ function parseGiftCardForm(formData: FormData): ParseResult {
     return { ok: false, error: "Source detail URL must be a safe HTTPS URL without credentials." };
   }
 
-  return {
-    ok: true,
-    input: {
+  const input: GiftCardOfferInput = {
       brand,
       discountPercent,
       channel: channel as GiftCardChannel,
@@ -168,7 +168,29 @@ function parseGiftCardForm(formData: FormData): ParseResult {
       citations,
       confidence: confidence as Confidence,
       isPublished: parseBool(formData, "is_published"),
-    },
+  };
+  if (input.isPublished) {
+    const publishError = giftCardPublishError({
+      brand: input.brand,
+      seller: input.purchaseLocation,
+      sourceUrl: input.sourceDetailUrl ?? input.citations[0]?.sourceUrl ?? null,
+      promotionType: "discount",
+      discountPercent: input.discountPercent,
+      bonusPercent: null,
+      pointsMultiplier: null,
+      pointsProgram: null,
+      fixedDiscountDollars: null,
+      promoCreditDollars: null,
+      thresholdDollars: null,
+      membershipRequired: input.channel === "membership-portal",
+      expiryDate: input.expiryDate,
+      isOngoing: false,
+    });
+    if (publishError) return { ok: false, error: publishError };
+  }
+  return {
+    ok: true,
+    input,
   };
 }
 
@@ -248,6 +270,13 @@ export async function setPublished(
 
   const rateLimit = await checkAdminRateLimit({ adminEmail: email });
   if (!rateLimit.success) return { error: rateLimit.error };
+
+  if (isPublished) {
+    const facts = await getGiftCardPublishFacts(id);
+    if (!facts) return { error: "Gift-card offer not found." };
+    const publishError = giftCardPublishError(facts);
+    if (publishError) return { error: publishError };
+  }
 
   await setGiftCardPublished(id, isPublished);
   await logAudit({

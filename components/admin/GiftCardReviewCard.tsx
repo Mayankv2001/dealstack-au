@@ -101,6 +101,24 @@ export function GiftCardReviewCard({
     {}
   );
   const changed = candidate.reviewStatus === "changed";
+  const hasExactDuplicate = duplicates.some(
+    (match) => match.verdict === "exact-duplicate"
+  );
+  const compoundSummary =
+    candidate.terms.candidateRole === "compound-summary" ||
+    candidate.promotionType === "mixed";
+  const sourceRemoved = candidate.terms.sourcePresence === "removed";
+  const defaultRewardDestination =
+    candidate.terms.rewardDestination ??
+    ({
+      discount: "checkout-discount",
+      "fixed-dollar-discount": "checkout-discount",
+      "bonus-value": "gift-card-value",
+      points: "loyalty-points",
+      "promo-credit": "seller-credit",
+      "fee-waiver": "waived-fee",
+      membership: "checkout-discount",
+    }[candidate.promotionType] ?? "checkout-discount");
 
   return (
     <Card>
@@ -142,6 +160,14 @@ export function GiftCardReviewCard({
             {candidate.approvedOfferId
               ? ` — review against the approved offer ${candidate.approvedOfferId}.`
               : ""}
+          </p>
+        ) : null}
+
+        {compoundSummary || sourceRemoved ? (
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+            {sourceRemoved
+              ? "This sub-offer disappeared from the fetched parent campaign. Review the linked public offer; this candidate cannot be approved."
+              : "This is a private compound-campaign summary. Create separately keyed sub-offers for each mechanic, value, product set and eligibility rule before approval."}
           </p>
         ) : null}
 
@@ -202,16 +228,20 @@ export function GiftCardReviewCard({
               <select
                 name="promotion_type"
                 defaultValue={
-                  ["discount", "bonus-value", "points", "membership"].includes(candidate.promotionType)
+                  ["discount", "fixed-dollar-discount", "bonus-value", "points", "promo-credit", "fee-waiver", "membership", "mixed"].includes(candidate.promotionType)
                     ? candidate.promotionType
                     : "discount"
                 }
                 className="h-8 rounded-md border bg-background px-2 text-sm font-normal"
               >
                 <option value="discount">Discount</option>
+                <option value="fixed-dollar-discount">Fixed-dollar discount</option>
                 <option value="bonus-value">Bonus value</option>
                 <option value="points">Points</option>
+                <option value="promo-credit">Seller promo credit</option>
+                <option value="fee-waiver">Purchase-fee waiver</option>
                 <option value="membership">Membership</option>
+                <option value="mixed" disabled>Mixed / compound (cannot publish)</option>
               </select>
             </label>
             <label className="grid gap-1 text-xs font-medium">
@@ -227,6 +257,20 @@ export function GiftCardReviewCard({
             <Field label="Points multiplier" name="points_multiplier" type="number" defaultValue={candidate.pointsMultiplier} />
             <Field label="Points programme" name="points_program" defaultValue={candidate.pointsProgram} />
             <Field label="Point value (cents)" name="points_value_cents" type="number" placeholder="0.5 = 2,000 pts → $10" />
+            <Field label="Fixed discount $" name="fixed_discount_dollars" type="number" defaultValue={candidate.terms.fixedDiscountDollars ?? null} />
+            <Field label="Seller promo credit $" name="promo_credit_dollars" type="number" defaultValue={candidate.terms.promoCreditDollars ?? null} />
+            <Field label="Waived fee $" name="fee_waiver_dollars" type="number" defaultValue={candidate.terms.feeWaiverDollars ?? null} />
+            <Field label="Qualifying threshold $" name="threshold_dollars" type="number" defaultValue={candidate.terms.thresholdDollars ?? null} />
+            <label className="grid gap-1 text-xs font-medium">
+              Reward destination
+              <select name="reward_destination" defaultValue={defaultRewardDestination} className="h-8 rounded-md border bg-background px-2 text-sm font-normal">
+                <option value="checkout-discount">Checkout discount</option>
+                <option value="gift-card-value">Extra gift-card value</option>
+                <option value="seller-credit">Seller promo credit</option>
+                <option value="loyalty-points">Loyalty points</option>
+                <option value="waived-fee">Waived purchase fee</option>
+              </select>
+            </label>
             <Field label="Start date" name="start_date" type="date" defaultValue={candidate.startsAt} />
             <Field label="Expiry date" name="expiry_date" type="date" defaultValue={candidate.expiresAt} />
             <Field label="Expiry time (24h)" name="expiry_time" placeholder="23:59" />
@@ -291,15 +335,22 @@ export function GiftCardReviewCard({
             <Check label="Coupon required" name="coupon_required" defaultChecked={candidate.terms.couponRequired} />
             <Check label="Shipping may apply" name="shipping_may_apply" />
             <Check label="Ongoing offer (no expiry)" name="ongoing" />
+            <Check label="Targeted (not generally available)" name="targeted" defaultChecked={candidate.terms.targeted} />
+            {hasExactDuplicate ? (
+              <Check label="I’ve reviewed the duplicate" name="duplicate_ack" />
+            ) : null}
           </div>
           <p className="text-[11px] text-muted-foreground">
             Approval is blocked without a seller, a promotion value, a source
-            URL and an expiry date (or an explicit “Ongoing” tick). MCC and
+            URL and an expiry date (or an explicit “Ongoing” tick). A source with
+            more than 8 brands, a Prime/member-only offer without the membership
+            flag, a fixed-dollar/promo-credit mechanic without its threshold, or an exact
+            duplicate all block approval until resolved. MCC and
             merchant-acceptance evidence is managed on the gift-card product
             records, not per offer.
           </p>
           <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-            <Button type="submit" size="sm" disabled={approving}>
+            <Button type="submit" size="sm" disabled={approving || compoundSummary || sourceRemoved}>
               {approving ? "Publishing…" : "Approve & publish"}
             </Button>
             <span className="text-[11px] text-muted-foreground">

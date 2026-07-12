@@ -130,6 +130,10 @@ export function offerEffectiveSaving(offer: GiftCardOffer): number | null {
     pointsProgram:
       offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null,
     pointsValueCents: offer.pointsValueCents ?? null,
+    fixedDiscountDollars: offer.fixedDiscountDollars ?? null,
+    promoCreditDollars: offer.promoCreditDollars ?? null,
+    feeWaiverDollars: offer.feeWaiverDollars ?? null,
+    thresholdDollars: offer.thresholdDollars ?? null,
   });
 }
 
@@ -160,7 +164,11 @@ function matchesTab(offer: GiftCardOffer, tab: GiftCardTab, now: Date): boolean 
     case "all":
       return true;
     case "discounts":
-      return offer.discountPercent > 0;
+      return (
+        offer.discountPercent > 0 ||
+        (offer.fixedDiscountDollars ?? 0) > 0 ||
+        offer.promotionType === "fee-waiver"
+      );
     case "bonus-value":
       return (offer.bonusPercent ?? 0) > 0;
     case "points":

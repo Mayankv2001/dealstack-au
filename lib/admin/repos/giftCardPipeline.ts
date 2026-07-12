@@ -1,6 +1,9 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
-import type { ExtractedOffer } from "@/lib/giftcards/extractOffer";
+import {
+  hasCompoundMechanics,
+  type ExtractedOffer,
+} from "@/lib/giftcards/extractOffer";
 import type { GcdbFeedItem } from "@/lib/giftcards/parseGcdbFeed";
 import type { PublishedOfferSummary } from "@/lib/giftcards/duplicateDetection";
 import type {
@@ -164,7 +167,10 @@ interface RawItemRow {
   id: string;
   external_id: string;
   content_hash: string;
-  raw_payload: { extraction?: ExtractedOffer } | null;
+  raw_payload: {
+    extraction?: ExtractedOffer;
+    extractions?: ExtractedOffer[];
+  } | null;
 }
 
 export async function loadRawItems(
@@ -182,23 +188,34 @@ export async function loadRawItems(
   const rows = (data ?? []) as unknown as RawItemRow[];
 
   const ids = rows.map((row) => row.id);
-  const open = new Map<string, string>();
-  const approved = new Map<string, string>();
+  const links = new Map<
+    string,
+    Map<string, { openCandidateId: string | null; approvedOfferId: string | null }>
+  >();
   if (ids.length > 0) {
     const { data: candidates, error: candidateError } = await db
       .from("gift_card_offer_candidates")
-      .select("id, raw_item_id, review_status, approved_offer_id")
+      .select("id, raw_item_id, review_status, approved_offer_id, terms_json")
       .in("raw_item_id", ids);
     if (candidateError) {
       throw new Error(`loadRawItems candidates failed: ${candidateError.message}`);
     }
     for (const c of candidates ?? []) {
+      const terms = (c.terms_json ?? {}) as { subOfferKey?: string };
+      const subOfferKey = terms.subOfferKey ?? "primary";
+      const rawLinks = links.get(c.raw_item_id) ?? new Map();
+      const current = rawLinks.get(subOfferKey) ?? {
+        openCandidateId: null,
+        approvedOfferId: null,
+      };
       if (c.review_status === "new" || c.review_status === "changed") {
-        open.set(c.raw_item_id, c.id);
+        current.openCandidateId = c.id;
       }
       if (c.review_status === "approved" && c.approved_offer_id) {
-        approved.set(c.raw_item_id, c.approved_offer_id);
+        current.approvedOfferId = c.approved_offer_id;
       }
+      rawLinks.set(subOfferKey, current);
+      links.set(c.raw_item_id, rawLinks);
     }
   }
 
@@ -206,22 +223,35 @@ export async function loadRawItems(
     id: row.id,
     externalId: row.external_id,
     contentHash: row.content_hash,
-    extraction: row.raw_payload?.extraction ?? null,
-    openCandidateId: open.get(row.id) ?? null,
-    approvedOfferId: approved.get(row.id) ?? null,
+    extraction:
+      row.raw_payload?.extraction ?? row.raw_payload?.extractions?.[0] ?? null,
+    extractions:
+      row.raw_payload?.extractions ??
+      (row.raw_payload?.extraction ? [row.raw_payload.extraction] : []),
+    openCandidateId:
+      links.get(row.id)?.get("primary")?.openCandidateId ?? null,
+    approvedOfferId:
+      links.get(row.id)?.get("primary")?.approvedOfferId ?? null,
+    candidateLinks: [...(links.get(row.id)?.entries() ?? [])].map(
+      ([subOfferKey, link]) => ({ subOfferKey, ...link })
+    ),
   }));
 }
 
-function rawPayload(item: GcdbFeedItem, extraction: ExtractedOffer): Json {
+function rawPayload(item: GcdbFeedItem, extractions: ExtractedOffer[]): Json {
   // Structured fields + bounded excerpt only — never the article body.
-  return { item, extraction } as unknown as Json;
+  return {
+    item,
+    extraction: extractions[0] ?? null,
+    extractions,
+  } as unknown as Json;
 }
 
 export async function insertRawItem(
   sourceId: string,
   item: GcdbFeedItem,
   contentHash: string,
-  extraction: ExtractedOffer,
+  extractions: ExtractedOffer[],
   now: Date
 ): Promise<string> {
   const db = pipelineDb();
@@ -233,7 +263,7 @@ export async function insertRawItem(
       canonical_url: item.canonicalUrl,
       title: item.title,
       published_at: item.publishedAt,
-      raw_payload: rawPayload(item, extraction),
+      raw_payload: rawPayload(item, extractions),
       content_hash: contentHash,
       first_seen_at: now.toISOString(),
       last_seen_at: now.toISOString(),
@@ -249,7 +279,7 @@ export async function updateRawItem(
   id: string,
   item: GcdbFeedItem,
   contentHash: string,
-  extraction: ExtractedOffer,
+  extractions: ExtractedOffer[],
   now: Date
 ): Promise<void> {
   const db = pipelineDb();
@@ -259,7 +289,7 @@ export async function updateRawItem(
       canonical_url: item.canonicalUrl,
       title: item.title,
       published_at: item.publishedAt,
-      raw_payload: rawPayload(item, extraction),
+      raw_payload: rawPayload(item, extractions),
       content_hash: contentHash,
       last_seen_at: now.toISOString(),
       processing_status: "parsed",
@@ -284,11 +314,17 @@ export async function stageCandidate(
   staged: StagedCandidate
 ): Promise<void> {
   const db = pipelineDb();
-  const { error: archiveError } = await db
+  let archive = db
     .from("gift_card_offer_candidates")
     .update({ review_status: "archived", rejection_reason: "superseded by newer extraction" })
     .eq("raw_item_id", staged.rawItemId)
     .in("review_status", ["new", "changed"]);
+  if (staged.extraction.parentIsCompound) {
+    archive = archive.contains("terms_json", {
+      subOfferKey: staged.extraction.subOfferKey,
+    });
+  }
+  const { error: archiveError } = await archive;
   if (archiveError) {
     throw new Error(`stageCandidate supersede failed: ${archiveError.message}`);
   }
@@ -313,6 +349,22 @@ export async function stageCandidate(
       couponRequired: e.couponRequired,
       minSpend: e.minSpend,
       purchaseLimitNote: e.purchaseLimitNote,
+      subOfferKey: e.subOfferKey,
+      parentIsCompound: e.parentIsCompound,
+      candidateRole: e.parentIsCompound
+        ? e.promotionType === "mixed"
+          ? "compound-summary"
+          : "suboffer"
+        : "single-offer",
+      sourcePresence: e.sourcePresence,
+      rewardDestination: e.rewardDestination,
+      fixedDiscountDollars: e.fixedDiscountDollars,
+      promoCreditDollars: e.promoCreditDollars,
+      feeWaiverDollars: e.feeWaiverDollars,
+      thresholdDollars: e.thresholdDollars,
+      isOngoing: e.isOngoing,
+      sourceMarkedExpired: e.sourceMarkedExpired,
+      targeted: e.targeted,
     },
     extraction_confidence: e.confidence,
     extraction_warnings: e.warnings,
@@ -371,6 +423,18 @@ export interface AdminGiftCardCandidate {
     couponRequired?: boolean;
     minSpend?: number | null;
     purchaseLimitNote?: string | null;
+    subOfferKey?: string;
+    parentIsCompound?: boolean;
+    candidateRole?: "single-offer" | "suboffer" | "compound-summary";
+    sourcePresence?: "present" | "removed";
+    rewardDestination?: string | null;
+    fixedDiscountDollars?: number | null;
+    promoCreditDollars?: number | null;
+    feeWaiverDollars?: number | null;
+    thresholdDollars?: number | null;
+    isOngoing?: boolean;
+    sourceMarkedExpired?: boolean;
+    targeted?: boolean;
   };
   confidence: number;
   warnings: string[];
@@ -382,6 +446,57 @@ export interface AdminGiftCardCandidate {
   sourceUrl: string;
   excerpt: string;
   approvedOfferId: string | null;
+}
+
+export interface GiftCardCandidateApprovalContext {
+  sourceName: string;
+  sourceText: string;
+  subOfferKey: string;
+  candidateRole: "single-offer" | "suboffer" | "compound-summary";
+  parentIsCompound: boolean;
+  sourcePresence: "present" | "removed";
+}
+
+/** Server-authoritative context used by the approval gate (never form input). */
+export async function getGiftCardCandidateApprovalContext(
+  candidateId: string
+): Promise<GiftCardCandidateApprovalContext> {
+  const db = pipelineDb();
+  const { data, error } = await db
+    .from("gift_card_offer_candidates")
+    .select(
+      "promotion_type, gift_card_brands, terms_json, source:gift_card_sources(name), raw:gift_card_raw_items(title, raw_payload)"
+    )
+    .eq("id", candidateId)
+    .single();
+  if (error) {
+    throw new Error(`getGiftCardCandidateApprovalContext failed: ${error.message}`);
+  }
+  const row = data as unknown as {
+    promotion_type: string;
+    gift_card_brands: string[];
+    terms_json: AdminGiftCardCandidate["terms"] | null;
+    source: { name: string } | Array<{ name: string }> | null;
+    raw:
+      | { title: string; raw_payload: { item?: { excerpt?: string } } | null }
+      | Array<{ title: string; raw_payload: { item?: { excerpt?: string } } | null }>;
+  };
+  const terms = row.terms_json ?? {};
+  const raw = Array.isArray(row.raw) ? row.raw[0] : row.raw;
+  const source = Array.isArray(row.source) ? row.source[0] : row.source;
+  const sourceText = `${raw?.title ?? ""} ${raw?.raw_payload?.item?.excerpt ?? ""}`.trim();
+  const inferredCompound =
+    row.promotion_type === "mixed" || hasCompoundMechanics(sourceText);
+  return {
+    sourceName: source?.name ?? "Unknown source",
+    sourceText,
+    subOfferKey: terms.subOfferKey ?? "primary",
+    candidateRole:
+      terms.candidateRole ??
+      (inferredCompound ? "compound-summary" : "single-offer"),
+    parentIsCompound: terms.parentIsCompound ?? inferredCompound,
+    sourcePresence: terms.sourcePresence ?? "present",
+  };
 }
 
 interface CandidateRow {

@@ -59,9 +59,13 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 const PROMO_LABEL: Record<NonNullable<GiftCardOffer["promotionType"]>, string> = {
   discount: "Discount",
+  "fixed-dollar-discount": "Fixed-dollar discount",
   "bonus-value": "Bonus value",
   points: "Points",
+  "promo-credit": "Seller promo credit",
+  "fee-waiver": "Purchase-fee waiver",
   membership: "Membership offer",
+  mixed: "Compound campaign",
 };
 
 const STATUS_STYLE: Record<
@@ -90,6 +94,15 @@ async function findOffer(id: string): Promise<GiftCardOffer | undefined> {
 /** Original DealStack headline built from structured fields only. */
 function offerTitle(offer: GiftCardOffer): string {
   const seller = offer.purchaseLocation ?? offer.source;
+  if (offer.promotionType === "promo-credit") {
+    return `$${round1(offer.promoCreditDollars ?? 0)} seller promo credit on ${offer.brand} gift cards at ${seller}`;
+  }
+  if (offer.promotionType === "fixed-dollar-discount") {
+    return `$${round1(offer.fixedDiscountDollars ?? 0)} off ${offer.brand} gift cards at ${seller}`;
+  }
+  if (offer.promotionType === "fee-waiver") {
+    return `Purchase fee waived on ${offer.brand} gift cards at ${seller}`;
+  }
   if (offer.discountPercent > 0) {
     return `${round1(offer.discountPercent)}% off ${offer.brand} gift cards at ${seller}`;
   }
@@ -202,6 +215,12 @@ export default async function GiftCardDetailPage({
   const compatStyle = STATUS_STYLE[compat.status];
   const CompatIcon = compatStyle.icon;
   const stackability = analyseGiftCardStackability(offer, { now, acceptance });
+  const stackWarnings = [
+    ...new Set([
+      ...stackability.acquisition.warnings,
+      ...stackability.redemption.warnings,
+    ]),
+  ].filter((warning) => !compat.warnings.includes(warning));
   const claimSteps = buildClaimSteps(offer);
   const termsRows = buildTermsRows(offer);
   const productViews = buildProductAcceptance(offer, products, acceptance);
@@ -232,14 +251,25 @@ export default async function GiftCardDetailPage({
     {
       label: "Saving",
       value:
-        effectivePct != null
-          ? offer.discountPercent > 0
-            ? `${round1(offer.discountPercent)}% off face value`
-            : `≈${round1(effectivePct)}% effective`
-          : "Not quantifiable",
+        offer.promotionType === "promo-credit"
+          ? `$${round1(offer.promoCreditDollars ?? 0)} future seller credit`
+          : offer.promotionType === "fee-waiver"
+            ? offer.feeWaiverDollars
+              ? `$${round1(offer.feeWaiverDollars)} purchase fee waived`
+              : "Purchase fee waived"
+            : effectivePct != null
+              ? offer.discountPercent > 0
+                ? `${round1(offer.discountPercent)}% off face value`
+                : `≈${round1(effectivePct)}% effective`
+              : "Not quantifiable",
     },
     { label: "Starts", value: offer.startDate ? formatDateAU(offer.startDate) : "Not recorded" },
-    { label: "Expires", value: formatExpiry(offer) ?? "No end date listed — treat as short-lived" },
+    {
+      label: "Expires",
+      value:
+        formatExpiry(offer) ??
+        (offer.isOngoing ? "Ongoing" : "Expiry not recorded — verify at source"),
+    },
     { label: "Checked", value: formatDateAU(offer.lastCheckedAt.slice(0, 10)) },
   ];
 
@@ -278,7 +308,7 @@ export default async function GiftCardDetailPage({
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                 {offerTitle(offer)}
               </h1>
-              {effectivePct != null ? (
+              {effectivePct != null && offer.promotionType !== "promo-credit" ? (
                 <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
                   {offer.discountPercent > 0
                     ? `${round1(offer.discountPercent)}% off face value`
@@ -429,13 +459,9 @@ export default async function GiftCardDetailPage({
                 <StagePanel heading="Buying the card (acquisition)" analysis={stackability.acquisition} />
                 <StagePanel heading="Spending the card (redemption)" analysis={stackability.redemption} />
               </div>
-              {[...new Set([...stackability.acquisition.warnings, ...stackability.redemption.warnings])]
-                .length > 0 ? (
+              {stackWarnings.length > 0 ? (
                 <ul className="mt-3 space-y-1">
-                  {[...new Set([
-                    ...stackability.acquisition.warnings,
-                    ...stackability.redemption.warnings,
-                  ])].map((w) => (
+                  {stackWarnings.map((w) => (
                     <li key={w} className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                       <CircleAlert aria-hidden className="mt-0.5 size-3 shrink-0" />
                       {w}
@@ -456,6 +482,10 @@ export default async function GiftCardDetailPage({
                   pointsProgram:
                     offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null,
                   pointsValueCents: offer.pointsValueCents ?? null,
+                  fixedDiscountDollars: offer.fixedDiscountDollars ?? null,
+                  promoCreditDollars: offer.promoCreditDollars ?? null,
+                  feeWaiverDollars: offer.feeWaiverDollars ?? null,
+                  thresholdDollars: offer.thresholdDollars ?? null,
                   capDollars: offer.capDollars,
                 }}
               />

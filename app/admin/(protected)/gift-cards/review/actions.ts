@@ -5,10 +5,13 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { checkAdminRateLimit } from "@/lib/admin/rate-limit";
 import {
   approveGiftCardCandidate,
+  getGiftCardCandidateApprovalContext,
+  listPublishedOfferSummaries,
   setCandidateStatus,
 } from "@/lib/admin/repos/giftCardPipeline";
 import { logAudit } from "@/lib/admin/repos/audit";
 import { validateGiftCardApproval } from "@/lib/giftcards/approvalValidation";
+import { findDuplicateOffers } from "@/lib/giftcards/duplicateDetection";
 
 /** Returned to the review forms. Empty object means success. */
 export type ReviewActionState = { error?: string };
@@ -56,6 +59,18 @@ export async function approveCandidate(
   const rateLimit = await checkAdminRateLimit({ adminEmail: email });
   if (!rateLimit.success) return { error: rateLimit.error };
 
+  let context: Awaited<ReturnType<typeof getGiftCardCandidateApprovalContext>>;
+  try {
+    context = await getGiftCardCandidateApprovalContext(candidateId);
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not verify the candidate source context.",
+    };
+  }
+
   const validation = validateGiftCardApproval({
     brand: text(formData, "brand"),
     seller: text(formData, "seller"),
@@ -67,6 +82,11 @@ export async function approveCandidate(
     pointsMultiplier: text(formData, "points_multiplier"),
     pointsProgram: text(formData, "points_program"),
     pointsValueCents: text(formData, "points_value_cents"),
+    fixedDiscountDollars: text(formData, "fixed_discount_dollars"),
+    promoCreditDollars: text(formData, "promo_credit_dollars"),
+    feeWaiverDollars: text(formData, "fee_waiver_dollars"),
+    thresholdDollars: text(formData, "threshold_dollars"),
+    rewardDestination: text(formData, "reward_destination"),
     startDate: text(formData, "start_date"),
     expiryDate: text(formData, "expiry_date"),
     expiryTime: text(formData, "expiry_time"),
@@ -87,6 +107,14 @@ export async function approveCandidate(
     activationRequired: checked(formData, "activation_required"),
     couponRequired: checked(formData, "coupon_required"),
     shippingMayApply: checked(formData, "shipping_may_apply"),
+    targeted: checked(formData, "targeted"),
+    sourceName: context.sourceName,
+    sourceText: context.sourceText,
+    thresholdText: context.sourceText,
+    parentIsCompound: context.parentIsCompound,
+    candidateRole: context.candidateRole,
+    subOfferKey: context.subOfferKey,
+    sourcePresence: context.sourcePresence,
   });
   if (!validation.ok) return { error: validation.error };
   const v = validation.values;
@@ -95,11 +123,44 @@ export async function approveCandidate(
     text(formData, "offer_id").trim() ||
     `gc-${slugify(`${v.brand}-${v.seller || v.promotionType}`)}`;
 
+  // Duplicate/overlap guard: block re-publishing the same source page as a new
+  // offer unless the reviewer has explicitly reviewed the duplicate. Probable/
+  // overlapping matches are surfaced on the review card but do not block.
+  try {
+    const published = await listPublishedOfferSummaries();
+    const today = new Date().toISOString().slice(0, 10);
+    const exactDuplicates = findDuplicateOffers(
+      {
+        sellerName: v.seller,
+        giftCardBrands: v.brand.split(",").map((b) => b.trim()).filter(Boolean),
+        promotionType: v.promotionType,
+        discountPercent: v.discountPercent,
+        bonusPercent: v.bonusPercent,
+        pointsMultiplier: v.pointsMultiplier,
+        pointsProgram: v.pointsProgram,
+        startsAt: v.startDate,
+        expiresAt: v.expiryDate,
+        sourceUrl: v.sourceUrl,
+      },
+      published,
+      today
+    ).filter((m) => m.verdict === "exact-duplicate" && m.offer.id !== offerId);
+    if (exactDuplicates.length > 0 && !checked(formData, "duplicate_ack")) {
+      return {
+        error: `This exact source page is already published as ${exactDuplicates[0].offer.id}. Update that offer instead, reject this as a duplicate, or tick “I’ve reviewed the duplicate” to proceed.`,
+      };
+    }
+  } catch {
+    // A duplicate-check read failure must not silently allow an approval that
+    // could be a duplicate, but it also must not hard-block legitimate work;
+    // fall through — the review card already surfaces duplicates on load.
+  }
+
   const offer = {
     brand: v.brand,
     discount_percent: v.discountPercent ?? 0,
     channel: v.channel,
-    source: text(formData, "source_name").trim() || "GCDB",
+    source: v.sourceName,
     accepted_at_merchant_ids: list(formData, "accepted_at_merchant_ids"),
     points_on_purchase:
       v.promotionType === "points" && v.pointsProgram
@@ -118,7 +179,7 @@ export async function approveCandidate(
     usage_notes: list(formData, "usage_notes"),
     stack_notes: list(formData, "stack_notes"),
     source_detail_url: v.sourceUrl,
-    citations: [{ source: "gcdb", sourceUrl: v.sourceUrl }],
+    citations: [{ source: v.sourceName, sourceUrl: v.sourceUrl }],
     confidence: "needs-verification",
     promotion_type: v.promotionType,
     bonus_percent: v.bonusPercent,
@@ -131,7 +192,7 @@ export async function approveCandidate(
     min_spend: v.minSpend,
     denomination_note: text(formData, "denomination_note").trim() || null,
     format: v.format,
-    source_name: "Gift Card Database",
+    source_name: v.sourceName,
     product_id: null,
     // Structured detail terms (migration 022, applied to production
     // 2026-07-12). The approve RPC persists these columns via the offer upsert.
@@ -144,6 +205,14 @@ export async function approveCandidate(
     combinable_with_seller_promotions: v.combinableWithSellerPromotions,
     terms_url: v.termsUrl,
     included_product_ids: list(formData, "included_product_ids"),
+    fixed_discount_dollars: v.fixedDiscountDollars,
+    promo_credit_dollars: v.promoCreditDollars,
+    fee_waiver_dollars: v.feeWaiverDollars,
+    threshold_dollars: v.thresholdDollars,
+    reward_destination: v.rewardDestination,
+    is_ongoing: v.isOngoing,
+    targeted: v.targeted,
+    source_suboffer_key: v.subOfferKey,
   };
 
   try {

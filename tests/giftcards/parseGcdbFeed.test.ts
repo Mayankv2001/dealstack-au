@@ -3,6 +3,7 @@ import {
   canonicaliseUrl,
   MAX_EXCERPT_LENGTH,
   parseAuDate,
+  parseAuDateRange,
   parseGcdbFeed,
 } from "@/lib/giftcards/parseGcdbFeed";
 
@@ -117,5 +118,46 @@ describe("parseAuDate", () => {
     expect(parseAuDate("sometime soon")).toBeNull();
     expect(parseAuDate(null)).toBeNull();
     expect(parseAuDate("32 Xxx 2026")).toBeNull();
+  });
+});
+
+describe("GCDB production date markers", () => {
+  it("parses the compact supermarket range that caused the missing-expiry rows", () => {
+    const rangeItem = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12676/</link>
+      <guid>https://gcdb.com.au/?p=12676</guid>
+      <description>8 Jul to 14 Jul 2026</description>
+      <offer_type>Discount</offer_type><offer_store>Coles</offer_store>
+      <offer_gc>Restaurant Choice</offer_gc></item>`;
+    const [parsed] = parseGcdbFeed(feed(rangeItem));
+    expect(parsed.startsAt).toBe("2026-07-08");
+    expect(parsed.endsAt).toBe("2026-07-14");
+    expect(parsed.sourceMarkedExpired).toBe(false);
+  });
+
+  it("parses an Expired marker instead of treating it as missing expiry", () => {
+    const expiredItem = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12716/</link>
+      <guid>https://gcdb.com.au/?p=12716</guid>
+      <description>Expired 9 Jul 2026</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(expiredItem));
+    expect(parsed.endsAt).toBe("2026-07-09");
+    expect(parsed.sourceMarkedExpired).toBe(true);
+    expect(parsed.isOngoing).toBe(false);
+  });
+
+  it("only marks ongoing when the source explicitly says so", () => {
+    const ongoingItem = `<item><title>Member catalogue</title>
+      <link>https://gcdb.com.au/offer/4897/</link>
+      <guid>https://gcdb.com.au/?p=4897</guid>
+      <description>Ongoing offer</description></item>`;
+    expect(parseGcdbFeed(feed(ongoingItem))[0].isOngoing).toBe(true);
+  });
+
+  it("parses an inferred-year AU range directly", () => {
+    expect(parseAuDateRange("9 Jul to 15 Jul 2026")).toEqual({
+      startsAt: "2026-07-09",
+      endsAt: "2026-07-15",
+    });
   });
 });

@@ -30,6 +30,48 @@ describe("bonusEffectiveDiscountPercent", () => {
   });
 });
 
+describe("fixed discounts, promo credits and fee waivers", () => {
+  const empty = {
+    discountPercent: null,
+    bonusPercent: null,
+    pointsMultiplier: null,
+    pointsProgram: null,
+  };
+
+  it("values $10 off a $100 threshold as a 10% checkout discount", () => {
+    expect(
+      effectiveDiscountPercent({
+        ...empty,
+        promotionType: "fixed-dollar-discount",
+        fixedDiscountDollars: 10,
+        thresholdDollars: 100,
+      })
+    ).toBe(10);
+  });
+
+  it("values $10 future credit on $100 as 9.09%, not 10% cash off", () => {
+    expect(
+      effectiveDiscountPercent({
+        ...empty,
+        promotionType: "promo-credit",
+        promoCreditDollars: 10,
+        thresholdDollars: 100,
+      })
+    ).toBe(9.09);
+  });
+
+  it("does not invent a fee-waiver value when the fee amount is unknown", () => {
+    expect(
+      effectiveDiscountPercent({
+        ...empty,
+        promotionType: "fee-waiver",
+        feeWaiverDollars: null,
+        thresholdDollars: 100,
+      })
+    ).toBeNull();
+  });
+});
+
 describe("defaultPointValueCents", () => {
   it("resolves known programmes case-insensitively via substring", () => {
     expect(defaultPointValueCents("Everyday Rewards")).toBe(0.5);

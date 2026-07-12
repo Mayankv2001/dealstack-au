@@ -60,6 +60,14 @@ interface GiftCardRow {
   points_multiplier: number | string | null;
   points_program: string | null;
   points_value_cents: number | string | null;
+  fixed_discount_dollars: number | string | null;
+  promo_credit_dollars: number | string | null;
+  fee_waiver_dollars: number | string | null;
+  threshold_dollars: number | string | null;
+  reward_destination: GiftCardOffer["rewardDestination"] | null;
+  is_ongoing: boolean | null;
+  targeted: boolean | null;
+  source_suboffer_key: string | null;
   membership_required: boolean | null;
   activation_required: boolean | null;
   coupon_required: boolean | null;
@@ -117,6 +125,14 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
     pointsMultiplier: toNumberOrNull(r.points_multiplier),
     pointsProgram: r.points_program,
     pointsValueCents: toNumberOrNull(r.points_value_cents),
+    fixedDiscountDollars: toNumberOrNull(r.fixed_discount_dollars),
+    promoCreditDollars: toNumberOrNull(r.promo_credit_dollars),
+    feeWaiverDollars: toNumberOrNull(r.fee_waiver_dollars),
+    thresholdDollars: toNumberOrNull(r.threshold_dollars),
+    rewardDestination: r.reward_destination ?? null,
+    isOngoing: r.is_ongoing ?? false,
+    targeted: r.targeted ?? false,
+    sourceSubOfferKey: r.source_suboffer_key ?? null,
     membershipRequired: r.membership_required ?? undefined,
     activationRequired: r.activation_required ?? undefined,
     couponRequired: r.coupon_required ?? undefined,

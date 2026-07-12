@@ -117,4 +117,32 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("to service_role");
     expect(sql).toContain("from public, anon, authenticated");
   });
+
+  it("keeps compound gift-card campaigns private and approval fail-closed", () => {
+    const sql = migration("023_gift_card_accuracy_model.sql");
+    expect(sql).toContain("suboffer_key");
+    expect(sql).toContain("compound-summary");
+    expect(sql).toContain("split-complete");
+    expect(sql).toContain("source_present");
+    expect(sql).toContain("source-removed");
+    expect(sql).toContain("gift_card_offers_public_accuracy_check");
+    expect(sql).toContain("not valid");
+    expect(sql).toContain("Points require a multiplier and programme");
+    expect(sql).toContain("Promo credits require a threshold");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+  });
+
+  it("models changing programme catalogues separately from temporary offers", () => {
+    const sql = migration("024_gift_card_programmes.sql");
+    expect(sql).toContain("gift_card_programmes");
+    expect(sql).toContain("gift_card_programme_rates");
+    expect(sql).toContain("gift_card_programme_rate_history");
+    expect(sql).toContain("product-added");
+    expect(sql).toContain("product-removed");
+    expect(sql).toContain("rate-increased");
+    expect(sql).toContain("rate-decreased");
+    expect(sql).toContain("payment_requirement");
+    expect(sql).toContain("review_by_date");
+  });
 });

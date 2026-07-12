@@ -42,14 +42,22 @@ export function classifyOfferChange(
   if (numChanged(before.discountPercent, after.discountPercent)) changed.push("discountPercent");
   if (numChanged(before.bonusPercent, after.bonusPercent)) changed.push("bonusPercent");
   if (numChanged(before.pointsMultiplier, after.pointsMultiplier)) changed.push("pointsMultiplier");
+  if (numChanged(before.fixedDiscountDollars, after.fixedDiscountDollars)) changed.push("fixedDiscountDollars");
+  if (numChanged(before.promoCreditDollars, after.promoCreditDollars)) changed.push("promoCreditDollars");
+  if (numChanged(before.feeWaiverDollars, after.feeWaiverDollars)) changed.push("feeWaiverDollars");
+  if (numChanged(before.thresholdDollars, after.thresholdDollars)) changed.push("thresholdDollars");
   if (before.pointsProgram !== after.pointsProgram) changed.push("pointsProgram");
   if (before.promotionType !== after.promotionType) changed.push("promotionType");
+  if (before.rewardDestination !== after.rewardDestination) changed.push("rewardDestination");
   if (before.sellerName !== after.sellerName) changed.push("sellerName");
   if (before.startsAt !== after.startsAt) changed.push("startsAt");
   if (before.expiresAt !== after.expiresAt) changed.push("expiresAt");
   if (before.membershipRequired !== after.membershipRequired) changed.push("membershipRequired");
   if (before.activationRequired !== after.activationRequired) changed.push("activationRequired");
   if (before.couponRequired !== after.couponRequired) changed.push("couponRequired");
+  if (before.isOngoing !== after.isOngoing) changed.push("isOngoing");
+  if (before.targeted !== after.targeted) changed.push("targeted");
+  if (before.sourcePresence !== after.sourcePresence) changed.push("sourcePresence");
   if (numChanged(before.minSpend, after.minSpend)) changed.push("minSpend");
   const brandsBefore = [...before.giftCardBrands].sort().join("|");
   const brandsAfter = [...after.giftCardBrands].sort().join("|");
@@ -57,13 +65,15 @@ export function classifyOfferChange(
 
   // Value/seller/type changes are material — the promotion itself changed.
   const material = ["discountPercent", "bonusPercent", "pointsMultiplier",
-    "pointsProgram", "promotionType", "sellerName"];
+    "fixedDiscountDollars", "promoCreditDollars", "feeWaiverDollars",
+    "thresholdDollars", "pointsProgram", "promotionType",
+    "rewardDestination", "sellerName", "sourcePresence"];
   if (changed.some((f) => material.includes(f))) {
     return { kind: "material-offer", requiresReview: true, changedFields: changed };
   }
 
   // Stacking-relevant conditions.
-  const stacking = ["membershipRequired", "activationRequired", "couponRequired", "minSpend"];
+  const stacking = ["membershipRequired", "activationRequired", "couponRequired", "minSpend", "targeted"];
   if (changed.some((f) => stacking.includes(f))) {
     return { kind: "stacking-condition", requiresReview: true, changedFields: changed };
   }
@@ -76,7 +86,7 @@ export function classifyOfferChange(
   // A LATER expiry is an extension (review to confirm, but the live offer
   // stays valid); an earlier/removed expiry is material — it may already
   // have ended.
-  if (changed.includes("expiresAt")) {
+  if (changed.includes("expiresAt") || changed.includes("isOngoing")) {
     const extended =
       before.expiresAt != null &&
       after.expiresAt != null &&

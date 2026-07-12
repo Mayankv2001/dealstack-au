@@ -4,6 +4,7 @@ import { toNumber, toNumberOrNull } from "@/lib/supabase/server";
 import type { Json } from "@/lib/supabase/database.types";
 import type { GiftCardOffer } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
+import type { GiftCardPublishFacts } from "@/lib/giftcards/publishReadiness";
 
 /**
  * Admin-side gift-card repository — SERVICE-ROLE ONLY.
@@ -194,6 +195,47 @@ export async function getGiftCardOffer(
   if (error) throw new Error(`getGiftCardOffer failed: ${error.message}`);
   if (!data) return null;
   return mapAdminGiftCard(data as unknown as AdminGiftCardRow);
+}
+
+/** Canonical facts for the publish toggle's fail-closed readiness gate. */
+export async function getGiftCardPublishFacts(
+  id: string
+): Promise<GiftCardPublishFacts | null> {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from("gift_card_offers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`getGiftCardPublishFacts failed: ${error.message}`);
+  if (!data) return null;
+  const row = data as unknown as Record<string, unknown>;
+  const numberOrNull = (value: unknown) =>
+    value == null ? null : Number(value);
+  return {
+    brand: typeof row.brand === "string" ? row.brand : null,
+    seller:
+      typeof row.seller_name === "string"
+        ? row.seller_name
+        : typeof row.purchase_location === "string"
+          ? row.purchase_location
+          : null,
+    sourceUrl:
+      typeof row.source_detail_url === "string" ? row.source_detail_url : null,
+    promotionType:
+      typeof row.promotion_type === "string" ? row.promotion_type : "discount",
+    discountPercent: numberOrNull(row.discount_percent),
+    bonusPercent: numberOrNull(row.bonus_percent),
+    pointsMultiplier: numberOrNull(row.points_multiplier),
+    pointsProgram:
+      typeof row.points_program === "string" ? row.points_program : null,
+    fixedDiscountDollars: numberOrNull(row.fixed_discount_dollars),
+    promoCreditDollars: numberOrNull(row.promo_credit_dollars),
+    thresholdDollars: numberOrNull(row.threshold_dollars),
+    membershipRequired: row.membership_required === true,
+    expiryDate: typeof row.expiry_date === "string" ? row.expiry_date : null,
+    isOngoing: row.is_ongoing === true,
+  };
 }
 
 // ── Writes ───────────────────────────────────────────────────────────────────

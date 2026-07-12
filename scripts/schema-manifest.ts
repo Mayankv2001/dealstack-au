@@ -57,6 +57,8 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "020_ozb_expiry_recheck.sql",
   "021_gift_card_pipeline.sql",
   "022_gift_card_offer_detail.sql",
+  "023_gift_card_accuracy_model.sql",
+  "024_gift_card_programmes.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -100,6 +102,10 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "promo_code", "expiry_time", "expiry_timezone", "uses_per_customer",
       "shipping_may_apply", "australia_only",
       "combinable_with_seller_promotions", "terms_url", "included_product_ids",
+      "seller_name", "source_id", "source_raw_item_id", "source_candidate_id",
+      "source_suboffer_key", "reward_destination", "fixed_discount_dollars",
+      "promo_credit_dollars", "fee_waiver_dollars", "threshold_dollars",
+      "is_ongoing", "targeted",
     ],
     {
       promotion_type: "021_gift_card_pipeline.sql",
@@ -125,6 +131,18 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       combinable_with_seller_promotions: "022_gift_card_offer_detail.sql",
       terms_url: "022_gift_card_offer_detail.sql",
       included_product_ids: "022_gift_card_offer_detail.sql",
+      seller_name: "023_gift_card_accuracy_model.sql",
+      source_id: "023_gift_card_accuracy_model.sql",
+      source_raw_item_id: "023_gift_card_accuracy_model.sql",
+      source_candidate_id: "023_gift_card_accuracy_model.sql",
+      source_suboffer_key: "023_gift_card_accuracy_model.sql",
+      reward_destination: "023_gift_card_accuracy_model.sql",
+      fixed_discount_dollars: "023_gift_card_accuracy_model.sql",
+      promo_credit_dollars: "023_gift_card_accuracy_model.sql",
+      fee_waiver_dollars: "023_gift_card_accuracy_model.sql",
+      threshold_dollars: "023_gift_card_accuracy_model.sql",
+      is_ongoing: "023_gift_card_accuracy_model.sql",
+      targeted: "023_gift_card_accuracy_model.sql",
     }
   ),
   cashback_offers: table("001_initial_schema.sql", [
@@ -304,12 +322,19 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "items_rejected", "parser_version", "snapshot_hash", "error_summary",
     "created_at",
   ]),
-  gift_card_raw_items: table("021_gift_card_pipeline.sql", [
-    "id", "source_id", "external_id", "canonical_url", "title", "published_at",
-    "source_updated_at", "raw_payload", "content_hash", "parser_version",
-    "first_seen_at", "last_seen_at", "processing_status", "parser_error",
-    "created_at", "updated_at",
-  ]),
+  gift_card_raw_items: table(
+    "021_gift_card_pipeline.sql",
+    [
+      "id", "source_id", "external_id", "canonical_url", "title", "published_at",
+      "source_updated_at", "raw_payload", "content_hash", "parser_version",
+      "first_seen_at", "last_seen_at", "processing_status", "parser_error",
+      "created_at", "updated_at", "campaign_kind", "split_review_status",
+    ],
+    {
+      campaign_kind: "023_gift_card_accuracy_model.sql",
+      split_review_status: "023_gift_card_accuracy_model.sql",
+    }
+  ),
   gift_card_products: table(
     "021_gift_card_pipeline.sql",
     [
@@ -325,19 +350,52 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "status", "outcome", "is_public", "source_url", "checked_at", "notes",
     "created_at", "updated_at",
   ]),
-  gift_card_offer_candidates: table("021_gift_card_pipeline.sql", [
-    "id", "raw_item_id", "source_id", "seller_name", "seller_store_id",
-    "gift_card_brands", "gift_card_product_id", "promotion_type",
-    "discount_percent", "bonus_percent", "points_multiplier", "points_program",
-    "effective_discount_percent", "starts_at", "expires_at", "terms_json",
-    "compatibility_json", "extraction_confidence", "extraction_warnings",
-    "change_kind", "change_diff", "review_status", "reviewer_email",
-    "reviewed_at", "rejection_reason", "approved_offer_id", "created_at",
-    "updated_at",
-  ]),
+  gift_card_offer_candidates: table(
+    "021_gift_card_pipeline.sql",
+    [
+      "id", "raw_item_id", "source_id", "seller_name", "seller_store_id",
+      "gift_card_brands", "gift_card_product_id", "promotion_type",
+      "discount_percent", "bonus_percent", "points_multiplier", "points_program",
+      "effective_discount_percent", "starts_at", "expires_at", "terms_json",
+      "compatibility_json", "extraction_confidence", "extraction_warnings",
+      "change_kind", "change_diff", "review_status", "reviewer_email",
+      "reviewed_at", "rejection_reason", "approved_offer_id", "created_at",
+      "updated_at", "suboffer_key", "candidate_role", "source_fingerprint",
+      "reward_destination", "fixed_discount_dollars", "promo_credit_dollars",
+      "fee_waiver_dollars", "threshold_dollars", "is_ongoing", "targeted",
+      "source_present", "source_removed_at",
+    ],
+    Object.fromEntries(
+      [
+        "suboffer_key", "candidate_role", "source_fingerprint",
+        "reward_destination", "fixed_discount_dollars", "promo_credit_dollars",
+        "fee_waiver_dollars", "threshold_dollars", "is_ongoing", "targeted",
+        "source_present", "source_removed_at",
+      ].map((column) => [column, "023_gift_card_accuracy_model.sql"])
+    )
+  ),
   gift_card_knowledge: table("021_gift_card_pipeline.sql", [
     "id", "product_id", "topic", "fact", "evidence_type", "confidence",
     "review_status", "source_url", "checked_at", "created_at", "updated_at",
+  ]),
+  gift_card_programmes: table("024_gift_card_programmes.sql", [
+    "id", "provider", "name", "programme_kind", "membership_required",
+    "account_required", "account_requirement", "payment_requirement",
+    "is_ongoing", "source_url", "terms_url", "confidence", "last_checked_at",
+    "review_by_date", "is_published", "created_at", "updated_at",
+  ]),
+  gift_card_programme_rates: table("024_gift_card_programmes.sql", [
+    "id", "programme_id", "rate_key", "product_id", "brand_name",
+    "promotion_type", "discount_percent", "fixed_discount_dollars",
+    "bonus_percent", "fee_waiver_dollars", "threshold_dollars",
+    "membership_tier", "payment_requirement", "valid_from", "valid_to",
+    "is_ongoing", "is_active", "source_url", "confidence", "last_checked_at",
+    "review_by_date", "is_published", "first_seen_at", "last_seen_at",
+    "created_at", "updated_at",
+  ]),
+  gift_card_programme_rate_history: table("024_gift_card_programmes.sql", [
+    "id", "programme_rate_id", "change_kind", "changed_fields",
+    "old_snapshot", "new_snapshot", "checked_at", "actor_email", "created_at",
   ]),
 };
 

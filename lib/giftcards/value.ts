@@ -97,6 +97,10 @@ export interface OfferValueInputs {
   pointsMultiplier: number | null;
   pointsProgram: string | null;
   pointsValueCents?: number | null;
+  fixedDiscountDollars?: number | null;
+  promoCreditDollars?: number | null;
+  feeWaiverDollars?: number | null;
+  thresholdDollars?: number | null;
 }
 
 /**
@@ -113,6 +117,40 @@ export function effectiveDiscountPercent(
   }
   if (offer.bonusPercent && offer.bonusPercent > 0) {
     return bonusEffectiveDiscountPercent(offer.bonusPercent);
+  }
+  if (
+    offer.fixedDiscountDollars &&
+    offer.fixedDiscountDollars > 0 &&
+    offer.thresholdDollars &&
+    offer.thresholdDollars > 0
+  ) {
+    return round2(
+      Math.min(100, (offer.fixedDiscountDollars / offer.thresholdDollars) * 100)
+    );
+  }
+  if (
+    offer.promoCreditDollars &&
+    offer.promoCreditDollars > 0 &&
+    offer.thresholdDollars &&
+    offer.thresholdDollars > 0
+  ) {
+    return round2(
+      (offer.promoCreditDollars /
+        (offer.thresholdDollars + offer.promoCreditDollars)) *
+        100
+    );
+  }
+  if (
+    offer.feeWaiverDollars &&
+    offer.feeWaiverDollars > 0 &&
+    offer.thresholdDollars &&
+    offer.thresholdDollars > 0
+  ) {
+    return round2(
+      (offer.feeWaiverDollars /
+        (offer.thresholdDollars + offer.feeWaiverDollars)) *
+        100
+    );
   }
   const points = valuePointsOffer(
     offer.pointsMultiplier,
