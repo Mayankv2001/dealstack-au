@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Calculator, CreditCard, Gift, Percent, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,22 @@ export function DealStackCalculator({ stores }: { stores: Store[] }) {
   const [discount, setDiscount] = useState("10");
   const [cashback, setCashback] = useState("5");
   const [giftCard, setGiftCard] = useState("4");
+
+  // "Build this stack" deep link (/?stack=<merchant>#calculator) preselects
+  // that store's rates. Applied by adjusting state during render (never in an
+  // effect) exactly once per requested value, so later manual edits win.
+  const requestedStack = useSearchParams().get("stack");
+  const [appliedStack, setAppliedStack] = useState<string | null>(null);
+  if (requestedStack && requestedStack !== appliedStack) {
+    setAppliedStack(requestedStack);
+    const store = stores.find((s) => s.id === requestedStack);
+    if (store) {
+      setStoreId(store.id);
+      setDiscount(String(store.discountPercent));
+      setCashback(String(store.cashbackPercent));
+      setGiftCard(String(store.giftCardDiscountPercent));
+    }
+  }
 
   const result = useMemo(
     () =>

@@ -23,3 +23,23 @@ describe("deals URL state", () => {
     expect(dealsHref({ ...params, page: 4 }, { coupon: true })).toBe("/deals?coupon=1");
   });
 });
+
+describe("spend parameter", () => {
+  it("defaults to $500 and clamps custom values to the allowed range", () => {
+    expect(parseDealsParams({}).spend).toBe(500);
+    expect(parseDealsParams({ spend: "250" }).spend).toBe(250);
+    expect(parseDealsParams({ spend: "7" }).spend).toBe(50);
+    expect(parseDealsParams({ spend: "999999" }).spend).toBe(20000);
+    expect(parseDealsParams({ spend: "banana" }).spend).toBe(500);
+  });
+
+  it("keeps spend in stack URLs and out of default ones", () => {
+    const params = parseDealsParams({ view: "stacks", spend: "250" });
+    expect(dealsHref(params, {})).toContain("spend=250");
+    expect(dealsHref(parseDealsParams({ view: "stacks" }), {})).not.toContain("spend=");
+  });
+
+  it("does not leave discover mode just because spend changed", () => {
+    expect(isDiscoverMode(parseDealsParams({ spend: "250" }))).toBe(true);
+  });
+});

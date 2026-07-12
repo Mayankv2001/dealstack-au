@@ -1,5 +1,6 @@
 import { filterLive } from "@/lib/offers/expiry";
 import { weeklyDeals as staticWeeklyDeals } from "@/lib/offers/manualOffers";
+import { sanitisePublicText } from "@/lib/stack/buildStack";
 import type { WeeklyDeal, WeeklyHighlight } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import { fromDbOrDemo, type DbClient } from "@/lib/supabase/server";
@@ -27,8 +28,10 @@ function mapWeeklyDeal(r: WeeklyDealRow): WeeklyDeal {
     id: r.id,
     weekOf: r.week_of,
     merchantId: r.merchant_id,
-    title: r.title,
-    summary: r.summary,
+    // Editorial rows seeded with development wording ("Sample: …") must never
+    // surface it — the detail page renders these fields verbatim.
+    title: sanitisePublicText(r.title),
+    summary: sanitisePublicText(r.summary),
     highlight: r.highlight,
     componentIds: r.component_ids ?? [],
     citations: r.citations ?? [],

@@ -283,6 +283,12 @@ export interface StackRecommendation {
   effectivePrice: number;
   effectiveDiscountPercent: number;
   totalSaving: number;
+  /** The subset of totalSaving from CONFIRMED cash layers only. */
+  verifiedSaving: number;
+  /** Oldest last-checked date among the used offer-backed layers (ISO), or null. */
+  checkedAsOf: string | null;
+  /** Soonest expiry among the used layers (YYYY-MM-DD), or null when open-ended. */
+  soonestExpiry: string | null;
   pointsEarned: number;
   pointsValueDollars: number;
   /** Worst-of all included component confidences. */

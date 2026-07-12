@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Suspense } from "react";
 import DealStackCalculator from "@/components/DealStackCalculator";
 import SiteFooter from "@/components/SiteFooter";
 import type { Store } from "@/lib/data";
@@ -156,7 +157,11 @@ export function CalculatorSection({ stores }: { stores: Store[] }) {
           price after every layer.
         </p>
       </div>
-      <DealStackCalculator stores={stores} />
+      {/* Suspense: the island reads useSearchParams (?stack= preselect) —
+          the boundary keeps the homepage statically rendered. */}
+      <Suspense fallback={null}>
+        <DealStackCalculator stores={stores} />
+      </Suspense>
     </section>
   );
 }

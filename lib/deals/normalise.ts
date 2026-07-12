@@ -11,6 +11,7 @@ import type {
 } from "@/lib/offers/types";
 import type { Confidence } from "@/lib/sources/types";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { sanitisePublicText } from "@/lib/stack/buildStack";
 import { scoreDeal } from "./score";
 import {
   KIND_LABEL,
@@ -88,10 +89,16 @@ interface BuildContext {
 }
 
 function finalise(
-  partial: Omit<PublicDeal, "searchText" | "score">,
+  input: Omit<PublicDeal, "searchText" | "score">,
   extraSearch: Array<string | null | undefined>,
   now: Date
 ): PublicDeal {
+  let partial = input;
+  partial = {
+    ...partial,
+    title: sanitisePublicText(partial.title),
+    summary: sanitisePublicText(partial.summary),
+  };
   const searchText = [
     partial.title,
     partial.summary,

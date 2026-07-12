@@ -12,7 +12,10 @@ import {
   DEALS_SORTS,
   DEALS_VIEWS,
   DEFAULT_PARAMS,
+  MAX_SPEND,
+  MIN_SPEND,
   SORT_LABEL,
+  SPEND_PRESETS,
   VIEW_LABEL,
   activeFilterCount,
   dealsHref,
@@ -23,7 +26,6 @@ import {
 import { loadDealsBundle } from "@/lib/deals/load";
 import { queryDeals } from "@/lib/deals/query";
 import { formatAUD } from "@/lib/calculateStack";
-import { DEFAULT_SPEND } from "@/lib/stack/buildStack";
 import { BEST_STACK_INITIAL_COUNT, partitionStacks } from "@/lib/stack/present";
 import type { DealListItem, PublicDealKind } from "@/lib/deals/types";
 
@@ -106,6 +108,54 @@ function ActiveFilters({ params }: { params: DealsParams }) {
   return <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">{filters.map(([key, label, override]) => <Link key={key} href={dealsHref(params, override)} className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs hover:bg-muted">{label}<X aria-hidden className="size-3" /></Link>)}</div>;
 }
 
+/**
+ * Page-level spend selector for the stack estimates: preset links plus a
+ * custom amount form. One control for the whole page — cards no longer repeat
+ * an "example spend" line each.
+ */
+function SpendSelector({ params }: { params: DealsParams }) {
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-2" aria-label="Spend used for stack estimates">
+      <span className="text-sm font-medium">Show savings on a spend of</span>
+      <div className="flex items-center gap-1" role="group" aria-label="Preset spend amounts">
+        {SPEND_PRESETS.map((preset) => (
+          <Link
+            key={preset}
+            href={dealsHref(params, { spend: preset })}
+            aria-current={params.spend === preset ? "true" : undefined}
+            className={
+              params.spend === preset
+                ? "rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white"
+                : "rounded-lg border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            }
+          >
+            ${preset}
+          </Link>
+        ))}
+      </div>
+      <Form action="/deals" className="flex items-center gap-1.5">
+        <input type="hidden" name="view" value="stacks" />
+        <label htmlFor="custom-spend" className="sr-only">
+          Custom spend amount in dollars
+        </label>
+        <input
+          id="custom-spend"
+          name="spend"
+          type="number"
+          inputMode="numeric"
+          min={MIN_SPEND}
+          max={MAX_SPEND}
+          step={10}
+          placeholder="Custom"
+          defaultValue={SPEND_PRESETS.includes(params.spend as (typeof SPEND_PRESETS)[number]) ? undefined : params.spend}
+          className="h-9 w-24 rounded-lg border bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+        <Button type="submit" size="sm" variant="outline">Update</Button>
+      </Form>
+    </div>
+  );
+}
+
 function Results({ bundle, params, now }: { bundle: Awaited<ReturnType<typeof loadDealsBundle>>; params: DealsParams; now: Date }) {
   if (params.view === "stacks") {
     const { best, rewards } = partitionStacks(bundle.stackRecommendations);
@@ -116,12 +166,13 @@ function Results({ bundle, params, now }: { bundle: Awaited<ReturnType<typeof lo
         <div className="mb-4">
           <h1 className="text-2xl font-bold">Best stacks</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            The strongest cash-saving combinations, calculated by DealStack’s engine.
+            The strongest cash-saving combinations, calculated by DealStack’s engine on your selected spend.
           </p>
         </div>
+        <SpendSelector params={params} />
         <div role="note" className="mb-6 flex items-start gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] p-3 text-sm text-emerald-900 dark:text-emerald-200">
           <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <span>Only compatible layers are combined and points are never counted as cash. Each stack shows an example on a {formatAUD(DEFAULT_SPEND)} purchase — confirm every layer at the source before you buy.</span>
+          <span>Only compatible layers are combined, points are never counted as cash, and the primary saving counts verified layers only. Savings shown on a {formatAUD(params.spend)} spend — confirm every layer at the source before you buy.</span>
         </div>
         {best.length ? (
           <>
@@ -228,7 +279,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
 export default async function DealsPage({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
   const params = parseDealsParams(await searchParams);
   const now = new Date();
-  const bundle = await loadDealsBundle(now);
+  const bundle = await loadDealsBundle(now, params.spend);
   const discover = isDiscoverMode(params);
   return <div className="flex min-h-screen flex-col bg-emerald-500/[0.035]"><SiteHeader /><main className="mx-auto w-full max-w-6xl flex-1 px-4 py-7 sm:px-6"><header className="text-center"><div className="mx-auto inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-800 dark:text-emerald-300"><ShieldCheck aria-hidden className="size-3.5" /> Public, current and clearly sourced</div><h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Find a deal worth stacking</h1><p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">Search trusted Australian offers, compare conditions and see compatible saving layers before you buy.</p><SearchBox params={params} /><PrimaryNav params={params} /></header>{bundle.partial ? <div role="status" className="mt-6 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"><AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" /> Some deal sources could not be loaded. Available results are shown and may be incomplete.</div> : null}{discover ? <Discover bundle={bundle} params={params} now={now} /> : <Results bundle={bundle} params={params} now={now} />}<aside className="mt-12 rounded-xl border bg-card p-5 sm:flex sm:items-center sm:justify-between"><div><h2 className="font-semibold">How DealStack checks offers</h2><p className="mt-1 text-sm text-muted-foreground">Learn what trust labels mean and what to verify before checkout.</p></div><Button asChild variant="outline" className="mt-3 sm:mt-0"><Link href="/resources">Read the guide</Link></Button></aside></main><SiteFooter /></div>;
 }

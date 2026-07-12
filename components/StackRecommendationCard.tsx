@@ -1,7 +1,10 @@
 import {
   AlertTriangle,
   BadgePercent,
+  Calculator,
+  CalendarClock,
   Check,
+  ChevronDown,
   CreditCard,
   Gift,
   Info,
@@ -29,9 +32,12 @@ import type {
 import {
   hasChooseOneLayer,
   layerCompatibility,
+  layerStatusLabel,
   stackTrustStatus,
+  summariseConditions,
   type StackTrustTone,
 } from "@/lib/stack/present";
+import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,31 +53,27 @@ import { cn } from "@/lib/utils";
 
 const layerMeta: Record<
   StackLayer,
-  { icon: LucideIcon; label: string; tile: string; short: string }
+  { icon: LucideIcon; label: string; tile: string }
 > = {
   discount: {
     icon: BadgePercent,
     label: "Discount code",
     tile: "bg-primary/10 text-primary",
-    short: "code",
   },
   "gift-card": {
     icon: Gift,
     label: "Gift card",
     tile: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    short: "gift card",
   },
   cashback: {
     icon: CreditCard,
     label: "Cashback",
     tile: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    short: "cashback",
   },
   points: {
     icon: Star,
     label: "Points",
     tile: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    short: "points",
   },
 };
 
@@ -114,18 +116,6 @@ function layerChipValue(c: StackComponent): string {
   return layerMeta[c.layer].label;
 }
 
-/** One-line plain-English summary of the combinable layers, e.g. "10% code + 6% cashback". */
-function layerSummaryLine(rec: StackRecommendation): string {
-  const parts = rec.components
-    .filter((c) => !c.optional && c.layer !== "points" && (c.valueDollars ?? 0) > 0)
-    .map((c) =>
-      typeof c.valuePercent === "number" && c.valuePercent > 0
-        ? `${c.valuePercent}% ${layerMeta[c.layer].short}`
-        : layerMeta[c.layer].short
-    );
-  return parts.join(" + ");
-}
-
 function TrustPill({ rec }: { rec: StackRecommendation }) {
   const status = stackTrustStatus(rec);
   const Icon = status.tone === "caution" ? AlertTriangle : Check;
@@ -142,26 +132,94 @@ function TrustPill({ rec }: { rec: StackRecommendation }) {
   );
 }
 
-function Warnings({ rec }: { rec: StackRecommendation }) {
-  if (rec.warnings.length === 0) return null;
+/**
+ * One compact conditions row instead of a stack of warning banners: the most
+ * severe condition inline, with the full list one native-disclosure toggle
+ * away ("View conditions").
+ */
+function ConditionsSummary({ rec }: { rec: StackRecommendation }) {
+  const summary = summariseConditions(rec);
+  if (!summary.lead) return null;
+  const style = warningStyles[summary.lead.level];
+  if (summary.extraCount === 0) {
+    return (
+      <p
+        className={cn(
+          "flex items-start gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-snug",
+          style.className
+        )}
+      >
+        <style.icon aria-hidden className="mt-0.5 size-3 shrink-0" />
+        <span>{summary.lead.message}</span>
+      </p>
+    );
+  }
   return (
-    <div className="space-y-1">
-      {rec.warnings.map((w, i) => {
-        const style = warningStyles[w.level];
-        return (
-          <p
-            key={`${w.code}-${i}`}
-            className={cn(
-              "flex items-start gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-snug",
-              style.className
-            )}
-          >
-            <style.icon aria-hidden className="mt-0.5 size-3 shrink-0" />
-            <span>{w.message}</span>
-          </p>
-        );
-      })}
-    </div>
+    <details className={cn("group/conditions rounded-md border", style.className)}>
+      <summary className="flex cursor-pointer list-none items-start gap-1.5 px-2 py-1 text-[11px] leading-snug focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+        <style.icon aria-hidden className="mt-0.5 size-3 shrink-0" />
+        <span className="flex-1">
+          {summary.lead.message}
+          <span className="ml-1 font-semibold">
+            View {summary.extraCount} more{" "}
+            {summary.extraCount === 1 ? "condition" : "conditions"}
+          </span>
+        </span>
+        <ChevronDown
+          aria-hidden
+          className="mt-0.5 size-3 shrink-0 transition-transform group-open/conditions:rotate-180"
+        />
+      </summary>
+      <ul className="space-y-1 border-t border-current/15 px-2 py-1.5">
+        {summary.all.slice(1).map((w, i) => (
+          <li key={`${w.code}-${i}`} className="flex items-start gap-1.5 text-[11px] leading-snug">
+            <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-current/60" />
+            {w.message}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** "Checked 25 Jun 2026 · Ends 31 Jul 2026" — the card's currency proof. */
+function FreshnessRow({ rec }: { rec: StackRecommendation }) {
+  const checked = formatDateAU(rec.checkedAsOf?.slice(0, 10) ?? null);
+  const ends = formatDateAU(rec.soonestExpiry ?? null);
+  if (!checked && !ends) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+      {checked ? (
+        <span className="inline-flex items-center gap-1">
+          <CalendarClock aria-hidden className="size-3" />
+          Layers checked {checked}
+        </span>
+      ) : null}
+      <span className="inline-flex items-center gap-1">
+        <Info aria-hidden className="size-3" />
+        {ends ? `First layer ends ${ends}` : "No known expiry"}
+      </span>
+    </p>
+  );
+}
+
+function LayerStatusChip({
+  confidence,
+}: {
+  confidence: StackComponent["confidence"];
+}) {
+  const status = layerStatusLabel(confidence);
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0 text-[9px] font-semibold",
+        status.tone === "verified"
+          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+          : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      )}
+    >
+      {status.label}
+    </span>
   );
 }
 
@@ -198,6 +256,7 @@ function LayerList({ rec }: { rec: StackRecommendation }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-medium">{c.label}</span>
+                <LayerStatusChip confidence={c.confidence} />
                 {compat === "choose-one" ? (
                   <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] font-semibold text-amber-700 dark:text-amber-400">
                     <Shuffle aria-hidden className="size-2.5" /> Choose one
@@ -244,6 +303,13 @@ function StackActions({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {codeComponent?.code && <CopyCodeButton code={codeComponent.code} />}
+      <Link
+        href={`/?stack=${encodeURIComponent(rec.merchantId)}#calculator`}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-800 transition-colors hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:text-emerald-300"
+      >
+        <Calculator aria-hidden className="size-3.5" />
+        Build this stack
+      </Link>
       <Link
         href={`/stores/${rec.merchantId}`}
         className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -355,8 +421,9 @@ export function StackRecommendationCard({
               <p className="truncate text-sm font-semibold leading-tight">
                 {rec.merchantName}
               </p>
-              <p className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                <Star aria-hidden className="size-3" /> Earn points
+              <p className="truncate text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                <Star aria-hidden className="mr-1 inline size-3" />
+                {rec.title}
               </p>
             </div>
             <TrustPill rec={rec} />
@@ -384,9 +451,10 @@ export function StackRecommendationCard({
           </div>
 
           <LayerList rec={rec} />
-          <Warnings rec={rec} />
+          <ConditionsSummary rec={rec} />
 
           <div className="mt-auto flex flex-col gap-2.5 border-t pt-2.5">
+            <FreshnessRow rec={rec} />
             <StackActions rec={rec} store={store} />
             <StackSourceDisclosure citations={rec.citations} />
           </div>
@@ -396,7 +464,7 @@ export function StackRecommendationCard({
   }
 
   // ── Full cash-stack variant — outcome first ────────────────────────────
-  const summaryLine = layerSummaryLine(rec);
+  const fullyVerified = rec.verifiedSaving >= rec.totalSaving && rec.totalSaving > 0;
   return (
     <Card className="gap-0 py-0 shadow-sm">
       <CardContent className="flex h-full flex-col gap-3 p-4">
@@ -408,25 +476,53 @@ export function StackRecommendationCard({
             </span>
           )}
           <StoreLogo store={store} text={fallbackText} size="sm" />
-          <p className="min-w-0 flex-1 truncate text-base font-semibold leading-tight">
-            {rec.merchantName}
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold leading-tight">
+              {rec.merchantName}
+            </p>
+            <p className="truncate text-[11px] font-medium text-muted-foreground">
+              {rec.title}
+            </p>
+          </div>
           <TrustPill rec={rec} />
         </div>
 
-        {/* Outcome headline */}
+        {/* Outcome headline — verified saving leads; estimates are labelled. */}
         <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] p-3">
-          <p className="text-lg font-bold leading-tight text-emerald-700 dark:text-emerald-400">
-            Save {formatAUD(rec.totalSaving)}
-            <span className="text-sm font-medium text-muted-foreground">
-              {" "}
-              on a {formatAUD(rec.basePrice)} example purchase
-            </span>
-          </p>
-          {summaryLine && (
-            <p className="mt-0.5 text-xs font-medium text-foreground/80">
-              {summaryLine}
+          {fullyVerified ? (
+            <p className="text-lg font-bold leading-tight text-emerald-700 dark:text-emerald-400">
+              You save {formatAUD(rec.verifiedSaving)}
+              <span className="text-sm font-medium text-muted-foreground">
+                {" "}
+                on a {formatAUD(rec.basePrice)} spend
+              </span>
             </p>
+          ) : rec.verifiedSaving > 0 ? (
+            <>
+              <p className="text-lg font-bold leading-tight text-emerald-700 dark:text-emerald-400">
+                You save {formatAUD(rec.verifiedSaving)}
+                <span className="text-sm font-medium text-muted-foreground">
+                  {" "}
+                  verified, on a {formatAUD(rec.basePrice)} spend
+                </span>
+              </p>
+              <p className="mt-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                Up to {formatAUD(rec.totalSaving)} including unverified layers
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-bold leading-tight text-foreground">
+                Up to {formatAUD(rec.totalSaving)} estimated
+                <span className="text-sm font-medium text-muted-foreground">
+                  {" "}
+                  on a {formatAUD(rec.basePrice)} spend
+                </span>
+              </p>
+              <p className="mt-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                No layer is verified yet — confirm each at its source
+              </p>
+            </>
           )}
           <div className="mt-2 flex items-end justify-between gap-2 border-t border-emerald-500/20 pt-2">
             <div>
@@ -452,9 +548,10 @@ export function StackRecommendationCard({
         )}
 
         <LayerList rec={rec} />
-        <Warnings rec={rec} />
+        <ConditionsSummary rec={rec} />
 
         <div className="mt-auto flex flex-col gap-2.5 border-t pt-2.5">
+          <FreshnessRow rec={rec} />
           <StackActions rec={rec} store={store} />
           <StackSourceDisclosure citations={rec.citations} />
         </div>

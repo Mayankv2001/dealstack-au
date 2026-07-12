@@ -42,7 +42,7 @@ function cashRec(over: Partial<StackRecommendation> = {}): StackRecommendation {
     merchantId: "myer",
     merchantName: "Myer",
     kind: "cash",
-    title: "Myer best available stack",
+    title: "10% off code + 6% ShopBack cashback at Myer",
     basePrice: 500,
     components: [
       {
@@ -70,6 +70,9 @@ function cashRec(over: Partial<StackRecommendation> = {}): StackRecommendation {
     effectivePrice: 423,
     effectiveDiscountPercent: 15.4,
     totalSaving: 77,
+    verifiedSaving: 27,
+    checkedAsOf: "2026-06-12T00:00:00+10:00",
+    soonestExpiry: null,
     pointsEarned: 0,
     pointsValueDollars: 0,
     confidence: "needs-verification",
@@ -92,7 +95,7 @@ function pointsRec(): StackRecommendation {
     merchantId: "coles",
     merchantName: "Coles",
     kind: "points-only",
-    title: "Coles rewards opportunity",
+    title: "1 point per $1 on Flybuys at Coles",
     basePrice: 500,
     components: [
       {
@@ -109,6 +112,9 @@ function pointsRec(): StackRecommendation {
     effectivePrice: 500,
     effectiveDiscountPercent: 0,
     totalSaving: 0,
+    verifiedSaving: 0,
+    checkedAsOf: "2026-06-12T00:00:00+10:00",
+    soonestExpiry: null,
     pointsEarned: 500,
     pointsValueDollars: 2.5,
     confidence: "confirmed",
@@ -154,7 +160,10 @@ describe("StackRecommendationCard — cash stack", () => {
     const html = renderToStaticMarkup(
       <StackRecommendationCard recommendation={cashRec()} stores={stores} />
     );
-    expect(html).toContain("Save $77.00");
+    expect(html).toContain("You save $27.00");
+    expect(html).toContain("Up to $77.00 including unverified layers");
+    expect(html).toContain("on a $500.00 spend");
+    expect(html).not.toMatch(/example (spend|purchase)/i);
     expect(html).toContain("$423.00");
     expect(html).toContain("15.4% total saving");
     expect(html).not.toMatch(/\d{4}-\d{2}-\d{2}/);
@@ -210,5 +219,84 @@ describe("StackRecommendationCard — points-only", () => {
     expect(html).toContain("not deducted from the cash price");
     expect(html).not.toContain("0% off");
     expect(html).not.toContain("% total saving");
+  });
+});
+
+describe("StackRecommendationCard — trust, conditions and freshness", () => {
+  it("labels each layer with its own honest verification chip", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    expect(html).toContain(">Unverified<"); // discount layer
+    expect(html).toContain(">Verified<"); // confirmed cashback layer
+  });
+
+  it("renders the descriptive layer-derived title", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    expect(html).toContain("10% off code + 6% ShopBack cashback at Myer");
+  });
+
+  it("shows one freshness row with the oldest layer check", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    expect(html).toContain("Layers checked 12 Jun 2026");
+    expect(html).toContain("No known expiry");
+  });
+
+  it("collapses multiple warnings into one lead condition plus a disclosure", () => {
+    const rec = cashRec({
+      warnings: [
+        {
+          level: "info",
+          code: "gift-card-excluded-from-cashback",
+          message: "Cashback usually excludes gift-card payment.",
+        },
+        {
+          level: "caution",
+          code: "needs-verification",
+          message: "The MYER10 code is unverified — confirm before using it.",
+        },
+        {
+          level: "caution",
+          code: "expiry-soon",
+          message: "The gift card offer ends within 7 days.",
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={rec} stores={stores} />
+    );
+    // Most severe condition leads; the rest sit behind one disclosure.
+    expect(html).toContain("The MYER10 code is unverified");
+    expect(html).toContain("View 2 more conditions");
+    expect(occurrences(html, "rounded-md border px-2 py-1")).toBeLessThanOrEqual(1);
+  });
+
+  it("offers Build this stack and store actions", () => {
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+    );
+    expect(html).toContain("Build this stack");
+    expect(html).toContain("/?stack=myer#calculator");
+    expect(html).toContain("/stores/myer");
+  });
+
+  it("shows a fully verified headline only when every cash layer is confirmed", () => {
+    const rec = cashRec({
+      verifiedSaving: 77,
+      components: cashRec().components.map((c) => ({
+        ...c,
+        confidence: "confirmed" as const,
+      })),
+      confidence: "confirmed",
+    });
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={rec} stores={stores} />
+    );
+    expect(html).toContain("You save $77.00");
+    expect(html).not.toContain("including unverified layers");
   });
 });

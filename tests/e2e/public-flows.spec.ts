@@ -93,6 +93,16 @@ test("deals: filters and search are shareable and clearable", async ({ page }, t
   await expect(page).toHaveURL(/\/deals$/);
 });
 
+test("deals: spend selector recalculates stack estimates via the URL", async ({ page }) => {
+  await page.goto("/deals?view=stacks");
+  await expect(page.getByRole("heading", { level: 1, name: "Best stacks" })).toBeVisible();
+  await page.getByRole("link", { name: "$250", exact: true }).click();
+  await expect(page).toHaveURL(/spend=250/);
+  await expect(page.getByText("on a $250.00 spend").first()).toBeVisible();
+  // Descriptive, layer-derived stack titles — never a generic "weekly stack".
+  await expect(page.getByText(/% off code .*at /i).first()).toBeVisible();
+});
+
 test("deals: mobile filter disclosure exposes labelled controls", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "mobile-only control");
   await page.goto("/deals?view=community");

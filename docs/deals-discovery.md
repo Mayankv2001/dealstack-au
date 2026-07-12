@@ -101,16 +101,57 @@ never shown.
 
 Stacks that neither save cash nor earn points are dropped from both groups.
 
+### Spend selector
+
+The Best stacks view carries one page-level spend selector — presets of $100,
+$250 and $500 plus a custom amount (clamped to $50–$20,000) — driven by the
+`spend` URL parameter. The engine recalculates every stack server-side at the
+selected spend; cards phrase the outcome as "on a $X spend" and never repeat a
+per-card "example spend" line. The parameter is display configuration, not a
+filter: setting it alone keeps the Discover layout.
+
+### Verified vs estimated savings
+
+Every recommendation carries `verifiedSaving` — the subset of `totalSaving`
+backed by CONFIRMED cash layers only. The card headline leads with the verified
+figure ("You save $X"); anything above it is explicitly labelled
+"Up to $Y including unverified layers", and when nothing is verified the
+headline itself is labelled an estimate. Each layer row also carries its own
+Verified/Unverified chip, so one unverified layer can never make a stack read
+as fully verified. Descriptive titles are derived from the actual layers
+("10% off code + 6% ShopBack cashback at Myer") — never a generic label.
+
+### Freshness
+
+Each recommendation exposes `checkedAsOf` (the OLDEST last-checked date among
+the used offer-backed layers, so currency is never overstated) and
+`soonestExpiry` (the first layer to end). Cards render these as one freshness
+row ("Layers checked 25 Jun 2026 · First layer ends 31 Jul 2026") with
+Australia-local dates.
+
 ### Source de-duplication
 
-A stack draws citations from every matching offer and every corroborating
-OzBargain signal, so the same source repeats — once per node URL.
-`summariseCitations` (`lib/stack/citationSummary.ts`) collapses them for display
-without losing traceability: it dedupes by source and normalised URL, groups the
-result into distinct providers ranked by trust weight, and a collapsed card
-shows at most three provider badges plus an "N sources checked" count. The full,
-distinct citation list stays reachable in a native `<details>` disclosure, so
-every source is one keyboard-accessible interaction away.
+A stack draws citations from its matching offers and corroborating OzBargain
+signals. Two mechanisms keep that honest and compact:
+
+1. **At the engine** (`lib/stack/buildStack.ts`), corroborating community
+   citations are capped at `MAX_SIGNAL_CITATIONS` (3), keeping the most
+   recently checked REAL signals; sample rows are never cited. This fixes the
+   root cause of the repeated-badge flood (one citation per approved signal —
+   busy merchants have dozens; `ozbargain_signals.source_native_id` is unique,
+   so these were distinct rows, not database duplicates).
+2. **At display**, `summariseCitations` (`lib/stack/citationSummary.ts`)
+   dedupes by source and normalised canonical URL, groups the result into
+   distinct providers ranked by trust weight, and a collapsed card shows at
+   most three provider badges plus an "N sources checked" count. The full,
+   distinct citation list stays reachable in a native `<details>` disclosure,
+   so every source is one keyboard-accessible interaction away.
+
+### Conditions
+
+Warnings are consolidated into one compact conditions row: the single most
+severe condition renders inline and the rest sit behind a native "View N more
+conditions" disclosure — replacing the old stack of repeated warning banners.
 
 ### Trust and compatibility presentation
 

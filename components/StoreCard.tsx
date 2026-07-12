@@ -191,12 +191,11 @@ export function StoreCard({
             </SavingRow>
           </div>
 
-          {/* Estimated stack value on a sample spend */}
+          {/* Estimated stack value on a $500 spend (customise in the calculator) */}
           <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2 dark:from-emerald-500/15 dark:to-emerald-500/5">
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>Example spend</span>
-              <span className="font-medium">{formatAUD(SAMPLE_SPEND)}</span>
-            </div>
+            <p className="text-[11px] text-muted-foreground">
+              On a {formatAUD(SAMPLE_SPEND)} spend
+            </p>
             <div className="mt-0.5 flex items-center justify-between">
               <span className="text-xs font-medium">Effective price</span>
               <span className="text-base font-bold tracking-tight text-emerald-700 dark:text-emerald-400">

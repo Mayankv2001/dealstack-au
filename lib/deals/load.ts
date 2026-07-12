@@ -30,7 +30,10 @@ const EMPTY_STACK_DATA: StackData = {
   ozBargainSignals: [],
 };
 
-export async function loadDealsBundle(now: Date = new Date()): Promise<DealsBundle> {
+export async function loadDealsBundle(
+  now: Date = new Date(),
+  spend?: number
+): Promise<DealsBundle> {
   const [stackSettled, weeklySettled] = await Promise.allSettled([
     loadStackData(),
     getWeeklyDeals(),
@@ -43,7 +46,7 @@ export async function loadDealsBundle(now: Date = new Date()): Promise<DealsBund
   const weekly: WeeklyDeal[] =
     weeklySettled.status === "fulfilled" ? weeklySettled.value : [];
 
-  const stackRecommendations = buildStackRecommendations(undefined, undefined, data);
+  const stackRecommendations = buildStackRecommendations(undefined, spend, data);
   const stackableMerchantIds = new Set(
     stackRecommendations.map((rec) => rec.merchantId)
   );

@@ -106,6 +106,8 @@ export interface DealsParams {
   targeted: boolean;
   added: AddedFilter;
   page: number;
+  /** Spend (dollars) the stack estimates are calculated on. */
+  spend: number;
 }
 
 export const DEFAULT_PARAMS: DealsParams = {
@@ -122,7 +124,13 @@ export const DEFAULT_PARAMS: DealsParams = {
   targeted: false,
   added: null,
   page: 1,
+  spend: 500,
 };
+
+/** Preset spend options for the stacks spend selector. */
+export const SPEND_PRESETS = [100, 250, 500] as const;
+export const MIN_SPEND = 50;
+export const MAX_SPEND = 20_000;
 
 export const PAGE_SIZE = 24;
 
@@ -186,6 +194,11 @@ export function parseDealsParams(raw: RawSearchParams): DealsParams {
   const page = Number.parseInt(first(raw.page), 10);
   if (Number.isFinite(page) && page >= 1 && page <= 500) params.page = page;
 
+  const spend = Number.parseInt(first(raw.spend), 10);
+  if (Number.isFinite(spend)) {
+    params.spend = Math.min(MAX_SPEND, Math.max(MIN_SPEND, spend));
+  }
+
   return params;
 }
 
@@ -248,6 +261,7 @@ export function dealsHref(
   if (merged.activation) query.set("activation", "1");
   if (merged.targeted) query.set("targeted", "1");
   if (merged.added) query.set("added", merged.added);
+  if (merged.spend !== DEFAULT_PARAMS.spend) query.set("spend", String(merged.spend));
   if (merged.page > 1) query.set("page", String(merged.page));
   const qs = query.toString();
   return qs ? `/deals?${qs}` : "/deals";

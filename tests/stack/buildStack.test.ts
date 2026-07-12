@@ -115,7 +115,11 @@ describe("buildStackRecommendations", () => {
     const data = makeStackData({
       stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "M" })],
       ozBargainSignals: [
-        makeSignal({ merchantId: "myer", sourceUrl: "https://example.com/s1" }),
+        makeSignal({
+          merchantId: "myer",
+          sourceUrl: "https://example.com/s1",
+          isSample: false,
+        }),
       ],
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
@@ -123,6 +127,39 @@ describe("buildStackRecommendations", () => {
       source: "ozbargain",
       sourceUrl: "https://example.com/s1",
     });
+  });
+
+  it("caps corroborating signal citations and never cites sample signals", () => {
+    const signals = Array.from({ length: 6 }, (_, i) =>
+      makeSignal({
+        id: `sig-${i}`,
+        merchantId: "myer",
+        sourceUrl: `https://example.com/s${i}`,
+        lastCheckedAt: `2026-06-${10 + i}T00:00:00+10:00`,
+        isSample: false,
+      })
+    );
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "M" })],
+      ozBargainSignals: [
+        ...signals,
+        makeSignal({
+          id: "sig-sample",
+          merchantId: "myer",
+          sourceUrl: "https://example.com/sample",
+          isSample: true,
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const ozb = rec.citations.filter((c) => c.source === "ozbargain");
+    expect(ozb).toHaveLength(3);
+    // Most recently checked first; the sample signal is never cited.
+    expect(ozb.map((c) => c.sourceUrl)).toEqual([
+      "https://example.com/s5",
+      "https://example.com/s4",
+      "https://example.com/s3",
+    ]);
   });
 
   it("drives expiry-soon and stale-data warnings off the injected clock", () => {
@@ -269,13 +306,60 @@ describe("buildStackRecommendations", () => {
     expect(rec.kind).toBe("points-only");
   });
 
-  it("titles a cash stack as the best available stack, not a weekly stack", () => {
+  it("titles a cash stack from its actual layers, not a generic label", () => {
     const data = makeStackData({
       stores: [makeStore({ id: "myer", name: "Myer", discountPercent: 10, discountCode: "MYER10" })],
+      cashbackOffers: [
+        makeCashback({ merchantId: "myer", provider: "ShopBack", ratePercent: 6 }),
+      ],
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
-    expect(rec.title).toBe("Myer best available stack");
-    expect(rec.title).not.toMatch(/weekly stack/i);
+    expect(rec.title).toBe("10% off code + 6% ShopBack cashback at Myer");
+    expect(rec.title).not.toMatch(/weekly stack|best available/i);
+  });
+
+  it("splits the verified saving out of the estimated total", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" })],
+      cashbackOffers: [
+        makeCashback({
+          merchantId: "myer",
+          ratePercent: 6,
+          confidence: "confirmed",
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    // Discount code layers come from the flat Store model → needs-verification;
+    // only the confirmed cashback layer may back the verified figure.
+    expect(rec.totalSaving).toBe(77);
+    expect(rec.verifiedSaving).toBe(27);
+  });
+
+  it("reports the OLDEST layer check and the SOONEST layer expiry", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "M" })],
+      giftCardOffers: [
+        makeGiftCard({
+          discountPercent: 5,
+          acceptedAtMerchantIds: ["myer"],
+          lastCheckedAt: "2026-06-01T00:00:00+10:00",
+          expiryDate: "2026-06-30",
+        }),
+      ],
+      cashbackOffers: [
+        makeCashback({
+          merchantId: "myer",
+          ratePercent: 6,
+          excludesGiftCardPayment: false,
+          lastCheckedAt: "2026-06-12T00:00:00+10:00",
+          expiryDate: "2026-06-20",
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    expect(rec.checkedAsOf).toBe("2026-06-01T00:00:00+10:00");
+    expect(rec.soonestExpiry).toBe("2026-06-20");
   });
 
   it("classifies cash vs points-only stacks", () => {

@@ -2,6 +2,8 @@ import type { Confidence } from "@/lib/sources/types";
 import type {
   StackComponent,
   StackRecommendation,
+  StackWarning,
+  StackWarningLevel,
 } from "@/lib/offers/types";
 
 /**
@@ -116,6 +118,49 @@ export function stackTrustStatus(rec: StackRecommendation): StackTrustStatus {
   return {
     label: `${needsVerification} layers need verification`,
     tone: "caution",
+  };
+}
+
+/** Honest per-layer status chip label, from the layer's stored confidence. */
+export function layerStatusLabel(
+  confidence: Confidence
+): { label: string; tone: "verified" | "caution" } {
+  if (confidence === "confirmed") return { label: "Verified", tone: "verified" };
+  if (confidence === "expired-unknown") {
+    return { label: "Unable to verify", tone: "caution" };
+  }
+  return { label: "Unverified", tone: "caution" };
+}
+
+const WARNING_LEVEL_RANK: Record<StackWarningLevel, number> = {
+  risk: 0,
+  caution: 1,
+  info: 2,
+};
+
+export interface StackConditionsSummary {
+  /** The single most severe condition, shown inline. */
+  lead: StackWarning | null;
+  /** Every condition, most severe first, for the expandable disclosure. */
+  all: StackWarning[];
+  /** Conditions beyond the lead one. */
+  extraCount: number;
+}
+
+/**
+ * Collapse a stack's warnings into one inline lead condition plus an
+ * expandable list — replacing the old stack of repeated warning banners.
+ */
+export function summariseConditions(
+  rec: StackRecommendation
+): StackConditionsSummary {
+  const all = [...rec.warnings].sort(
+    (a, b) => WARNING_LEVEL_RANK[a.level] - WARNING_LEVEL_RANK[b.level]
+  );
+  return {
+    lead: all[0] ?? null,
+    all,
+    extraCount: Math.max(0, all.length - 1),
   };
 }
 

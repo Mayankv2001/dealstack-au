@@ -66,6 +66,9 @@ const round = (value: number) => Math.round(value * 100) / 100;
 
 const MANUAL_CITATION: Citation = { source: "manual", sourceUrl: "/" };
 
+/** Most corroborating community citations one stack may carry. */
+export const MAX_SIGNAL_CITATIONS = 3;
+
 /**
  * Development-oriented words that must never reach a public card. Offer sample
  * data (and any DB rows seeded from it) prefixes free text with "Sample:",
@@ -374,17 +377,51 @@ function buildForStore(
   // Nothing to stack → no recommendation.
   if (components.filter((c) => !c.optional).length === 0) return null;
 
-  // OzBargain signals contribute citations/context, not savings.
-  for (const signal of data.ozBargainSignals) {
-    if (signal.merchantId === store.id) {
-      citations.push({ source: "ozbargain", sourceUrl: signal.sourceUrl });
-    }
+  // OzBargain signals contribute corroborating citations, not savings. A busy
+  // merchant can have dozens of approved signals; pushing every one of them
+  // was the root cause of the repeated-source-badge flood, so corroboration is
+  // capped at the few most recently checked REAL signals (samples carry
+  // placeholder URLs and are never cited).
+  const corroborating = data.ozBargainSignals
+    .filter((signal) => signal.merchantId === store.id && !signal.isSample)
+    .sort((a, b) => (b.lastCheckedAt ?? "").localeCompare(a.lastCheckedAt ?? ""))
+    .slice(0, MAX_SIGNAL_CITATIONS);
+  for (const signal of corroborating) {
+    citations.push({ source: "ozbargain", sourceUrl: signal.sourceUrl });
   }
 
   const effectivePrice = round(running);
   const totalSaving = round(spend - effectivePrice);
   const effectiveDiscountPercent =
     spend > 0 ? round((totalSaving / spend) * 100) : 0;
+  // Only CONFIRMED cash layers may back the primary "you save" figure.
+  const verifiedSaving = round(
+    components
+      .filter(
+        (c) =>
+          !c.optional &&
+          c.layer !== "points" &&
+          c.confidence === "confirmed" &&
+          (c.valueDollars ?? 0) > 0
+      )
+      .reduce((sum, c) => sum + (c.valueDollars ?? 0), 0)
+  );
+
+  // Freshness: the OLDEST last-checked date among used offer-backed layers
+  // (never overstates currency) and the soonest layer expiry.
+  const usedChecks = [
+    useGiftCard && giftCard ? giftCard.lastCheckedAt : null,
+    useCashback && cashback ? cashback.lastCheckedAt : null,
+    points?.lastCheckedAt ?? null,
+  ].filter((iso): iso is string => Boolean(iso));
+  const checkedAsOf = usedChecks.length ? [...usedChecks].sort()[0] : null;
+  const usedExpiries = [
+    store.discountPercent > 0 ? store.expiryDate : null,
+    useGiftCard && giftCard ? giftCard.expiryDate : null,
+    useCashback && cashback ? cashback.expiryDate : null,
+    points?.expiryDate ?? null,
+  ].filter((d): d is string => Boolean(d));
+  const soonestExpiry = usedExpiries.length ? [...usedExpiries].sort()[0] : null;
 
   // Final scrub: no development wording ("Sample", "Illustrative", …) ever
   // reaches a public card, whatever the data source.
@@ -407,15 +444,15 @@ function buildForStore(
     merchantId: store.id,
     merchantName: store.name,
     kind,
-    title:
-      kind === "points-only"
-        ? `${store.name} rewards opportunity`
-        : `${store.name} best available stack`,
+    title: describeStack(publicComponents, store.name, kind),
     basePrice: spend,
     components: publicComponents,
     effectivePrice,
     effectiveDiscountPercent,
     totalSaving,
+    verifiedSaving,
+    checkedAsOf,
+    soonestExpiry,
     pointsEarned,
     pointsValueDollars,
     confidence: worstConfidence(confidences),
@@ -425,6 +462,44 @@ function buildForStore(
     // check uses, so a stack's weekOf can never disagree with isWeekOfStale.
     weekOf: weekMondayAU(now),
   };
+}
+
+/** Short human descriptor for one cash layer, e.g. "10% code" or "6% ShopBack". */
+function describeCashLayer(c: StackComponent): string | null {
+  if (c.layer === "points" || c.optional || (c.valueDollars ?? 0) <= 0) {
+    return null;
+  }
+  const pct =
+    typeof c.valuePercent === "number" && c.valuePercent > 0
+      ? `${c.valuePercent}% `
+      : "";
+  if (c.layer === "discount") return `${pct}off code`.trim();
+  if (c.layer === "gift-card") return `${pct}gift cards`.trim();
+  // Cashback labels carry the provider (e.g. "6% ShopBack cashback").
+  const provider = c.label.match(/\b(ShopBack|TopCashback)\b/)?.[1];
+  return provider ? `${pct}${provider} cashback` : `${pct}cashback`.trim();
+}
+
+/**
+ * Descriptive, layer-derived stack title — "10% off code + 6% ShopBack
+ * cashback at Myer" — replacing the old generic "<store> weekly stack".
+ */
+export function describeStack(
+  components: StackComponent[],
+  merchantName: string,
+  kind: StackKind
+): string {
+  if (kind === "points-only") {
+    const points = components.find((c) => c.layer === "points");
+    const label = points ? sanitisePublicText(points.label) : "Loyalty points";
+    return `${label} at ${merchantName}`;
+  }
+  const parts = components
+    .map(describeCashLayer)
+    .filter((part): part is string => part !== null)
+    .slice(0, 3);
+  if (parts.length === 0) return `${merchantName} savings stack`;
+  return `${parts.join(" + ")} at ${merchantName}`;
 }
 
 function dedupeCitations(citations: Citation[]): Citation[] {
