@@ -1,5 +1,10 @@
 import { effectiveDiscountPercent } from "@/lib/giftcards/value";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import {
+  assessCompoundCampaign,
+  detectMembershipSignal,
+  detectSpendThreshold,
+} from "@/lib/giftcards/approvalSafeguards";
 
 /**
  * Pure validation for gift-card candidate approval — the material-field gate
@@ -57,6 +62,12 @@ export interface RawApprovalInput {
   activationRequired: boolean;
   couponRequired: boolean;
   shippingMayApply: boolean;
+  /** Reviewer confirmation that a many-brand source really is a single offer. */
+  singleOfferConfirmed?: boolean;
+  /** Data-source name (kept separate from seller) — scanned for member signals. */
+  sourceName?: string;
+  /** Combined limit/usage/earn text scanned for a stated spend threshold. */
+  thresholdText?: string;
 }
 
 export interface ParsedApproval {
