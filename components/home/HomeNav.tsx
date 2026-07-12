@@ -12,12 +12,11 @@ import Logo from "@/components/Logo";
  */
 
 const navLinks = [
-  { label: "How it works", href: "#how-it-works", external: false },
-  { label: "Stores", href: "#stores", external: false },
-  { label: "Deal stacks", href: "/deals", external: true },
+  { label: "Stores", href: "/stores", external: true },
+  { label: "Stacks", href: "/deals?view=stacks", external: true },
+  { label: "Deals", href: "/deals", external: true },
   { label: "Card offers", href: "/cards", external: true },
-  { label: "Resources", href: "/resources", external: true },
-  { label: "Trust & safety", href: "#trust", external: false },
+  { label: "How it works", href: "#how-it-works", external: false },
 ];
 
 export function HomeNav() {
@@ -49,15 +48,12 @@ export function HomeNav() {
           )}
         </nav>
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-            <Link href="/admin/login">Sign in</Link>
-          </Button>
           <Button
             asChild
             size="sm"
             className="hidden bg-emerald-600 text-white hover:bg-emerald-700 sm:inline-flex"
           >
-            <a href="#stores">Get started</a>
+            <a href="#store-search">Search stores</a>
           </Button>
           <Button
             variant="outline"
@@ -97,18 +93,13 @@ export function HomeNav() {
               )
             )}
             <div className="mt-2 flex flex-col gap-2 border-t pt-3">
-              <Button asChild variant="outline" size="sm">
-                <Link href="/admin/login" onClick={() => setMenuOpen(false)}>
-                  Sign in
-                </Link>
-              </Button>
               <Button
                 asChild
                 size="sm"
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
               >
-                <a href="#stores" onClick={() => setMenuOpen(false)}>
-                  Get started
+                <a href="#store-search" onClick={() => setMenuOpen(false)}>
+                  Search stores
                 </a>
               </Button>
             </div>

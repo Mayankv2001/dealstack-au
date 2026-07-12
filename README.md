@@ -7,7 +7,7 @@ A deal-stacking platform for Australian shoppers that combines cashback portals,
 ## Features
 
 ### Public Site
-- **Homepage** — Top 5 OzBargain signals (admin-curated), popular stores, and search entry point
+- **Homepage** — Store-first discovery, compatibility-aware featured stack, reviewed community opportunities, and sourced/custom calculator modes
 - **Deals discovery** — URL-backed search, filters, sorting and pagination across current public deals, plus traced compatible stacks and community detail pages
 - **Store pages** — Per-store cashback, gift-card, and points stacking details
 - **Search** — Live cross-entity search across deals, stores, and card offers

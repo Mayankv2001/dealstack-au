@@ -69,6 +69,22 @@ describe("calculateStack", () => {
     expect(r.giftCardSaving).toBe(3.33); // 10 * 33.333% = 3.3333 → 3.33
     expect(r.finalEffectivePrice).toBe(6.67); // 10 - 3.33(rounded base 3.3333) → 6.6667 → 6.67
   });
+
+  it("chooses the stronger layer when cashback excludes gift-card payment", () => {
+    const r = calculateStack({
+      originalPrice: 500,
+      discountPercent: 10,
+      cashbackPercent: 6,
+      giftCardDiscountPercent: 4,
+      cashbackExcludesGiftCardPayment: true,
+    });
+    expect(r.checkoutPrice).toBe(450);
+    expect(r.giftCardSaving).toBe(0);
+    expect(r.estimatedCashback).toBe(27);
+    expect(r.cashPaidForCheckout).toBe(450);
+    expect(r.finalEffectivePrice).toBe(423);
+    expect(r.excludedLayer).toBe("gift-card");
+  });
 });
 
 describe("formatAUD", () => {

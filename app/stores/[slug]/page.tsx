@@ -30,6 +30,8 @@ import { formatExpiry, type Store } from "@/lib/data";
 import { siteUrl } from "@/lib/env";
 import { getStores } from "@/lib/repos";
 import { storeSourceResults } from "@/lib/repos/sourceResults";
+import { buildStackRecommendations } from "@/lib/stack/buildStack";
+import { loadStackData } from "@/lib/stack/loadStack";
 import { buildStoreBreadcrumbJsonLd } from "@/lib/structuredData";
 import { cn } from "@/lib/utils";
 
@@ -108,7 +110,8 @@ export default async function StorePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const stores = await getStores();
+  const data = await loadStackData();
+  const stores = data.stores;
   const store = stores.find((s) => s.id === slug);
   if (!store) notFound();
 
@@ -122,6 +125,7 @@ export default async function StorePage({
   // Source checks come from the repository layer (Supabase published/approved
   // rows when configured, static sample pipeline otherwise).
   const sourceResults = await storeSourceResults(store.id);
+  const recommendations = buildStackRecommendations(undefined, 500, data);
 
   const layers = [
     {
@@ -364,7 +368,10 @@ export default async function StorePage({
               purchase price.
             </p>
           </div>
-          <DealStackCalculator stores={stores} />
+          <DealStackCalculator
+            recommendations={recommendations}
+            initialStoreId={store.id}
+          />
         </section>
 
         {/* Disclaimer */}

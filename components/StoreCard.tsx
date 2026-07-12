@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import StoreLogo from "@/components/StoreLogo";
 import { calculateStack, formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, type Store } from "@/lib/data";
+import type { StackRecommendation } from "@/lib/offers/types";
+import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
 /** Subtle brand-ish colours per cashback provider, shared with the store detail page */
@@ -49,9 +51,11 @@ function SavingRow({
  */
 export function StoreCard({
   store,
+  recommendation = null,
   variant = "detailed",
 }: {
   store: Store;
+  recommendation?: StackRecommendation | null;
   variant?: "detailed" | "stack";
 }) {
   const stack = calculateStack({
@@ -64,43 +68,78 @@ export function StoreCard({
   const hasPoints = store.pointsProgram !== "—";
 
   if (variant === "stack") {
+    const activeLayers = (recommendation?.components ?? []).filter(
+      (component) =>
+        !component.optional &&
+        (component.layer === "points"
+          ? (component.pointsEarned ?? 0) > 0
+          : (component.valueDollars ?? 0) > 0)
+    );
+    const checked = formatDateAU(
+      recommendation?.checkedAsOf?.slice(0, 10) ?? null
+    );
+    const headline = recommendation
+      ? recommendation.kind === "points-only"
+        ? "Points only"
+        : recommendation.totalSaving > 0
+          ? `Up to ${recommendation.effectiveDiscountPercent}%`
+          : "No active stack found"
+      : "Watching for offers";
     return (
       <Link href={`/stores/${store.id}`} className="group block">
-        <Card className="h-full rounded-2xl py-0 shadow-sm ring-foreground/[0.08] transition-all duration-200 group-hover:-translate-y-1 group-hover:ring-emerald-500/50 group-hover:shadow-lg group-hover:shadow-emerald-500/10">
-          <CardContent className="flex h-full flex-col gap-4 p-5">
-            <div className="flex items-start justify-between gap-2">
-              <p className="font-semibold leading-tight">{store.name}</p>
-              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                AU
-              </span>
+        <Card className="h-full rounded-xl py-0 shadow-none transition-colors group-hover:border-emerald-500/60">
+          <CardContent className="flex h-full flex-col gap-3 p-4">
+            <div className="flex items-center gap-3">
+              <StoreLogo store={store} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold leading-tight">
+                  {store.name}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {activeLayers.length} active {activeLayers.length === 1 ? "layer" : "layers"}
+                </p>
+              </div>
             </div>
 
             <div>
               <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Estimated stack
               </p>
-              <p className="font-serif text-3xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
-                up to {Math.round(stack.totalSavingPercent)}%
+              <p
+                className={cn(
+                  "mt-0.5 font-serif text-2xl font-bold tracking-tight",
+                  recommendation?.kind === "cash" && recommendation.totalSaving > 0
+                    ? "text-emerald-800 dark:text-emerald-300"
+                    : "text-foreground"
+                )}
+              >
+                {headline}
               </p>
             </div>
 
-            <div className="mt-auto flex flex-wrap gap-1.5">
-              {store.cashbackPercent > 0 && (
-                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-                  {store.cashbackPercent}% cashback
+            <div className="flex min-h-6 flex-wrap gap-1.5">
+              {activeLayers.map((component, index) => (
+                <span
+                  key={`${component.layer}-${index}`}
+                  className="rounded-full border bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                >
+                  {component.layer === "discount"
+                    ? "Code"
+                    : component.layer === "gift-card"
+                      ? "Gift card"
+                      : component.layer === "cashback"
+                        ? "Cashback"
+                        : "Points"}
                 </span>
-              )}
-              {store.giftCardDiscountPercent > 0 && (
-                <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:text-sky-400">
-                  {store.giftCardDiscountPercent}% gift card
-                </span>
-              )}
-              {hasPoints && (
-                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-500">
-                  Points
-                </span>
-              )}
+              ))}
             </div>
+            <p className="mt-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Clock aria-hidden className="size-3" />
+              {checked ? `Checked ${checked}` : "No checked time available"}
+            </p>
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 group-hover:underline dark:text-emerald-300">
+              View stack <ArrowRight aria-hidden className="size-3.5" />
+            </span>
           </CardContent>
         </Card>
       </Link>

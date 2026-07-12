@@ -10,10 +10,10 @@ import { expect, test } from "@playwright/test";
 test("home: hero search live-filters the stores grid", async ({ page }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Stack every saving before you shop" })
+    page.getByRole("heading", { name: "See every saving you can stack before you buy" })
   ).toBeVisible();
 
-  await page.getByPlaceholder("Search stores or products…").fill("jb hi-fi");
+  await page.getByPlaceholder("Search a store, e.g. Myer, JB Hi-Fi or Amazon").first().fill("jb hi-fi");
 
   const storesSection = page.locator("#stores");
   await expect(storesSection.getByText("JB Hi-Fi").first()).toBeVisible();
@@ -21,6 +21,21 @@ test("home: hero search live-filters the stores grid", async ({ page }) => {
   await expect(
     storesSection.getByRole("button", { name: "Clear search" })
   ).toBeVisible();
+});
+
+test("home: sourced and custom calculator modes keep cashback timing consistent", async ({ page }) => {
+  await page.goto("/?stack=myer#calculator");
+  const calculator = page.locator("#calculator");
+  await expect(calculator.getByRole("tab", { name: "Use a store stack" })).toHaveAttribute("aria-selected", "true");
+  await expect(calculator.getByText("$450.00").first()).toBeVisible();
+  await expect(calculator.getByText("−$27.00").first()).toBeVisible();
+  await expect(calculator.getByText("$423.00").first()).toBeVisible();
+
+  await calculator.getByRole("tab", { name: "Build a custom stack" }).click();
+  await expect(calculator.getByText("$405.00").first()).toBeVisible();
+  await calculator.getByText("Cashback excludes gift-card payment").click();
+  await expect(calculator.getByText("$423.00").first()).toBeVisible();
+  await expect(calculator.getByText(/Gift-card saving was excluded/)).toBeVisible();
 });
 
 test("home → store page shows the stack breakdown", async ({ page }) => {

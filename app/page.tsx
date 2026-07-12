@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/JsonLd";
 import TopDealsSection from "@/components/TopDealsSection";
-import { pickFeaturedStack } from "@/components/home/featured";
 import HomeNav from "@/components/home/HomeNav";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
 import {
   CalculatorSection,
+  FeaturedStackSection,
   FinalCTASection,
   HomeFooter,
   SavingsLayersSection,
   TrustSection,
 } from "@/components/home/HomeStaticSections";
-import WorkedExample from "@/components/home/WorkedExample";
 import { siteUrl } from "@/lib/env";
-import { getStores } from "@/lib/repos";
 import { getTopDeals } from "@/lib/repos/topDeals";
+import { buildStackRecommendations } from "@/lib/stack/buildStack";
+import { loadStackData } from "@/lib/stack/loadStack";
+import { partitionStacks } from "@/lib/stack/present";
 import {
   buildOrganizationJsonLd,
   buildWebSiteJsonLd,
@@ -41,10 +42,14 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function Home() {
-  // Both reads fall back gracefully (stores → static; top deals → []), so the
-  // homepage always renders even without Supabase configured.
-  const [stores, topDeals] = await Promise.all([getStores(), getTopDeals()]);
-  const featured = pickFeaturedStack(stores);
+  const now = new Date();
+  const [data, topDeals] = await Promise.all([loadStackData(), getTopDeals()]);
+  const recommendations = buildStackRecommendations(undefined, 500, data, now);
+  const { best } = partitionStacks(recommendations);
+  const featured = best[0] ?? null;
+  const heroStack =
+    best.find((recommendation) => recommendation.merchantId === "myer") ??
+    featured;
   const site = siteUrl();
 
   return (
@@ -55,17 +60,21 @@ export default async function Home() {
         <HomeNav />
         <main>
           <HomeSearchSections
-            stores={stores}
-            featured={featured}
-            savingsSlot={<SavingsLayersSection />}
+            stores={data.stores}
+            recommendations={recommendations}
+            heroStack={heroStack}
           />
 
-          {/* Today's top OzBargain signals (staged, review-gated, read-only) */}
-          <TopDealsSection deals={topDeals} />
-
-          <WorkedExample featured={featured} />
-          <CalculatorSection stores={stores} />
-          <TrustSection />
+          <SavingsLayersSection />
+          <FeaturedStackSection
+            recommendation={featured}
+            stores={data.stores}
+          />
+          <TopDealsSection deals={topDeals.slice(0, 3)} />
+          <CalculatorSection
+            recommendations={recommendations}
+          />
+          <TrustSection recommendation={featured} />
           <FinalCTASection />
         </main>
         <HomeFooter />

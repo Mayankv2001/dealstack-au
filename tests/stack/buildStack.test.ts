@@ -273,7 +273,6 @@ describe("buildStackRecommendations", () => {
         makeGiftCard({
           discountPercent: 5,
           acceptedAtMerchantIds: ["myer"],
-          excludesGiftCardPayment: false,
           pointsOnPurchase: {
             program: "Flybuys",
             earnNote: "Sample: 2,000 bonus points on gift cards",
