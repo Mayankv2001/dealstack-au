@@ -125,6 +125,8 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("split-complete");
     expect(sql).toContain("source_present");
     expect(sql).toContain("source-removed");
+    expect(sql).toContain("Stored source identity is required");
+    expect(sql).toContain("raw_item.canonical_url !~ '^https://'");
     expect(sql).toContain("gift_card_offers_public_accuracy_check");
     expect(sql).toContain("not valid");
     expect(sql).toContain("Points require a multiplier and programme");

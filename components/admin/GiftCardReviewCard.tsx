@@ -40,12 +40,14 @@ function Field({
   defaultValue,
   type = "text",
   placeholder,
+  readOnly = false,
 }: {
   label: string;
   name: string;
   defaultValue?: string | number | null;
   type?: string;
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   return (
     <label className="grid gap-1 text-xs font-medium">
@@ -56,7 +58,8 @@ function Field({
         step={type === "number" ? "0.1" : undefined}
         defaultValue={defaultValue ?? ""}
         placeholder={placeholder}
-        className="h-8 rounded-md border bg-background px-2 text-sm font-normal"
+        readOnly={readOnly}
+        className="h-8 rounded-md border bg-background px-2 text-sm font-normal read-only:cursor-not-allowed read-only:bg-muted"
       />
     </label>
   );
@@ -320,7 +323,12 @@ export function GiftCardReviewCard({
             <Field label="Accepted at (display names)" name="accepted_at" placeholder="JB Hi-Fi, The Good Guys" />
             <Field label="Usage notes (comma/newline separated)" name="usage_notes" />
             <Field label="Stack notes" name="stack_notes" placeholder="e.g. Cashback usually excludes gift-card payment" />
-            <Field label="Source URL" name="source_url" defaultValue={candidate.sourceUrl} />
+            <Field
+              label="Source URL (stored evidence)"
+              name="source_url"
+              defaultValue={candidate.sourceUrl}
+              readOnly
+            />
             <Field label="Official terms URL" name="terms_url" placeholder="https://seller.example/terms" />
             <Field
               label="Included product ids (comma-separated)"

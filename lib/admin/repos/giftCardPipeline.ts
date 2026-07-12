@@ -450,6 +450,7 @@ export interface AdminGiftCardCandidate {
 
 export interface GiftCardCandidateApprovalContext {
   sourceName: string;
+  sourceUrl: string;
   sourceText: string;
   subOfferKey: string;
   candidateRole: "single-offer" | "suboffer" | "compound-summary";
@@ -465,7 +466,7 @@ export async function getGiftCardCandidateApprovalContext(
   const { data, error } = await db
     .from("gift_card_offer_candidates")
     .select(
-      "promotion_type, gift_card_brands, terms_json, source:gift_card_sources(name), raw:gift_card_raw_items(title, raw_payload)"
+      "promotion_type, gift_card_brands, terms_json, source:gift_card_sources(name), raw:gift_card_raw_items(title, canonical_url, raw_payload)"
     )
     .eq("id", candidateId)
     .single();
@@ -478,8 +479,16 @@ export async function getGiftCardCandidateApprovalContext(
     terms_json: AdminGiftCardCandidate["terms"] | null;
     source: { name: string } | Array<{ name: string }> | null;
     raw:
-      | { title: string; raw_payload: { item?: { excerpt?: string } } | null }
-      | Array<{ title: string; raw_payload: { item?: { excerpt?: string } } | null }>;
+      | {
+          title: string;
+          canonical_url: string;
+          raw_payload: { item?: { excerpt?: string } } | null;
+        }
+      | Array<{
+          title: string;
+          canonical_url: string;
+          raw_payload: { item?: { excerpt?: string } } | null;
+        }>;
   };
   const terms = row.terms_json ?? {};
   const raw = Array.isArray(row.raw) ? row.raw[0] : row.raw;
@@ -488,7 +497,8 @@ export async function getGiftCardCandidateApprovalContext(
   const inferredCompound =
     row.promotion_type === "mixed" || hasCompoundMechanics(sourceText);
   return {
-    sourceName: source?.name ?? "Unknown source",
+    sourceName: source?.name ?? "",
+    sourceUrl: raw?.canonical_url ?? "",
     sourceText,
     subOfferKey: terms.subOfferKey ?? "primary",
     candidateRole:

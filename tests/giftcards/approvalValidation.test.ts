@@ -107,6 +107,12 @@ describe("required material fields", () => {
   it("blocks an unknown promotion type", () => {
     expect(errorOf(base({ promotionType: "mystery" }))).toMatch(/promotion type/i);
   });
+  it("blocks a missing promotion type instead of defaulting to discount", () => {
+    expect(errorOf(base({ promotionType: "" }))).toMatch(/promotion type/i);
+  });
+  it("blocks a missing stored source name", () => {
+    expect(errorOf(base({ sourceName: "" }))).toMatch(/source name/i);
+  });
   it("blocks a discount with no percentage (missing value)", () => {
     expect(errorOf(base({ discountPercent: "0" }))).toMatch(/percentage/i);
   });

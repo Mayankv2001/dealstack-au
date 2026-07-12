@@ -74,7 +74,7 @@ export async function approveCandidate(
   const validation = validateGiftCardApproval({
     brand: text(formData, "brand"),
     seller: text(formData, "seller"),
-    promotionType: text(formData, "promotion_type") || "discount",
+    promotionType: text(formData, "promotion_type"),
     channel: text(formData, "channel") || "supermarket-promo",
     format: text(formData, "format") || "unknown",
     discountPercent: text(formData, "discount_percent"),
@@ -95,7 +95,10 @@ export async function approveCandidate(
     minSpend: text(formData, "min_spend"),
     capDollars: text(formData, "cap_dollars"),
     usesPerCustomer: text(formData, "uses_per_customer"),
-    sourceUrl: text(formData, "source_url"),
+    // Source identity is lineage, not reviewer input. Terms may be edited
+    // separately, but the original source URL always comes from the stored raw
+    // item so a form submission cannot replace or erase its evidence.
+    sourceUrl: context.sourceUrl,
     termsUrl: text(formData, "terms_url"),
     promoCode: text(formData, "promo_code"),
     australiaOnly: text(formData, "australia_only"),
@@ -151,9 +154,10 @@ export async function approveCandidate(
       };
     }
   } catch {
-    // A duplicate-check read failure must not silently allow an approval that
-    // could be a duplicate, but it also must not hard-block legitimate work;
-    // fall through — the review card already surfaces duplicates on load.
+    return {
+      error:
+        "Could not verify duplicate or overlapping published offers. Approval is blocked until that check succeeds.",
+    };
   }
 
   const offer = {

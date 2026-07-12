@@ -261,6 +261,10 @@ begin
 
   select * into raw_item from public.gift_card_raw_items where id = candidate.raw_item_id;
   select * into source_row from public.gift_card_sources where id = candidate.source_id;
+  if raw_item.id is null then raise exception 'Stored source item is required.'; end if;
+  if source_row.id is null or nullif(btrim(source_row.name), '') is null then
+    raise exception 'Stored source identity is required.';
+  end if;
   if raw_item.campaign_kind = 'compound' and (
     raw_item.split_review_status <> 'split-complete' or
     candidate.candidate_role <> 'suboffer' or candidate.suboffer_key = 'primary'
