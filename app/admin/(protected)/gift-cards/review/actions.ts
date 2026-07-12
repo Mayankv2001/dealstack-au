@@ -133,9 +133,8 @@ export async function approveCandidate(
     format: v.format,
     source_name: "Gift Card Database",
     product_id: null,
-    // Structured detail terms (migration 022). Until 022 is applied to prod
-    // the approve RPC simply ignores these keys — additive and safe, but the
-    // review page shows a persistence warning while that is the case.
+    // Structured detail terms (migration 022, applied to production
+    // 2026-07-12). The approve RPC persists these columns via the offer upsert.
     promo_code: v.promoCode,
     expiry_time: v.expiryTime,
     expiry_timezone: v.expiryTimezone,

@@ -49,7 +49,7 @@ interface ProductRow {
   max_denomination: number | string | null;
   category_restricted: boolean;
   supported_mccs: number[] | null;
-  unsupported_mccs?: number[] | null; // migration 022 — optional pre-022
+  unsupported_mccs: number[] | null; // migration 022 (applied to production 2026-07-12)
   mobile_wallet: string;
   redemption_notes: string | null;
 }

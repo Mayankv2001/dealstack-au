@@ -162,11 +162,12 @@ property-access trap):
 - `value.ts#buildWorkedExample` — face-value worked example; cash savings and
   points/bonus estimates are kept strictly separate.
 
-Migration `022_gift_card_offer_detail.sql` (additive, **review before
-applying**) adds the offer columns behind these sections plus
-`gift_card_products.unsupported_mccs`, and extends the approve RPC. Until 022
-is applied the repos map the missing columns to null and every section
-degrades to its honest fallback. Candidate review at
+Migration `022_gift_card_offer_detail.sql` (additive) adds the offer columns
+behind these sections plus `gift_card_products.unsupported_mccs`, and extends
+the approve RPC. It was **applied to production on 2026-07-12** and
+`database.types.ts` regenerated from the live schema; the repos still map every
+column defensively (missing → null) so the demo fallback and any pre-022
+environment degrade to their honest fallback. Candidate review at
 `/admin/gift-cards/review` captures the new fields and **blocks approval**
 without seller, promotion value, source URL and an expiry date (or an
 explicit "ongoing" tick).

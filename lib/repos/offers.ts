@@ -69,16 +69,16 @@ interface GiftCardRow {
   source_name: string | null;
   product_id: string | null;
   source_last_seen_at: string | null;
-  // Migration 022 detail terms — optional so pre-022 databases keep working.
-  promo_code?: string | null;
-  expiry_time?: string | null;
-  expiry_timezone?: string | null;
-  uses_per_customer?: number | string | null;
-  shipping_may_apply?: boolean | null;
-  australia_only?: boolean | null;
-  combinable_with_seller_promotions?: boolean | null;
-  terms_url?: string | null;
-  included_product_ids?: string[] | null;
+  // Migration 022 detail terms (applied to production 2026-07-12).
+  promo_code: string | null;
+  expiry_time: string | null;
+  expiry_timezone: string | null;
+  uses_per_customer: number | string | null;
+  shipping_may_apply: boolean;
+  australia_only: boolean | null;
+  combinable_with_seller_promotions: boolean | null;
+  terms_url: string | null;
+  included_product_ids: string[];
   citations: Citation[];
   confidence: Confidence;
   last_checked_at: string;

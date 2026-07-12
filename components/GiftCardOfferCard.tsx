@@ -4,215 +4,156 @@ import {
   BadgeCheck,
   CalendarDays,
   CheckCircle2,
-  Layers3,
-  LockKeyhole,
-  Sparkles,
+  Store,
 } from "lucide-react";
 import type { GiftCardOffer } from "@/lib/offers/types";
-import { isMultiRetailer } from "@/lib/giftcards/publicQuery";
-import { expiryUrgencyLabelAU } from "@/lib/offers/expiry";
+import {
+  buildGiftCardOfferCardViewModel,
+  type GiftCardCompatibilityTone,
+} from "@/lib/giftcards/offerCardViewModel";
 import { cn } from "@/lib/utils";
 
-const LOGOS: Record<string, string> = {
-  "amazon au": "/logos/amazon-au.png",
-  "chemist warehouse": "/logos/chemist-warehouse.avif",
-  coles: "/logos/coles.svg",
-  "coles group": "/logos/coles.svg",
-  "jb hi-fi": "/logos/jb-hi-fi.png",
-  kogan: "/logos/kogan.png",
-  myer: "/logos/myer.png",
-  "the good guys": "/logos/the-good-guys.svg",
-  woolworths: "/logos/woolworths.webp",
-  wish: "/logos/woolworths.webp",
+/**
+ * Presentational gift-card offer card. It renders a pre-computed view model
+ * (lib/giftcards/offerCardViewModel) and never interprets raw offer fields —
+ * that is what keeps a 33-brand comma list from blowing up a card and a missing
+ * date from reading as "Ongoing". Height is driven by bounded, clamped content
+ * so a row of cards stays uniform; the footer is pinned with mt-auto so it lines
+ * up across the grid without leaving oversized gaps.
+ */
+
+const TONE_CHIP: Record<GiftCardCompatibilityTone, string> = {
+  positive: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  negative: "bg-red-500/10 text-red-700 dark:text-red-300",
+  neutral: "bg-muted text-muted-foreground",
 };
 
-const CHANNEL_LABEL: Record<GiftCardOffer["channel"], string> = {
-  "membership-portal": "Member offer",
-  "supermarket-promo": "Supermarket promo",
-  "bank-benefit": "Benefits offer",
-};
-
-const round1 = (value: number) => Math.round(value * 10) / 10;
-const displayNumber = (value: number) =>
-  Number.isInteger(round1(value)) ? String(round1(value)) : round1(value).toFixed(1);
-
-function savingBadge(offer: GiftCardOffer): string {
-  if (offer.promotionType === "bonus-value" && offer.bonusPercent) {
-    return `${displayNumber(offer.bonusPercent)}% BONUS`;
-  }
-  if (offer.promotionType === "points" && offer.pointsMultiplier) {
-    return `${displayNumber(offer.pointsMultiplier)}x POINTS`;
-  }
-  if (offer.discountPercent > 0 &&
-      (offer.membershipRequired || offer.channel === "membership-portal")) {
-    return `${displayNumber(offer.discountPercent)}% MEMBER RATE`;
-  }
-  if (offer.discountPercent > 0) {
-    return `${displayNumber(offer.discountPercent)}% OFF`;
-  }
-  if (offer.pointsOnPurchase) return "BONUS POINTS";
-  return "MEMBER OFFER";
-}
-
-function offerTitle(offer: GiftCardOffer): string {
-  if (offer.promotionType === "bonus-value" && offer.bonusPercent) {
-    return `${displayNumber(offer.bonusPercent)}% bonus value on ${offer.brand} gift cards`;
-  }
-  if (offer.promotionType === "points" && offer.pointsMultiplier) {
-    return `${displayNumber(offer.pointsMultiplier)}x ${offer.pointsProgram ?? "points"} on ${offer.brand} gift cards`;
-  }
-  if (offer.discountPercent > 0) {
-    return `${displayNumber(offer.discountPercent)}% off ${offer.brand} gift cards`;
-  }
-  if (offer.pointsOnPurchase) {
-    return `${offer.pointsOnPurchase.program} bonus on ${offer.brand} gift cards`;
-  }
-  return `${offer.brand} gift card member offer`;
-}
-
-function dateLabel(value: string | null): string {
-  if (!value) return "Ongoing";
-  return new Intl.DateTimeFormat("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Australia/Melbourne",
-  }).format(new Date(`${value}T00:00:00+10:00`));
-}
-
-function logoFor(offer: GiftCardOffer): string | null {
-  const candidates = [offer.brand, offer.purchaseLocation, offer.source]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => value.toLowerCase());
-  for (const candidate of candidates) {
-    const exact = LOGOS[candidate];
-    if (exact) return exact;
-    const match = Object.entries(LOGOS).find(([name]) => candidate.includes(name));
-    if (match) return match[1];
-  }
-  return null;
-}
-
-function initials(brand: string): string {
-  return brand
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-}
-
-export function GiftCardOfferCard({ offer }: { offer: GiftCardOffer }) {
-  const logo = logoFor(offer);
-  const urgency = expiryUrgencyLabelAU(offer.expiryDate);
-  const seller = offer.purchaseLocation ?? offer.source;
-  const verified = offer.confidence === "confirmed";
-  const compatibility = isMultiRetailer(offer) ? "Multi-retailer" : "Selected retailers";
+export function GiftCardOfferCard({
+  offer,
+  now,
+}: {
+  offer: GiftCardOffer;
+  now?: Date;
+}) {
+  const vm = buildGiftCardOfferCardViewModel(offer, now);
 
   return (
-    <article className="group flex min-h-[340px] flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-500/35 hover:shadow-md">
-      <div className="relative flex min-h-[166px] flex-[1.05] flex-col overflow-hidden border-b bg-stone-100 p-4 dark:bg-stone-900">
-        <div
-          aria-hidden
-          className="absolute inset-0 opacity-60 [background-image:radial-gradient(circle_at_1px_1px,rgba(16,185,129,0.18)_1px,transparent_0)] [background-size:18px_18px]"
-        />
-        <div aria-hidden className="absolute -right-12 -top-14 size-40 rounded-full bg-emerald-400/15 blur-2xl" />
-        <div className="relative flex items-start justify-between gap-3">
-          {logo ? (
-            <span className="flex h-12 min-w-20 max-w-28 items-center justify-center rounded-lg border bg-white px-2 py-1 shadow-sm">
+    <article className="group flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-md">
+      {/* Header band: brand mark · mechanic · value badge */}
+      <div className="flex items-center justify-between gap-2 border-b bg-emerald-50/60 px-3.5 py-2.5 dark:bg-emerald-950/20">
+        <div className="flex min-w-0 items-center gap-2">
+          {vm.logoSrc ? (
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-white p-1 shadow-sm">
               <Image
-                src={logo}
-                alt={`${offer.brand} logo`}
-                width={96}
-                height={40}
+                src={vm.logoSrc}
+                alt={`${vm.brandPrimary} logo`}
+                width={72}
+                height={36}
                 unoptimized
-                className="max-h-9 w-auto object-contain"
+                className="max-h-7 w-auto object-contain"
               />
             </span>
           ) : (
             <span
-              role="img"
-              aria-label={`${offer.brand} logo treatment`}
-              className="flex size-12 items-center justify-center rounded-xl bg-stone-900 text-sm font-black tracking-tight text-white shadow-sm dark:bg-white dark:text-stone-900"
+              aria-hidden
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-stone-900 text-xs font-black tracking-tight text-white dark:bg-white dark:text-stone-900"
             >
-              {initials(offer.brand)}
+              {vm.initials}
             </span>
           )}
-          <span className="rounded-full border border-white/70 bg-white/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-600 shadow-sm dark:border-stone-700 dark:bg-stone-950/90 dark:text-stone-300">
-            {CHANNEL_LABEL[offer.channel]}
+          <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+            {vm.mechanicLabel}
           </span>
         </div>
-
-        <div className="relative mt-auto flex items-end justify-between gap-2 pt-5">
-          <p className="max-w-[8rem] text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-            {offer.brand} gift card
-          </p>
-          <div className="flex min-h-20 min-w-20 max-w-32 items-center justify-center rounded-full bg-emerald-600 px-3 text-center text-lg font-black leading-[1.05] tracking-tight text-white shadow-[0_8px_24px_rgba(5,150,105,0.25)]">
-            {savingBadge(offer)}
-          </div>
-        </div>
-
-        <div className="absolute bottom-3 left-3 flex gap-1.5">
-          {offer.membershipRequired ? (
-            <span title="Membership required" className="rounded-full bg-amber-100 p-1.5 text-amber-800">
-              <LockKeyhole aria-label="Membership required" className="size-3" />
-            </span>
-          ) : null}
-          {offer.activationRequired ? (
-            <span title="Activation required" className="rounded-full bg-sky-100 p-1.5 text-sky-800">
-              <Sparkles aria-label="Activation required" className="size-3" />
-            </span>
-          ) : null}
-        </div>
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-black tracking-tight text-white shadow-sm">
+          {vm.valueBadge}
+        </span>
       </div>
 
-      <div className="flex flex-1 flex-col p-3.5">
-        <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 tracking-tight">
-          <Link href={`/gift-cards/${offer.id}`} className="hover:text-emerald-700">
-            {offerTitle(offer)}
-          </Link>
-        </h3>
-        <p className="mt-1 truncate text-xs text-muted-foreground">From {seller}</p>
-
-        <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <CalendarDays aria-hidden className="size-3 shrink-0" />
-          <span>{dateLabel(offer.startDate)} – {dateLabel(offer.expiryDate)}</span>
-          {urgency ? (
-            <span className="ml-auto shrink-0 font-semibold text-amber-700 dark:text-amber-300">{urgency}</span>
+      {/* Body */}
+      <div className="flex flex-1 flex-col gap-1.5 p-3.5">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="min-w-0 truncate text-base font-bold leading-tight tracking-tight">
+            <Link href={vm.detailHref} className="hover:text-emerald-700">
+              {vm.brandPrimary}
+            </Link>
+          </h3>
+          {vm.brandSecondary ? (
+            <span
+              className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+              title={`Covers ${vm.brandCount} gift-card brands`}
+            >
+              {vm.brandSecondary}
+            </span>
           ) : null}
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold">
-          <span className={cn(
-            "inline-flex items-center gap-1 rounded-full px-2 py-1",
-            verified
-              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-              : "bg-sky-500/10 text-sky-700 dark:text-sky-300"
-          )}>
-            {verified ? <BadgeCheck className="size-3" /> : <CheckCircle2 className="size-3" />}
-            {verified ? "Verified by DealStack" : "Source checked"}
+        <p className="truncate text-sm font-medium text-foreground/90">
+          {vm.headline}
+        </p>
+
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Store aria-hidden className="size-3 shrink-0" />
+          <span className="truncate" title={vm.sellerLabel}>
+            {vm.sellerLabel}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-muted-foreground">
-            <Layers3 className="size-3" /> {compatibility}
+          {vm.sourceLabel ? (
+            <span
+              className="ml-auto shrink-0 max-w-[45%] truncate text-[11px] text-muted-foreground/70"
+              title={`Sourced from ${vm.sourceLabel}`}
+            >
+              via {vm.sourceLabel}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CalendarDays aria-hidden className="size-3 shrink-0" />
+          <span className="truncate">{vm.dateLabel}</span>
+          {vm.urgencyLabel ? (
+            <span className="ml-auto shrink-0 font-semibold text-amber-700 dark:text-amber-300">
+              {vm.urgencyLabel}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2 py-0.5",
+              TONE_CHIP[vm.compatibilityTone]
+            )}
+          >
+            {vm.compatibilityLabel}
+          </span>
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            {vm.trustLabel === "Verified" ? (
+              <BadgeCheck className="size-3 text-emerald-600" />
+            ) : (
+              <CheckCircle2 className="size-3" />
+            )}
+            {vm.trustLabel}
           </span>
         </div>
 
-        {offer.promotionType === "points" || offer.pointsOnPurchase ? (
-          <p className="mt-1.5 text-[10px] leading-tight text-muted-foreground">Points are rewards, not cash.</p>
+        {vm.pointsDisclosure ? (
+          <p className="text-[10px] leading-tight text-muted-foreground">
+            {vm.pointsDisclosure}
+          </p>
         ) : null}
 
-        <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+        <div className="mt-auto flex items-center gap-2 pt-2.5">
           <Link
-            href={`/gift-cards/${offer.id}`}
+            href={vm.detailHref}
             className="inline-flex h-8 flex-1 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700"
           >
             View details
           </Link>
-          {offer.acceptedAtMerchantIds[0] ? (
+          {vm.buildStackHref ? (
             <Link
-              href={`/?stack=${encodeURIComponent(offer.acceptedAtMerchantIds[0])}#calculator`}
-              className="inline-flex h-8 items-center justify-center rounded-md border px-2.5 text-xs font-semibold hover:bg-muted"
+              href={vm.buildStackHref}
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-2.5 text-xs font-semibold hover:bg-muted"
             >
               Build stack
             </Link>

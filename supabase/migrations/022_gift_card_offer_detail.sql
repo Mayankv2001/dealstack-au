@@ -8,9 +8,10 @@
 -- unchanged. Candidate-side equivalents live inside the existing
 -- gift_card_offer_candidates.terms_json JSONB — no candidate schema change.
 --
--- NOT YET APPLIED TO PRODUCTION. The public repo maps every one of these
--- columns defensively (missing column → null), so the detail page degrades
--- honestly until this is applied and types are regenerated (npm run types:gen).
+-- APPLIED TO PRODUCTION 2026-07-12 (project numgsivlrglflsnqehac);
+-- database.types.ts regenerated from the live schema afterwards. The repo still
+-- maps every column defensively (missing column → null) so the demo fallback and
+-- any pre-022 environment degrade honestly, but production now persists them.
 --
 -- ── Rollback / recovery ──────────────────────────────────────────────────────
 -- Every change is additive and independently reversible; no data in existing

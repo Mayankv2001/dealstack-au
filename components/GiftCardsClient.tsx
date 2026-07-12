@@ -230,7 +230,7 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
             <div className="mt-3 hidden items-center justify-between lg:flex">
               <p className="text-xs text-muted-foreground">Showing {visible.length} approved offer{visible.length === 1 ? "" : "s"}</p>
             </div>
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {visible.map((offer) => <GiftCardOfferCard key={offer.id} offer={offer} />)}
             </div>
           </>

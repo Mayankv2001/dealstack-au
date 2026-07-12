@@ -993,19 +993,24 @@ export type Database = {
           accepted_at: string[]
           accepted_at_merchant_ids: string[]
           activation_required: boolean
+          australia_only: boolean | null
           bonus_percent: number | null
           brand: string
           cap_dollars: number | null
           channel: string
           citations: Json
+          combinable_with_seller_promotions: boolean | null
           confidence: string
           coupon_required: boolean
           created_at: string
           denomination_note: string | null
           discount_percent: number
           expiry_date: string | null
+          expiry_time: string | null
+          expiry_timezone: string | null
           format: string
           id: string
+          included_product_ids: string[]
           is_published: boolean
           last_checked_at: string
           limit_per_customer: string | null
@@ -1016,35 +1021,44 @@ export type Database = {
           points_program: string | null
           points_value_cents: number | null
           product_id: string | null
+          promo_code: string | null
           promotion_type: string
           purchase_location: string | null
           purchase_method: string | null
+          shipping_may_apply: boolean
           source: string
           source_detail_url: string | null
           source_last_seen_at: string | null
           source_name: string | null
           stack_notes: string[]
           start_date: string | null
+          terms_url: string | null
           updated_at: string
           usage_notes: string[]
+          uses_per_customer: number | null
         }
         Insert: {
           accepted_at?: string[]
           accepted_at_merchant_ids?: string[]
           activation_required?: boolean
+          australia_only?: boolean | null
           bonus_percent?: number | null
           brand: string
           cap_dollars?: number | null
           channel: string
           citations?: Json
+          combinable_with_seller_promotions?: boolean | null
           confidence: string
           coupon_required?: boolean
           created_at?: string
           denomination_note?: string | null
           discount_percent?: number
           expiry_date?: string | null
+          expiry_time?: string | null
+          expiry_timezone?: string | null
           format?: string
           id: string
+          included_product_ids?: string[]
           is_published?: boolean
           last_checked_at?: string
           limit_per_customer?: string | null
@@ -1055,35 +1069,44 @@ export type Database = {
           points_program?: string | null
           points_value_cents?: number | null
           product_id?: string | null
+          promo_code?: string | null
           promotion_type?: string
           purchase_location?: string | null
           purchase_method?: string | null
+          shipping_may_apply?: boolean
           source: string
           source_detail_url?: string | null
           source_last_seen_at?: string | null
           source_name?: string | null
           stack_notes?: string[]
           start_date?: string | null
+          terms_url?: string | null
           updated_at?: string
           usage_notes?: string[]
+          uses_per_customer?: number | null
         }
         Update: {
           accepted_at?: string[]
           accepted_at_merchant_ids?: string[]
           activation_required?: boolean
+          australia_only?: boolean | null
           bonus_percent?: number | null
           brand?: string
           cap_dollars?: number | null
           channel?: string
           citations?: Json
+          combinable_with_seller_promotions?: boolean | null
           confidence?: string
           coupon_required?: boolean
           created_at?: string
           denomination_note?: string | null
           discount_percent?: number
           expiry_date?: string | null
+          expiry_time?: string | null
+          expiry_timezone?: string | null
           format?: string
           id?: string
+          included_product_ids?: string[]
           is_published?: boolean
           last_checked_at?: string
           limit_per_customer?: string | null
@@ -1094,17 +1117,21 @@ export type Database = {
           points_program?: string | null
           points_value_cents?: number | null
           product_id?: string | null
+          promo_code?: string | null
           promotion_type?: string
           purchase_location?: string | null
           purchase_method?: string | null
+          shipping_may_apply?: boolean
           source?: string
           source_detail_url?: string | null
           source_last_seen_at?: string | null
           source_name?: string | null
           stack_notes?: string[]
           start_date?: string | null
+          terms_url?: string | null
           updated_at?: string
           usage_notes?: string[]
+          uses_per_customer?: number | null
         }
         Relationships: [
           {
@@ -1133,6 +1160,7 @@ export type Database = {
           slug: string
           source_evidence: Json
           supported_mccs: number[]
+          unsupported_mccs: number[]
           updated_at: string
           variable_load: boolean | null
         }
@@ -1152,6 +1180,7 @@ export type Database = {
           slug: string
           source_evidence?: Json
           supported_mccs?: number[]
+          unsupported_mccs?: number[]
           updated_at?: string
           variable_load?: boolean | null
         }
@@ -1171,6 +1200,7 @@ export type Database = {
           slug?: string
           source_evidence?: Json
           supported_mccs?: number[]
+          unsupported_mccs?: number[]
           updated_at?: string
           variable_load?: boolean | null
         }
