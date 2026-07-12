@@ -89,122 +89,6 @@ export type Database = {
         }
         Relationships: []
       }
-      card_offers: {
-        Row: {
-          annual_fee: number | null
-          archived_at: string | null
-          bonus_stages: Json
-          bonus_points: number | null
-          card_name: string
-          cashback_amount: number | null
-          confidence: string
-          created_at: string
-          eligibility_notes: string
-          expiry_date: string | null
-          id: string
-          is_archived: boolean
-          is_published: boolean
-          last_checked_at: string
-          minimum_spend: number | null
-          minimum_spend_period: string | null
-          offer_summary: string
-          offer_type: string
-          point_value_cents: number | null
-          provider: string
-          review_by_date: string
-          source_url: string
-          statement_credit_amount: number | null
-          updated_at: string
-        }
-        Insert: {
-          annual_fee?: number | null
-          archived_at?: string | null
-          bonus_stages?: Json
-          bonus_points?: number | null
-          card_name: string
-          cashback_amount?: number | null
-          confidence?: string
-          created_at?: string
-          eligibility_notes?: string
-          expiry_date?: string | null
-          id: string
-          is_archived?: boolean
-          is_published?: boolean
-          last_checked_at?: string
-          minimum_spend?: number | null
-          minimum_spend_period?: string | null
-          offer_summary?: string
-          offer_type: string
-          point_value_cents?: number | null
-          provider: string
-          review_by_date: string
-          source_url?: string
-          statement_credit_amount?: number | null
-          updated_at?: string
-        }
-        Update: {
-          annual_fee?: number | null
-          archived_at?: string | null
-          bonus_stages?: Json
-          bonus_points?: number | null
-          card_name?: string
-          cashback_amount?: number | null
-          confidence?: string
-          created_at?: string
-          eligibility_notes?: string
-          expiry_date?: string | null
-          id?: string
-          is_archived?: boolean
-          is_published?: boolean
-          last_checked_at?: string
-          minimum_spend?: number | null
-          minimum_spend_period?: string | null
-          offer_summary?: string
-          offer_type?: string
-          point_value_cents?: number | null
-          provider?: string
-          review_by_date?: string
-          source_url?: string
-          statement_credit_amount?: number | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      card_offer_history: {
-        Row: {
-          card_offer_id: string
-          change_summary: string
-          changed_fields: string[]
-          checked_at: string
-          created_at: string
-          id: string
-        }
-        Insert: {
-          card_offer_id: string
-          change_summary: string
-          changed_fields?: string[]
-          checked_at: string
-          created_at?: string
-          id?: string
-        }
-        Update: {
-          card_offer_id?: string
-          change_summary?: string
-          changed_fields?: string[]
-          checked_at?: string
-          created_at?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "card_offer_history_card_offer_id_fkey"
-            columns: ["card_offer_id"]
-            isOneToOne: false
-            referencedRelation: "card_offers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       card_offer_correction_reports: {
         Row: {
           card_offer_id: string | null
@@ -252,141 +136,119 @@ export type Database = {
           },
         ]
       }
-      correction_report_rate_limits: {
-        Row: { created_at: string; id: number; request_fingerprint: string }
-        Insert: { created_at?: string; id?: number; request_fingerprint: string }
-        Update: { created_at?: string; id?: number; request_fingerprint?: string }
-        Relationships: []
-      }
-      daily_pipeline_runs: {
+      card_offer_history: {
         Row: {
+          card_offer_id: string
+          change_summary: string
+          changed_fields: string[]
+          checked_at: string
           created_at: string
-          detection_detected: number
-          detection_inserted: number
-          detection_scanned: number
-          errors: Json
-          expired_archived: number
-          card_offers_archived: number
-          feed_items_purged: number
-          feed_items_retired: number
-          feeds_processed: number
-          finished_at: string | null
           id: string
-          invalid_archived: number
-          items_fetched: number
-          items_new: number
-          items_skipped: number
-          items_updated: number
-          started_at: string
-          status: string
-          stale_archived: number
-          validation_checked: number
-          validation_unknown: number
         }
         Insert: {
+          card_offer_id: string
+          change_summary: string
+          changed_fields?: string[]
+          checked_at: string
           created_at?: string
-          detection_detected?: number
-          detection_inserted?: number
-          detection_scanned?: number
-          errors?: Json
-          expired_archived?: number
-          card_offers_archived?: number
-          feed_items_purged?: number
-          feed_items_retired?: number
-          feeds_processed?: number
-          finished_at?: string | null
           id?: string
-          invalid_archived?: number
-          items_fetched?: number
-          items_new?: number
-          items_skipped?: number
-          items_updated?: number
-          started_at?: string
-          status?: string
-          stale_archived?: number
-          validation_checked?: number
-          validation_unknown?: number
         }
         Update: {
+          card_offer_id?: string
+          change_summary?: string
+          changed_fields?: string[]
+          checked_at?: string
           created_at?: string
-          detection_detected?: number
-          detection_inserted?: number
-          detection_scanned?: number
-          errors?: Json
-          expired_archived?: number
-          card_offers_archived?: number
-          feed_items_purged?: number
-          feed_items_retired?: number
-          feeds_processed?: number
-          finished_at?: string | null
           id?: string
-          invalid_archived?: number
-          items_fetched?: number
-          items_new?: number
-          items_skipped?: number
-          items_updated?: number
-          started_at?: string
-          status?: string
-          stale_archived?: number
-          validation_checked?: number
-          validation_unknown?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "card_offer_history_card_offer_id_fkey"
+            columns: ["card_offer_id"]
+            isOneToOne: false
+            referencedRelation: "card_offers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      ozb_recheck_runs: {
+      card_offers: {
         Row: {
-          active: number
-          actually_archived: number
+          annual_fee: number | null
+          archived_at: string | null
+          bonus_points: number | null
+          bonus_stages: Json
+          card_name: string
+          cashback_amount: number | null
+          confidence: string
           created_at: string
-          deleted: number
-          dry_run: boolean
-          errors: Json
-          expired: number
-          fetch_failed: number
-          finished_at: string | null
+          eligibility_notes: string
+          expiry_date: string | null
           id: string
-          scanned: number
-          skipped: number
-          started_at: string
-          status: string
-          unknown: number
-          would_archive: number
+          is_archived: boolean
+          is_published: boolean
+          last_checked_at: string
+          minimum_spend: number | null
+          minimum_spend_period: string | null
+          offer_summary: string
+          offer_type: string
+          point_value_cents: number | null
+          provider: string
+          review_by_date: string
+          source_url: string
+          statement_credit_amount: number | null
+          updated_at: string
         }
         Insert: {
-          active?: number
-          actually_archived?: number
+          annual_fee?: number | null
+          archived_at?: string | null
+          bonus_points?: number | null
+          bonus_stages?: Json
+          card_name: string
+          cashback_amount?: number | null
+          confidence?: string
           created_at?: string
-          deleted?: number
-          dry_run?: boolean
-          errors?: Json
-          expired?: number
-          fetch_failed?: number
-          finished_at?: string | null
-          id?: string
-          scanned?: number
-          skipped?: number
-          started_at?: string
-          status?: string
-          unknown?: number
-          would_archive?: number
+          eligibility_notes?: string
+          expiry_date?: string | null
+          id: string
+          is_archived?: boolean
+          is_published?: boolean
+          last_checked_at?: string
+          minimum_spend?: number | null
+          minimum_spend_period?: string | null
+          offer_summary?: string
+          offer_type: string
+          point_value_cents?: number | null
+          provider: string
+          review_by_date: string
+          source_url?: string
+          statement_credit_amount?: number | null
+          updated_at?: string
         }
         Update: {
-          active?: number
-          actually_archived?: number
+          annual_fee?: number | null
+          archived_at?: string | null
+          bonus_points?: number | null
+          bonus_stages?: Json
+          card_name?: string
+          cashback_amount?: number | null
+          confidence?: string
           created_at?: string
-          deleted?: number
-          dry_run?: boolean
-          errors?: Json
-          expired?: number
-          fetch_failed?: number
-          finished_at?: string | null
+          eligibility_notes?: string
+          expiry_date?: string | null
           id?: string
-          scanned?: number
-          skipped?: number
-          started_at?: string
-          status?: string
-          unknown?: number
-          would_archive?: number
+          is_archived?: boolean
+          is_published?: boolean
+          last_checked_at?: string
+          minimum_spend?: number | null
+          minimum_spend_period?: string | null
+          offer_summary?: string
+          offer_type?: string
+          point_value_cents?: number | null
+          provider?: string
+          review_by_date?: string
+          source_url?: string
+          statement_credit_amount?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -500,6 +362,99 @@ export type Database = {
           terms_checked?: boolean
           updated_at?: string
           user_agent_recorded?: boolean
+        }
+        Relationships: []
+      }
+      correction_report_rate_limits: {
+        Row: {
+          created_at: string
+          id: number
+          request_fingerprint: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          request_fingerprint: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          request_fingerprint?: string
+        }
+        Relationships: []
+      }
+      daily_pipeline_runs: {
+        Row: {
+          card_offers_archived: number
+          created_at: string
+          detection_detected: number
+          detection_inserted: number
+          detection_scanned: number
+          errors: Json
+          expired_archived: number
+          feed_items_purged: number
+          feed_items_retired: number
+          feeds_processed: number
+          finished_at: string | null
+          id: string
+          invalid_archived: number
+          items_fetched: number
+          items_new: number
+          items_skipped: number
+          items_updated: number
+          stale_archived: number
+          started_at: string
+          status: string
+          validation_checked: number
+          validation_unknown: number
+        }
+        Insert: {
+          card_offers_archived?: number
+          created_at?: string
+          detection_detected?: number
+          detection_inserted?: number
+          detection_scanned?: number
+          errors?: Json
+          expired_archived?: number
+          feed_items_purged?: number
+          feed_items_retired?: number
+          feeds_processed?: number
+          finished_at?: string | null
+          id?: string
+          invalid_archived?: number
+          items_fetched?: number
+          items_new?: number
+          items_skipped?: number
+          items_updated?: number
+          stale_archived?: number
+          started_at?: string
+          status?: string
+          validation_checked?: number
+          validation_unknown?: number
+        }
+        Update: {
+          card_offers_archived?: number
+          created_at?: string
+          detection_detected?: number
+          detection_inserted?: number
+          detection_scanned?: number
+          errors?: Json
+          expired_archived?: number
+          feed_items_purged?: number
+          feed_items_retired?: number
+          feeds_processed?: number
+          finished_at?: string | null
+          id?: string
+          invalid_archived?: number
+          items_fetched?: number
+          items_new?: number
+          items_skipped?: number
+          items_updated?: number
+          stale_archived?: number
+          started_at?: string
+          status?: string
+          validation_checked?: number
+          validation_unknown?: number
         }
         Relationships: []
       }
@@ -726,27 +681,348 @@ export type Database = {
           },
         ]
       }
+      gift_card_ingest_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_summary: string | null
+          fetch_status: string | null
+          id: string
+          items_new: number
+          items_rejected: number
+          items_seen: number
+          items_unchanged: number
+          items_updated: number
+          parser_version: number
+          snapshot_hash: string | null
+          source_id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_summary?: string | null
+          fetch_status?: string | null
+          id?: string
+          items_new?: number
+          items_rejected?: number
+          items_seen?: number
+          items_unchanged?: number
+          items_updated?: number
+          parser_version?: number
+          snapshot_hash?: string | null
+          source_id: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_summary?: string | null
+          fetch_status?: string | null
+          id?: string
+          items_new?: number
+          items_rejected?: number
+          items_seen?: number
+          items_unchanged?: number
+          items_updated?: number
+          parser_version?: number
+          snapshot_hash?: string | null
+          source_id?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_ingest_runs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_card_knowledge: {
+        Row: {
+          checked_at: string | null
+          confidence: string
+          created_at: string
+          evidence_type: string
+          fact: string
+          id: string
+          product_id: string | null
+          review_status: string
+          source_url: string | null
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          checked_at?: string | null
+          confidence?: string
+          created_at?: string
+          evidence_type?: string
+          fact: string
+          id?: string
+          product_id?: string | null
+          review_status?: string
+          source_url?: string | null
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          checked_at?: string | null
+          confidence?: string
+          created_at?: string
+          evidence_type?: string
+          fact?: string
+          id?: string
+          product_id?: string | null
+          review_status?: string
+          source_url?: string | null
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_knowledge_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_card_merchant_acceptance: {
+        Row: {
+          checked_at: string | null
+          created_at: string
+          id: string
+          is_public: boolean
+          mcc: number | null
+          merchant_category: string | null
+          merchant_name: string | null
+          notes: string | null
+          outcome: string | null
+          product_id: string
+          source_url: string | null
+          status: string
+          store_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          checked_at?: string | null
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          mcc?: number | null
+          merchant_category?: string | null
+          merchant_name?: string | null
+          notes?: string | null
+          outcome?: string | null
+          product_id: string
+          source_url?: string | null
+          status?: string
+          store_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          checked_at?: string | null
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          mcc?: number | null
+          merchant_category?: string | null
+          merchant_name?: string | null
+          notes?: string | null
+          outcome?: string | null
+          product_id?: string
+          source_url?: string | null
+          status?: string
+          store_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_merchant_acceptance_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_merchant_acceptance_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_card_offer_candidates: {
+        Row: {
+          approved_offer_id: string | null
+          bonus_percent: number | null
+          change_diff: Json | null
+          change_kind: string | null
+          compatibility_json: Json
+          created_at: string
+          discount_percent: number | null
+          effective_discount_percent: number | null
+          expires_at: string | null
+          extraction_confidence: number
+          extraction_warnings: string[]
+          gift_card_brands: string[]
+          gift_card_product_id: string | null
+          id: string
+          points_multiplier: number | null
+          points_program: string | null
+          promotion_type: string
+          raw_item_id: string
+          rejection_reason: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewer_email: string | null
+          seller_name: string | null
+          seller_store_id: string | null
+          source_id: string
+          starts_at: string | null
+          terms_json: Json
+          updated_at: string
+        }
+        Insert: {
+          approved_offer_id?: string | null
+          bonus_percent?: number | null
+          change_diff?: Json | null
+          change_kind?: string | null
+          compatibility_json?: Json
+          created_at?: string
+          discount_percent?: number | null
+          effective_discount_percent?: number | null
+          expires_at?: string | null
+          extraction_confidence?: number
+          extraction_warnings?: string[]
+          gift_card_brands?: string[]
+          gift_card_product_id?: string | null
+          id?: string
+          points_multiplier?: number | null
+          points_program?: string | null
+          promotion_type?: string
+          raw_item_id: string
+          rejection_reason?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewer_email?: string | null
+          seller_name?: string | null
+          seller_store_id?: string | null
+          source_id: string
+          starts_at?: string | null
+          terms_json?: Json
+          updated_at?: string
+        }
+        Update: {
+          approved_offer_id?: string | null
+          bonus_percent?: number | null
+          change_diff?: Json | null
+          change_kind?: string | null
+          compatibility_json?: Json
+          created_at?: string
+          discount_percent?: number | null
+          effective_discount_percent?: number | null
+          expires_at?: string | null
+          extraction_confidence?: number
+          extraction_warnings?: string[]
+          gift_card_brands?: string[]
+          gift_card_product_id?: string | null
+          id?: string
+          points_multiplier?: number | null
+          points_program?: string | null
+          promotion_type?: string
+          raw_item_id?: string
+          rejection_reason?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewer_email?: string | null
+          seller_name?: string | null
+          seller_store_id?: string | null
+          source_id?: string
+          starts_at?: string | null
+          terms_json?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_offer_candidates_approved_offer_id_fkey"
+            columns: ["approved_offer_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_offers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_offer_candidates_gift_card_product_id_fkey"
+            columns: ["gift_card_product_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_offer_candidates_raw_item_id_fkey"
+            columns: ["raw_item_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_raw_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_offer_candidates_seller_store_id_fkey"
+            columns: ["seller_store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_offer_candidates_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gift_card_offers: {
         Row: {
           accepted_at: string[]
           accepted_at_merchant_ids: string[]
+          activation_required: boolean
+          bonus_percent: number | null
           brand: string
           cap_dollars: number | null
           channel: string
           citations: Json
           confidence: string
+          coupon_required: boolean
           created_at: string
+          denomination_note: string | null
           discount_percent: number
           expiry_date: string | null
+          format: string
           id: string
           is_published: boolean
           last_checked_at: string
           limit_per_customer: string | null
+          membership_required: boolean
+          min_spend: number | null
+          points_multiplier: number | null
           points_on_purchase: Json | null
+          points_program: string | null
+          points_value_cents: number | null
+          product_id: string | null
+          promotion_type: string
           purchase_location: string | null
           purchase_method: string | null
           source: string
           source_detail_url: string | null
+          source_last_seen_at: string | null
+          source_name: string | null
           stack_notes: string[]
           start_date: string | null
           updated_at: string
@@ -755,23 +1031,37 @@ export type Database = {
         Insert: {
           accepted_at?: string[]
           accepted_at_merchant_ids?: string[]
+          activation_required?: boolean
+          bonus_percent?: number | null
           brand: string
           cap_dollars?: number | null
           channel: string
           citations?: Json
           confidence: string
+          coupon_required?: boolean
           created_at?: string
+          denomination_note?: string | null
           discount_percent?: number
           expiry_date?: string | null
+          format?: string
           id: string
           is_published?: boolean
           last_checked_at?: string
           limit_per_customer?: string | null
+          membership_required?: boolean
+          min_spend?: number | null
+          points_multiplier?: number | null
           points_on_purchase?: Json | null
+          points_program?: string | null
+          points_value_cents?: number | null
+          product_id?: string | null
+          promotion_type?: string
           purchase_location?: string | null
           purchase_method?: string | null
           source: string
           source_detail_url?: string | null
+          source_last_seen_at?: string | null
+          source_name?: string | null
           stack_notes?: string[]
           start_date?: string | null
           updated_at?: string
@@ -780,27 +1070,231 @@ export type Database = {
         Update: {
           accepted_at?: string[]
           accepted_at_merchant_ids?: string[]
+          activation_required?: boolean
+          bonus_percent?: number | null
           brand?: string
           cap_dollars?: number | null
           channel?: string
           citations?: Json
           confidence?: string
+          coupon_required?: boolean
           created_at?: string
+          denomination_note?: string | null
           discount_percent?: number
           expiry_date?: string | null
+          format?: string
           id?: string
           is_published?: boolean
           last_checked_at?: string
           limit_per_customer?: string | null
+          membership_required?: boolean
+          min_spend?: number | null
+          points_multiplier?: number | null
           points_on_purchase?: Json | null
+          points_program?: string | null
+          points_value_cents?: number | null
+          product_id?: string | null
+          promotion_type?: string
           purchase_location?: string | null
           purchase_method?: string | null
           source?: string
           source_detail_url?: string | null
+          source_last_seen_at?: string | null
+          source_name?: string | null
           stack_notes?: string[]
           start_date?: string | null
           updated_at?: string
           usage_notes?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_offers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_card_products: {
+        Row: {
+          brand: string
+          card_network: string | null
+          category_restricted: boolean
+          created_at: string
+          format: string
+          id: string
+          is_active: boolean
+          issuer: string | null
+          max_denomination: number | null
+          min_denomination: number | null
+          mobile_wallet: string
+          redemption_notes: string | null
+          slug: string
+          source_evidence: Json
+          supported_mccs: number[]
+          updated_at: string
+          variable_load: boolean | null
+        }
+        Insert: {
+          brand: string
+          card_network?: string | null
+          category_restricted?: boolean
+          created_at?: string
+          format?: string
+          id: string
+          is_active?: boolean
+          issuer?: string | null
+          max_denomination?: number | null
+          min_denomination?: number | null
+          mobile_wallet?: string
+          redemption_notes?: string | null
+          slug: string
+          source_evidence?: Json
+          supported_mccs?: number[]
+          updated_at?: string
+          variable_load?: boolean | null
+        }
+        Update: {
+          brand?: string
+          card_network?: string | null
+          category_restricted?: boolean
+          created_at?: string
+          format?: string
+          id?: string
+          is_active?: boolean
+          issuer?: string | null
+          max_denomination?: number | null
+          min_denomination?: number | null
+          mobile_wallet?: string
+          redemption_notes?: string | null
+          slug?: string
+          source_evidence?: Json
+          supported_mccs?: number[]
+          updated_at?: string
+          variable_load?: boolean | null
+        }
+        Relationships: []
+      }
+      gift_card_raw_items: {
+        Row: {
+          canonical_url: string
+          content_hash: string
+          created_at: string
+          external_id: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          parser_error: string | null
+          parser_version: number
+          processing_status: string
+          published_at: string | null
+          raw_payload: Json
+          source_id: string
+          source_updated_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          canonical_url: string
+          content_hash: string
+          created_at?: string
+          external_id: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          parser_error?: string | null
+          parser_version?: number
+          processing_status?: string
+          published_at?: string | null
+          raw_payload?: Json
+          source_id: string
+          source_updated_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          canonical_url?: string
+          content_hash?: string
+          created_at?: string
+          external_id?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          parser_error?: string | null
+          parser_version?: number
+          processing_status?: string
+          published_at?: string | null
+          raw_payload?: Json
+          source_id?: string
+          source_updated_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_raw_items_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "gift_card_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_card_sources: {
+        Row: {
+          automated_fetch_allowed: boolean
+          base_url: string
+          created_at: string
+          enabled: boolean
+          etag: string | null
+          feed_url: string
+          id: string
+          last_error: string | null
+          last_error_at: string | null
+          last_modified: string | null
+          last_success_at: string | null
+          name: string
+          robots_checked_at: string | null
+          source_type: string
+          terms_checked_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          automated_fetch_allowed?: boolean
+          base_url: string
+          created_at?: string
+          enabled?: boolean
+          etag?: string | null
+          feed_url: string
+          id: string
+          last_error?: string | null
+          last_error_at?: string | null
+          last_modified?: string | null
+          last_success_at?: string | null
+          name: string
+          robots_checked_at?: string | null
+          source_type?: string
+          terms_checked_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          automated_fetch_allowed?: boolean
+          base_url?: string
+          created_at?: string
+          enabled?: boolean
+          etag?: string | null
+          feed_url?: string
+          id?: string
+          last_error?: string | null
+          last_error_at?: string | null
+          last_modified?: string | null
+          last_success_at?: string | null
+          name?: string
+          robots_checked_at?: string | null
+          source_type?: string
+          terms_checked_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -877,6 +1371,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ozb_recheck_runs: {
+        Row: {
+          active: number
+          actually_archived: number
+          created_at: string
+          deleted: number
+          dry_run: boolean
+          errors: Json
+          expired: number
+          fetch_failed: number
+          finished_at: string | null
+          id: string
+          scanned: number
+          skipped: number
+          started_at: string
+          status: string
+          unknown: number
+          would_archive: number
+        }
+        Insert: {
+          active?: number
+          actually_archived?: number
+          created_at?: string
+          deleted?: number
+          dry_run?: boolean
+          errors?: Json
+          expired?: number
+          fetch_failed?: number
+          finished_at?: string | null
+          id?: string
+          scanned?: number
+          skipped?: number
+          started_at?: string
+          status?: string
+          unknown?: number
+          would_archive?: number
+        }
+        Update: {
+          active?: number
+          actually_archived?: number
+          created_at?: string
+          deleted?: number
+          dry_run?: boolean
+          errors?: Json
+          expired?: number
+          fetch_failed?: number
+          finished_at?: string | null
+          id?: string
+          scanned?: number
+          skipped?: number
+          started_at?: string
+          status?: string
+          unknown?: number
+          would_archive?: number
+        }
+        Relationships: []
       }
       ozbargain_signals: {
         Row: {
@@ -1177,23 +1728,36 @@ export type Database = {
       approve_feed_item: {
         Args: {
           p_deal_kind: string
-          p_expiry_date: string | null
-          p_expected_content_hash: string | null
+          p_expected_content_hash: string
+          p_expiry_date: string
           p_feed_item_id: string
-          p_merchant_id: string | null
-          p_price_text: string | null
-          p_promo_code: string | null
+          p_merchant_id: string
+          p_price_text: string
+          p_promo_code: string
           p_signal_id: string
-          p_signal_score: number | null
+          p_signal_score: number
         }
         Returns: {
           created: boolean
           signal_id: string
         }[]
       }
+      approve_gift_card_candidate: {
+        Args: {
+          p_candidate_id: string
+          p_offer: Json
+          p_offer_id: string
+          p_reviewer: string
+        }
+        Returns: string
+      }
       archive_expired_deals: {
         Args: { p_archived_at: string; p_today: string }
         Returns: number
+      }
+      archive_invalid_signal: {
+        Args: { p_archived_at: string; p_reason: string; p_signal_id: string }
+        Returns: boolean
       }
       archive_recheck_feed_item: {
         Args: {
@@ -1201,14 +1765,10 @@ export type Database = {
           p_checked_at: string
           p_feed_item_id: string
           p_run_id: string
-          p_signal?: string | null
+          p_signal?: string
           p_source_identifier: string
           p_source_status: string
         }
-        Returns: boolean
-      }
-      archive_invalid_signal: {
-        Args: { p_archived_at: string; p_reason: string; p_signal_id: string }
         Returns: boolean
       }
       consume_admin_rate_limit: {
@@ -1220,10 +1780,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      purge_reviewed_feed_items: {
-        Args: { p_cutoff: string }
-        Returns: number
-      }
+      purge_reviewed_feed_items: { Args: { p_cutoff: string }; Returns: number }
       run_daily_cleanup: {
         Args: {
           p_archived_at: string

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database.types";
 import {
   deriveFeedItemMetadata,
   type FeedItemMetadata,
@@ -444,6 +445,8 @@ export async function approveFeedItem(
     throw new Error("Selected store does not exist.");
   }
   const signalId = `sig-${slugify(item.raw_title)}-${randomUUID().slice(0, 8)}`;
+  // Every approve_feed_item arg is nullable in SQL (015), but the generated
+  // Args type drops `| null`; the cast only widens nullability, nothing else.
   const { data, error } = await db.rpc("approve_feed_item", {
     p_feed_item_id: feedItemId,
     p_expected_content_hash: item.content_hash,
@@ -457,7 +460,7 @@ export async function approveFeedItem(
     p_expiry_date:
       clean.expiryDate !== undefined ? clean.expiryDate : metadata.expiryDate,
     p_signal_score: clean.score !== undefined ? clean.score : metadata.score,
-  });
+  } as Database["public"]["Functions"]["approve_feed_item"]["Args"]);
   if (error) throw new Error(`approveFeedItem failed: ${error.message}`);
   const result = data?.[0];
   if (!result) throw new Error("approveFeedItem returned no result.");

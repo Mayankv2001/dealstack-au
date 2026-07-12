@@ -1,5 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 import type { ExtractedOffer } from "@/lib/giftcards/extractOffer";
 import type { GcdbFeedItem } from "@/lib/giftcards/parseGcdbFeed";
 import type {
@@ -15,20 +15,10 @@ import type {
  * here makes an outbound request.
  */
 
-/**
- * The gift_card_* pipeline tables and the approve_gift_card_candidate RPC are
- * added by migration 021, which is intentionally NOT yet applied to production
- * (it awaits admin review — see supabase/migrations/021_gift_card_pipeline.sql).
- * Until it is applied and `npm run types:gen` regenerates database.types.ts
- * from the live schema, those relations are absent from the generated types, so
- * this module reaches them through an untyped view of the same service-role
- * client. Every row/insert/update shape is still checked against the
- * hand-written interfaces below, and the RLS/gating guarantees are unaffected —
- * this only relaxes the compile-time table-name union, not the runtime client.
- */
-function pipelineDb(): SupabaseClient {
-  return getSupabaseAdmin() as unknown as SupabaseClient;
-}
+// Migration 021 is applied to production and database.types.ts covers the
+// gift_card_* tables and the approve RPC, so the typed service-role client is
+// used directly. The only remaining casts are at Json payload boundaries.
+const pipelineDb = getSupabaseAdmin;
 
 /** A 'running' ingest older than this is treated as crashed, not in-flight. */
 const STALE_RUN_MINUTES = 15;
@@ -59,7 +49,7 @@ export async function getGiftCardSource(
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`getGiftCardSource failed: ${error.message}`);
-  return (data as GiftCardSourceRow | null) ?? null;
+  return data ?? null;
 }
 
 export type IngestStartResult =
@@ -166,7 +156,7 @@ export async function lastIngestRunStart(sourceId: string): Promise<Date | null>
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`lastIngestRunStart failed: ${error.message}`);
-  return data ? new Date((data as { started_at: string }).started_at) : null;
+  return data ? new Date(data.started_at) : null;
 }
 
 interface RawItemRow {
@@ -201,12 +191,7 @@ export async function loadRawItems(
     if (candidateError) {
       throw new Error(`loadRawItems candidates failed: ${candidateError.message}`);
     }
-    for (const c of (candidates ?? []) as unknown as Array<{
-      id: string;
-      raw_item_id: string;
-      review_status: string;
-      approved_offer_id: string | null;
-    }>) {
+    for (const c of candidates ?? []) {
       if (c.review_status === "new" || c.review_status === "changed") {
         open.set(c.raw_item_id, c.id);
       }
@@ -226,9 +211,9 @@ export async function loadRawItems(
   }));
 }
 
-function rawPayload(item: GcdbFeedItem, extraction: ExtractedOffer) {
+function rawPayload(item: GcdbFeedItem, extraction: ExtractedOffer): Json {
   // Structured fields + bounded excerpt only — never the article body.
-  return { item, extraction };
+  return { item, extraction } as unknown as Json;
 }
 
 export async function insertRawItem(
@@ -482,7 +467,7 @@ export async function approveGiftCardCandidate(
   const { data, error } = await db.rpc("approve_gift_card_candidate", {
     p_candidate_id: candidateId,
     p_offer_id: offerId,
-    p_offer: offer,
+    p_offer: offer as Json,
     p_reviewer: reviewer,
   });
   if (error) throw new Error(`approveGiftCardCandidate failed: ${error.message}`);
@@ -571,15 +556,7 @@ export async function getGiftCardPipelineStatus(): Promise<GiftCardPipelineStatu
     ]);
 
   if (runData.error) throw new Error(`pipeline status runs failed: ${runData.error.message}`);
-  const run = runData.data as {
-    started_at: string;
-    completed_at: string | null;
-    status: string;
-    items_seen: number;
-    items_new: number;
-    items_updated: number;
-    error_summary: string | null;
-  } | null;
+  const run = runData.data;
 
   return {
     source,
@@ -596,8 +573,7 @@ export async function getGiftCardPipelineStatus(): Promise<GiftCardPipelineStatu
       : null,
     pendingCandidates: pendingData.count ?? 0,
     changedCandidates: changedData.count ?? 0,
-    oldestPendingAt:
-      (oldestData.data as { created_at: string } | null)?.created_at ?? null,
+    oldestPendingAt: oldestData.data?.created_at ?? null,
     activeOffers: activeData.count ?? 0,
     expiringWithin72h: expiringData.count ?? 0,
   };

@@ -91,7 +91,8 @@ export async function archiveRecheckItem(
     p_source_identifier: input.sourceIdentifier,
     p_run_id: input.runId,
     p_checked_at: input.checkedAt.toISOString(),
-    p_signal: input.signal,
+    // p_signal has `default null` in SQL; omitting it (undefined) is identical.
+    p_signal: input.signal ?? undefined,
   });
   if (error) throw new Error(`archiveRecheckItem failed: ${error.message}`);
   return data === true;
