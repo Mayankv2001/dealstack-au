@@ -1,6 +1,7 @@
 const RAW_WHITESPACE_OR_CONTROL = /[\u0000-\u0020\u007f]/;
 const APPROVED_FEED_HOSTS: Readonly<Record<string, ReadonlySet<string>>> = {
   ozbargain: new Set(["ozbargain.com.au", "www.ozbargain.com.au"]),
+  gcdb: new Set(["gcdb.com.au", "www.gcdb.com.au"]),
 };
 
 /** Canonical public HTTPS URL, or null when navigation would be unsafe. */

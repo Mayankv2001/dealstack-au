@@ -172,3 +172,34 @@ export const ozbExpiryRecheckBatchSize = (): number => {
 /** Floor on how often a single item may be re-probed, in hours (default 20). */
 export const ozbExpiryRecheckMinIntervalHours = (): number =>
   optionalPositiveNumber("OZB_EXPIRY_RECHECK_MIN_INTERVAL_HOURS", 20);
+
+// ── Gift-card ingest (GCDB) — SERVER/SCRIPT ONLY ─────────────────────────────
+// A separate, independently-gated pipeline from the OzBargain monitor. Both
+// the env master switch AND the gift_card_sources DB row must be enabled
+// before any outbound request; absent configuration fails closed.
+
+/** Gift-card ingest master switch. True only when exactly "true". */
+export const gcdbIngestEnabled = (): boolean =>
+  process.env.GCDB_INGEST_ENABLED === "true";
+
+/** Feed URL override; the DB source row is the default. Empty → fail closed. */
+export const gcdbRssUrl = (): string | null =>
+  process.env.GCDB_RSS_URL?.trim() || null;
+
+/**
+ * Identifying User-Agent for GCDB requests. REQUIRED when the ingest is
+ * enabled — never a spoofed browser string.
+ */
+export const gcdbUserAgent = (): string => {
+  const value = process.env.GCDB_REQUEST_USER_AGENT?.trim();
+  if (!value) {
+    throw new Error(
+      "GCDB_REQUEST_USER_AGENT is required when GCDB_INGEST_ENABLED=true."
+    );
+  }
+  return value;
+};
+
+/** Hard cap on feed items processed per ingest run. */
+export const gcdbMaxItemsPerRun = (): number =>
+  optionalPositiveInt("GCDB_MAX_ITEMS_PER_RUN", 40);

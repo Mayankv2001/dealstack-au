@@ -55,6 +55,20 @@ interface GiftCardRow {
   usage_notes: string[];
   stack_notes: string[];
   source_detail_url: string | null;
+  promotion_type: GiftCardOffer["promotionType"] | null;
+  bonus_percent: number | string | null;
+  points_multiplier: number | string | null;
+  points_program: string | null;
+  points_value_cents: number | string | null;
+  membership_required: boolean | null;
+  activation_required: boolean | null;
+  coupon_required: boolean | null;
+  min_spend: number | string | null;
+  denomination_note: string | null;
+  format: GiftCardOffer["format"] | null;
+  source_name: string | null;
+  product_id: string | null;
+  source_last_seen_at: string | null;
   citations: Citation[];
   confidence: Confidence;
   last_checked_at: string;
@@ -88,6 +102,20 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
     sourceDetailUrl: r.source_detail_url
       ? (safeHttpsUrl(r.source_detail_url) ?? undefined)
       : undefined,
+    promotionType: r.promotion_type ?? "discount",
+    bonusPercent: toNumberOrNull(r.bonus_percent),
+    pointsMultiplier: toNumberOrNull(r.points_multiplier),
+    pointsProgram: r.points_program,
+    pointsValueCents: toNumberOrNull(r.points_value_cents),
+    membershipRequired: r.membership_required ?? undefined,
+    activationRequired: r.activation_required ?? undefined,
+    couponRequired: r.coupon_required ?? undefined,
+    minSpend: toNumberOrNull(r.min_spend),
+    denominationNote: r.denomination_note,
+    format: r.format ?? "unknown",
+    sourceName: r.source_name,
+    productId: r.product_id,
+    sourceLastSeenAt: r.source_last_seen_at,
     citations: safeCitations(r.citations),
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,

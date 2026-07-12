@@ -23,6 +23,9 @@ export function SiteHeader() {
             <Link href="/cards">Cards</Link>
           </Button>
           <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Link href="/gift-cards">Gift cards</Link>
+          </Button>
+          <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
             <Link href="/resources">Resources</Link>
           </Button>
           <Button

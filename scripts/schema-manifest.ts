@@ -55,6 +55,7 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "018_card_offer_change_candidates.sql",
   "019_pipeline_lifecycle_retention.sql",
   "020_ozb_expiry_recheck.sql",
+  "021_gift_card_pipeline.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -80,14 +81,39 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "gift_card_source", "points_program", "points_rate", "aliases",
     "is_published", "sort_order", "created_at", "updated_at",
   ]),
-  gift_card_offers: table("001_initial_schema.sql", [
-    "id", "brand", "discount_percent", "channel", "source",
-    "accepted_at_merchant_ids", "points_on_purchase", "cap_dollars",
-    "expiry_date", "start_date", "purchase_location", "purchase_method",
-    "limit_per_customer", "accepted_at", "usage_notes", "stack_notes",
-    "source_detail_url", "citations", "confidence", "last_checked_at",
-    "is_published", "created_at", "updated_at",
-  ]),
+  // 001_initial_schema.sql — extended by 021 (structured promotion values for
+  // the gift-card pipeline: bonus-value / points / membership offers).
+  gift_card_offers: table(
+    "001_initial_schema.sql",
+    [
+      "id", "brand", "discount_percent", "channel", "source",
+      "accepted_at_merchant_ids", "points_on_purchase", "cap_dollars",
+      "expiry_date", "start_date", "purchase_location", "purchase_method",
+      "limit_per_customer", "accepted_at", "usage_notes", "stack_notes",
+      "source_detail_url", "citations", "confidence", "last_checked_at",
+      "is_published", "created_at", "updated_at",
+      "promotion_type", "bonus_percent", "points_multiplier", "points_program",
+      "points_value_cents", "membership_required", "activation_required",
+      "coupon_required", "min_spend", "denomination_note", "format",
+      "source_name", "product_id", "source_last_seen_at",
+    ],
+    {
+      promotion_type: "021_gift_card_pipeline.sql",
+      bonus_percent: "021_gift_card_pipeline.sql",
+      points_multiplier: "021_gift_card_pipeline.sql",
+      points_program: "021_gift_card_pipeline.sql",
+      points_value_cents: "021_gift_card_pipeline.sql",
+      membership_required: "021_gift_card_pipeline.sql",
+      activation_required: "021_gift_card_pipeline.sql",
+      coupon_required: "021_gift_card_pipeline.sql",
+      min_spend: "021_gift_card_pipeline.sql",
+      denomination_note: "021_gift_card_pipeline.sql",
+      format: "021_gift_card_pipeline.sql",
+      source_name: "021_gift_card_pipeline.sql",
+      product_id: "021_gift_card_pipeline.sql",
+      source_last_seen_at: "021_gift_card_pipeline.sql",
+    }
+  ),
   cashback_offers: table("001_initial_schema.sql", [
     "id", "merchant_id", "provider", "rate_percent", "flat_amount",
     "cap_dollars", "is_upsized", "excludes_gift_card_payment", "terms_summary",
@@ -249,6 +275,52 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "id", "started_at", "finished_at", "status", "dry_run", "scanned",
     "active", "expired", "deleted", "unknown", "fetch_failed", "would_archive",
     "actually_archived", "skipped", "errors", "created_at",
+  ]),
+  // 021_gift_card_pipeline.sql — the gift-card sourcing/review pipeline. All
+  // staging tables are service-role only (RLS default-deny); nothing here
+  // widens public reads except is_active products / is_public acceptance.
+  gift_card_sources: table("021_gift_card_pipeline.sql", [
+    "id", "name", "base_url", "feed_url", "source_type", "enabled",
+    "automated_fetch_allowed", "terms_checked_at", "robots_checked_at", "etag",
+    "last_modified", "last_success_at", "last_error_at", "last_error",
+    "created_at", "updated_at",
+  ]),
+  gift_card_ingest_runs: table("021_gift_card_pipeline.sql", [
+    "id", "source_id", "started_at", "completed_at", "status", "fetch_status",
+    "items_seen", "items_new", "items_updated", "items_unchanged",
+    "items_rejected", "parser_version", "snapshot_hash", "error_summary",
+    "created_at",
+  ]),
+  gift_card_raw_items: table("021_gift_card_pipeline.sql", [
+    "id", "source_id", "external_id", "canonical_url", "title", "published_at",
+    "source_updated_at", "raw_payload", "content_hash", "parser_version",
+    "first_seen_at", "last_seen_at", "processing_status", "parser_error",
+    "created_at", "updated_at",
+  ]),
+  gift_card_products: table("021_gift_card_pipeline.sql", [
+    "id", "brand", "slug", "issuer", "card_network", "format", "variable_load",
+    "min_denomination", "max_denomination", "category_restricted",
+    "supported_mccs", "mobile_wallet", "redemption_notes", "is_active",
+    "source_evidence", "created_at", "updated_at",
+  ]),
+  gift_card_merchant_acceptance: table("021_gift_card_pipeline.sql", [
+    "id", "product_id", "store_id", "merchant_name", "merchant_category", "mcc",
+    "status", "outcome", "is_public", "source_url", "checked_at", "notes",
+    "created_at", "updated_at",
+  ]),
+  gift_card_offer_candidates: table("021_gift_card_pipeline.sql", [
+    "id", "raw_item_id", "source_id", "seller_name", "seller_store_id",
+    "gift_card_brands", "gift_card_product_id", "promotion_type",
+    "discount_percent", "bonus_percent", "points_multiplier", "points_program",
+    "effective_discount_percent", "starts_at", "expires_at", "terms_json",
+    "compatibility_json", "extraction_confidence", "extraction_warnings",
+    "change_kind", "change_diff", "review_status", "reviewer_email",
+    "reviewed_at", "rejection_reason", "approved_offer_id", "created_at",
+    "updated_at",
+  ]),
+  gift_card_knowledge: table("021_gift_card_pipeline.sql", [
+    "id", "product_id", "topic", "fact", "evidence_type", "confidence",
+    "review_status", "source_url", "checked_at", "created_at", "updated_at",
   ]),
 };
 

@@ -5,6 +5,7 @@ const PRODUCT_LINKS = [
   ["Stores", "/stores"],
   ["Deals", "/deals"],
   ["Card offers", "/cards"],
+  ["Gift cards", "/gift-cards"],
   ["Resources", "/resources"],
 ] as const;
 

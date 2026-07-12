@@ -68,6 +68,26 @@ export interface GiftCardOffer {
   stackNotes?: string[];
   /** Link to a fuller offer-detail page at the source, if any. */
   sourceDetailUrl?: string | null;
+  // ── Structured promotion values (migration 021; all optional) ──
+  /** discount | bonus-value | points | membership. Defaults to discount. */
+  promotionType?: "discount" | "bonus-value" | "points" | "membership";
+  /** "10% bonus value" style promotions (NOT a percentage off). */
+  bonusPercent?: number | null;
+  /** "20x points" style promotions. */
+  pointsMultiplier?: number | null;
+  pointsProgram?: string | null;
+  /** Cents-per-point for the disclosed valuation (overrides the default). */
+  pointsValueCents?: number | null;
+  membershipRequired?: boolean;
+  activationRequired?: boolean;
+  couponRequired?: boolean;
+  minSpend?: number | null;
+  denominationNote?: string | null;
+  format?: "digital" | "physical" | "digital-and-physical" | "unknown";
+  /** Human source name, e.g. "Gift Card Database". */
+  sourceName?: string | null;
+  productId?: string | null;
+  sourceLastSeenAt?: string | null;
   citations: Citation[];
   confidence: Confidence;
   lastCheckedAt: string;
@@ -237,6 +257,15 @@ export interface StackComponent {
   citation: Citation;
   confidence: Confidence;
   note?: string;
+  /** Structured gift-card compatibility verdict for this layer, when applicable. */
+  compatibilityStatus?:
+    | "compatible"
+    | "likely-compatible"
+    | "incompatible"
+    | "requires-verification"
+    | "insufficient-evidence";
+  /** One-sentence human-readable reason behind compatibilityStatus. */
+  compatibilityReason?: string;
 }
 
 export type StackWarningLevel = "info" | "caution" | "risk";
@@ -244,6 +273,7 @@ export type StackWarningLevel = "info" | "caution" | "risk";
 export type StackWarningCode =
   | "gift-card-excluded-from-cashback"
   | "gift-card-not-accepted"
+  | "gift-card-requires-action"
   | "stale-data"
   | "needs-verification"
   | "expiry-soon"

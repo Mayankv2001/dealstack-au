@@ -152,6 +152,42 @@ test("cards: detail and comparison expose complete terms", async ({ page }, test
   await expect(page.getByText("Report incorrect offer")).toBeVisible();
 });
 
+test("gift-cards: tabs filter the offers and are shareable via the URL", async ({ page }) => {
+  await page.goto("/gift-cards");
+  await expect(
+    page.getByRole("heading", { level: 1, name: /Gift card/i })
+  ).toBeVisible();
+  await expect(page.getByText(/How we value offers/i)).toBeVisible();
+
+  // The Points tab narrows to points offers and writes tab=points to the URL.
+  await page.getByRole("button", { name: "Points", exact: true }).click();
+  await expect(page).toHaveURL(/tab=points/);
+  await expect(
+    page.getByRole("heading", { name: "Coles Group" }).first()
+  ).toBeVisible();
+});
+
+test("gift-cards: a card links through to its detail page", async ({ page }) => {
+  await page.goto("/gift-cards");
+  await page.getByRole("link", { name: "View details" }).first().click();
+  await page.waitForURL("**/gift-cards/**");
+  await expect(page.getByText(/Stacking compatibility/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /What it/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /All gift cards/i })).toBeVisible();
+});
+
+test("gift-cards: an unknown offer id is a 404, not a stale page", async ({ page }) => {
+  const res = await page.goto("/gift-cards/definitely-not-a-real-offer");
+  expect(res?.status()).toBe(404);
+});
+
+test("admin: the gift-card review queue is behind the auth gate", async ({ page }) => {
+  await page.goto("/admin/gift-cards/review");
+  // Must redirect to login before any review content renders.
+  await page.waitForURL("**/admin/login**");
+  await expect(page.locator("body")).not.toContainText("Gift card review queue");
+});
+
 test("footer: policy pages are linked and keyboard reachable", async ({ page }) => {
   await page.goto("/");
   const privacy = page.getByRole("link", { name: "Privacy" });
@@ -181,6 +217,8 @@ test("public routes do not overflow the viewport", async ({ page }) => {
     "/",
     "/deals",
     "/cards",
+    "/gift-cards",
+    "/gift-cards/gc-coles-group-bonus-points",
     "/stores",
     "/search?q=myer",
     "/search?q=macbook-air-m3",

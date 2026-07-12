@@ -20,8 +20,13 @@ import {
   type MonitorStatus,
 } from "@/lib/admin/repos/monitorStatus";
 import { getDetectionOpsStatus } from "@/lib/admin/repos/offerChanges";
+import {
+  getGiftCardPipelineStatus,
+  type GiftCardPipelineStatus,
+} from "@/lib/admin/repos/giftCardPipeline";
 import { disableAllFeeds } from "./actions";
 import {
+  gcdbIngestEnabled,
   ozbExpiryRecheckDryRun,
   ozbExpiryRecheckEnabled,
   ozbOfferDetectEnabled,
@@ -249,16 +254,156 @@ function recommendedAction(status: MonitorStatus): NextAction {
   };
 }
 
+/**
+ * Read-only gift-card pipeline snapshot. Resilient to migration 021 not yet
+ * being applied to production: the gift_card_* tables may not exist, in which
+ * case the query throws and we render a "not provisioned" state rather than
+ * crashing the whole monitor page.
+ */
+async function loadGiftCardPipelineStatus(): Promise<GiftCardPipelineStatus | null> {
+  try {
+    return await getGiftCardPipelineStatus();
+  } catch {
+    return null;
+  }
+}
+
+/** Source is stale when it is enabled but has not succeeded within this window. */
+const GC_STALE_SOURCE_HOURS = 60;
+
+function GiftCardPipelineCard({
+  status,
+  envEnabled,
+  fmt,
+}: {
+  status: GiftCardPipelineStatus | null;
+  envEnabled: boolean;
+  fmt: (iso: string | null) => string;
+}) {
+  if (!status) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Radar className="size-4" /> Gift-card ingest pipeline
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Not provisioned — migration 021 has not been applied, or the pipeline
+          tables are unavailable. The public gift-card offers and the review
+          queue are unaffected.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { source, lastRun } = status;
+  const sourceEnabled = source?.enabled === true;
+  const fetchAllowed = source?.automated_fetch_allowed === true;
+  const lastSuccess = source?.last_success_at ?? null;
+  const lastSuccessMs = lastSuccess ? Date.parse(lastSuccess) : NaN;
+  const staleSource =
+    envEnabled &&
+    sourceEnabled &&
+    fetchAllowed &&
+    (!Number.isFinite(lastSuccessMs) ||
+      Date.now() - lastSuccessMs > GC_STALE_SOURCE_HOURS * 3_600_000);
+  const oldestPendingLabel = status.oldestPendingAt ? fmt(status.oldestPendingAt) : "—";
+
+  const stat = (label: string, value: React.ReactNode) => (
+    <div className="rounded-lg border bg-muted/30 p-2.5">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold">{value}</p>
+    </div>
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
+          <Radar className="size-4" /> Gift-card ingest pipeline
+          <Badge variant={envEnabled ? "default" : "secondary"}>
+            {envEnabled ? "env enabled" : "env disabled"}
+          </Badge>
+          <Badge variant={sourceEnabled && fetchAllowed ? "default" : "secondary"}>
+            {sourceEnabled ? "source on" : "source off"}
+            {sourceEnabled && !fetchAllowed ? " (fetch not permitted)" : ""}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {staleSource ? (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Stale source — enabled but no successful ingest in the last{" "}
+              {GC_STALE_SOURCE_HOURS} hours. Check the scheduler and the last error below.
+            </span>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {stat("Pending candidates", status.pendingCandidates)}
+          {stat("Changed candidates", status.changedCandidates)}
+          {stat("Oldest pending", oldestPendingLabel)}
+          {stat("Active published offers", status.activeOffers)}
+          {stat("Expiring within 72h", status.expiringWithin72h)}
+          {stat(
+            "Automated fetch",
+            fetchAllowed ? "permitted" : "not permitted"
+          )}
+        </div>
+
+        <dl className="space-y-1.5 text-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Last run</dt>
+            <dd className="text-right font-medium">
+              {lastRun
+                ? `${fmt(lastRun.startedAt)} — ${lastRun.status}`
+                : "never run"}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Last success</dt>
+            <dd className="text-right font-medium">{fmt(lastSuccess)}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Last failure</dt>
+            <dd className="text-right font-medium">
+              {source?.last_error_at ? fmt(source.last_error_at) : "—"}
+              {source?.last_error ? (
+                <span className="block text-xs font-normal text-amber-700 dark:text-amber-400">
+                  {source.last_error}
+                </span>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
+
+        <p className="text-xs text-muted-foreground">
+          Staged candidates await manual approval in the{" "}
+          <Link href="/admin/gift-cards/review" className="underline">
+            gift-card review queue
+          </Link>
+          . Nothing here publishes automatically.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function MonitorStatusPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
   // Fetch both read-only snapshots together (no waterfall). The flag is read
   // per-request via the env accessor — never inline process.env.
-  const [status, detection] = await Promise.all([
+  const [status, detection, giftCardPipeline] = await Promise.all([
     getMonitorStatus(),
     getDetectionOpsStatus(),
+    loadGiftCardPipelineStatus(),
   ]);
+  const gcdbEnabled = gcdbIngestEnabled();
   const detectionEnabled = ozbOfferDetectEnabled();
   const recheckEnabled = ozbExpiryRecheckEnabled();
   const recheckDryRun = ozbExpiryRecheckDryRun();
@@ -304,6 +449,13 @@ export default async function MonitorStatusPage() {
           published without manual approval.
         </p>
       </div>
+
+      {/* Gift-card ingest pipeline — separate from the OzBargain monitor. */}
+      <GiftCardPipelineCard
+        status={giftCardPipeline}
+        envEnabled={gcdbEnabled}
+        fmt={formatDate}
+      />
 
       {/* Most severe: the master switch is armed but compliance is NOT approved. */}
       {status.envEnabled && !status.complianceApproved ? (

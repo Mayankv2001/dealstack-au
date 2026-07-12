@@ -27,6 +27,8 @@ import {
   staleDataWarning,
   worstConfidence,
 } from "./compatibility";
+import { evaluateGiftCardCompatibility } from "@/lib/giftcards/compatibility";
+import { effectiveDiscountPercent as giftCardEffectiveSaving } from "@/lib/giftcards/value";
 
 /**
  * The stack engine.
@@ -102,7 +104,27 @@ function cashbackNote(cashback: CashbackOffer): string {
     : base;
 }
 
-/** Highest-discount gift card accepted at this merchant, or null. */
+/**
+ * Effective saving % of a gift card — spans direct discounts, bonus value and
+ * points via the shared valuation (lib/giftcards/value.ts). For a plain-discount
+ * card this is exactly its discountPercent, so ranking/values are unchanged;
+ * bonus-value and points cards now contribute their true net-cost saving instead
+ * of being read as "0% off" and dropped.
+ */
+function giftCardEffectivePercent(offer: GiftCardOffer): number {
+  return (
+    giftCardEffectiveSaving({
+      promotionType: offer.promotionType ?? "discount",
+      discountPercent: offer.discountPercent || null,
+      bonusPercent: offer.bonusPercent ?? null,
+      pointsMultiplier: offer.pointsMultiplier ?? null,
+      pointsProgram: offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null,
+      pointsValueCents: offer.pointsValueCents ?? null,
+    }) ?? 0
+  );
+}
+
+/** Highest effective-saving gift card accepted at this merchant, or null. */
 function bestGiftCard(
   offers: GiftCardOffer[],
   merchantId: string
@@ -112,7 +134,7 @@ function bestGiftCard(
   );
   if (accepted.length === 0) return null;
   return accepted.reduce((best, o) =>
-    o.discountPercent > best.discountPercent ? o : best
+    giftCardEffectivePercent(o) > giftCardEffectivePercent(best) ? o : best
   );
 }
 
@@ -210,24 +232,36 @@ function buildForStore(
   const giftCard = bestGiftCard(data.giftCardOffers, store.id);
   const cashback = bestCashback(data.cashbackOffers, store.id);
 
+  const giftCardEffPct = giftCard ? giftCardEffectivePercent(giftCard) : 0;
   const giftCardSaving = giftCard
-    ? round(spendCappedSaving(checkoutPrice, giftCard.discountPercent, giftCard.capDollars))
+    ? round(spendCappedSaving(checkoutPrice, giftCardEffPct, giftCard.capDollars))
     : 0;
   const cashbackSaving = cashback
     ? round(dollarCappedSaving(checkoutPrice, cashback.ratePercent, cashback.capDollars))
     : 0;
 
+  // A gift card that requires the shopper to DO something first (hold a
+  // membership, activate the offer, enter a code) is not a guaranteed saving —
+  // it is surfaced as an optional layer and never deducted from the sure price.
+  const giftCardRequiresAction =
+    giftCard != null &&
+    (giftCard.membershipRequired === true ||
+      giftCard.activationRequired === true ||
+      giftCard.couponRequired === true);
+
   // A layer that saves nothing (e.g. a 0%-discount gift card that only earns
   // bonus points) is not a cash layer — it must never render as "0% off".
   let useGiftCard = giftCard !== null && giftCardSaving > 0;
   let useCashback = cashback !== null && cashbackSaving > 0;
-  // Only a genuine choice between two saving layers is a conflict.
+  // Only a genuine choice between two GUARANTEED saving layers is a conflict —
+  // an action-gated gift card can't suppress a guaranteed cashback.
   if (
     giftCard &&
     cashback &&
     cashback.excludesGiftCardPayment &&
     giftCardSaving > 0 &&
-    cashbackSaving > 0
+    cashbackSaving > 0 &&
+    !giftCardRequiresAction
   ) {
     if (giftCardSaving >= cashbackSaving) {
       useCashback = false;
@@ -237,22 +271,51 @@ function buildForStore(
     warnings.push(giftCardCashbackConflictWarning(cashback, true)!);
   }
 
+  // Effective label: a plain discount reads "N% off"; a bonus-value/points card
+  // (discountPercent 0) reads "≈N% effective" so it never renders as "0% off".
+  const giftCardValueLabel = (giftCard: GiftCardOffer): string =>
+    giftCard.discountPercent > 0
+      ? `${giftCard.discountPercent}% off`
+      : `≈${round(giftCardEffPct)}% effective`;
+
   if (useGiftCard && giftCard) {
-    running = round(running - giftCardSaving);
+    // Structured compatibility verdict for this store context (acceptance is
+    // already guaranteed by bestGiftCard; this adds conditions/caveats/reason).
+    const compat = evaluateGiftCardCompatibility(giftCard, {
+      now,
+      storeId: store.id,
+      storeName: store.name,
+      cashback: cashback ?? undefined,
+      hasDiscountCode: store.discountPercent > 0,
+    });
+    // Only deduct an action-gated card from the guaranteed price if there is no
+    // condition to satisfy first; otherwise it is an optional "could add" layer.
+    if (!giftCardRequiresAction) running = round(running - giftCardSaving);
     components.push({
       layer: "gift-card",
-      label: `${giftCard.discountPercent}% off via ${giftCard.brand} cards (${giftCard.source})`,
-      valuePercent: giftCard.discountPercent,
+      label: `${giftCardValueLabel(giftCard)} via ${giftCard.brand} cards (${giftCard.source})`,
+      valuePercent: giftCard.discountPercent > 0 ? giftCard.discountPercent : round(giftCardEffPct),
       valueDollars: giftCardSaving,
-      optional: false,
+      optional: giftCardRequiresAction,
       citation: giftCard.citations[0] ?? MANUAL_CITATION,
       confidence: giftCard.confidence,
-      note: giftCard.pointsOnPurchase
-        ? `Also earns ${giftCard.pointsOnPurchase.program}: ${giftCard.pointsOnPurchase.earnNote}`
-        : undefined,
+      note: giftCardRequiresAction
+        ? compat.reason
+        : giftCard.pointsOnPurchase
+          ? `Also earns ${giftCard.pointsOnPurchase.program}: ${giftCard.pointsOnPurchase.earnNote}`
+          : undefined,
+      compatibilityStatus: compat.status,
+      compatibilityReason: compat.reason,
     });
     citations.push(...giftCard.citations);
     confidences.push(giftCard.confidence);
+    if (giftCardRequiresAction) {
+      warnings.push({
+        level: "caution",
+        code: "gift-card-requires-action",
+        message: compat.reason,
+      });
+    }
     const gcExpiry = expirySoonWarning(
       giftCard.expiryDate,
       now,
@@ -278,15 +341,24 @@ function buildForStore(
     if (gcCap) warnings.push(gcCap);
   } else if (giftCard && giftCardSaving > 0) {
     // Dropped due to conflict — surface as an optional layer.
+    const compat = evaluateGiftCardCompatibility(giftCard, {
+      now,
+      storeId: store.id,
+      storeName: store.name,
+      cashback: cashback ?? undefined,
+      hasDiscountCode: store.discountPercent > 0,
+    });
     components.push({
       layer: "gift-card",
-      label: `${giftCard.discountPercent}% off via ${giftCard.brand} cards (alternative to cashback)`,
-      valuePercent: giftCard.discountPercent,
+      label: `${giftCardValueLabel(giftCard)} via ${giftCard.brand} cards (alternative to cashback)`,
+      valuePercent: giftCard.discountPercent > 0 ? giftCard.discountPercent : round(giftCardEffPct),
       valueDollars: giftCardSaving,
       optional: true,
       citation: giftCard.citations[0] ?? MANUAL_CITATION,
       confidence: giftCard.confidence,
       note: "Use instead of cashback, not together.",
+      compatibilityStatus: compat.status,
+      compatibilityReason: compat.reason,
     });
   }
 
