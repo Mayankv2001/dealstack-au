@@ -26,6 +26,36 @@ describe("sydneyHour / isSydneyRunHour — DST-correct", () => {
     expect(isSydneyRunHour(AEDT_7AM)).toBe(true);
   });
 
+  it.each([
+    {
+      transition: "DST starts 4 Oct 2026",
+      expectedUtc: "2026-10-03T20:00:00Z",
+      otherTriggerUtc: "2026-10-03T21:00:00Z",
+    },
+    {
+      transition: "DST ends 4 Apr 2027",
+      expectedUtc: "2027-04-03T21:00:00Z",
+      otherTriggerUtc: "2027-04-03T20:00:00Z",
+    },
+  ])(
+    "accepts exactly one dual-cron instant when $transition",
+    ({ expectedUtc, otherTriggerUtc }) => {
+      expect(isSydneyRunHour(new Date(expectedUtc))).toBe(true);
+      expect(isSydneyRunHour(new Date(otherTriggerUtc))).toBe(false);
+    }
+  );
+
+  it.each([
+    ["hour before spring transition run", "2026-10-03T19:00:00Z", 6],
+    ["hour after spring transition run", "2026-10-03T21:00:00Z", 8],
+    ["hour before autumn transition run", "2027-04-03T20:00:00Z", 6],
+    ["hour after autumn transition run", "2027-04-03T22:00:00Z", 8],
+  ])("rejects the %s", (_label, instant, localHour) => {
+    const now = new Date(instant);
+    expect(sydneyHour(now)).toBe(localHour);
+    expect(isSydneyRunHour(now)).toBe(false);
+  });
+
   it("rejects an off-hour instant", () => {
     // 21:00 UTC in January is 08:00 AEDT, not the 7 o'clock hour.
     expect(isSydneyRunHour(new Date("2026-01-11T21:00:00Z"))).toBe(false);
@@ -67,4 +97,30 @@ describe("decideSchedule", () => {
       reason: "interval-guard",
     });
   });
+
+  it.each([
+    {
+      transition: "spring-forward",
+      now: "2026-10-03T20:00:00Z",
+      previousEligibleDay: "2026-10-01T21:00:00Z",
+      previousDay: "2026-10-02T21:00:00Z",
+    },
+    {
+      transition: "autumn fallback",
+      now: "2027-04-03T21:00:00Z",
+      previousEligibleDay: "2027-04-01T20:00:00Z",
+      previousDay: "2027-04-02T20:00:00Z",
+    },
+  ])(
+    "keeps the 40h guard correct across $transition",
+    ({ now, previousEligibleDay, previousDay }) => {
+      expect(decideSchedule(new Date(now), new Date(previousEligibleDay))).toEqual({
+        run: true,
+      });
+      expect(decideSchedule(new Date(now), new Date(previousDay))).toEqual({
+        run: false,
+        reason: "interval-guard",
+      });
+    }
+  );
 });

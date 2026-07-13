@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   extractOffer,
   extractOffers,
 } from "@/lib/giftcards/extractOffer";
 import type { GcdbFeedItem } from "@/lib/giftcards/parseGcdbFeed";
+import { parseGcdbFeed } from "@/lib/giftcards/parseGcdbFeed";
 
 /**
  * Candidate extraction: one parsed feed item → normalised fields + confidence +
@@ -251,5 +253,41 @@ describe("extractOffers — Amazon-style compound campaign", () => {
         { key: "same", promotionType: "discount", giftCardBrands: ["Uber"], discountPercent: 10 },
       ])
     ).toThrow(/unique/i);
+  });
+});
+
+describe("sanitised real-feed extraction", () => {
+  const parsed = parseFixture();
+
+  function parseFixture(): GcdbFeedItem[] {
+    const xml = readFileSync(
+      new URL(
+        "../fixtures/giftcards/gcdb-feed-2026-07-13-sanitised.xml",
+        import.meta.url
+      ),
+      "utf8"
+    );
+    // Imported lazily below to keep the production-shaped fixture alongside
+    // the extractor assertions that motivated it.
+    return parseGcdbFeed(xml);
+  }
+
+  it("treats title-level bonus value as stronger evidence than a coarse Discount tag", () => {
+    const myer = parsed.find((entry) => entry.externalId === "12844")!;
+    expect(extractOffer(myer)).toMatchObject({
+      promotionType: "bonus-value",
+      bonusPercent: 10,
+      discountPercent: null,
+      effectiveDiscountPercent: 9.09,
+    });
+  });
+
+  it("keeps the real Amazon item private as a compound summary", () => {
+    const amazon = parsed.find((entry) => entry.externalId === "12680")!;
+    expect(extractOffers(amazon)[0]).toMatchObject({
+      promotionType: "mixed",
+      parentIsCompound: true,
+      subOfferKey: "compound-summary",
+    });
   });
 });

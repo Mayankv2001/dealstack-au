@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   canonicaliseUrl,
   MAX_EXCERPT_LENGTH,
@@ -158,6 +159,39 @@ describe("GCDB production date markers", () => {
     expect(parseAuDateRange("9 Jul to 15 Jul 2026")).toEqual({
       startsAt: "2026-07-09",
       endsAt: "2026-07-15",
+    });
+  });
+});
+
+describe("sanitised real GCDB feed fixture", () => {
+  const xml = readFileSync(
+    new URL(
+      "../fixtures/giftcards/gcdb-feed-2026-07-13-sanitised.xml",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const items = parseGcdbFeed(xml);
+
+  it("preserves the real repeated-tag feed shape without source prose", () => {
+    expect(items).toHaveLength(6);
+    expect(items.find((item) => item.externalId === "12680")).toMatchObject({
+      sellerName: "Amazon",
+      endsAt: "2026-07-13",
+    });
+    expect(
+      items.find((item) => item.externalId === "12680")?.giftCardBrands.length
+    ).toBeGreaterThan(30);
+  });
+
+  it("parses the future supermarket date ranges from the real shape", () => {
+    expect(items.find((item) => item.externalId === "12845")).toMatchObject({
+      startsAt: "2026-07-15",
+      endsAt: "2026-07-21",
+    });
+    expect(items.find((item) => item.externalId === "12844")).toMatchObject({
+      startsAt: "2026-07-15",
+      endsAt: "2026-07-21",
     });
   });
 });

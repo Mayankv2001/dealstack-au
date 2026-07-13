@@ -62,6 +62,7 @@ docs/                     Monitoring and architecture documentation
 
 ```bash
 # Prerequisites: Node 20+, a Supabase project with migrations applied
+# The repo fails fast on older Node versions; use `nvm use 20` for normal work.
 
 cp .env.example .env.local
 # Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
@@ -72,7 +73,9 @@ npm run dev
 
 ### Seed data
 ```bash
-npm run seed               # base stores/deals
+nvm use 22
+npm run seed               # base stores/deals (Node 22 required)
+nvm use 20
 npm run seed:feed-items    # sample OzBargain feed items
 npm run seed:offer-changes # sample offer change candidates
 npm run cleanup:old-deals  # dry-run expiry cleanup (add -- --write to apply)
@@ -84,8 +87,11 @@ npm run test:monitor   # monitor/feed/ranking logic
 npm run test:stack     # deal-stacking calculations
 npm run test:deals     # deal discovery model, URL state and query logic
 npm run test:admin     # admin rate-limit & DB-fallback logic
+npm run test:giftcards # gift-card pipeline, valuation and presentation
 npm run lint           # ESLint
 npm run build          # production build
+npm run validate:all   # lint + typecheck + all Vitest + build + diff check
+npm run validate:all -- --with-e2e # full gate including Playwright
 npm run smoke          # read-only route/SEO/security-header smoke test
 npm run smoke -- --strict-content --base-url=https://<prod-domain>  # + banned public trust markers (opt-in)
 ```

@@ -95,7 +95,7 @@
  ],
  "tickets": [
   {
-   "id": "DS-001",
+  "id": "DS-001",
    "title": "Re-verify and set expiry dates on the 7 published GCDB rows with null expiry",
    "epic": "A",
    "epicName": "Gift-card data accuracy",
@@ -152,7 +152,7 @@
    "commitMessage": "DS-001: Re-verify and set expiry dates on the 7 published GCDB rows with null expiry"
   },
   {
-   "id": "DS-002",
+  "id": "DS-002",
    "title": "Fill verified terms on the TCN Card.Gift flagship row (promo code, cap, uses, expiry time, terms URL)",
    "epic": "A",
    "epicName": "Gift-card data accuracy",
@@ -5003,7 +5003,7 @@
    "commitMessage": "DS-089: DB constraint: published offers must have an expiry date or be explicitly ongoing"
   },
   {
-   "id": "DS-090",
+  "id": "DS-090",
    "title": "Add test:giftcards and test:deals to the CI quality gate",
    "epic": "M",
    "epicName": "Testing and QA",
@@ -5014,7 +5014,8 @@
    "confidence": 5,
    "effort": "XS",
    "risk": "low",
-   "status": "ready",
+   "status": "completed",
+   "outcome": "Completed in commit 10173fc: CI now runs test:giftcards and test:deals in addition to the existing suites.",
    "problem": "ci.yml runs test:monitor, test:stack and test:admin but NOT test:giftcards (173 tests) or test:deals (14 tests) — the newest, most-active subsystem has zero CI coverage on PRs and pushes; a second account could break the entire gift-card layer with a green check.",
    "whyItMatters": "The exact two-account blind spot CI was built to close (PROJECT_STATE §4 CI rationale) is open again for the newest code.",
    "currentBehaviour": ".github/workflows/ci.yml lines: three suite steps only (grep-verified).",
@@ -5054,7 +5055,7 @@
    "commitMessage": "DS-090: Add test:giftcards and test:deals to the CI quality gate"
   },
   {
-   "id": "DS-091",
+  "id": "DS-091",
    "title": "Capture a sanitised real GCDB feed fixture (including a compound item)",
    "epic": "M",
    "epicName": "Testing and QA",
@@ -5065,7 +5066,8 @@
    "confidence": 4,
    "effort": "S",
    "risk": "low",
-   "status": "ready",
+   "status": "completed",
+   "outcome": "Completed and validated 2026-07-13: captured one identifying-UA RSS response, added a six-item ADR-9-compliant fixture, added parser/extractor coverage, and corrected the real Myer bonus-value classification mismatch exposed by the fixture.",
    "problem": "All parser/extractor fixtures are synthetic; the repo's own memory records that synthetic fixtures already misled once (OzBargain expiry markers existed in the real feed but not fixtures). Compound-campaign work (DS-014) needs the real shape of a multi-offer item, not a guess.",
    "whyItMatters": "Every Epic B design decision will be validated against fixtures; wrong fixtures mean confidently wrong designs.",
    "currentBehaviour": "tests/giftcards/parseGcdbFeed.test.ts fixtures are hand-written; one real fetch happened (2026-07-12 run) but its payload lives only in prod raw_items.",
@@ -5166,7 +5168,7 @@
    "commitMessage": "DS-092: Production-shaped fixture builders and visual screenshot harness"
   },
   {
-   "id": "DS-093",
+  "id": "DS-093",
    "title": "DST-boundary tests for the Sydney run-hour schedule guard",
    "epic": "M",
    "epicName": "Testing and QA",
@@ -5177,7 +5179,8 @@
    "confidence": 5,
    "effort": "S",
    "risk": "low",
-   "status": "ready",
+   "status": "completed",
+   "outcome": "Completed and validated 2026-07-13: transition-day dual-trigger, plus/minus-one-hour, and 40-hour interval-guard cases cover Sydney DST start and end.",
    "problem": "schedule.ts is pure-Intl DST-safe by design and the workflow fires at both UTC equivalents, but no test pins behaviour ON the transition days (first Sunday in October / first Sunday in April) — the exact dates where 20:00 vs 21:00 UTC flips and a 2am-skipped-hour could double-accept or double-skip.",
    "whyItMatters": "DST bugs surface twice a year in production and never in development; a fixed-date test costs nothing forever.",
    "currentBehaviour": "tests/giftcards/schedule.test.ts covers ordinary days (per handoff); transition-day cases absent.",
@@ -5320,7 +5323,7 @@
    "commitMessage": "DS-095: Degraded-state e2e: configured-but-unreachable Supabase serves honest empties, never demo data"
   },
   {
-   "id": "DS-096",
+  "id": "DS-096",
    "title": "Property-based tests for the valuation formulas",
    "epic": "M",
    "epicName": "Testing and QA",
@@ -5331,7 +5334,8 @@
    "confidence": 4,
    "effort": "S",
    "risk": "low",
-   "status": "ready",
+   "status": "completed",
+   "outcome": "Completed and validated 2026-07-13: deterministic seeded property tests run 1,500 cases for bounds, monotonic bonus value, finite/non-negative results, and points-value linearity.",
    "problem": "value.ts formulas (bonus 10/(100+10), points cents-per-point, effective saving) are example-tested only; boundary behaviour (0%, 100%+, fractional cents, huge multipliers) relies on reviewer arithmetic.",
    "whyItMatters": "These numbers are the product; a property suite (monotonicity, bounds, never-negative, cash/points separation) catches the whole class of formula slips, including future mechanics (DS-015/016).",
    "currentBehaviour": "tests/giftcards/value.test.ts example-based.",
@@ -5372,7 +5376,7 @@
    "commitMessage": "DS-096: Property-based tests for the valuation formulas"
   },
   {
-   "id": "DS-097",
+  "id": "DS-097",
    "title": "One-command full validation gate (validate:all)",
    "epic": "N",
    "epicName": "Developer experience",
@@ -5383,7 +5387,8 @@
    "confidence": 5,
    "effort": "S",
    "risk": "low",
-   "status": "ready",
+   "status": "completed",
+   "outcome": "Completed and validated 2026-07-13: npm run validate:all prints a fail-fast per-step summary and optional --with-e2e adds Playwright; the full gate passed.",
    "problem": "The full pre-commit gate is nine commands across two Node concerns (handoff §L); partial runs have produced 'green-but-not-really' claims, and the giftcards/deals CI gap (DS-090) shows what unenforced discipline costs.",
    "whyItMatters": "Run before every commit by every agent; the summary table doubles as the honest completion report the working-style rules demand.",
    "currentBehaviour": "Commands documented in handoff §L only; no orchestration.",
@@ -5426,7 +5431,7 @@
    "commitMessage": "DS-097: One-command full validation gate (validate:all)"
   },
   {
-   "id": "DS-098",
+  "id": "DS-098",
    "title": "Fail-fast Node-version preflight for all npm scripts",
    "epic": "N",
    "epicName": "Developer experience",
@@ -5437,7 +5442,8 @@
    "confidence": 5,
    "effort": "XS",
    "risk": "low",
-   "status": "ready",
+   "status": "completed",
+   "outcome": "Completed and validated 2026-07-13: every npm script now runs an explicit Node preflight; Node 15 lint and Node 20 seed fail immediately with corrective nvm guidance.",
    "problem": "The shell defaults to Node 15; engines>=20 exists in package.json but npm doesn't enforce it by default, so wrong-Node runs fail with misleading errors (Turbopack panics, supabase-js WebSocket crashes) that have repeatedly consumed debugging time.",
    "whyItMatters": "Cheapest fix in the backlog for a documented recurring trap (three separate memory entries touch it).",
    "currentBehaviour": "engines field only; .nvmrc exists for CI; no runtime check.",
@@ -5480,7 +5486,7 @@
    "commitMessage": "DS-098: Fail-fast Node-version preflight for all npm scripts"
   },
   {
-   "id": "DS-099",
+  "id": "DS-099",
    "title": "Migration-rollout checklist automation (review → approve → apply → probe → types → manifest → hash)",
    "epic": "N",
    "epicName": "Developer experience",
@@ -5491,7 +5497,8 @@
    "confidence": 4,
    "effort": "M",
    "risk": "medium",
-   "status": "ready",
+   "status": "completed",
+   "outcome": "Completed and validated 2026-07-13: the rollout tool refuses dirty trees, has a zero-network dry run, captures read-only hashes, requires an exact interactive approval phrase, avoids unsafe bulk db push, regenerates types atomically, probes schema, tests the manifest, and emits pasteable evidence. First production use remains separately approval-gated.",
    "problem": "The migration ritual that kept 021/022 safe (apply → information_schema probe → types:gen → tsc → manifest → offer-hash before/after → one commit) is tribal knowledge in the handoff; migration 005 went missing historically precisely because steps of this ritual were skipped, and this backlog schedules at least four more migrations (DS-008, DS-013, DS-036, DS-089).",
    "whyItMatters": "Highest-blast-radius recurring workflow; four known future executions.",
    "currentBehaviour": "Handoff §K Phase 2-3 prose + docs/RECOMMENDED-AUTOMATIONS.md #2 proposal.",

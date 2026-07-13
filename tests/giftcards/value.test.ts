@@ -231,3 +231,67 @@ describe("acquisitionForSpend", () => {
     expect(acquisitionForSpend(500, 0)).toEqual({ faceValue: 0, cashPaid: 0, saving: 0 });
   });
 });
+
+describe("valuation properties", () => {
+  /** Deterministic LCG so a failing generated case is exactly reproducible. */
+  function generated(seed = 0x5eed1234): () => number {
+    let state = seed >>> 0;
+    return () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 0x1_0000_0000;
+    };
+  }
+
+  it("keeps bonus and points estimates finite, non-negative and below 100%", () => {
+    const random = generated();
+    for (let index = 0; index < 1_500; index += 1) {
+      const bonus = 0.01 + random() * 10_000;
+      const bonusEffective = bonusEffectiveDiscountPercent(bonus);
+      expect(Number.isFinite(bonusEffective)).toBe(true);
+      expect(bonusEffective).toBeGreaterThanOrEqual(0);
+      expect(bonusEffective).toBeLessThan(100);
+
+      const multiplier = 1 + random() * 49;
+      const faceValue = 1 + random() * 5_000;
+      const cents = 0.01 + random() * 1.99;
+      const points = valuePointsOffer(multiplier, faceValue, "Test", cents);
+      expect(points).not.toBeNull();
+      expect(Number.isFinite(points!.effectiveDiscountPercent)).toBe(true);
+      expect(points!.effectiveDiscountPercent).toBeGreaterThanOrEqual(0);
+      expect(points!.effectiveDiscountPercent).toBeLessThan(100);
+      expect(points!.valueDollars).toBeGreaterThanOrEqual(0);
+      expect(points!.effectiveCostDollars).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("makes bonus effective saving monotonic", () => {
+    const random = generated(0xb0057);
+    for (let index = 0; index < 1_500; index += 1) {
+      const lower = 0.01 + random() * 500;
+      const higher = lower + 0.01 + random() * 500;
+      expect(bonusEffectiveDiscountPercent(higher)).toBeGreaterThanOrEqual(
+        bonusEffectiveDiscountPercent(lower)
+      );
+    }
+  });
+
+  it("scales points reward value linearly with cents per point within rounding", () => {
+    const random = generated(0xc01a);
+    for (let index = 0; index < 1_500; index += 1) {
+      const multiplier = 1 + random() * 40;
+      const faceValue = 10 + random() * 2_000;
+      const cents = 0.1 + random() * 1.5;
+      const factor = 1.1 + random() * 3;
+      const base = valuePointsOffer(multiplier, faceValue, "Test", cents)!;
+      const scaled = valuePointsOffer(
+        multiplier,
+        faceValue,
+        "Test",
+        cents * factor
+      )!;
+      expect(Math.abs(scaled.valueDollars - base.valueDollars * factor)).toBeLessThan(
+        0.04
+      );
+    }
+  });
+});

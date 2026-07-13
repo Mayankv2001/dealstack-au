@@ -333,6 +333,10 @@ All commands assume `nvm use 20` first unless noted. **Stop gates in bold.**
 
 Full gate, in order, on **Node 20** (`nvm use 20`):
 
+Run `npm run validate:all` for lint, typecheck, all Vitest suites, build and
+`git diff --check`; add `-- --with-e2e` to include Playwright. The individual
+commands remain below for focused diagnosis and operational handoffs.
+
 ```bash
 npm run lint            # ESLint — zero tolerance
 npx tsc --noEmit        # type-check (catches stale database.types.ts)

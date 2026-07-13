@@ -48,3 +48,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# local evidence captured by the migration rollout checklist
+/.migration-rollout-state/

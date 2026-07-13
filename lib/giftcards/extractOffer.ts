@@ -175,17 +175,18 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
   const pointsProgram =
     PROGRAM_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ?? null;
 
-  // ── Promotion type: trust the source's own classification first ───────
+  // ── Promotion type ────────────────────────────────────────────────────
+  // GCDB's category is intentionally coarse: a real "Bonus 10% value" item
+  // is tagged "Discount". A concrete mechanic/value in the factual title is
+  // therefore stronger evidence; the source category is only a fallback.
   let promotionType: PromotionType = "unknown";
-  if (item.offerType === "discount") promotionType = "discount";
-  else if (item.offerType === "points") promotionType = "points";
+  if (bonusPercent) promotionType = "bonus-value";
+  else if (pointsMultiplier) promotionType = "points";
+  else if (discountPercent) promotionType = "discount";
   else if (item.offerType?.includes("bonus")) promotionType = "bonus-value";
+  else if (item.offerType === "points") promotionType = "points";
+  else if (item.offerType === "discount") promotionType = "discount";
   else if (item.offerType?.includes("member")) promotionType = "membership";
-  if (promotionType === "unknown") {
-    if (bonusPercent) promotionType = "bonus-value";
-    else if (pointsMultiplier) promotionType = "points";
-    else if (discountPercent) promotionType = "discount";
-  }
   // Reconcile classification with extracted values.
   if (promotionType === "discount" && !discountPercent && bonusPercent == null) {
     warnings.push("Classified as a discount but no percentage was found.");

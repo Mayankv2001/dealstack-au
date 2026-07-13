@@ -2142,7 +2142,7 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 
 ### DS-090 — Add test:giftcards and test:deals to the CI quality gate
 
-**Type:** testing · **Priority:** P1 (impact 4 / urgency 4 / confidence 5) · **Effort:** XS · **Risk:** low · **Status:** ready
+**Type:** testing · **Priority:** P1 (impact 4 / urgency 4 / confidence 5) · **Effort:** XS · **Risk:** low · **Status:** completed
 **Agent:** Codex · **Readiness:** Codex-ready · **Iteration:** IT-03 · **Production approval:** no
 
 **Problem:** ci.yml runs test:monitor, test:stack and test:admin but NOT test:giftcards (173 tests) or test:deals (14 tests) — the newest, most-active subsystem has zero CI coverage on PRs and pushes; a second account could break the entire gift-card layer with a green check.
@@ -2163,9 +2163,11 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 **Rollback/safety:** Revert workflow line. · **Docs:** PROJECT_STATE CI paragraph (DS-011 touches it).
 **Branch:** `ds-090-add-test-giftcards-and-test-deals-to-the-ci-qual` · **Commit:** `DS-090: Add test:giftcards and test:deals to the CI quality gate`
 
+**Outcome (2026-07-13):** Completed in `10173fc`; CI runs both previously missing suites.
+
 ### DS-091 — Capture a sanitised real GCDB feed fixture (including a compound item)
 
-**Type:** testing · **Priority:** P1 (impact 4 / urgency 3 / confidence 4) · **Effort:** S · **Risk:** low · **Status:** ready
+**Type:** testing · **Priority:** P1 (impact 4 / urgency 3 / confidence 4) · **Effort:** S · **Risk:** low · **Status:** completed
 **Agent:** mixed · **Readiness:** Human-gated · **Iteration:** IT-03 · **Production approval:** no
 
 **Problem:** All parser/extractor fixtures are synthetic; the repo's own memory records that synthetic fixtures already misled once (OzBargain expiry markers existed in the real feed but not fixtures). Compound-campaign work (DS-014) needs the real shape of a multi-offer item, not a guess.
@@ -2186,6 +2188,8 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 **Manual verification:** The one-time capture (manual GET or read-only prod raw_payload export) needs a human decision on which items to include.
 **Rollback/safety:** Remove fixture. · **Docs:** Fixture provenance header.
 **Branch:** `ds-091-capture-a-sanitised-real-gcdb-feed-fixture-inclu` · **Commit:** `DS-091: Capture a sanitised real GCDB feed fixture (including a compound item)`
+
+**Outcome (2026-07-13):** One identifying-UA RSS fetch produced a six-item ADR-9-compliant fixture. Parser/extractor tests cover the real repeated-tag shape and compound Amazon item. The fixture exposed GCDB's coarse `Discount` tag on Myer bonus value; extraction now lets the concrete title mechanic win.
 
 ### DS-092 — Production-shaped fixture builders and visual screenshot harness
 
@@ -2213,7 +2217,7 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 
 ### DS-093 — DST-boundary tests for the Sydney run-hour schedule guard
 
-**Type:** testing · **Priority:** P2 (impact 3 / urgency 2 / confidence 5) · **Effort:** S · **Risk:** low · **Status:** ready
+**Type:** testing · **Priority:** P2 (impact 3 / urgency 2 / confidence 5) · **Effort:** S · **Risk:** low · **Status:** completed
 **Agent:** Codex · **Readiness:** Codex-ready · **Iteration:** IT-03 · **Production approval:** no
 
 **Problem:** schedule.ts is pure-Intl DST-safe by design and the workflow fires at both UTC equivalents, but no test pins behaviour ON the transition days (first Sunday in October / first Sunday in April) — the exact dates where 20:00 vs 21:00 UTC flips and a 2am-skipped-hour could double-accept or double-skip.
@@ -2233,6 +2237,8 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 **Manual verification:** None.
 **Rollback/safety:** n/a (test-only). · **Docs:** None.
 **Branch:** `ds-093-dst-boundary-tests-for-the-sydney-run-hour-sched` · **Commit:** `DS-093: DST-boundary tests for the Sydney run-hour schedule guard`
+
+**Outcome (2026-07-13):** Added Sydney DST start/end dual-trigger, adjacent-hour, and 40-hour interval-guard coverage; full gift-card suite passes.
 
 ### DS-094 — Automated axe accessibility checks in the Playwright suite
 
@@ -2284,7 +2290,7 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 
 ### DS-096 — Property-based tests for the valuation formulas
 
-**Type:** testing · **Priority:** P3 (impact 3 / urgency 1 / confidence 4) · **Effort:** S · **Risk:** low · **Status:** ready
+**Type:** testing · **Priority:** P3 (impact 3 / urgency 1 / confidence 4) · **Effort:** S · **Risk:** low · **Status:** completed
 **Agent:** Codex · **Readiness:** Codex-ready · **Iteration:** IT-03 · **Production approval:** no
 
 **Problem:** value.ts formulas (bonus 10/(100+10), points cents-per-point, effective saving) are example-tested only; boundary behaviour (0%, 100%+, fractional cents, huge multipliers) relies on reviewer arithmetic.
@@ -2305,13 +2311,15 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 **Rollback/safety:** n/a. · **Docs:** None.
 **Branch:** `ds-096-property-based-tests-for-the-valuation-formulas` · **Commit:** `DS-096: Property-based tests for the valuation formulas`
 
+**Outcome (2026-07-13):** Added deterministic 1,500-case properties for bounds, monotonic bonus value, finite/non-negative outputs, and points-value linearity.
+
 ## Epic N — Developer experience (6 tickets)
 
 *The rituals that keep this repo safe are one-command mechanical, not tribal.*
 
 ### DS-097 — One-command full validation gate (validate:all)
 
-**Type:** developer-experience · **Priority:** P2 (impact 4 / urgency 2 / confidence 5) · **Effort:** S · **Risk:** low · **Status:** ready
+**Type:** developer-experience · **Priority:** P2 (impact 4 / urgency 2 / confidence 5) · **Effort:** S · **Risk:** low · **Status:** completed
 **Agent:** Codex · **Readiness:** Codex-ready · **Iteration:** IT-03 · **Production approval:** no
 
 **Problem:** The full pre-commit gate is nine commands across two Node concerns (handoff §L); partial runs have produced 'green-but-not-really' claims, and the giftcards/deals CI gap (DS-090) shows what unenforced discipline costs.
@@ -2333,9 +2341,11 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 **Rollback/safety:** Remove script. · **Docs:** README, handoff §L.
 **Branch:** `ds-097-one-command-full-validation-gate-validate-all` · **Commit:** `DS-097: One-command full validation gate (validate:all)`
 
+**Outcome (2026-07-13):** `npm run validate:all` now runs the fail-fast gate with a summary table; `-- --with-e2e` includes Playwright. The complete six-step gate passed.
+
 ### DS-098 — Fail-fast Node-version preflight for all npm scripts
 
-**Type:** developer-experience · **Priority:** P2 (impact 3 / urgency 2 / confidence 5) · **Effort:** XS · **Risk:** low · **Status:** ready
+**Type:** developer-experience · **Priority:** P2 (impact 3 / urgency 2 / confidence 5) · **Effort:** XS · **Risk:** low · **Status:** completed
 **Agent:** Codex · **Readiness:** Codex-ready · **Iteration:** IT-03 · **Production approval:** no
 
 **Problem:** The shell defaults to Node 15; engines>=20 exists in package.json but npm doesn't enforce it by default, so wrong-Node runs fail with misleading errors (Turbopack panics, supabase-js WebSocket crashes) that have repeatedly consumed debugging time.
@@ -2357,9 +2367,11 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 **Rollback/safety:** Remove .npmrc line/check. · **Docs:** README setup section.
 **Branch:** `ds-098-fail-fast-node-version-preflight-for-all-npm-scr` · **Commit:** `DS-098: Fail-fast Node-version preflight for all npm scripts`
 
+**Outcome (2026-07-13):** All npm scripts have a runtime preflight. Node 15 lint and Node 20 seed were verified to fail immediately with the correct `nvm use` guidance.
+
 ### DS-099 — Migration-rollout checklist automation (review → approve → apply → probe → types → manifest → hash)
 
-**Type:** developer-experience · **Priority:** P2 (impact 4 / urgency 2 / confidence 4) · **Effort:** M · **Risk:** medium · **Status:** ready
+**Type:** developer-experience · **Priority:** P2 (impact 4 / urgency 2 / confidence 4) · **Effort:** M · **Risk:** medium · **Status:** completed
 **Agent:** Opus 4.8 · **Readiness:** Opus-design · **Iteration:** IT-03 · **Production approval:** no
 
 **Problem:** The migration ritual that kept 021/022 safe (apply → information_schema probe → types:gen → tsc → manifest → offer-hash before/after → one commit) is tribal knowledge in the handoff; migration 005 went missing historically precisely because steps of this ritual were skipped, and this backlog schedules at least four more migrations (DS-008, DS-013, DS-036, DS-089).
@@ -2380,6 +2392,8 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 **Manual verification:** First real use on DS-008.
 **Rollback/safety:** Tool itself read-only until the gated apply step. · **Docs:** docs/gift-card-pipeline.md ops; handoff §K reference.
 **Branch:** `ds-099-migration-rollout-checklist-automation-review-ap` · **Commit:** `DS-099: Migration-rollout checklist automation (review → approve → apply → probe → types → manifest → hash)`
+
+**Outcome (2026-07-13):** Added a dirty-tree guard, zero-network dry run, read-only before/after hashes, exact interactive approval phrase, atomic type generation, schema/type/manifest verification, and pasteable evidence. Unsafe bulk `db push` is deliberately excluded because the production ledger is partial; first real use remains separately migration-approved.
 
 ### DS-100 — Read-only production offer-audit script producing a corrections-doc draft
 
