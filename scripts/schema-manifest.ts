@@ -61,7 +61,6 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "024_gift_card_programmes.sql",
   "025_public_gift_card_offer_history.sql",
   "026_public_correction_reports.sql",
-  "027_email_alerts.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -410,22 +409,6 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
   public_correction_reports: table("026_public_correction_reports.sql", [
     "id", "entity_type", "entity_id", "reported_label", "reason", "details",
     "request_fingerprint", "status", "reviewed_by", "reviewed_at", "created_at",
-  ]),
-  email_alert_subscriptions: table("027_email_alerts.sql", [
-    "id", "email", "criteria_kind", "criteria_key", "status",
-    "confirmation_token_hash", "unsubscribe_token_hash",
-    "request_fingerprint", "consent_version", "requested_at",
-    "confirmed_at", "unsubscribed_at", "last_sent_at", "created_at",
-    "updated_at",
-  ]),
-  email_alert_outbox: table("027_email_alerts.sql", [
-    "id", "subscription_id", "message_kind", "dedupe_key",
-    "recipient_email", "payload", "status", "attempts",
-    "next_attempt_at", "claimed_at", "sent_at", "last_error",
-    "created_at", "updated_at",
-  ]),
-  email_alert_request_events: table("027_email_alerts.sql", [
-    "id", "request_fingerprint", "created_at",
   ]),
 };
 

@@ -167,20 +167,4 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("gift-card-acceptance");
   });
 
-  it("keeps email alerts private, double-opt-in and disabled outside application flags", () => {
-    const sql = migration("027_email_alerts.sql");
-    expect(sql).toContain("email_alert_subscriptions");
-    expect(sql).toContain("status in ('pending', 'active', 'unsubscribed', 'bounced')");
-    expect(sql).toContain("confirmation_token_hash");
-    expect(sql).toContain("unsubscribe_token_hash");
-    expect(sql).toContain("email_alert_outbox");
-    expect(sql).toContain("for update skip locked");
-    expect(sql).toContain("consume_email_alert_request_limit");
-    expect(sql).toContain("pg_advisory_xact_lock");
-    expect(sql).toContain("request_email_alert_subscription");
-    expect(sql).toContain("claimed_at < now() - interval '15 minutes'");
-    expect(sql).toContain("prune_email_alert_data");
-    expect(sql).toContain("status in ('unsubscribed', 'bounced')");
-    expect(sql).toContain("No public policies");
-  });
 });

@@ -70,33 +70,6 @@ export const alertWebhookUrl = (): string | null => {
   return value && value.trim() !== "" ? value : null;
 };
 
-// ── Public email alerts (SERVER ONLY) ──────────────────────────────────────
-// The lifecycle and outbox are implemented locally, but both switches default
-// off. Production delivery requires the separately reviewed migration,
-// privacy copy and delivery endpoint before either switch is enabled.
-
-export const emailAlertsEnabled = (): boolean =>
-  process.env.EMAIL_ALERTS_ENABLED === "true";
-
-export const emailAlertDeliveryEnabled = (): boolean =>
-  process.env.EMAIL_ALERT_DELIVERY_ENABLED === "true";
-
-export const emailAlertsPublicEnabled = (): boolean =>
-  emailAlertsEnabled() && emailAlertDeliveryEnabled();
-
-export const emailAlertTokenSecret = (): string =>
-  requireEnv("EMAIL_ALERT_TOKEN_SECRET");
-
-export const emailDeliveryWebhookUrl = (): string | null => {
-  const value = process.env.EMAIL_DELIVERY_WEBHOOK_URL;
-  return value && value.trim() !== "" ? value : null;
-};
-
-export const emailDeliveryWebhookToken = (): string | null => {
-  const value = process.env.EMAIL_DELIVERY_WEBHOOK_TOKEN;
-  return value && value.trim() !== "" ? value : null;
-};
-
 // ── OzBargain feed monitor (SERVER/SCRIPT ONLY) ──────────────────────────────
 // All gated behind the master switch below. These are lazy reads (functions) so
 // importing this module never throws; the monitor only calls them on its own

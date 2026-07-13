@@ -30,7 +30,6 @@ jobs:
       - run: npm run test:admin
       - run: npm run test:giftcards
       - run: npm run test:deals
-      - run: npm run test:alerts
       - run: npm run test:decision
       - run: npm run build
       - name: Smoke test the production build

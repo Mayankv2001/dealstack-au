@@ -124,14 +124,6 @@ test("gift-card acceptance lookup preserves the not-recorded distinction", async
   await expect(page.getByText("This is “not recorded”, not “not accepted”.")).toBeVisible();
 });
 
-test("email alerts remain visibly gated until delivery is approved", async ({ page }) => {
-  await page.goto("/alerts");
-  await expect(page.getByRole("heading", { name: "Email alerts" })).toBeVisible();
-  await expect(page.getByText("Alerts are not enabled yet")).toBeVisible();
-  const response = await page.request.post("/api/alerts/subscribe", { data: { email: "test@example.com", kind: "store", key: "Myer" } });
-  expect(response.status()).toBe(503);
-});
-
 test("deals: weekly pick links through to its permalink page", async ({
   page,
 }) => {
@@ -335,7 +327,6 @@ test("public routes do not overflow the viewport", async ({ page }) => {
     "/gift-cards/programmes",
     "/rewards",
     "/rewards/everyday-rewards",
-    "/alerts",
     "/stores",
     "/search?q=myer",
     "/search?q=macbook-air-m3",
@@ -350,7 +341,7 @@ test("public routes do not overflow the viewport", async ({ page }) => {
 });
 
 test("admin: protected pages bounce to the login route", async ({ page }) => {
-  for (const path of ["/admin/dashboard", "/admin/gift-card-intelligence", "/admin/alerts"]) {
+  for (const path of ["/admin/dashboard", "/admin/gift-card-intelligence"]) {
     await page.goto(path);
     // The auth gate must redirect before any admin content renders. We assert
     // the redirect only: rendering the login form itself needs Supabase env.
@@ -360,7 +351,7 @@ test("admin: protected pages bounce to the login route", async ({ page }) => {
 });
 
 test("core decision routes have no serious automated accessibility violations", async ({ page }) => {
-  for (const path of ["/", "/search?q=myer&spend=500", "/gift-cards", "/rewards/everyday-rewards", "/alerts"]) {
+  for (const path of ["/", "/search?q=myer&spend=500", "/gift-cards", "/rewards/everyday-rewards"]) {
     await page.goto(path);
     const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     const serious = result.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");

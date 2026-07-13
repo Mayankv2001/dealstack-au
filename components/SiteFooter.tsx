@@ -8,7 +8,6 @@ const PRODUCT_LINKS = [
   ["Gift cards", "/gift-cards"],
   ["Gift-card directory", "/gift-cards/products"],
   ["Rewards", "/rewards"],
-  ["Email alerts", "/alerts"],
   ["Resources", "/resources"],
 ] as const;
 
