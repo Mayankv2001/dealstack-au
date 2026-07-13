@@ -11,6 +11,20 @@ describe("public deal normalisation", () => {
     expect(deal.title).toBe("Headphones & case");
     expect(deal.sourceNativeId).toBe("ozb:1");
     expect(deal.savingPercent).toBe(20);
+    expect(deal.sourceUrl).toBe("https://www.ozbargain.com.au/node/1");
+    expect(deal.publisherFamily).toBe("ozbargain");
+    expect(deal.capturedAt).toBe("2026-07-12T02:00:00Z");
+    expect(deal.votes).toBe(5);
+  });
+
+  it("links community heat to the discussion rather than a merchant destination", () => {
+    const [deal] = buildPublicDeals({ stores: [], signals: [{ ...signal, productUrl: "https://retailer.example/product", merchantUrl: "https://retailer.example" }], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() });
+    expect(deal.sourceUrl).toBe("https://www.ozbargain.com.au/node/1");
+  });
+
+  it("does not present a non-OzBargain URL as an OzBargain discussion", () => {
+    const [deal] = buildPublicDeals({ stores: [], signals: [{ ...signal, sourceUrl: "https://retailer.example/deal" }], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() });
+    expect(deal.sourceUrl).toBeNull();
   });
 
   it("never renders sample placeholder URLs as actions", () => {

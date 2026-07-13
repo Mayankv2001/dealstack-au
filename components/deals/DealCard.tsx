@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, Copy, ExternalLink, Layers3, MessageSquare } from "lucide-react";
+import { ArrowRight, Copy, ExternalLink, Layers3, MessageSquare, ThumbsUp } from "lucide-react";
 import StoreLogo from "@/components/StoreLogo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Store } from "@/lib/data";
 import type { DealGroup, PublicDeal } from "@/lib/deals/types";
 import { formatAUD } from "@/lib/calculateStack";
-import { DealFreshness } from "./DealFreshness";
+import { DealFreshness, relativeTimeLabel } from "./DealFreshness";
 import { DealConditionBadges, DealStatusBadge } from "./DealStatusBadge";
 
 function DealPrice({ deal }: { deal: PublicDeal }) {
@@ -105,7 +105,9 @@ export function DealCard({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
             {deal.stackable ? <span className="inline-flex items-center gap-1"><Layers3 aria-hidden className="size-3" /> Stackable</span> : null}
+            {deal.votes != null ? <span className="inline-flex items-center gap-1"><ThumbsUp aria-hidden className="size-3" /> {deal.votes}</span> : null}
             {deal.comments != null ? <span className="inline-flex items-center gap-1"><MessageSquare aria-hidden className="size-3" /> {deal.comments}</span> : null}
+            {deal.kind === "community" && deal.capturedAt ? <span>Captured {relativeTimeLabel(deal.capturedAt, now) ?? deal.capturedAt.slice(0, 10)}</span> : null}
           </div>
           {href ? (
             <Button asChild size="sm" variant={deal.detailPath ? "default" : "outline"}>

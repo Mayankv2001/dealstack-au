@@ -107,6 +107,14 @@ describe("canonicaliseUrl", () => {
   it("returns the trimmed input for an unparseable URL", () => {
     expect(canonicaliseUrl("  not a url  ")).toBe("not a url");
   });
+
+  it("rejects dangerous schemes instead of silently leaving them unchanged", () => {
+    // Setting `.protocol = "https:"` on a WHATWG URL is a no-op for opaque-path
+    // schemes, so without an explicit allowlist these would pass through intact.
+    expect(canonicaliseUrl("javascript:alert(1)")).toBeNull();
+    expect(canonicaliseUrl("data:text/html,<script>alert(1)</script>")).toBeNull();
+    expect(canonicaliseUrl("vbscript:msgbox(1)")).toBeNull();
+  });
 });
 
 describe("parseAuDate", () => {

@@ -44,6 +44,28 @@ describe("summariseCitations", () => {
     expect(summary.total).toBe(4);
   });
 
+  it("counts GCDB and FreePoints as one independent publisher family", () => {
+    const summary = summariseCitations([
+      { source: "gcdb", sourceUrl: "https://gcdb.com.au/offer/1" },
+      {
+        source: "freepoints",
+        sourceUrl: "https://freepoints.com.au/example-offer/",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/1",
+      },
+    ]);
+
+    expect(summary.providers).toHaveLength(3);
+    expect(summary.publisherFamilyCount).toBe(2);
+    expect(
+      summary.providers.filter(
+        (provider) => provider.publisherFamily === "freepoints-network"
+      )
+    ).toHaveLength(2);
+  });
+
   it("never exposes more than the visible limit of source badges", () => {
     const citations: Citation[] = [
       { source: "manual", sourceUrl: "/" },
@@ -89,5 +111,6 @@ describe("summariseCitations", () => {
     const summary = summariseCitations([]);
     expect(summary.total).toBe(0);
     expect(summary.providers).toHaveLength(0);
+    expect(summary.publisherFamilyCount).toBe(0);
   });
 });

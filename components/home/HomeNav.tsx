@@ -51,7 +51,7 @@ export function HomeNav() {
           <Button
             asChild
             size="sm"
-            className="hidden bg-emerald-600 text-white hover:bg-emerald-700 sm:inline-flex"
+            className="hidden bg-emerald-700 text-white hover:bg-emerald-800 sm:inline-flex"
           >
             <a href="#store-search">Search stores</a>
           </Button>
@@ -96,7 +96,7 @@ export function HomeNav() {
               <Button
                 asChild
                 size="sm"
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                className="bg-emerald-700 text-white hover:bg-emerald-800"
               >
                 <a href="#store-search" onClick={() => setMenuOpen(false)}>
                   Search stores

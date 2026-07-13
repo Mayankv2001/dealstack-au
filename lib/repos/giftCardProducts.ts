@@ -125,6 +125,20 @@ export async function getGiftCardProducts(
   });
 }
 
+/** All admin-activated products for the public directory. */
+export async function getAllGiftCardProducts(): Promise<GiftCardProduct[]> {
+  return fromDbOrDemo("gift_card_products", [] as GiftCardProduct[], async (db) => {
+    const { data, error } = await db
+      .from("gift_card_products")
+      .select("*")
+      .eq("is_active", true)
+      .order("brand", { ascending: true })
+      .limit(1000);
+    if (error) throw error;
+    return ((data ?? []) as unknown as ProductRow[]).map(mapProduct);
+  });
+}
+
 /** Published acceptance rows for the given products, verified-first. */
 export async function getGiftCardAcceptance(
   productIds: string[]
@@ -141,6 +155,24 @@ export async function getGiftCardAcceptance(
         .in("product_id", wanted)
         .eq("is_public", true)
         .limit(500);
+      if (error) throw error;
+      return ((data ?? []) as unknown as AcceptanceDbRow[]).map(mapAcceptance);
+    }
+  );
+}
+
+
+/** Every admin-published acceptance fact for the bidirectional lookup. */
+export async function getAllGiftCardAcceptance(): Promise<GiftCardAcceptanceRow[]> {
+  return fromDbOrDemo(
+    "gift_card_merchant_acceptance",
+    [] as GiftCardAcceptanceRow[],
+    async (db) => {
+      const { data, error } = await db
+        .from("gift_card_merchant_acceptance")
+        .select("*")
+        .eq("is_public", true)
+        .limit(2000);
       if (error) throw error;
       return ((data ?? []) as unknown as AcceptanceDbRow[]).map(mapAcceptance);
     }

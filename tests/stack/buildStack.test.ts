@@ -2,20 +2,28 @@ import { describe, expect, it } from "vitest";
 import { buildStackRecommendations } from "../../lib/stack/buildStack";
 import {
   TEST_NOW,
+  makeGiftCardAcceptance,
   makeCashback,
   makeGiftCard,
+  makeGiftCardProduct,
   makePoints,
   makeSignal,
   makeStackData,
   makeStore,
 } from "./factories";
 
+const verifiedGiftCardEvidence = {
+  giftCardProducts: [makeGiftCardProduct()],
+  giftCardAcceptance: [makeGiftCardAcceptance()],
+};
+
 describe("buildStackRecommendations", () => {
   it("stacks an uncapped gift card and cashback (no conflict)", () => {
     const data = makeStackData({
+      ...verifiedGiftCardEvidence,
       stores: [makeStore({ id: "myer", discountPercent: 0 })],
       giftCardOffers: [
-        makeGiftCard({ discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
+        makeGiftCard({ productId: "product-1", discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
       ],
       cashbackOffers: [
         makeCashback({ ratePercent: 4, excludesGiftCardPayment: false }),
@@ -45,9 +53,10 @@ describe("buildStackRecommendations", () => {
 
   it("resolves the gift-card/cashback conflict by keeping the larger saving", () => {
     const data = makeStackData({
+      ...verifiedGiftCardEvidence,
       stores: [makeStore({ id: "myer", discountPercent: 0 })],
       giftCardOffers: [
-        makeGiftCard({ discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
+        makeGiftCard({ productId: "product-1", discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
       ],
       cashbackOffers: [
         makeCashback({ ratePercent: 4, excludesGiftCardPayment: true }),
@@ -164,9 +173,11 @@ describe("buildStackRecommendations", () => {
 
   it("drives expiry-soon and stale-data warnings off the injected clock", () => {
     const data = makeStackData({
+      ...verifiedGiftCardEvidence,
       stores: [makeStore({ id: "myer", discountPercent: 0 })],
       giftCardOffers: [
         makeGiftCard({
+          productId: "product-1",
           discountPercent: 5,
           acceptedAtMerchantIds: ["myer"],
           // 45 days before TEST_NOW (> STALE_DATA_DAYS) → stale at TEST_NOW.
@@ -218,9 +229,11 @@ describe("buildStackRecommendations", () => {
 
   it("gift-card spend cap (behaviour preserved): caps the eligible spend, not the saving", () => {
     const data = makeStackData({
+      ...verifiedGiftCardEvidence,
       stores: [makeStore({ id: "myer", discountPercent: 0 })],
       giftCardOffers: [
         makeGiftCard({
+          productId: "product-1",
           discountPercent: 10,
           capDollars: 200,
           acceptedAtMerchantIds: ["myer"],
@@ -236,9 +249,10 @@ describe("buildStackRecommendations", () => {
 
   it("conflict resolution uses the corrected numbers: a capped cashback now competes on its true value", () => {
     const data = makeStackData({
+      ...verifiedGiftCardEvidence,
       stores: [makeStore({ id: "myer", discountPercent: 0 })],
       giftCardOffers: [
-        makeGiftCard({ discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
+        makeGiftCard({ productId: "product-1", discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
       ],
       cashbackOffers: [
         makeCashback({

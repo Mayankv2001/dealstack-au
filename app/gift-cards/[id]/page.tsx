@@ -19,11 +19,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import GiftCardAcceptance from "@/components/GiftCardAcceptance";
 import GiftCardWorkedExample from "@/components/GiftCardWorkedExample";
+import ReportProblemForm from "@/components/ReportProblemForm";
 import {
   getGiftCardAcceptance,
   getGiftCardOffers,
@@ -34,13 +35,16 @@ import type { GiftCardOffer } from "@/lib/offers/types";
 import { formatDateAU } from "@/lib/sources/normalise";
 import {
   compatibilityStatusLabel,
-  evaluateGiftCardCompatibility,
   type GiftCardCompatibilityStatus,
 } from "@/lib/giftcards/compatibility";
 import { offerEffectiveSaving } from "@/lib/giftcards/publicQuery";
 import { buildClaimSteps } from "@/lib/giftcards/claimSteps";
 import { buildTermsRows, formatExpiry } from "@/lib/giftcards/termsRows";
-import { analyseGiftCardStackability, type StageAnalysis } from "@/lib/giftcards/stackability";
+import {
+  analyseGiftCardStackability,
+  summariseGiftCardStackability,
+  type StageAnalysis,
+} from "@/lib/giftcards/stackability";
 import { buildProductAcceptance } from "@/lib/giftcards/acceptanceModel";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
@@ -211,10 +215,10 @@ export default async function GiftCardDetailPage({
   ]);
 
   const now = new Date();
-  const compat = evaluateGiftCardCompatibility(offer, { now });
+  const stackability = analyseGiftCardStackability(offer, { now, acceptance });
+  const compat = summariseGiftCardStackability(stackability);
   const compatStyle = STATUS_STYLE[compat.status];
   const CompatIcon = compatStyle.icon;
-  const stackability = analyseGiftCardStackability(offer, { now, acceptance });
   const stackWarnings = [
     ...new Set([
       ...stackability.acquisition.warnings,
@@ -275,19 +279,12 @@ export default async function GiftCardDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/gift-cards">
-              <ArrowLeft />
-              All gift cards
-            </Link>
-          </Button>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+        <Link href="/gift-cards" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" /> All gift cards
+        </Link>
         <div className="gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           {/* ── Main column ─────────────────────────────────────────────── */}
           <div className="min-w-0 space-y-6">
@@ -339,6 +336,7 @@ export default async function GiftCardDetailPage({
                   </Button>
                 ) : null}
               </div>
+              <ReportProblemForm entityType="gift-card-offer" entityId={offer.id} />
             </div>
 
             {/* Compatibility verdict */}
@@ -474,6 +472,7 @@ export default async function GiftCardDetailPage({
             {/* 6 · Worked example */}
             <SectionCard id="worked-example" title="Worked example" icon={Coins}>
               <GiftCardWorkedExample
+                stackSearchQuery={`${offer.brand} ${seller}`}
                 inputs={{
                   promotionType: offer.promotionType ?? "discount",
                   discountPercent: offer.discountPercent || null,

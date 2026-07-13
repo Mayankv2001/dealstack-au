@@ -28,6 +28,9 @@ interface SearchBarProps {
    */
   layout?: "attached" | "split";
   autoFocus?: boolean;
+  /** Include the purchase amount in the shareable /search URL. */
+  showSpend?: boolean;
+  defaultSpend?: number;
 }
 
 export function SearchBar({
@@ -40,9 +43,12 @@ export function SearchBar({
   size = "default",
   layout = "attached",
   autoFocus,
+  showSpend = false,
+  defaultSpend = 500,
 }: SearchBarProps) {
   const router = useRouter();
   const [internal, setInternal] = useState(defaultValue);
+  const [spend, setSpend] = useState(defaultSpend);
   const isControlled = value !== undefined;
   const query = isControlled ? value : internal;
 
@@ -54,7 +60,11 @@ export function SearchBar({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const q = query.trim();
-    if (q) router.push(`/search?q=${encodeURIComponent(q)}`);
+    if (q) {
+      const params = new URLSearchParams({ q });
+      if (showSpend) params.set("spend", String(spend));
+      router.push(`/search?${params.toString()}`);
+    }
   };
 
   const lg = size === "lg";
@@ -91,11 +101,27 @@ export function SearchBar({
           )}
         />
       </div>
+      {showSpend ? (
+        <label className="flex h-14 items-center gap-2 rounded-2xl border bg-background px-3 text-sm shadow-sm sm:w-36">
+          <span className="font-medium text-muted-foreground">Spend $</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={1}
+            max={100000}
+            step={10}
+            value={spend}
+            onChange={(event) => setSpend(Number(event.target.value) || defaultSpend)}
+            aria-label="Planned spend in Australian dollars"
+            className="min-w-0 flex-1 bg-transparent font-semibold outline-none"
+          />
+        </label>
+      ) : null}
       <Button
         type="submit"
         size={lg ? "default" : "sm"}
         className={cn(
-          "bg-emerald-600 text-white hover:bg-emerald-700",
+          "bg-emerald-700 text-white hover:bg-emerald-800",
           split
             ? lg
               ? "h-14 rounded-2xl px-6 text-base"

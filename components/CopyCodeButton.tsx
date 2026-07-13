@@ -49,7 +49,7 @@ export default function CopyCodeButton({
       <span aria-live="polite" className="sr-only">
         {copied ? "Copied to clipboard" : ""}
       </span>
-      <span aria-hidden className="font-sans text-[10px] font-medium text-muted-foreground">
+      <span aria-hidden className="font-sans text-[10px] font-medium text-foreground">
         {copied ? "Copied" : "Copy"}
       </span>
     </button>

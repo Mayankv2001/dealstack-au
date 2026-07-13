@@ -3,10 +3,10 @@ import Link from "next/link";
 import { SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import Logo from "@/components/Logo";
 import SearchBar from "@/components/SearchBar";
 import StoreCard from "@/components/StoreCard";
 import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { getStores } from "@/lib/repos";
 import type { Store } from "@/lib/data";
 
@@ -40,30 +40,7 @@ export default async function StoresIndexPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Deals</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/cards">Cards</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/resources">Resources</Link>
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="hidden bg-background sm:inline-flex"
-            >
-              <Link href="/">Home</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <h1 className="text-xl font-bold tracking-tight sm:text-2xl">

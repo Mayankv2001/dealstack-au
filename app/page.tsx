@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/JsonLd";
 import TopDealsSection from "@/components/TopDealsSection";
-import HomeNav from "@/components/home/HomeNav";
+import SiteHeader from "@/components/SiteHeader";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
 import {
   CalculatorSection,
@@ -57,7 +57,7 @@ export default async function Home() {
       <JsonLd data={buildWebSiteJsonLd(site)} />
       <JsonLd data={buildOrganizationJsonLd(site)} />
       <div className="min-h-screen bg-background">
-        <HomeNav />
+        <SiteHeader />
         <main>
           <HomeSearchSections
             stores={data.stores}

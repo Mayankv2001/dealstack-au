@@ -136,8 +136,8 @@ describe("StackRecommendationCard — cash stack", () => {
     );
     // Four OzBargain records collapse into a single badge that carries the count.
     expect(html).toContain("OzBargain ×4");
-    // The summary states the true number of distinct sources checked.
-    expect(html).toContain("6 sources checked");
+    // The summary distinguishes six links from three independent publishers.
+    expect(html).toContain("6 source links across 3 independent publisher families");
   });
 
   it("keeps every citation reachable in the disclosure", () => {
@@ -205,6 +205,40 @@ describe("StackRecommendationCard — cash stack", () => {
       <StackRecommendationCard recommendation={rec} stores={stores} />
     );
     expect(html).toContain("Choose one");
+  });
+
+  it("explains uncertain gift-card acquisition and redemption separately", () => {
+    const rec = cashRec({
+      components: [
+        {
+          layer: "gift-card",
+          label: "5% off gift cards",
+          valuePercent: 5,
+          valueDollars: 25,
+          optional: true,
+          citation: { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
+          confidence: "confirmed",
+          compatibilityStatus: "requires-verification",
+          compatibilityReason: "Acceptance needs checking.",
+          compatibilityWarnings: ["Confirm retailer acceptance."],
+          compatibilityStages: {
+            acquisition: { status: "compatible", reason: "Purchase terms are confirmed." },
+            redemption: {
+              status: "requires-verification",
+              reason: "Acceptance is listed but not independently verified.",
+            },
+          },
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={rec} stores={stores} />
+    );
+    expect(html).toContain("Why this needs checking");
+    expect(html).toContain("Buy:");
+    expect(html).toContain("Purchase terms are confirmed.");
+    expect(html).toContain("Spend:");
+    expect(html).toContain("Acceptance is listed but not independently verified.");
   });
 });
 

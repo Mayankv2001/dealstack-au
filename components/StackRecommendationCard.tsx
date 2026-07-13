@@ -33,6 +33,7 @@ import {
   hasChooseOneLayer,
   layerCompatibility,
   layerStatusLabel,
+  layerUncertaintyDetails,
   stackTrustStatus,
   summariseConditions,
   type StackTrustTone,
@@ -237,6 +238,7 @@ function LayerList({ rec }: { rec: StackRecommendation }) {
         const compat = layerCompatibility(c);
         const showCombined =
           compat === "combined" && c.layer !== "points" && combinableCount >= 2;
+        const uncertainty = layerUncertaintyDetails(c);
         return (
           <div
             key={`${c.layer}-${i}`}
@@ -272,6 +274,35 @@ function LayerList({ rec }: { rec: StackRecommendation }) {
                   {c.note}
                 </p>
               )}
+              {uncertainty ? (
+                <details className="group/uncertainty mt-1 text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer list-none font-medium text-amber-700 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
+                    Why this needs checking
+                  </summary>
+                  <dl className="mt-1 space-y-1 border-l-2 border-amber-500/25 pl-2 leading-snug">
+                    <div>
+                      <dt className="inline font-semibold text-foreground/80">Buy: </dt>
+                      <dd className="inline">{uncertainty.acquisition}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-semibold text-foreground/80">Spend: </dt>
+                      <dd className="inline">{uncertainty.redemption}</dd>
+                    </div>
+                    {uncertainty.warnings.length > 0 ? (
+                      <div>
+                        <dt className="font-semibold text-foreground/80">Check:</dt>
+                        <dd>
+                          <ul className="list-disc pl-4">
+                            {uncertainty.warnings.map((warning) => (
+                              <li key={warning}>{warning}</li>
+                            ))}
+                          </ul>
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </details>
+              ) : null}
             </div>
             <span className="shrink-0 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
               {c.layer === "points"
@@ -346,7 +377,7 @@ export function StackRecommendationCard({
         <CardContent className="flex h-full flex-col gap-2.5 p-3.5">
           <div className="flex items-center gap-2">
             {typeof rank === "number" && (
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-[10px] font-bold text-white">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-[10px] font-bold text-white">
                 {rank}
               </span>
             )}
@@ -471,7 +502,7 @@ export function StackRecommendationCard({
         {/* Header */}
         <div className="flex items-center gap-2.5">
           {typeof rank === "number" && (
-            <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-[10px] font-bold text-white">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-[10px] font-bold text-white">
               {rank}
             </span>
           )}

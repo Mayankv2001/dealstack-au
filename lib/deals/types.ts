@@ -70,6 +70,10 @@ export interface PublicDeal {
   expiryDate: string | null;
   /** Human source name: "OzBargain", "RACV", "ShopBack", a program, … */
   sourceName: string;
+  /** Independent publisher family used for corroboration de-duplication. */
+  publisherFamily: string;
+  /** When external signal counts/facts were captured, not when first posted. */
+  capturedAt: string | null;
   /** Safe external offer/source URL, when one exists. */
   sourceUrl: string | null;
   /** Internal detail page, when one exists. */

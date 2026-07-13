@@ -6,7 +6,7 @@ import type { PublicDeal } from "@/lib/deals/types";
 const NOW = new Date("2026-07-12T12:00:00+10:00");
 
 function deal(over: Partial<PublicDeal> = {}): PublicDeal {
-  const base: PublicDeal = { id: "community:1", kind: "community", title: "AirPods 4 ANC sale", summary: "Current Apple earbuds offer", merchantId: "jb-hifi", merchantName: "JB Hi-Fi", category: "Audio", tags: ["Apple", "Earbuds"], priceText: "$207", priceValue: 207, wasPrice: 299, savingPercent: 31, couponCode: null, trust: "community", membershipRequired: false, activationRequired: false, targeted: false, channelNote: "Online", postedAt: "2026-07-12T01:00:00Z", lastCheckedAt: "2026-07-12T02:00:00Z", expiryDate: "2026-07-15", sourceName: "OzBargain", sourceUrl: "https://www.ozbargain.com.au/node/1", detailPath: "/deals/signal/1", stackable: true, productGroup: null, sourceNativeId: "ozb:1", votes: 20, comments: 4, searchText: "airpods 4 anc sale current apple earbuds offer jb hi-fi audio apple earbuds ozbargain", score: 80 };
+  const base: PublicDeal = { id: "community:1", kind: "community", title: "AirPods 4 ANC sale", summary: "Current Apple earbuds offer", merchantId: "jb-hifi", merchantName: "JB Hi-Fi", category: "Audio", tags: ["Apple", "Earbuds"], priceText: "$207", priceValue: 207, wasPrice: 299, savingPercent: 31, couponCode: null, trust: "community", membershipRequired: false, activationRequired: false, targeted: false, channelNote: "Online", postedAt: "2026-07-12T01:00:00Z", lastCheckedAt: "2026-07-12T02:00:00Z", expiryDate: "2026-07-15", sourceName: "OzBargain", publisherFamily: "ozbargain", capturedAt: "2026-07-12T02:00:00Z", sourceUrl: "https://www.ozbargain.com.au/node/1", detailPath: "/deals/signal/1", stackable: true, productGroup: null, sourceNativeId: "ozb:1", votes: 20, comments: 4, searchText: "airpods 4 anc sale current apple earbuds offer jb hi-fi audio apple earbuds ozbargain", score: 80 };
   return { ...base, ...over };
 }
 
@@ -43,5 +43,39 @@ describe("deals query engine", () => {
     const result = queryDeals(many, { ...DEFAULT_PARAMS, view: "top", page: 500 }, NOW);
     expect(result.page).toBe(2);
     expect(result.items).toHaveLength(1);
+  });
+
+  it("uses community heat only inside a trust tier", () => {
+    const viralCommunity = deal({
+      id: "community:viral",
+      trust: "community",
+      score: 100,
+      votes: 10_000,
+    });
+    const modestVerified = deal({
+      id: "gift-card:verified",
+      kind: "gift-card",
+      trust: "verified",
+      score: 45,
+      votes: null,
+    });
+    const [first] = sortItems(
+      [
+        { type: "deal" as const, deal: viralCommunity },
+        { type: "deal" as const, deal: modestVerified },
+      ],
+      "recommended"
+    );
+    expect(first.type).toBe("deal");
+    if (first.type === "deal") expect(first.deal.id).toBe("gift-card:verified");
+  });
+
+  it("makes the Recently checked view deterministic regardless of the selected sort", () => {
+    const olderCheck = deal({ id: "older", sourceNativeId: "older", lastCheckedAt: "2026-07-10T00:00:00Z", score: 100 });
+    const newerCheck = deal({ id: "newer", sourceNativeId: "newer", lastCheckedAt: "2026-07-12T00:00:00Z", score: 1 });
+    const result = queryDeals([olderCheck, newerCheck], { ...DEFAULT_PARAMS, view: "recent", sort: "recommended" }, NOW);
+    const first = result.items[0];
+    expect(first.type).toBe("deal");
+    if (first.type === "deal") expect(first.deal.id).toBe("newer");
   });
 });

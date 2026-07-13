@@ -355,7 +355,27 @@ export interface StackComponent {
     | "insufficient-evidence";
   /** One-sentence human-readable reason behind compatibilityStatus. */
   compatibilityReason?: string;
+  /** Actionable caveats from the shared two-stage gift-card analysis. */
+  compatibilityWarnings?: string[];
+  /** Acquisition and redemption stay distinct so the UI can explain each. */
+  compatibilityStages?: {
+    acquisition: {
+      status: GiftCardCompatibilityStatus;
+      reason: string;
+    };
+    redemption: {
+      status: GiftCardCompatibilityStatus;
+      reason: string;
+    };
+  };
 }
+
+export type GiftCardCompatibilityStatus =
+  | "compatible"
+  | "likely-compatible"
+  | "incompatible"
+  | "requires-verification"
+  | "insufficient-evidence";
 
 export type StackWarningLevel = "info" | "caution" | "risk";
 
@@ -363,6 +383,10 @@ export type StackWarningCode =
   | "gift-card-excluded-from-cashback"
   | "gift-card-not-accepted"
   | "gift-card-requires-action"
+  | "gift-card-membership-required"
+  | "gift-card-activation-required"
+  | "gift-card-minimum-spend"
+  | "gift-card-usage-limit"
   | "stale-data"
   | "needs-verification"
   | "expiry-soon"

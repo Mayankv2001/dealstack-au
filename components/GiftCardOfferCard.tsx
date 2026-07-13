@@ -66,7 +66,7 @@ export function GiftCardOfferCard({
             {vm.mechanicLabel}
           </span>
         </div>
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-black tracking-tight text-white shadow-sm">
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-700 px-2.5 py-1 text-xs font-black tracking-tight text-white shadow-sm">
           {vm.valueBadge}
         </span>
       </div>
@@ -100,7 +100,7 @@ export function GiftCardOfferCard({
           </span>
           {vm.sourceLabel ? (
             <span
-              className="ml-auto shrink-0 max-w-[45%] truncate text-[11px] text-muted-foreground/70"
+              className="ml-auto shrink-0 max-w-[45%] truncate text-[11px] text-foreground/75"
               title={`Sourced from ${vm.sourceLabel}`}
             >
               via {vm.sourceLabel}
@@ -146,7 +146,7 @@ export function GiftCardOfferCard({
         <div className="mt-auto flex items-center gap-2 pt-2.5">
           <Link
             href={vm.detailHref}
-            className="inline-flex h-8 flex-1 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700"
+            className="inline-flex h-8 flex-1 items-center justify-center rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white transition hover:bg-emerald-800"
           >
             View details
           </Link>

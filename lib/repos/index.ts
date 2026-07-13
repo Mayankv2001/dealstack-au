@@ -23,4 +23,10 @@ export { getWeeklyDeals } from "./weeklyDeals";
 export {
   getGiftCardProducts,
   getGiftCardAcceptance,
+  getAllGiftCardProducts,
+  getAllGiftCardAcceptance,
 } from "./giftCardProducts";
+export {
+  getGiftCardProgrammes,
+  getGiftCardOfferOccurrences,
+} from "./giftCardIntelligence";

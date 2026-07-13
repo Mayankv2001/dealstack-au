@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 /**
  * Browser smoke tests for the flows unit tests cannot cover: real navigation,
@@ -62,6 +63,75 @@ test("search: canonical product key compares retailer prices and stacks", async 
   await expect(page.getByText("$1,749.00")).toBeVisible();
 });
 
+test("decision hub: store search returns a shareable purchase plan", async ({ page }) => {
+  await page.goto("/search?q=myer&spend=750");
+  await expect(page.getByRole("heading", { name: "Your $750.00 purchase plan" })).toBeVisible();
+  await expect(page.getByText("Rewards kept separate")).toBeVisible();
+  await expect(page).toHaveURL(/q=myer&spend=750/);
+});
+
+test("decision hub: Apple search surfaces current reviewed sellers", async ({ page }) => {
+  await page.goto("/search?q=Apple&spend=500");
+  await expect(page.getByRole("heading", { name: "Current reviewed gift-card offers" })).toBeVisible();
+  await expect(page.getByText("Apple").first()).toBeVisible();
+  await expect(page.getByText(/Points are rewards, not cash/i).first()).toBeVisible();
+});
+
+test("rewards: calculator keeps points value separate from cash", async ({ page }) => {
+  await page.goto("/rewards/everyday-rewards");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Everyday Rewards", exact: true })
+  ).toBeVisible();
+  await page.getByLabel("Points multiplier").fill("20");
+  await expect(page.getByText("10,000").first()).toBeVisible();
+  await expect(page.getByText("$500.00").first()).toBeVisible();
+  await expect(page.getByText("$50.00").first()).toBeVisible();
+});
+
+test("gift-card history returns to current offers", async ({ page }) => {
+  await page.goto("/gift-cards/history");
+  await expect(page.getByRole("heading", { name: "Verified offer history" })).toBeVisible();
+  await page.getByRole("link", { name: "Return to current offers" }).click();
+  await expect(page).toHaveURL(/\/gift-cards$/);
+  await expect(page.getByRole("heading", { name: "Gift card deals" })).toBeVisible();
+});
+
+test("gift-card correction form opens without mutating public data", async ({ page }) => {
+  await page.goto("/gift-cards/gc-coles-group-bonus-points");
+  await page.getByRole("button", { name: "Report a problem" }).click();
+  await expect(page.getByText("What looks wrong?")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Submit report" })).toBeVisible();
+});
+
+test("gift-card calculator hands a custom face value into the final-stack search", async ({ page }) => {
+  await page.goto("/gift-cards/gc-ultimate-jbhifi");
+  await page.getByLabel("Custom face value ($)").fill("350");
+  await expect(page.getByText("$350").first()).toBeVisible();
+  const stackLink = page.getByRole("link", { name: "Build compatible final stack" });
+  await expect(stackLink).toHaveAttribute("href", /spend=350/);
+});
+
+test("gift-card product directory search is URL-backed", async ({ page }) => {
+  await page.goto("/gift-cards/products");
+  await page.getByLabel("Search gift-card products").fill("Apple");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page).toHaveURL(/gift-cards\/products\?q=Apple/);
+});
+
+test("gift-card acceptance lookup preserves the not-recorded distinction", async ({ page }) => {
+  await page.goto("/gift-cards/where-to-use?q=JB+Hi-Fi");
+  await expect(page.getByRole("heading", { name: /No recorded evidence for/ })).toBeVisible();
+  await expect(page.getByText("This is “not recorded”, not “not accepted”.")).toBeVisible();
+});
+
+test("email alerts remain visibly gated until delivery is approved", async ({ page }) => {
+  await page.goto("/alerts");
+  await expect(page.getByRole("heading", { name: "Email alerts" })).toBeVisible();
+  await expect(page.getByText("Alerts are not enabled yet")).toBeVisible();
+  const response = await page.request.post("/api/alerts/subscribe", { data: { email: "test@example.com", kind: "store", key: "Myer" } });
+  expect(response.status()).toBe(503);
+});
+
 test("deals: weekly pick links through to its permalink page", async ({
   page,
 }) => {
@@ -94,6 +164,13 @@ test("deals: URL-backed views narrow the server-rendered results", async ({ page
 
   await page.goBack();
   await expect(page).not.toHaveURL(/view=gift-cards/);
+});
+
+test("deals: Recently checked is a first-class shareable view", async ({ page }) => {
+  await page.goto("/deals");
+  await page.getByLabel("Deals sections").getByRole("link", { name: "Recently checked" }).click();
+  await expect(page).toHaveURL(/view=recent/);
+  await expect(page.getByRole("heading", { level: 1, name: "Recently checked" })).toBeVisible();
 });
 
 test("deals: filters and search are shareable and clearable", async ({ page }, testInfo) => {
@@ -252,6 +329,13 @@ test("public routes do not overflow the viewport", async ({ page }) => {
     "/cards",
     "/gift-cards",
     "/gift-cards/gc-coles-group-bonus-points",
+    "/gift-cards/products",
+    "/gift-cards/where-to-use",
+    "/gift-cards/history",
+    "/gift-cards/programmes",
+    "/rewards",
+    "/rewards/everyday-rewards",
+    "/alerts",
     "/stores",
     "/search?q=myer",
     "/search?q=macbook-air-m3",
@@ -266,11 +350,20 @@ test("public routes do not overflow the viewport", async ({ page }) => {
 });
 
 test("admin: protected pages bounce to the login route", async ({ page }) => {
-  await page.goto("/admin/dashboard");
-  // The auth gate must redirect before any admin content renders. We assert
-  // the redirect only: rendering the login form itself needs Supabase env,
-  // which the env-less CI run deliberately does not have (the page 500s
-  // there, which is fine — the protected content never appeared).
-  await page.waitForURL("**/admin/login**");
-  await expect(page.locator("body")).not.toContainText("Signals queue");
+  for (const path of ["/admin/dashboard", "/admin/gift-card-intelligence", "/admin/alerts"]) {
+    await page.goto(path);
+    // The auth gate must redirect before any admin content renders. We assert
+    // the redirect only: rendering the login form itself needs Supabase env.
+    await page.waitForURL("**/admin/login**");
+    await expect(page.locator("body")).not.toContainText("Gift-card intelligence");
+  }
+});
+
+test("core decision routes have no serious automated accessibility violations", async ({ page }) => {
+  for (const path of ["/", "/search?q=myer&spend=500", "/gift-cards", "/rewards/everyday-rewards", "/alerts"]) {
+    await page.goto(path);
+    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    const serious = result.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
+    expect(serious, `${path}: ${serious.map((violation) => `${violation.id} (${violation.nodes.length})`).join(", ")}`).toEqual([]);
+  }
 });

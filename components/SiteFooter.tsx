@@ -6,6 +6,9 @@ const PRODUCT_LINKS = [
   ["Deals", "/deals"],
   ["Card offers", "/cards"],
   ["Gift cards", "/gift-cards"],
+  ["Gift-card directory", "/gift-cards/products"],
+  ["Rewards", "/rewards"],
+  ["Email alerts", "/alerts"],
   ["Resources", "/resources"],
 ] as const;
 
@@ -57,4 +60,3 @@ export function SiteFooter() {
 }
 
 export default SiteFooter;
-

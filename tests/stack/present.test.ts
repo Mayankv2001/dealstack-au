@@ -4,6 +4,7 @@ import {
   MIN_BEST_STACK_DISCOUNT_PERCENT,
   hasChooseOneLayer,
   layerCompatibility,
+  layerUncertaintyDetails,
   partitionStacks,
   qualifiesAsBestStack,
   rankBestStacks,
@@ -12,7 +13,9 @@ import {
 import {
   TEST_NOW,
   makeCashback,
+  makeGiftCardAcceptance,
   makeGiftCard,
+  makeGiftCardProduct,
   makePoints,
   makeStackData,
   makeStore,
@@ -100,8 +103,10 @@ describe("stackTrustStatus", () => {
   it("reports all-checked when every layer is confirmed", () => {
     const data = makeStackData({
       stores: [makeStore({ id: "myer", discountPercent: 0 })],
+      giftCardProducts: [makeGiftCardProduct()],
+      giftCardAcceptance: [makeGiftCardAcceptance()],
       giftCardOffers: [
-        makeGiftCard({ discountPercent: 5, acceptedAtMerchantIds: ["myer"], confidence: "confirmed" }),
+        makeGiftCard({ productId: "product-1", discountPercent: 5, acceptedAtMerchantIds: ["myer"], confidence: "confirmed" }),
       ],
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
@@ -139,5 +144,37 @@ describe("layerCompatibility", () => {
     const combined = rec.components.find((c) => !c.optional)!;
     expect(layerCompatibility(optional)).toBe("choose-one");
     expect(layerCompatibility(combined)).toBe("combined");
+  });
+});
+
+describe("layerUncertaintyDetails", () => {
+  it("returns the stored two-stage reasons only for uncertain layers", () => {
+    const component = {
+      layer: "gift-card" as const,
+      label: "5% gift card",
+      optional: true,
+      citation: { source: "gcdb" as const, sourceUrl: "https://gcdb.com.au" },
+      confidence: "confirmed" as const,
+      compatibilityStatus: "requires-verification" as const,
+      compatibilityWarnings: ["Check acceptance", "Check acceptance"],
+      compatibilityStages: {
+        acquisition: { status: "compatible" as const, reason: "Purchase confirmed." },
+        redemption: {
+          status: "requires-verification" as const,
+          reason: "Acceptance is only listed.",
+        },
+      },
+    };
+    expect(layerUncertaintyDetails(component)).toEqual({
+      acquisition: "Purchase confirmed.",
+      redemption: "Acceptance is only listed.",
+      warnings: ["Check acceptance"],
+    });
+    expect(
+      layerUncertaintyDetails({
+        ...component,
+        compatibilityStatus: "likely-compatible",
+      })
+    ).toBeNull();
   });
 });

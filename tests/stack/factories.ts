@@ -1,7 +1,9 @@
 import type { Store } from "@/lib/data";
 import type {
   CashbackOffer,
+  GiftCardAcceptanceRow,
   GiftCardOffer,
+  GiftCardProduct,
   OzBargainSignal,
   PointsOffer,
 } from "@/lib/offers/types";
@@ -80,6 +82,47 @@ export function makeGiftCard(over: Partial<GiftCardOffer> = {}): GiftCardOffer {
     citations: [{ source: "manual", sourceUrl: "/" }],
     confidence: "confirmed",
     lastCheckedAt: "2026-06-12T00:00:00+10:00",
+    ...over,
+  };
+}
+
+export function makeGiftCardProduct(
+  over: Partial<GiftCardProduct> = {}
+): GiftCardProduct {
+  return {
+    id: "product-1",
+    brand: "Coles Group",
+    slug: "coles-group",
+    issuer: "Coles Group",
+    cardNetwork: "closed-loop",
+    format: "digital-and-physical",
+    variableLoad: true,
+    minDenomination: 10,
+    maxDenomination: 500,
+    categoryRestricted: false,
+    supportedMccs: [],
+    unsupportedMccs: [],
+    mobileWallet: "unknown",
+    redemptionNotes: null,
+    ...over,
+  };
+}
+
+export function makeGiftCardAcceptance(
+  over: Partial<GiftCardAcceptanceRow> = {}
+): GiftCardAcceptanceRow {
+  return {
+    id: "acceptance-1",
+    productId: "product-1",
+    storeId: "myer",
+    merchantName: "Myer",
+    merchantCategory: "Department Store",
+    mcc: null,
+    status: "verified",
+    outcome: "successful",
+    sourceUrl: "https://example.com/acceptance",
+    checkedAt: "2026-06-12T00:00:00+10:00",
+    notes: null,
     ...over,
   };
 }

@@ -182,3 +182,32 @@ export function layerCompatibility(
 export function hasChooseOneLayer(rec: StackRecommendation): boolean {
   return rec.components.some((c) => c.optional);
 }
+
+export interface LayerUncertaintyDetails {
+  acquisition: string;
+  redemption: string;
+  warnings: string[];
+}
+
+/**
+ * Explain only verdicts that need shopper attention. Fully compatible and
+ * likely-compatible layers stay compact; uncertain or blocked layers expose
+ * the engine's exact acquisition/redemption reasons without recomputing them.
+ */
+export function layerUncertaintyDetails(
+  component: StackComponent
+): LayerUncertaintyDetails | null {
+  if (
+    component.compatibilityStatus !== "requires-verification" &&
+    component.compatibilityStatus !== "insufficient-evidence" &&
+    component.compatibilityStatus !== "incompatible"
+  ) {
+    return null;
+  }
+  if (!component.compatibilityStages) return null;
+  return {
+    acquisition: component.compatibilityStages.acquisition.reason,
+    redemption: component.compatibilityStages.redemption.reason,
+    warnings: [...new Set(component.compatibilityWarnings ?? [])].slice(0, 3),
+  };
+}

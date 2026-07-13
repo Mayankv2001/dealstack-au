@@ -23,6 +23,7 @@ import { SOURCE_META, type Citation, type SourceId } from "@/lib/sources/types";
 export interface CitationProvider {
   source: SourceId;
   displayName: string;
+  publisherFamily: string;
   /** Distinct records this source contributed (deduped by normalised URL). */
   count: number;
   /** A single safe, linkable URL when the source has exactly one; else null. */
@@ -43,6 +44,8 @@ export interface CitationSummary {
   total: number;
   /** Every distinct source provider, strongest trust first. */
   providers: CitationProvider[];
+  /** Independent editorial families represented by the provider links. */
+  publisherFamilyCount: number;
   /** The first `visibleLimit` providers — the only badges a collapsed card shows. */
   visibleProviders: CitationProvider[];
   /** Providers beyond the visible limit (rendered as a "+N" affordance). */
@@ -108,6 +111,8 @@ export function summariseCitations(
     .map(([source, entries]) => ({
       source,
       displayName: SOURCE_META[source]?.displayName ?? source,
+      publisherFamily:
+        SOURCE_META[source]?.publisherFamily ?? `source:${source}`,
       count: entries.length,
       // Link only when the source contributed exactly one distinct, safe URL —
       // otherwise the badge would imply a single canonical destination it lacks.
@@ -128,6 +133,9 @@ export function summariseCitations(
   return {
     total: distinct.length,
     providers,
+    publisherFamilyCount: new Set(
+      providers.map((provider) => provider.publisherFamily)
+    ).size,
     visibleProviders,
     hiddenProviderCount: Math.max(0, providers.length - visibleProviders.length),
     all: distinct,

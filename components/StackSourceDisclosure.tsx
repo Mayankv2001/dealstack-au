@@ -49,7 +49,11 @@ export function StackSourceDisclosure({
   const summary = summariseCitations(citations, MAX_VISIBLE_SOURCES);
   if (summary.total === 0) return null;
 
-  const countLabel = `${summary.total} ${summary.total === 1 ? "source" : "sources"} checked`;
+  const linkLabel = `${summary.total} ${summary.total === 1 ? "source link" : "source links"}`;
+  const familyLabel = `${summary.publisherFamilyCount} independent ${
+    summary.publisherFamilyCount === 1 ? "publisher family" : "publisher families"
+  }`;
+  const countLabel = `${linkLabel} across ${familyLabel}`;
 
   return (
     <details className={cn("group/sources", className)}>

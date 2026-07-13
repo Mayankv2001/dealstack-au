@@ -167,6 +167,13 @@ function expiryKey(deal: PublicDeal): string {
   return deal.expiryDate ?? "9999-12-31";
 }
 
+const RECOMMENDED_TRUST_RANK: Record<PublicDeal["trust"], number> = {
+  verified: 3,
+  "source-checked": 2,
+  community: 1,
+  expired: 0,
+};
+
 export function sortItems(
   items: DealListItem[],
   sort: DealsParams["sort"]
@@ -208,7 +215,13 @@ export function sortItems(
       );
       break;
     default:
-      sorted.sort((a, b) => itemScore(b).score - itemScore(a).score);
+      sorted.sort((a, b) => {
+        const trust =
+          RECOMMENDED_TRUST_RANK[itemScore(b).trust] -
+          RECOMMENDED_TRUST_RANK[itemScore(a).trust];
+        if (trust !== 0) return trust;
+        return itemScore(b).score - itemScore(a).score;
+      });
   }
   return sorted;
 }
@@ -225,7 +238,8 @@ export function queryDeals(
       (deal) => matchesSearch(deal, params.q) && matchesFilters(deal, params, now)
     )
   );
-  const items = sortItems(groupDeals(matched), params.sort);
+  const effectiveSort = params.view === "recent" ? "checked" : params.sort;
+  const items = sortItems(groupDeals(matched), effectiveSort);
 
   const total = items.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));

@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GiftCardOfferCard } from "@/components/GiftCardOfferCard";
-import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import type { GiftCardOffer } from "@/lib/offers/types";
 import {
   GC_SORT_LABEL,
@@ -123,19 +123,7 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-stone-50/70 dark:bg-stone-950">
-      <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <nav className="flex items-center gap-1 sm:gap-2" aria-label="Primary navigation">
-            <Button asChild size="sm" variant="ghost"><Link href="/deals">Deals</Link></Button>
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex"><Link href="/stores">Stores</Link></Button>
-            <Button asChild size="sm" variant="ghost" className="hidden min-[430px]:inline-flex"><Link href="/cards">Cards</Link></Button>
-            <span aria-current="page" className="inline-flex h-8 items-center rounded-md bg-emerald-500/10 px-2.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
-              Gift cards
-            </span>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6">
         <section className="flex flex-col justify-between gap-3 rounded-xl border bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 px-5 py-4 text-white shadow-sm sm:flex-row sm:items-center sm:px-6">
@@ -153,6 +141,20 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
             Human-reviewed before publication
           </div>
         </section>
+
+        <nav aria-label="Gift card tools" className="mt-3 flex gap-2 overflow-x-auto pb-1 text-xs font-semibold [scrollbar-width:none]">
+          {[
+            ["Current offers", "/gift-cards"],
+            ["Product directory", "/gift-cards/products"],
+            ["Where to use", "/gift-cards/where-to-use"],
+            ["Offer history", "/gift-cards/history"],
+            ["Programmes", "/gift-cards/programmes"],
+          ].map(([label, href]) => (
+            <Link key={href} href={href} className="shrink-0 rounded-full border bg-background px-3 py-1.5 hover:border-emerald-500/50">
+              {label}
+            </Link>
+          ))}
+        </nav>
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <label className="relative flex-1">

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { estimateFirstYearValue } from "@/lib/offers/cardValue";
 import { getCardOffers } from "@/lib/repos";
@@ -30,8 +30,9 @@ export default async function CompareCardsPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/90 backdrop-blur"><div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6"><Logo /><Button asChild variant="ghost" size="sm"><Link href="/cards"><ArrowLeft />Offers</Link></Button></div></header>
+      <SiteHeader />
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <Link href="/cards" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Offers</Link>
         <h1 className="text-3xl font-bold">Compare card offers</h1>
         <p className="mt-2 text-sm text-muted-foreground">Figures include only verified, currently public offers. Point values are editorial estimates, not cash redemption guarantees.</p>
         {offers.length < 2 ? (

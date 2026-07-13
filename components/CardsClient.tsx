@@ -7,8 +7,8 @@ import { AlertTriangle, GitCompareArrows, Landmark, SearchX, ShieldCheck } from 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardOfferCard } from "@/components/CardOfferCard";
-import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { isExpiringSoonAU } from "@/lib/offers/expiry";
 import type { CardOffer, CardOfferType } from "@/lib/offers/types";
 import { cn } from "@/lib/utils";
@@ -66,7 +66,7 @@ function Chip({
       className={cn(
         "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
         active
-          ? "border-emerald-600 bg-emerald-600 text-white"
+          ? "border-emerald-700 bg-emerald-700 text-white"
           : "border-border bg-background text-muted-foreground hover:border-emerald-500/40 hover:text-foreground"
       )}
     >
@@ -119,28 +119,7 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-              <Link href="/stores">Stores</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Deals</Link>
-            </Button>
-            <span
-              aria-current="page"
-              className="inline-flex h-8 items-center rounded-md bg-emerald-500/10 px-3 text-sm font-medium text-emerald-700 dark:text-emerald-400"
-            >
-              Cards
-            </span>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/resources">Resources</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {/* Hero */}

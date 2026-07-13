@@ -104,6 +104,47 @@ create trigger trg_gc_programme_rates_updated_at
   before update on public.gift_card_programme_rates
   for each row execute function set_updated_at();
 
+-- Append-only change trail. Public catalogue rows are mutable reviewed state;
+-- every material insert/update is preserved privately as a structured snapshot.
+create or replace function public.record_gift_card_programme_rate_history()
+returns trigger language plpgsql set search_path = '' as $$
+declare
+  v_kind text;
+  v_changed text[] := '{}';
+begin
+  if tg_op = 'INSERT' then
+    v_kind := 'product-added';
+  else
+    if old.is_active and not new.is_active then v_kind := 'product-removed'; end if;
+    if old.discount_percent is distinct from new.discount_percent then
+      v_changed := array_append(v_changed, 'discount_percent');
+      if coalesce(new.discount_percent, 0) > coalesce(old.discount_percent, 0) then v_kind := 'rate-increased';
+      elsif coalesce(new.discount_percent, 0) < coalesce(old.discount_percent, 0) then v_kind := 'rate-decreased'; end if;
+    end if;
+    if old.fixed_discount_dollars is distinct from new.fixed_discount_dollars then v_changed := array_append(v_changed, 'fixed_discount_dollars'); end if;
+    if old.bonus_percent is distinct from new.bonus_percent then v_changed := array_append(v_changed, 'bonus_percent'); end if;
+    if old.fee_waiver_dollars is distinct from new.fee_waiver_dollars then v_changed := array_append(v_changed, 'fee_waiver_dollars'); end if;
+    if old.threshold_dollars is distinct from new.threshold_dollars then v_changed := array_append(v_changed, 'threshold_dollars'); end if;
+    if old.payment_requirement is distinct from new.payment_requirement then v_changed := array_append(v_changed, 'payment_requirement'); end if;
+    if old.membership_tier is distinct from new.membership_tier then v_changed := array_append(v_changed, 'membership_tier'); end if;
+    if v_kind is null and cardinality(v_changed) > 0 then v_kind := 'terms-changed'; end if;
+  end if;
+  if v_kind is not null then
+    insert into public.gift_card_programme_rate_history
+      (programme_rate_id, change_kind, changed_fields, old_snapshot, new_snapshot, checked_at)
+    values
+      (new.id, v_kind, v_changed, case when tg_op = 'UPDATE' then to_jsonb(old) else null end,
+       to_jsonb(new), new.last_checked_at)
+    on conflict (programme_rate_id, change_kind, checked_at) do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_gc_programme_rate_history
+  after insert or update on public.gift_card_programme_rates
+  for each row execute function public.record_gift_card_programme_rate_history();
+
 alter table public.gift_card_programmes enable row level security;
 alter table public.gift_card_programme_rates enable row level security;
 alter table public.gift_card_programme_rate_history enable row level security;

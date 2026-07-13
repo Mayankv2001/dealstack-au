@@ -146,5 +146,41 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("rate-decreased");
     expect(sql).toContain("payment_requirement");
     expect(sql).toContain("review_by_date");
+    expect(sql).toContain("record_gift_card_programme_rate_history");
+    expect(sql).toContain("after insert or update on public.gift_card_programme_rates");
+  });
+
+  it("keeps public offer history structured, expired and immutable", () => {
+    const sql = migration("025_public_gift_card_offer_history.sql");
+    expect(sql).toContain("gift_card_offer_occurrences");
+    expect(sql).toContain("end_date < current_date");
+    expect(sql).toContain("reject_gift_card_occurrence_mutation");
+    expect(sql).not.toContain("raw_payload");
+    expect(sql).not.toMatch(/\n\s*comments\s+(text|jsonb?)/);
+  });
+
+  it("accepts public correction reports only through a rate-limited RPC", () => {
+    const sql = migration("026_public_correction_reports.sql");
+    expect(sql).toContain("submit_public_correction");
+    expect(sql).toContain("v_recent >= 5");
+    expect(sql).toContain("No public policies");
+    expect(sql).toContain("gift-card-acceptance");
+  });
+
+  it("keeps email alerts private, double-opt-in and disabled outside application flags", () => {
+    const sql = migration("027_email_alerts.sql");
+    expect(sql).toContain("email_alert_subscriptions");
+    expect(sql).toContain("status in ('pending', 'active', 'unsubscribed', 'bounced')");
+    expect(sql).toContain("confirmation_token_hash");
+    expect(sql).toContain("unsubscribe_token_hash");
+    expect(sql).toContain("email_alert_outbox");
+    expect(sql).toContain("for update skip locked");
+    expect(sql).toContain("consume_email_alert_request_limit");
+    expect(sql).toContain("pg_advisory_xact_lock");
+    expect(sql).toContain("request_email_alert_subscription");
+    expect(sql).toContain("claimed_at < now() - interval '15 minutes'");
+    expect(sql).toContain("prune_email_alert_data");
+    expect(sql).toContain("status in ('unsubscribed', 'bounced')");
+    expect(sql).toContain("No public policies");
   });
 });

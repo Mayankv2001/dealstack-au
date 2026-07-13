@@ -24,8 +24,14 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chromium", use: { ...devices["Pixel 5"] } },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 5"], viewport: { width: 390, height: 844 } },
+    },
   ],
   webServer: {
     command: `DATA_SOURCE=static PORT=${PORT} npm run start`,

@@ -24,11 +24,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npx tsc --noEmit
       - run: npm run test:monitor
       - run: npm run test:stack
       - run: npm run test:admin
       - run: npm run test:giftcards
       - run: npm run test:deals
+      - run: npm run test:alerts
+      - run: npm run test:decision
       - run: npm run build
       - name: Smoke test the production build
         run: |

@@ -135,7 +135,7 @@ export function CalculatorSection({ recommendations }: { recommendations: StackR
     <section id="calculator" className="border-y bg-stone-50/70 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="mb-7"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-800 dark:text-emerald-300">Calculator</p><h2 className="mt-2 font-serif text-3xl font-bold tracking-tight sm:text-4xl">Calculate your own stack</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Use a sourced store stack or test a custom set of rates. Cashback is always separated from checkout cost.</p></div>
-        <Suspense fallback={<div className="h-96 rounded-xl border bg-card" aria-label="Loading calculator" />}><DealStackCalculator recommendations={recommendations} /></Suspense>
+        <Suspense fallback={<div className="h-96 rounded-xl border bg-card" role="status"><span className="sr-only">Loading calculator</span></div>}><DealStackCalculator recommendations={recommendations} /></Suspense>
       </div>
     </section>
   );

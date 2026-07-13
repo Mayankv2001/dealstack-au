@@ -53,7 +53,9 @@ export function HomeSearchSections({
                 value={query}
                 onValueChange={setQuery}
                 placeholder="Search a store, e.g. Myer, JB Hi-Fi or Amazon"
-                buttonLabel="Search stores"
+                buttonLabel="Plan purchase"
+                showSpend
+                defaultSpend={500}
               />
             </div>
 

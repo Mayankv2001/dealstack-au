@@ -18,7 +18,7 @@ export function Logo() {
       </span>
       <span className="font-serif text-xl font-semibold tracking-tight">
         DealStack{" "}
-        <span className="text-emerald-600 dark:text-emerald-400">AU</span>
+        <span className="text-emerald-700 dark:text-emerald-300">AU</span>
       </span>
     </Link>
   );

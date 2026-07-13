@@ -45,6 +45,40 @@ export interface GiftCardStackability {
   redemption: StageAnalysis;
 }
 
+const STATUS_RANK: Record<GiftCardCompatibilityStatus, number> = {
+  incompatible: 0,
+  "insufficient-evidence": 1,
+  "requires-verification": 2,
+  "likely-compatible": 3,
+  compatible: 4,
+};
+
+export interface GiftCardStackabilitySummary {
+  status: GiftCardCompatibilityStatus;
+  reason: string;
+  warnings: string[];
+}
+
+/** One summary derived from the two authoritative stages for compact surfaces. */
+export function summariseGiftCardStackability(
+  analysis: GiftCardStackability
+): GiftCardStackabilitySummary {
+  const status =
+    STATUS_RANK[analysis.acquisition.status] <= STATUS_RANK[analysis.redemption.status]
+      ? analysis.acquisition.status
+      : analysis.redemption.status;
+  return {
+    status,
+    reason: `Acquisition: ${analysis.acquisition.reason} Redemption: ${analysis.redemption.reason}`,
+    warnings: [
+      ...new Set([
+        ...analysis.acquisition.warnings,
+        ...analysis.redemption.warnings,
+      ]),
+    ],
+  };
+}
+
 export interface StackabilityContext {
   now?: Date;
   /** Published acceptance evidence for the offer's products, if any. */
@@ -54,6 +88,8 @@ export interface StackabilityContext {
   /** Target store to assess redemption against, if any. */
   storeId?: string | null;
   storeName?: string | null;
+  /** Face value / checkout amount being evaluated by the stack engine. */
+  purchaseAmount?: number | null;
 }
 
 const NOT_RECORDED = "Not recorded — verify at the source before relying on it.";
@@ -64,7 +100,8 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 function analyseAcquisition(
   offer: GiftCardOffer,
-  now: Date
+  now: Date,
+  context: StackabilityContext
 ): StageAnalysis {
   const facts: StackabilityFact[] = [];
   const warnings: string[] = [];
@@ -186,6 +223,14 @@ function analyseAcquisition(
     );
   }
   if (offer.minSpend != null && offer.minSpend > 0) {
+    facts.push({
+      label: "Minimum spend",
+      value: `$${offer.minSpend.toLocaleString("en-AU")}`,
+      tone:
+        context.purchaseAmount != null && context.purchaseAmount < offer.minSpend
+          ? "negative"
+          : "caution",
+    });
     warnings.push(`A minimum spend of $${offer.minSpend} applies.`);
   }
   if (offer.thresholdDollars != null && offer.thresholdDollars > 0) {
@@ -216,6 +261,35 @@ function analyseAcquisition(
       stage: "acquisition",
       status: "incompatible",
       reason: `The offer expired on ${offer.expiryDate} — the card can no longer be bought at this price.`,
+      warnings,
+      facts,
+    };
+  }
+  if (
+    offer.minSpend != null &&
+    offer.minSpend > 0 &&
+    context.purchaseAmount != null &&
+    context.purchaseAmount < offer.minSpend
+  ) {
+    return {
+      stage: "acquisition",
+      status: "incompatible",
+      reason: `A $${offer.minSpend.toLocaleString("en-AU")} minimum applies; the selected $${context.purchaseAmount.toLocaleString("en-AU")} spend does not qualify.`,
+      warnings,
+      facts,
+    };
+  }
+  if (
+    (offer.promotionType === "fixed-dollar-discount" ||
+      offer.promotionType === "promo-credit") &&
+    offer.thresholdDollars != null &&
+    context.purchaseAmount != null &&
+    context.purchaseAmount < offer.thresholdDollars
+  ) {
+    return {
+      stage: "acquisition",
+      status: "incompatible",
+      reason: `A $${offer.thresholdDollars.toLocaleString("en-AU")} qualifying threshold applies; the selected $${context.purchaseAmount.toLocaleString("en-AU")} spend does not qualify.`,
       warnings,
       facts,
     };
@@ -405,7 +479,7 @@ export function analyseGiftCardStackability(
 ): GiftCardStackability {
   const now = context.now ?? new Date();
   return {
-    acquisition: analyseAcquisition(offer, now),
+    acquisition: analyseAcquisition(offer, now, context),
     redemption: analyseRedemption(offer, context),
   };
 }

@@ -10,7 +10,10 @@ import {
 } from "@/lib/offers/manualOffers";
 import type {
   CashbackOffer,
+  GiftCardAcceptanceRow,
+  GiftCardCompatibilityStatus,
   GiftCardOffer,
+  GiftCardProduct,
   OzBargainSignal,
   PointsOffer,
   StackComponent,
@@ -27,8 +30,12 @@ import {
   staleDataWarning,
   worstConfidence,
 } from "./compatibility";
-import { evaluateGiftCardCompatibility } from "@/lib/giftcards/compatibility";
-import { effectiveDiscountPercent as giftCardEffectiveSaving } from "@/lib/giftcards/value";
+import {
+  analyseGiftCardStackability,
+  summariseGiftCardStackability,
+  type GiftCardStackability,
+} from "@/lib/giftcards/stackability";
+import { valuePointsOffer } from "@/lib/giftcards/value";
 
 /**
  * The stack engine.
@@ -50,6 +57,10 @@ export interface StackData {
   cashbackOffers: CashbackOffer[];
   pointsOffers: PointsOffer[];
   ozBargainSignals: OzBargainSignal[];
+  /** Optional public product facts used to honour denomination/use limits. */
+  giftCardProducts?: GiftCardProduct[];
+  /** Optional published evidence used by the shared redemption analysis. */
+  giftCardAcceptance?: GiftCardAcceptanceRow[];
 }
 
 /** The static bundle (default for `buildStackRecommendations`). */
@@ -59,6 +70,8 @@ export const STATIC_STACK_DATA: StackData = {
   cashbackOffers: staticCashbackOffers,
   pointsOffers: staticPointsOffers,
   ozBargainSignals: staticOzBargainSignals,
+  giftCardProducts: [],
+  giftCardAcceptance: [],
 };
 
 /** Default example basket used for the dollar estimates. */
@@ -104,38 +117,132 @@ function cashbackNote(cashback: CashbackOffer): string {
     : base;
 }
 
-/**
- * Effective saving % of a gift card — spans direct discounts, bonus value and
- * points via the shared valuation (lib/giftcards/value.ts). For a plain-discount
- * card this is exactly its discountPercent, so ranking/values are unchanged;
- * bonus-value and points cards now contribute their true net-cost saving instead
- * of being read as "0% off" and dropped.
- */
-function giftCardEffectivePercent(offer: GiftCardOffer): number {
-  return (
-    giftCardEffectiveSaving({
-      promotionType: offer.promotionType ?? "discount",
-      discountPercent: offer.discountPercent || null,
-      bonusPercent: offer.bonusPercent ?? null,
-      pointsMultiplier: offer.pointsMultiplier ?? null,
-      pointsProgram: offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null,
-      pointsValueCents: offer.pointsValueCents ?? null,
-    }) ?? 0
+/** Highest immediate-cash gift-card discount accepted at this merchant. */
+function bestGiftCard(
+  offers: GiftCardOffer[],
+  merchantId: string,
+  spend: number
+): GiftCardOffer | null {
+  const accepted = offers.filter(
+    (offer) =>
+      offer.acceptedAtMerchantIds.includes(merchantId) &&
+      ((offer.discountPercent > 0 &&
+        (offer.promotionType == null ||
+          offer.promotionType === "discount" ||
+          offer.promotionType === "membership")) ||
+        (offer.promotionType === "fixed-dollar-discount" &&
+          (offer.fixedDiscountDollars ?? 0) > 0))
+  );
+  if (accepted.length === 0) return null;
+  return accepted.reduce((best, offer) =>
+    immediateGiftCardSaving(offer, spend) > immediateGiftCardSaving(best, spend)
+      ? offer
+      : best
   );
 }
 
-/** Highest effective-saving gift card accepted at this merchant, or null. */
-function bestGiftCard(
+function immediateGiftCardSaving(offer: GiftCardOffer, spend: number): number {
+  if (offer.promotionType === "fixed-dollar-discount") {
+    return offer.thresholdDollars != null && spend >= offer.thresholdDollars
+      ? Math.min(spend, offer.fixedDiscountDollars ?? 0)
+      : 0;
+  }
+  return offer.discountPercent > 0
+    ? giftCardEligibleSpend(spend, offer, null) * (offer.discountPercent / 100)
+    : 0;
+}
+
+/** Best points-on-acquisition gift card accepted at this merchant. */
+function bestPointsGiftCard(
   offers: GiftCardOffer[],
   merchantId: string
 ): GiftCardOffer | null {
-  const accepted = offers.filter((o) =>
-    o.acceptedAtMerchantIds.includes(merchantId)
+  const accepted = offers.filter(
+    (offer) =>
+      offer.acceptedAtMerchantIds.includes(merchantId) &&
+      offer.promotionType === "points" &&
+      (offer.pointsMultiplier ?? 0) > 0 &&
+      Boolean(offer.pointsProgram ?? offer.pointsOnPurchase?.program)
   );
   if (accepted.length === 0) return null;
-  return accepted.reduce((best, o) =>
-    giftCardEffectivePercent(o) > giftCardEffectivePercent(best) ? o : best
+  return accepted.reduce((best, offer) =>
+    (offer.pointsMultiplier ?? 0) > (best.pointsMultiplier ?? 0) ? offer : best
   );
+}
+
+function combinedStackabilityStatus(
+  analysis: GiftCardStackability
+): GiftCardCompatibilityStatus {
+  return summariseGiftCardStackability(analysis).status;
+}
+
+function stackabilityReason(analysis: GiftCardStackability): string {
+  return summariseGiftCardStackability(analysis).reason;
+}
+
+function stackabilityWarnings(analysis: GiftCardStackability): string[] {
+  return summariseGiftCardStackability(analysis).warnings;
+}
+
+function acceptanceForOffer(
+  offer: GiftCardOffer,
+  rows: GiftCardAcceptanceRow[] | undefined
+): GiftCardAcceptanceRow[] {
+  const productIds = new Set(
+    [offer.productId, ...(offer.includedProductIds ?? [])].filter(
+      (id): id is string => Boolean(id)
+    )
+  );
+  if (productIds.size === 0) return [];
+  return (rows ?? []).filter((row) => productIds.has(row.productId));
+}
+
+function productForOffer(
+  offer: GiftCardOffer,
+  products: GiftCardProduct[] | undefined
+): GiftCardProduct | null {
+  const ids = [offer.productId, ...(offer.includedProductIds ?? [])].filter(
+    (id): id is string => Boolean(id)
+  );
+  return (products ?? []).find((product) => ids.includes(product.id)) ?? null;
+}
+
+function giftCardEligibleSpend(
+  base: number,
+  offer: GiftCardOffer,
+  product: GiftCardProduct | null
+): number {
+  let eligible = offer.capDollars == null ? base : Math.min(base, offer.capDollars);
+  if (
+    product?.maxDenomination != null &&
+    product.maxDenomination > 0 &&
+    offer.usesPerCustomer != null &&
+    offer.usesPerCustomer > 0
+  ) {
+    eligible = Math.min(
+      eligible,
+      product.maxDenomination * offer.usesPerCustomer
+    );
+  }
+  return eligible;
+}
+
+function analyseForStack(
+  offer: GiftCardOffer,
+  store: Store,
+  checkoutPrice: number,
+  cashback: CashbackOffer | null,
+  data: StackData,
+  now: Date
+): GiftCardStackability {
+  return analyseGiftCardStackability(offer, {
+    now,
+    storeId: store.id,
+    storeName: store.name,
+    purchaseAmount: checkoutPrice,
+    cashback,
+    acceptance: acceptanceForOffer(offer, data.giftCardAcceptance),
+  });
 }
 
 /** Highest-rate cashback at this merchant, or null. */
@@ -160,16 +267,6 @@ function bestPoints(
   return matches.reduce((best, o) =>
     (o.earnMultiple ?? 0) > (best.earnMultiple ?? 0) ? o : best
   );
-}
-
-/** Gift-card layer: capDollars caps the ELIGIBLE SPEND ("up to $X per order"). */
-function spendCappedSaving(
-  base: number,
-  percent: number,
-  capDollars: number | null
-): number {
-  const eligible = capDollars === null ? base : Math.min(base, capDollars);
-  return eligible * (percent / 100);
 }
 
 /** Cashback layer: capDollars caps the SAVING ITSELF ("capped at $X cashback"). */
@@ -229,12 +326,25 @@ function buildForStore(
   const checkoutPrice = running; // basis for gift card / cashback / points
 
   // 2 ── Gift card + cashback (resolve the common payment conflict) ─────────
-  const giftCard = bestGiftCard(data.giftCardOffers, store.id);
+  const giftCard = bestGiftCard(data.giftCardOffers, store.id, checkoutPrice);
   const cashback = bestCashback(data.cashbackOffers, store.id);
 
-  const giftCardEffPct = giftCard ? giftCardEffectivePercent(giftCard) : 0;
+  const giftCardProduct = giftCard
+    ? productForOffer(giftCard, data.giftCardProducts)
+    : null;
+  const giftCardAnalysis = giftCard
+    ? analyseForStack(giftCard, store, checkoutPrice, cashback, data, now)
+    : null;
+  const giftCardStatus = giftCardAnalysis
+    ? combinedStackabilityStatus(giftCardAnalysis)
+    : null;
   const giftCardSaving = giftCard
-    ? round(spendCappedSaving(checkoutPrice, giftCardEffPct, giftCard.capDollars))
+    ? round(
+        giftCard.promotionType === "fixed-dollar-discount"
+          ? immediateGiftCardSaving(giftCard, checkoutPrice)
+          : giftCardEligibleSpend(checkoutPrice, giftCard, giftCardProduct) *
+              (giftCard.discountPercent / 100)
+      )
     : 0;
   const cashbackSaving = cashback
     ? round(dollarCappedSaving(checkoutPrice, cashback.ratePercent, cashback.capDollars))
@@ -248,6 +358,11 @@ function buildForStore(
     (giftCard.membershipRequired === true ||
       giftCard.activationRequired === true ||
       giftCard.couponRequired === true);
+  const giftCardBlocked =
+    giftCardStatus === "incompatible" ||
+    giftCardStatus === "insufficient-evidence" ||
+    giftCardStatus === "requires-verification";
+  const giftCardOptional = giftCardRequiresAction || giftCardBlocked;
 
   // A layer that saves nothing (e.g. a 0%-discount gift card that only earns
   // bonus points) is not a cash layer — it must never render as "0% off".
@@ -261,7 +376,7 @@ function buildForStore(
     cashback.excludesGiftCardPayment &&
     giftCardSaving > 0 &&
     cashbackSaving > 0 &&
-    !giftCardRequiresAction
+    !giftCardOptional
   ) {
     if (giftCardSaving >= cashbackSaving) {
       useCashback = false;
@@ -271,49 +386,83 @@ function buildForStore(
     warnings.push(giftCardCashbackConflictWarning(cashback, true)!);
   }
 
-  // Effective label: a plain discount reads "N% off"; a bonus-value/points card
-  // (discountPercent 0) reads "≈N% effective" so it never renders as "0% off".
-  const giftCardValueLabel = (giftCard: GiftCardOffer): string =>
-    giftCard.discountPercent > 0
-      ? `${giftCard.discountPercent}% off`
-      : `≈${round(giftCardEffPct)}% effective`;
+  const giftCardValueLabel = (offer: GiftCardOffer): string =>
+    offer.promotionType === "fixed-dollar-discount"
+      ? `$${offer.fixedDiscountDollars ?? 0} off`
+      : `${offer.discountPercent}% off`;
 
-  if (useGiftCard && giftCard) {
-    // Structured compatibility verdict for this store context (acceptance is
-    // already guaranteed by bestGiftCard; this adds conditions/caveats/reason).
-    const compat = evaluateGiftCardCompatibility(giftCard, {
-      now,
-      storeId: store.id,
-      storeName: store.name,
-      cashback: cashback ?? undefined,
-      hasDiscountCode: store.discountPercent > 0,
-    });
+  if (useGiftCard && giftCard && giftCardAnalysis && giftCardStatus) {
+    const reason = stackabilityReason(giftCardAnalysis);
+    const compatibilityWarnings = stackabilityWarnings(giftCardAnalysis);
     // Only deduct an action-gated card from the guaranteed price if there is no
     // condition to satisfy first; otherwise it is an optional "could add" layer.
-    if (!giftCardRequiresAction) running = round(running - giftCardSaving);
+    if (!giftCardOptional) running = round(running - giftCardSaving);
     components.push({
       layer: "gift-card",
       label: `${giftCardValueLabel(giftCard)} via ${giftCard.brand} cards (${giftCard.source})`,
-      valuePercent: giftCard.discountPercent > 0 ? giftCard.discountPercent : round(giftCardEffPct),
+      valuePercent: giftCard.discountPercent,
       valueDollars: giftCardSaving,
-      optional: giftCardRequiresAction,
+      optional: giftCardOptional,
       citation: giftCard.citations[0] ?? MANUAL_CITATION,
       confidence: giftCard.confidence,
-      note: giftCardRequiresAction
-        ? compat.reason
+      note: giftCardOptional
+        ? reason
         : giftCard.pointsOnPurchase
           ? `Also earns ${giftCard.pointsOnPurchase.program}: ${giftCard.pointsOnPurchase.earnNote}`
           : undefined,
-      compatibilityStatus: compat.status,
-      compatibilityReason: compat.reason,
+      compatibilityStatus: giftCardStatus,
+      compatibilityReason: reason,
+      compatibilityWarnings,
+      compatibilityStages: {
+        acquisition: {
+          status: giftCardAnalysis.acquisition.status,
+          reason: giftCardAnalysis.acquisition.reason,
+        },
+        redemption: {
+          status: giftCardAnalysis.redemption.status,
+          reason: giftCardAnalysis.redemption.reason,
+        },
+      },
     });
     citations.push(...giftCard.citations);
     confidences.push(giftCard.confidence);
-    if (giftCardRequiresAction) {
+    if (giftCard.membershipRequired) {
+      warnings.push({
+        level: "caution",
+        code: "gift-card-membership-required",
+        message:
+          giftCard.channel === "membership-portal"
+            ? "Requires an eligible membership and purchase through the member portal."
+            : "Requires an eligible membership.",
+      });
+    }
+    if (giftCard.activationRequired) {
+      warnings.push({
+        level: "caution",
+        code: "gift-card-activation-required",
+        message: "Activate this gift-card offer before purchasing.",
+      });
+    }
+    if (giftCard.couponRequired) {
       warnings.push({
         level: "caution",
         code: "gift-card-requires-action",
-        message: compat.reason,
+        message: "Enter the required gift-card promo code before purchasing.",
+      });
+    }
+    if (giftCard.minSpend != null && giftCard.minSpend > 0) {
+      warnings.push({
+        level:
+          checkoutPrice < giftCard.minSpend ? "risk" : "info",
+        code: "gift-card-minimum-spend",
+        message: `A $${giftCard.minSpend.toLocaleString("en-AU")} minimum gift-card spend applies.`,
+      });
+    }
+    if (giftCard.usesPerCustomer != null) {
+      warnings.push({
+        level: "info",
+        code: "gift-card-usage-limit",
+        message: `Limited to ${giftCard.usesPerCustomer} ${giftCard.usesPerCustomer === 1 ? "use" : "uses"} per customer.`,
       });
     }
     const gcExpiry = expirySoonWarning(
@@ -339,26 +488,36 @@ function buildForStore(
       `The ${giftCard.brand} gift card offer`
     );
     if (gcCap) warnings.push(gcCap);
-  } else if (giftCard && giftCardSaving > 0) {
+  } else if (
+    giftCard &&
+    giftCardSaving > 0 &&
+    giftCardAnalysis &&
+    giftCardStatus
+  ) {
     // Dropped due to conflict — surface as an optional layer.
-    const compat = evaluateGiftCardCompatibility(giftCard, {
-      now,
-      storeId: store.id,
-      storeName: store.name,
-      cashback: cashback ?? undefined,
-      hasDiscountCode: store.discountPercent > 0,
-    });
+    const reason = stackabilityReason(giftCardAnalysis);
     components.push({
       layer: "gift-card",
       label: `${giftCardValueLabel(giftCard)} via ${giftCard.brand} cards (alternative to cashback)`,
-      valuePercent: giftCard.discountPercent > 0 ? giftCard.discountPercent : round(giftCardEffPct),
+      valuePercent: giftCard.discountPercent,
       valueDollars: giftCardSaving,
       optional: true,
       citation: giftCard.citations[0] ?? MANUAL_CITATION,
       confidence: giftCard.confidence,
       note: "Use instead of cashback, not together.",
-      compatibilityStatus: compat.status,
-      compatibilityReason: compat.reason,
+      compatibilityStatus: giftCardStatus,
+      compatibilityReason: reason,
+      compatibilityWarnings: stackabilityWarnings(giftCardAnalysis),
+      compatibilityStages: {
+        acquisition: {
+          status: giftCardAnalysis.acquisition.status,
+          reason: giftCardAnalysis.acquisition.reason,
+        },
+        redemption: {
+          status: giftCardAnalysis.redemption.status,
+          reason: giftCardAnalysis.redemption.reason,
+        },
+      },
     });
   }
 
@@ -415,17 +574,144 @@ function buildForStore(
   // 3 ── Points (informational — value is not deducted from the cash price) ─
   let pointsEarned = 0;
   let pointsValueDollars = 0;
+  const pointsGiftCard = bestPointsGiftCard(data.giftCardOffers, store.id);
+  const pointsGiftCardAnalysis = pointsGiftCard
+    ? analyseForStack(
+        pointsGiftCard,
+        store,
+        checkoutPrice,
+        cashback,
+        data,
+        now
+      )
+    : null;
+  const pointsGiftCardStatus = pointsGiftCardAnalysis
+    ? combinedStackabilityStatus(pointsGiftCardAnalysis)
+    : null;
+  const pointsGiftCardValuation = pointsGiftCard
+    ? valuePointsOffer(
+        pointsGiftCard.pointsMultiplier ?? null,
+        checkoutPrice,
+        pointsGiftCard.pointsProgram ??
+          pointsGiftCard.pointsOnPurchase?.program ??
+          null,
+        pointsGiftCard.pointsValueCents ?? null
+      )
+    : null;
+  const pointsGiftCardOptional = Boolean(
+    pointsGiftCard &&
+      (pointsGiftCard.membershipRequired ||
+        pointsGiftCard.activationRequired ||
+        pointsGiftCard.couponRequired ||
+        pointsGiftCardStatus === "incompatible" ||
+        pointsGiftCardStatus === "insufficient-evidence" ||
+        pointsGiftCardStatus === "requires-verification")
+  );
+
+  if (
+    pointsGiftCard &&
+    pointsGiftCardAnalysis &&
+    pointsGiftCardStatus &&
+    pointsGiftCardValuation
+  ) {
+    const programme =
+      pointsGiftCard.pointsProgram ??
+      pointsGiftCard.pointsOnPurchase?.program ??
+      "loyalty programme";
+    if (!pointsGiftCardOptional) {
+      pointsEarned += pointsGiftCardValuation.points;
+      pointsValueDollars = round(
+        pointsValueDollars + pointsGiftCardValuation.valueDollars
+      );
+    }
+    components.push({
+      layer: "points",
+      label: `${pointsGiftCard.pointsMultiplier}× ${programme} when buying ${pointsGiftCard.brand} gift cards via ${pointsGiftCard.source}`,
+      pointsEarned: pointsGiftCardValuation.points,
+      valueDollars: pointsGiftCardValuation.valueDollars,
+      optional: pointsGiftCardOptional,
+      citation: pointsGiftCard.citations[0] ?? MANUAL_CITATION,
+      confidence: pointsGiftCard.confidence,
+      note: pointsGiftCardOptional
+        ? stackabilityReason(pointsGiftCardAnalysis)
+        : "Estimated points value only; the cash price is unchanged.",
+      compatibilityStatus: pointsGiftCardStatus,
+      compatibilityReason: stackabilityReason(pointsGiftCardAnalysis),
+      compatibilityWarnings: stackabilityWarnings(pointsGiftCardAnalysis),
+      compatibilityStages: {
+        acquisition: {
+          status: pointsGiftCardAnalysis.acquisition.status,
+          reason: pointsGiftCardAnalysis.acquisition.reason,
+        },
+        redemption: {
+          status: pointsGiftCardAnalysis.redemption.status,
+          reason: pointsGiftCardAnalysis.redemption.reason,
+        },
+      },
+    });
+    citations.push(...pointsGiftCard.citations);
+    confidences.push(pointsGiftCard.confidence);
+    if (pointsGiftCard.membershipRequired) {
+      warnings.push({
+        level: "caution",
+        code: "gift-card-membership-required",
+        message: `An eligible membership is required to earn the ${programme} points.`,
+      });
+    }
+    if (pointsGiftCard.activationRequired) {
+      warnings.push({
+        level: "caution",
+        code: "gift-card-activation-required",
+        message: `Activate the ${programme} gift-card offer before purchasing.`,
+      });
+    }
+    if (pointsGiftCard.minSpend != null && pointsGiftCard.minSpend > 0) {
+      warnings.push({
+        level:
+          checkoutPrice < pointsGiftCard.minSpend ? "risk" : "info",
+        code: "gift-card-minimum-spend",
+        message: `A $${pointsGiftCard.minSpend.toLocaleString("en-AU")} minimum gift-card spend applies.`,
+      });
+    }
+    if (pointsGiftCard.usesPerCustomer != null) {
+      warnings.push({
+        level: "info",
+        code: "gift-card-usage-limit",
+        message: `Limited to ${pointsGiftCard.usesPerCustomer} ${pointsGiftCard.usesPerCustomer === 1 ? "use" : "uses"} per customer.`,
+      });
+    }
+    const gcPointsExpiry = expirySoonWarning(
+      pointsGiftCard.expiryDate,
+      now,
+      `The ${pointsGiftCard.brand} points offer`
+    );
+    if (gcPointsExpiry) warnings.push(gcPointsExpiry);
+    const gcPointsStale = staleDataWarning(
+      pointsGiftCard.lastCheckedAt,
+      now,
+      `The ${pointsGiftCard.brand} points offer`
+    );
+    if (gcPointsStale) warnings.push(gcPointsStale);
+    const gcPointsVerify = needsVerificationWarning(
+      pointsGiftCard.confidence,
+      `The ${pointsGiftCard.brand} points offer`
+    );
+    if (gcPointsVerify) warnings.push(gcPointsVerify);
+  }
+
   const points = bestPoints(data.pointsOffers, store.id);
   if (points && points.earnMultiple) {
-    pointsEarned = Math.round(checkoutPrice * points.earnMultiple);
-    pointsValueDollars = round(
-      pointsEarned * ((points.pointValueCents ?? 0) / 100)
+    const earned = Math.round(checkoutPrice * points.earnMultiple);
+    const estimatedValue = round(
+      earned * ((points.pointValueCents ?? 0) / 100)
     );
+    pointsEarned += earned;
+    pointsValueDollars = round(pointsValueDollars + estimatedValue);
     components.push({
       layer: "points",
       label: `${points.earnRateDisplay} on ${points.program}`,
-      pointsEarned,
-      valueDollars: pointsValueDollars,
+      pointsEarned: earned,
+      valueDollars: estimatedValue,
       optional: false,
       citation: points.citations[0] ?? MANUAL_CITATION,
       confidence: points.confidence,
@@ -484,6 +770,9 @@ function buildForStore(
   const usedChecks = [
     useGiftCard && giftCard ? giftCard.lastCheckedAt : null,
     useCashback && cashback ? cashback.lastCheckedAt : null,
+    pointsGiftCard && !pointsGiftCardOptional
+      ? pointsGiftCard.lastCheckedAt
+      : null,
     points?.lastCheckedAt ?? null,
   ].filter((iso): iso is string => Boolean(iso));
   const checkedAsOf = usedChecks.length ? [...usedChecks].sort()[0] : null;
@@ -491,6 +780,9 @@ function buildForStore(
     store.discountPercent > 0 ? store.expiryDate : null,
     useGiftCard && giftCard ? giftCard.expiryDate : null,
     useCashback && cashback ? cashback.expiryDate : null,
+    pointsGiftCard && !pointsGiftCardOptional
+      ? pointsGiftCard.expiryDate
+      : null,
     points?.expiryDate ?? null,
   ].filter((d): d is string => Boolean(d));
   const soonestExpiry = usedExpiries.length ? [...usedExpiries].sort()[0] : null;

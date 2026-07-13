@@ -119,10 +119,17 @@ function externalIdFrom(guid: string | null, link: string | null): string | null
   return link ? canonicaliseUrl(link) : null;
 }
 
-/** Lowercase host, https, strip query/hash/trailing slash — dedupe key + link. */
-export function canonicaliseUrl(url: string): string {
+/**
+ * Lowercase host, https, strip query/hash/trailing slash — dedupe key + link.
+ * Rejects (returns null for) any scheme other than http/https: setting
+ * `.protocol` on a WHATWG URL is a silent no-op for opaque-path schemes like
+ * `javascript:`/`data:`, so without this check a hostile feed link would
+ * survive unchanged and reach the admin review UI's anchor `href`.
+ */
+export function canonicaliseUrl(url: string): string | null {
   try {
     const u = new URL(url.trim());
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
     u.protocol = "https:";
     u.hash = "";
     u.search = "";
@@ -143,6 +150,11 @@ function mapItem(item: XmlNode): GcdbFeedItem | null {
   const title = textOf(item.title)?.trim() ?? "";
   const link = textOf(item.link)?.trim() ?? null;
   if (!title || !link) return null;
+  // Reject before externalIdFrom: its /offer/(\d+) regex runs on the raw
+  // link string, so a crafted "javascript://host/offer/123/" would still
+  // resolve a truthy id even though the scheme is unsafe.
+  const canonicalUrl = canonicaliseUrl(link);
+  if (!canonicalUrl) return null;
   const externalId = externalIdFrom(textOf(item.guid), link);
   if (!externalId) return null;
 
@@ -175,7 +187,7 @@ function mapItem(item: XmlNode): GcdbFeedItem | null {
 
   return {
     externalId,
-    canonicalUrl: canonicaliseUrl(link),
+    canonicalUrl,
     title,
     publishedAt: toIso(textOf(item.pubDate)),
     offerType: textOf(item.offer_type)?.trim().toLowerCase() ?? null,

@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/env";
 import { weeklyDealPath } from "@/lib/offers/dealSlug";
-import { getStores } from "@/lib/repos";
+import { getAllGiftCardProducts, getStores } from "@/lib/repos";
+import { REWARDS_PROGRAMMES } from "@/lib/rewards/programmes";
 import { getWeeklyDeals } from "@/lib/repos/weeklyDeals";
 
 /**
@@ -19,6 +20,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/stores",
     "/cards",
     "/gift-cards",
+    "/gift-cards/products",
+    "/gift-cards/where-to-use",
+    "/gift-cards/history",
+    "/gift-cards/programmes",
+    "/rewards",
+    "/alerts",
     "/resources",
     "/privacy",
     "/terms",
@@ -28,9 +35,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "daily",
   }));
 
-  const [stores, weeklyDeals] = await Promise.all([
+  const [stores, weeklyDeals, giftCardProducts] = await Promise.all([
     getStores(),
     getWeeklyDeals(),
+    getAllGiftCardProducts(),
   ]);
   const storeRoutes: MetadataRoute.Sitemap = stores.map((store) => ({
     url: `${base}/stores/${store.id}`,
@@ -43,5 +51,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "daily",
   }));
 
-  return [...staticRoutes, ...storeRoutes, ...dealRoutes];
+  const productRoutes: MetadataRoute.Sitemap = giftCardProducts.map((product) => ({
+    url: `${base}/gift-cards/products/${product.slug}`,
+    changeFrequency: "weekly",
+  }));
+  const rewardsRoutes: MetadataRoute.Sitemap = REWARDS_PROGRAMMES.map((programme) => ({
+    url: `${base}/rewards/${programme.slug}`,
+    changeFrequency: "daily",
+  }));
+
+  return [
+    ...staticRoutes,
+    ...storeRoutes,
+    ...dealRoutes,
+    ...productRoutes,
+    ...rewardsRoutes,
+  ];
 }

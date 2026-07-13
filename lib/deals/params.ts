@@ -11,6 +11,7 @@ import type { PublicDealKind } from "./types";
 export const DEALS_VIEWS = [
   "discover",
   "top",
+  "recent",
   "stacks",
   "gift-cards",
   "cashback",
@@ -22,7 +23,8 @@ export type DealsView = (typeof DEALS_VIEWS)[number];
 
 export const VIEW_LABEL: Record<DealsView, string> = {
   discover: "Discover",
-  top: "Top deals",
+  top: "Hot now",
+  recent: "Recently checked",
   stacks: "Best stacks",
   "gift-cards": "Gift cards",
   cashback: "Cashback",

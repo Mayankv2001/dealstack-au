@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Calculator } from "lucide-react";
 import {
   buildWorkedExample,
+  defaultPointValueCents,
   type WorkedExampleInputs,
 } from "@/lib/giftcards/value";
 
@@ -45,11 +47,17 @@ function Line({
 
 export default function GiftCardWorkedExample({
   inputs,
+  stackSearchQuery,
 }: {
   inputs: WorkedExampleInputs;
+  stackSearchQuery: string;
 }) {
   const [faceValue, setFaceValue] = useState<number>(100);
-  const example = buildWorkedExample(inputs, faceValue);
+  const initialPointValue = inputs.pointsValueCents ?? defaultPointValueCents(inputs.pointsProgram) ?? 0;
+  const [pointValueCents, setPointValueCents] = useState(initialPointValue);
+  const [transferRatio, setTransferRatio] = useState(1);
+  const example = buildWorkedExample({ ...inputs, pointsValueCents: pointValueCents }, faceValue);
+  const stackHref = `/search?${new URLSearchParams({ q: stackSearchQuery, spend: String(Math.max(1, faceValue || 1)) }).toString()}`;
 
   return (
     <div>
@@ -62,7 +70,7 @@ export default function GiftCardWorkedExample({
             aria-pressed={faceValue === value}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
               faceValue === value
-                ? "border-emerald-600 bg-emerald-600 text-white"
+                ? "border-emerald-700 bg-emerald-700 text-white"
                 : "bg-background hover:bg-muted"
             }`}
           >
@@ -70,6 +78,12 @@ export default function GiftCardWorkedExample({
           </button>
         ))}
       </div>
+      <label className="mt-3 grid max-w-xs gap-1 text-xs font-medium text-muted-foreground">
+        Custom face value ($)
+        <input type="number" min="1" max="100000" step="1" inputMode="decimal" value={faceValue} onChange={(event) => setFaceValue(Number(event.target.value) || 0)} className="h-9 rounded-lg border bg-background px-3 text-sm text-foreground" />
+      </label>
+
+      {(inputs.pointsMultiplier ?? 0) > 0 ? <div className="mt-3 grid gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 sm:grid-cols-2"><label className="grid gap-1 text-xs font-medium text-muted-foreground">Cents per point<input type="number" min="0" step="0.1" value={pointValueCents} onChange={(event) => setPointValueCents(Number(event.target.value) || 0)} className="h-9 rounded-lg border bg-background px-3 text-sm text-foreground" /></label><label className="grid gap-1 text-xs font-medium text-muted-foreground">Destination points per source point<input type="number" min="0" step="0.1" value={transferRatio} onChange={(event) => setTransferRatio(Number(event.target.value) || 0)} className="h-9 rounded-lg border bg-background px-3 text-sm text-foreground" /></label></div> : null}
 
       {example ? (
         <div className="mt-3">
@@ -104,6 +118,7 @@ export default function GiftCardWorkedExample({
                   value={`≈${aud(example.rewardValueDollars)} at ${example.pointValueCents}c/point`}
                 />
                 <Line label="Effective economic cost" value={`≈${aud(example.effectiveCost)}`} />
+                <Line label="Transfer estimate" value={`${Math.floor(example.points * transferRatio).toLocaleString("en-AU")} destination points`} />
               </dl>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 <strong>Points are not cash.</strong> The reward value is an
@@ -125,6 +140,7 @@ export default function GiftCardWorkedExample({
           example can&apos;t be shown honestly.
         </p>
       )}
+      <Link href={stackHref} className="mt-4 inline-flex rounded-lg border px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-muted dark:text-emerald-300">Build compatible final stack</Link>
     </div>
   );
 }

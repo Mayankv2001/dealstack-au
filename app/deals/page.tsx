@@ -125,7 +125,7 @@ function SpendSelector({ params }: { params: DealsParams }) {
             aria-current={params.spend === preset ? "true" : undefined}
             className={
               params.spend === preset
-                ? "rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white"
+                ? "rounded-lg border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white"
                 : "rounded-lg border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             }
           >

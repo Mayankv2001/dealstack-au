@@ -9,8 +9,8 @@ import type {
   PointsOffer,
   WeeklyDeal,
 } from "@/lib/offers/types";
-import type { Confidence } from "@/lib/sources/types";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { SOURCE_META, type Citation, type Confidence } from "@/lib/sources/types";
+import { isApprovedOzBargainPostUrl, safeHttpsUrl } from "@/lib/security/urlPolicy";
 import { sanitisePublicText } from "@/lib/stack/buildStack";
 import { scoreDeal } from "./score";
 import {
@@ -88,6 +88,14 @@ interface BuildContext {
   now: Date;
 }
 
+function publisherFamilyFor(
+  citations: Citation[],
+  fallback: string = "dealstack"
+): string {
+  const source = citations[0]?.source;
+  return source ? SOURCE_META[source].publisherFamily : fallback;
+}
+
 function finalise(
   input: Omit<PublicDeal, "searchText" | "score">,
   extraSearch: Array<string | null | undefined>,
@@ -136,9 +144,12 @@ export function fromSignal(
     signal.sentiment === "expired" ||
     isPastExpiry(signal.expiryDate ?? null, today);
   // Sample rows carry placeholder URLs that must never render as live links.
-  const externalUrl = signal.isSample
-    ? null
-    : (signal.productUrl ?? signal.merchantUrl ?? signal.sourceUrl);
+  // Community heat must lead to its original discussion, not silently swap in
+  // a merchant/product destination. Sample and non-post URLs remain unlinked.
+  const externalUrl =
+    !signal.isSample && isApprovedOzBargainPostUrl(signal.sourceUrl)
+      ? signal.sourceUrl
+      : null;
   return finalise(
     {
       id: `community:${signal.id}`,
@@ -163,6 +174,8 @@ export function fromSignal(
       lastCheckedAt: signal.lastCheckedAt,
       expiryDate: signal.expiryDate ?? null,
       sourceName: "OzBargain",
+      publisherFamily: SOURCE_META.ozbargain.publisherFamily,
+      capturedAt: signal.lastCheckedAt,
       sourceUrl: externalUrl ? (safeHttpsUrl(externalUrl) ?? null) : null,
       detailPath: `/deals/signal/${encodeURIComponent(signal.id)}`,
       stackable:
@@ -234,6 +247,8 @@ export function fromGiftCard(
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
       sourceName: offer.source,
+      publisherFamily: publisherFamilyFor(offer.citations),
+      capturedAt: offer.lastCheckedAt,
       sourceUrl:
         (offer.sourceDetailUrl ? (safeHttpsUrl(offer.sourceDetailUrl) ?? null) : null) ??
         (offer.citations[0] ? (safeHttpsUrl(offer.citations[0].sourceUrl) ?? null) : null),
@@ -280,6 +295,8 @@ export function fromCashback(
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
       sourceName: offer.provider,
+      publisherFamily: publisherFamilyFor(offer.citations, offer.provider.toLowerCase()),
+      capturedAt: offer.lastCheckedAt,
       sourceUrl: offer.citations[0]
         ? (safeHttpsUrl(offer.citations[0].sourceUrl) ?? null)
         : null,
@@ -326,6 +343,8 @@ export function fromPoints(offer: PointsOffer, ctx: BuildContext): PublicDeal {
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
       sourceName: offer.program,
+      publisherFamily: publisherFamilyFor(offer.citations, offer.program.toLowerCase()),
+      capturedAt: offer.lastCheckedAt,
       sourceUrl: offer.citations[0]
         ? (safeHttpsUrl(offer.citations[0].sourceUrl) ?? null)
         : null,
@@ -374,6 +393,8 @@ export function fromWeeklyDeal(
       lastCheckedAt: null,
       expiryDate: deal.expiryDate,
       sourceName: "DealStack editorial",
+      publisherFamily: "dealstack",
+      capturedAt: deal.weekOf,
       sourceUrl: null,
       detailPath: weeklyDealPath(deal),
       stackable:

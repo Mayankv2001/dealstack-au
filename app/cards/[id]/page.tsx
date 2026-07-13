@@ -5,8 +5,8 @@ import { ArrowLeft, CalendarCheck, ExternalLink, History, Landmark } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { ReportOfferForm } from "@/components/ReportOfferForm";
 import { estimateFirstYearValue } from "@/lib/offers/cardValue";
 import { getCardOfferHistory, getPublicCardOffer } from "@/lib/repos";
@@ -57,16 +57,10 @@ export default async function CardOfferDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/cards"><ArrowLeft />All card offers</Link>
-          </Button>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <Link href="/cards" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />All card offers</Link>
         <div className="flex flex-col gap-3 border-b pb-6">
           <Badge variant="outline" className="w-fit"><Landmark />Verified card offer</Badge>
           <h1 className="text-3xl font-bold">{offer.provider} {offer.cardName}</h1>

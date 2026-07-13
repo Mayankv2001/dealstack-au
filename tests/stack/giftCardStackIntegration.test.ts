@@ -2,58 +2,70 @@ import { describe, expect, it } from "vitest";
 import { buildStackRecommendations } from "../../lib/stack/buildStack";
 import {
   TEST_NOW,
+  makeGiftCardAcceptance,
   makeGiftCard,
+  makeGiftCardProduct,
   makeStackData,
   makeStore,
 } from "./factories";
 
 /**
  * Focused coverage for the migration-021 gift-card integration into the stack
- * engine: bonus-value and points cards now contribute their effective saving
- * (not "0% off"), action-gated cards are optional and never deducted from the
- * guaranteed price, and every gift-card layer carries a structured
- * compatibility verdict. Plain-discount behaviour is covered by buildStack.test.
+ * engine: points and bonus value never reduce immediate cash price,
+ * action-gated cards are optional and never deducted from the guaranteed
+ * price, and every surfaced gift-card layer carries the same two-stage
+ * compatibility verdict used on offer detail pages.
  */
 
-const giftCardComponent = (spend: number, offer: Parameters<typeof makeGiftCard>[0]) => {
-  const data = makeStackData({
-    stores: [makeStore({ id: "myer", discountPercent: 0 })],
-    giftCardOffers: [makeGiftCard({ acceptedAtMerchantIds: ["myer"], ...offer })],
-  });
-  const [rec] = buildStackRecommendations(undefined, spend, data, TEST_NOW);
-  return { rec, giftCard: rec?.components.find((c) => c.layer === "gift-card") };
-};
-
 describe("stack integration — bonus-value gift cards", () => {
-  it("contributes its effective net-cost saving instead of being read as 0% off", () => {
-    const { rec, giftCard } = giftCardComponent(500, {
-      discountPercent: 0,
-      promotionType: "bonus-value",
-      bonusPercent: 10,
+  it("never presents bonus spending power as an immediate cash discount", () => {
+    const data = makeStackData({
+      stores: [
+        makeStore({ id: "myer", discountPercent: 10, discountCode: "SAVE10" }),
+      ],
+      giftCardOffers: [
+        makeGiftCard({
+          discountPercent: 0,
+          promotionType: "bonus-value",
+          bonusPercent: 10,
+          acceptedAtMerchantIds: ["myer"],
+        }),
+      ],
     });
-    expect(giftCard).toBeDefined();
-    // 10% bonus value → 9.09% effective → $45.45 on $500.
-    expect(giftCard?.valueDollars).toBe(45.45);
-    expect(giftCard?.label).toMatch(/effective/i);
-    expect(giftCard?.optional).toBe(false);
-    expect(rec.effectivePrice).toBe(454.55);
-    expect(giftCard?.compatibilityStatus).toBe("likely-compatible");
-    expect(giftCard?.compatibilityReason).toBeTruthy();
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    expect(rec.effectivePrice).toBe(450);
+    expect(rec.totalSaving).toBe(50);
+    expect(rec.components.some((component) => component.layer === "gift-card")).toBe(
+      false
+    );
   });
 });
 
 describe("stack integration — points gift cards", () => {
-  it("values a points card at the disclosed rate and stacks it", () => {
-    const { rec, giftCard } = giftCardComponent(500, {
-      discountPercent: 0,
-      promotionType: "points",
-      pointsMultiplier: 20,
-      pointsProgram: "Everyday Rewards",
+  it("values the points separately while leaving cash price unchanged", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer" })],
+      giftCardProducts: [makeGiftCardProduct()],
+      giftCardAcceptance: [makeGiftCardAcceptance()],
+      giftCardOffers: [makeGiftCard({
+        productId: "product-1",
+        acceptedAtMerchantIds: ["myer"],
+        discountPercent: 0,
+        promotionType: "points",
+        pointsMultiplier: 20,
+        pointsProgram: "Everyday Rewards",
+      })],
     });
-    expect(giftCard?.valueDollars).toBe(45.45); // 9.09% effective
-    expect(giftCard?.label).toMatch(/effective/i);
-    expect(rec.effectivePrice).toBe(454.55);
-    expect(giftCard?.compatibilityStatus).toBe("likely-compatible");
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const points = rec.components.find((component) => component.layer === "points");
+    expect(rec.kind).toBe("points-only");
+    expect(rec.effectivePrice).toBe(500);
+    expect(rec.totalSaving).toBe(0);
+    expect(rec.pointsEarned).toBe(10_000);
+    expect(rec.pointsValueDollars).toBe(50);
+    expect(points?.valueDollars).toBe(50);
+    expect(points?.note).toMatch(/cash price is unchanged/i);
+    expect(points?.compatibilityStatus).toBe("likely-compatible");
   });
 });
 
@@ -78,15 +90,109 @@ describe("stack integration — action-gated gift cards", () => {
     expect(rec.effectivePrice).toBe(450);
     expect(giftCard?.optional).toBe(true);
     expect(giftCard?.compatibilityStatus).toBe("requires-verification");
-    expect(rec.warnings.some((w) => w.code === "gift-card-requires-action")).toBe(true);
+    expect(
+      rec.warnings.some((w) => w.code === "gift-card-membership-required")
+    ).toBe(true);
   });
 });
 
 describe("stack integration — compatibility verdict on a plain card", () => {
-  it("attaches a 'compatible' verdict to a clean confirmed discount card", () => {
-    const { giftCard } = giftCardComponent(500, { discountPercent: 5 });
-    expect(giftCard?.valueDollars).toBe(25);
-    expect(giftCard?.compatibilityStatus).toBe("compatible");
-    expect(giftCard?.compatibilityReason).toMatch(/ready to stack/i);
+  it("requires verification when acceptance is listed but lacks evidence", () => {
+    const data = makeStackData({
+      stores: [
+        makeStore({ id: "myer", discountPercent: 1, discountCode: "SAVE1" }),
+      ],
+      giftCardOffers: [
+        makeGiftCard({ discountPercent: 5, acceptedAtMerchantIds: ["myer"] }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const giftCard = rec.components.find((component) => component.layer === "gift-card");
+    expect(giftCard?.valueDollars).toBe(24.75);
+    expect(giftCard?.optional).toBe(true);
+    expect(rec.effectivePrice).toBe(495);
+    expect(giftCard?.compatibilityStatus).toBe("requires-verification");
+    expect(giftCard?.compatibilityStages?.acquisition.status).toBe("compatible");
+    expect(giftCard?.compatibilityStages?.redemption.status).toBe(
+      "requires-verification"
+    );
+  });
+
+  it("uses published acceptance evidence in the same two-stage verdict", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer" })],
+      giftCardProducts: [makeGiftCardProduct()],
+      giftCardAcceptance: [makeGiftCardAcceptance()],
+      giftCardOffers: [
+        makeGiftCard({
+          productId: "product-1",
+          acceptedAtMerchantIds: ["myer"],
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const giftCard = rec.components.find((component) => component.layer === "gift-card");
+    expect(giftCard?.compatibilityStages?.acquisition.status).toBe("compatible");
+    expect(giftCard?.compatibilityStages?.redemption.status).toBe(
+      "likely-compatible"
+    );
+    expect(giftCard?.compatibilityStatus).toBe("likely-compatible");
+  });
+});
+
+describe("stack integration — qualifying thresholds and limits", () => {
+  it("applies a fixed-dollar checkout discount only after its threshold", () => {
+    const eligibleData = makeStackData({
+      stores: [makeStore({ id: "myer" })],
+      giftCardProducts: [makeGiftCardProduct()],
+      giftCardAcceptance: [makeGiftCardAcceptance()],
+      giftCardOffers: [
+        makeGiftCard({
+          productId: "product-1",
+          discountPercent: 0,
+          promotionType: "fixed-dollar-discount",
+          fixedDiscountDollars: 20,
+          thresholdDollars: 200,
+          acceptedAtMerchantIds: ["myer"],
+        }),
+      ],
+    });
+    const [eligible] = buildStackRecommendations(undefined, 250, eligibleData, TEST_NOW);
+    expect(eligible.effectivePrice).toBe(230);
+    expect(eligible.totalSaving).toBe(20);
+
+    const ineligibleData = makeStackData({
+      ...eligibleData,
+      stores: [
+        makeStore({ id: "myer", discountPercent: 5, discountCode: "SAVE5" }),
+      ],
+    });
+    const [ineligible] = buildStackRecommendations(undefined, 100, ineligibleData, TEST_NOW);
+    expect(ineligible.effectivePrice).toBe(95);
+    expect(ineligible.components.some((component) => component.layer === "gift-card")).toBe(
+      false
+    );
+  });
+
+  it("caps percentage savings by denomination multiplied by use count", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer" })],
+      giftCardProducts: [makeGiftCardProduct({ maxDenomination: 100 })],
+      giftCardAcceptance: [makeGiftCardAcceptance()],
+      giftCardOffers: [
+        makeGiftCard({
+          productId: "product-1",
+          discountPercent: 10,
+          usesPerCustomer: 2,
+          acceptedAtMerchantIds: ["myer"],
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    expect(rec.totalSaving).toBe(20);
+    expect(rec.effectivePrice).toBe(480);
+    expect(rec.warnings.some((warning) => warning.code === "gift-card-usage-limit")).toBe(
+      true
+    );
   });
 });

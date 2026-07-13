@@ -1,6 +1,8 @@
 import {
   getCashbackOffers,
   getGiftCardOffers,
+  getGiftCardAcceptance,
+  getGiftCardProducts,
   getOzBargainSignals,
   getPointsOffers,
   getStores,
@@ -29,7 +31,28 @@ export async function loadStackData(): Promise<StackData> {
       getPointsOffers(),
       getOzBargainSignals(),
     ]);
-  return { stores, giftCardOffers, cashbackOffers, pointsOffers, ozBargainSignals };
+  const productIds = [
+    ...new Set(
+      giftCardOffers.flatMap((offer) =>
+        [offer.productId, ...(offer.includedProductIds ?? [])].filter(
+          (id): id is string => Boolean(id)
+        )
+      )
+    ),
+  ];
+  const [giftCardProducts, giftCardAcceptance] = await Promise.all([
+    getGiftCardProducts(productIds),
+    getGiftCardAcceptance(productIds),
+  ]);
+  return {
+    stores,
+    giftCardOffers,
+    cashbackOffers,
+    pointsOffers,
+    ozBargainSignals,
+    giftCardProducts,
+    giftCardAcceptance,
+  };
 }
 
 /** Load repo data and return stack recommendations (same engine, injected data). */

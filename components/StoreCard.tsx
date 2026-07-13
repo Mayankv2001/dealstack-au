@@ -252,7 +252,7 @@ export function StoreCard({
           <span
             className={cn(
               buttonVariants({ variant: "outline", size: "sm" }),
-              "mt-auto w-full group-hover:border-emerald-600 group-hover:bg-emerald-600 group-hover:text-white"
+              "mt-auto w-full group-hover:border-emerald-700 group-hover:bg-emerald-700 group-hover:text-white"
             )}
           >
             View stack

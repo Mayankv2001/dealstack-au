@@ -294,7 +294,7 @@ export default function ResourcesPage() {
             <Button
               asChild
               size="sm"
-              className="hidden bg-emerald-600 text-white hover:bg-emerald-700 sm:inline-flex"
+              className="hidden bg-emerald-700 text-white hover:bg-emerald-800 sm:inline-flex"
             >
               <Link href="/">Home</Link>
             </Button>
@@ -362,7 +362,7 @@ export default function ResourcesPage() {
                   <Button
                     asChild
                     size="sm"
-                    className="mt-3 w-fit bg-emerald-600 text-white hover:bg-emerald-700"
+                    className="mt-3 w-fit bg-emerald-700 text-white hover:bg-emerald-800"
                   >
                     <Link href="/cards">
                       Browse live card offers
