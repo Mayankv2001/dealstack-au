@@ -20,8 +20,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -262,45 +262,7 @@ const warnings: ResourceItem[] = [
 export default function ResourcesPage() {
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Deals</Link>
-            </Button>
-            {/* Hidden on mobile so the row fits a 390px viewport (same
-                treatment as the /deals header). */}
-            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
-              <Link href="/stores">Stores</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/cards">Cards</Link>
-            </Button>
-            <span
-              aria-current="page"
-              className="inline-flex h-8 items-center rounded-md bg-emerald-500/10 px-3 text-sm font-medium text-emerald-700 dark:text-emerald-400"
-            >
-              Resources
-            </span>
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="hidden bg-background sm:inline-flex"
-            >
-              <Link href="/search">All stores</Link>
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              className="hidden bg-emerald-700 text-white hover:bg-emerald-800 sm:inline-flex"
-            >
-              <Link href="/">Home</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {/* Intro */}

@@ -79,16 +79,18 @@ export async function loadDecisionResult(
     stackRecommendations,
     partial,
   };
-  const productComparisons = query.trim()
-    ? buildSmartStackView(
-        buildSmartStackResults(query, stackData, now),
-      ).flatMap((item) => (item.kind === "comparison" ? [item] : []))
+  const productMatches = query.trim()
+    ? buildSmartStackResults(query, stackData, now)
     : [];
+  const productComparisons = buildSmartStackView(productMatches).flatMap(
+    (item) => (item.kind === "comparison" ? [item] : []),
+  );
   return buildDecisionResult(query, spend, {
     bundle,
     products,
     acceptance,
     giftCardOffers: stackData.giftCardOffers,
     productComparisons,
+    productMatches,
   });
 }

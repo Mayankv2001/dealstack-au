@@ -407,6 +407,7 @@ function buildForStore(
     if (!giftCardOptional) running = round(running - giftCardSaving);
     components.push({
       layer: "gift-card",
+      sourceOfferId: giftCard.id,
       label: `${giftCardValueLabel(giftCard)} via ${giftCard.brand} cards (${giftCard.source})`,
       valuePercent: giftCard.discountPercent,
       valueDollars: giftCardSaving,
@@ -506,6 +507,7 @@ function buildForStore(
     const reason = stackabilityReason(giftCardAnalysis);
     components.push({
       layer: "gift-card",
+      sourceOfferId: giftCard.id,
       label: `${giftCardValueLabel(giftCard)} via ${giftCard.brand} cards (alternative to cashback)`,
       valuePercent: giftCard.discountPercent,
       valueDollars: giftCardSaving,
@@ -641,6 +643,7 @@ function buildForStore(
     }
     components.push({
       layer: "points",
+      sourceOfferId: pointsGiftCard.id,
       label: pointsGiftCard.fixedPoints
         ? `${pointsGiftCard.fixedPoints.toLocaleString("en-AU")} ${programme} points when buying ${pointsGiftCard.brand} gift cards via ${pointsGiftCard.source}`
         : `${pointsGiftCard.pointsMultiplier}× ${programme} when buying ${pointsGiftCard.brand} gift cards via ${pointsGiftCard.source}`,

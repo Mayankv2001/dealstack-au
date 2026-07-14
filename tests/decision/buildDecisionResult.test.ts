@@ -3,6 +3,7 @@ import type { PublicDeal } from "@/lib/deals/types";
 import type { DealsBundle } from "@/lib/deals/load";
 import { buildDecisionResult } from "@/lib/decision/buildDecisionResult";
 import type { StackRecommendation } from "@/lib/offers/types";
+import type { SmartStackComparison } from "@/lib/stack/smartStack";
 import {
   makeGiftCard,
   makeGiftCardAcceptance,
@@ -117,6 +118,19 @@ describe("DecisionResult", () => {
     expect(result.selectedTarget).toMatchObject({ kind: "store", id: "myer" });
     expect(result.bestCashStack?.effectivePrice).toBe(475);
     expect(result.currentGiftCardOffers).toHaveLength(1);
+    expect(result.retailerGiftCardPlans).toHaveLength(1);
+    expect(result.retailerGiftCardPlans[0]).toMatchObject({
+      merchantId: "myer",
+      merchantName: "Myer",
+      giftCardOptions: [
+        {
+          offer: { id: "gc-1" },
+          role: "available",
+          immediateCashSaving: 25,
+          coveredGiftCardValue: 500,
+        },
+      ],
+    });
     expect(result.acceptedCards).toHaveLength(1);
     expect(result.communityPulse[0]).toMatchObject({
       sourceUrl: "https://www.ozbargain.com.au/node/1",
@@ -192,5 +206,105 @@ describe("DecisionResult", () => {
     expect(result.bestCashStack).toBe(stackWithPoints);
     expect(result.rewardsStack).toBe(stackWithPoints);
     expect(result.rewardsStack?.pointsEarned).toBe(500);
+  });
+
+  it("builds retailer-specific card choices for a product comparison", () => {
+    const jb = makeStore({ id: "jb-hifi", name: "JB Hi-Fi" });
+    const costco = makeStore({ id: "costco", name: "Costco" });
+    const ultimate = makeGiftCard({
+      id: "gc-ultimate-points",
+      brand: "Ultimate",
+      acceptedAtMerchantIds: ["jb-hifi"],
+      discountPercent: 0,
+      promotionType: "points",
+      pointsMultiplier: 20,
+      pointsProgram: "Everyday Rewards",
+      expiryDate: "2026-07-21",
+    });
+    const jbStack: StackRecommendation = {
+      ...stack,
+      merchantId: "jb-hifi",
+      merchantName: "JB Hi-Fi",
+      kind: "points-only",
+      effectivePrice: 1800,
+      totalSaving: 0,
+      pointsEarned: 36_000,
+      pointsValueDollars: 180,
+      components: [
+        {
+          layer: "points",
+          sourceOfferId: ultimate.id,
+          label: "20× Everyday Rewards via Ultimate",
+          pointsEarned: 36_000,
+          valueDollars: 180,
+          optional: false,
+          citation: { source: "manual", sourceUrl: "https://example.com/offer" },
+          confidence: "confirmed",
+        },
+      ],
+    };
+    const signal = (id: string, merchantId: string, price: string) => ({
+      id,
+      merchantId,
+      title: "Apple MacBook Air M3",
+      summary: "Reviewed listing.",
+      votesSample: 0,
+      sentiment: "neutral" as const,
+      dealKind: "guide" as const,
+      sourceUrl: `https://example.com/${id}`,
+      postedAt: "2026-07-14T00:00:00Z",
+      confidence: "confirmed" as const,
+      lastCheckedAt: "2026-07-14T00:00:00Z",
+      isSample: false,
+      priceText: price,
+      status: "approved" as const,
+      productGroup: "macbook-air-m3",
+    });
+    const comparison: SmartStackComparison = {
+      kind: "comparison",
+      productGroup: "macbook-air-m3",
+      title: "Apple MacBook Air M3",
+      options: [
+        {
+          signal: signal("jb", "jb-hifi", "$1,800"),
+          recommendation: jbStack,
+          signalPrice: 1800,
+        },
+        {
+          signal: signal("costco", "costco", "$1,750"),
+          recommendation: null,
+          signalPrice: 1750,
+        },
+      ],
+    };
+    const result = buildDecisionResult("MacBook Air M3", 1800, {
+      bundle: bundle({
+        stores: [jb, costco],
+        deals: [],
+        stackRecommendations: [jbStack],
+      }),
+      products: [],
+      acceptance: [],
+      giftCardOffers: [ultimate],
+      productComparisons: [comparison],
+      productMatches: comparison.options,
+    });
+    expect(result.retailerGiftCardPlans).toHaveLength(2);
+    expect(result.retailerGiftCardPlans[0]).toMatchObject({
+      merchantId: "jb-hifi",
+      productTitle: "Apple MacBook Air M3",
+      giftCardOptions: [
+        {
+          offer: { id: "gc-ultimate-points" },
+          role: "included",
+          pointsEarned: 36_000,
+          immediateCashSaving: 0,
+        },
+      ],
+    });
+    expect(result.retailerGiftCardPlans[1]).toMatchObject({
+      merchantId: "costco",
+      giftCardOptions: [],
+    });
   });
 });

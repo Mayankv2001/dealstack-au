@@ -336,6 +336,8 @@ export interface WeeklyDeal {
 
 export interface StackComponent {
   layer: StackLayer;
+  /** Canonical offer id when this component came from a gift-card offer. */
+  sourceOfferId?: string;
   label: string;
   valuePercent?: number;
   /** Dollar value of this layer against the example spend. */

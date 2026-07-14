@@ -18,6 +18,7 @@ import Logo from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
+  { label: "Plan a purchase", href: "/search", icon: Search, primary: true },
   { label: "Deals", href: "/deals", icon: BadgePercent },
   { label: "Gift cards", href: "/gift-cards", icon: Gift },
   {
@@ -42,9 +43,8 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 /**
- * One public navigation system for every route. The desktop header keeps the
- * purchase planner visible; mobile uses a labelled, full-width menu so people
- * never have to infer what an icon does.
+ * One task-first public navigation system for every route. Planning is the
+ * first action; the remaining links are specialist ways to browse.
  */
 export function SiteHeader() {
   const pathname = usePathname();
@@ -52,26 +52,29 @@ export function SiteHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-foreground/10 bg-background/90 shadow-[0_1px_0_rgba(15,23,42,0.03)] backdrop-blur-xl">
-        <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center gap-3 px-4 sm:px-6">
+      <header className="sticky top-0 z-50 border-b border-foreground/10 bg-background/95 backdrop-blur-xl">
+        <div className="page-container flex h-16 items-center gap-3">
           <Logo />
 
           <nav
-            className="ml-4 hidden items-center gap-1 lg:flex"
+            className="ml-auto hidden items-center gap-1 lg:flex"
             aria-label="Primary navigation"
           >
-            {NAV_LINKS.map(({ label, href }) => {
+            {NAV_LINKS.map(({ label, href, ...item }) => {
               const active = isActive(pathname, href);
+              const primary = "primary" in item && item.primary;
               return (
                 <Link
                   key={href}
                   href={href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "rounded-full px-3 py-2 text-sm font-semibold transition-colors",
-                    active
-                      ? "bg-emerald-950 text-white dark:bg-emerald-200 dark:text-emerald-950"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    "rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                    primary
+                      ? "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800"
+                      : active
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
                   {label}
@@ -80,39 +83,17 @@ export function SiteHeader() {
             })}
           </nav>
 
-          <form
-            action="/search"
-            className="relative ml-auto hidden w-full max-w-[17rem] xl:block"
-            role="search"
-          >
-            <label htmlFor="site-search" className="sr-only">
-              Search DealStack
-            </label>
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <input
-              id="site-search"
-              name="q"
-              type="search"
-              placeholder="Search store or product"
-              className="h-10 w-full rounded-full border border-foreground/10 bg-muted/55 pl-9 pr-3 text-sm outline-none transition focus-visible:border-emerald-600 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-emerald-500/10"
-            />
-            <input type="hidden" name="spend" value="500" />
-          </form>
-
           <Link
             href="/search"
-            className="ml-auto hidden h-10 items-center gap-2 rounded-full bg-emerald-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 sm:inline-flex xl:ml-2"
+            className="ml-auto hidden h-10 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 sm:inline-flex lg:hidden"
           >
             <Search aria-hidden className="size-4" />
-            Plan a purchase
+            Plan purchase
           </Link>
 
           <Link
             href="/search"
-            className="ml-auto inline-flex size-10 items-center justify-center rounded-full border bg-background sm:hidden"
+            className="ml-auto inline-flex size-10 items-center justify-center rounded-lg border bg-background sm:hidden"
             aria-label="Search and plan a purchase"
           >
             <Search aria-hidden className="size-4" />
@@ -120,7 +101,7 @@ export function SiteHeader() {
 
           <button
             type="button"
-            className="inline-flex size-10 items-center justify-center rounded-full border bg-background lg:hidden"
+            className="inline-flex size-10 items-center justify-center rounded-lg border bg-background lg:hidden"
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
             aria-controls="mobile-navigation"
@@ -143,17 +124,21 @@ export function SiteHeader() {
               aria-label="Mobile navigation"
               className="mx-auto grid max-w-7xl gap-1 px-4 py-3 sm:grid-cols-2 sm:px-6"
             >
-              {NAV_LINKS.map(({ label, href, icon: Icon }) => {
+              {NAV_LINKS.map(({ label, href, icon: Icon, ...item }) => {
                 const active = isActive(pathname, href);
+                const primary = "primary" in item && item.primary;
                 return (
                   <Link
                     key={href}
                     href={href}
+                    aria-label={primary ? "Build a purchase plan" : undefined}
                     aria-current={active ? "page" : undefined}
                     onClick={() => setMenuOpen(false)}
                     className={cn(
                       "flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold",
-                      active
+                      primary
+                        ? "bg-emerald-700 text-white"
+                        : active
                         ? "bg-emerald-950 text-white dark:bg-emerald-200 dark:text-emerald-950"
                         : "hover:bg-muted",
                     )}
@@ -163,14 +148,6 @@ export function SiteHeader() {
                   </Link>
                 );
               })}
-              <Link
-                href="/search"
-                onClick={() => setMenuOpen(false)}
-                className="mt-1 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white sm:col-span-2"
-              >
-                <Search aria-hidden className="size-4" />
-                Build a purchase plan
-              </Link>
               <Link
                 href="/cards"
                 onClick={() => setMenuOpen(false)}

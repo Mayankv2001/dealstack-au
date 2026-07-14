@@ -17,6 +17,7 @@ import { DealCard } from "@/components/deals/DealCard";
 import GiftCardOfferCard from "@/components/GiftCardOfferCard";
 import SearchBar from "@/components/SearchBar";
 import ReportProblemForm from "@/components/ReportProblemForm";
+import RetailerGiftCardPlans from "@/components/RetailerGiftCardPlans";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
@@ -114,6 +115,14 @@ export default async function SearchPage({
   const result = await loadDecisionResult(query, spend);
   const primaryRecommendation = result.bestCashStack ?? result.rewardsStack;
   const presentation = recommendationPresentation(primaryRecommendation);
+  const retailerOfferIds = new Set(
+    result.retailerGiftCardPlans.flatMap((plan) =>
+      plan.giftCardOptions.map((option) => option.offer.id),
+    ),
+  );
+  const otherGiftCardOffers = result.currentGiftCardOffers.filter(
+    (offer) => !retailerOfferIds.has(offer.id),
+  );
   const now = new Date();
   const noResults =
     query.length > 0 &&
@@ -124,30 +133,59 @@ export default async function SearchPage({
     result.currentGiftCardOffers.length === 0 &&
     result.communityPulse.length === 0 &&
     result.productComparisons.length === 0;
+  const isProductComparison = result.productComparisons.length > 0;
+  const isGiftCardDiscovery =
+    !isProductComparison &&
+    !primaryRecommendation &&
+    result.currentGiftCardOffers.length > 0;
+  const pageHeading = !query
+    ? "What are you planning to buy?"
+    : isProductComparison
+      ? `Compare ways to buy “${query}”`
+      : isGiftCardDiscovery
+        ? `Gift-card offers for “${query}”`
+      : primaryRecommendation
+        ? `${presentation.recommendationLabel} for “${query}”`
+        : `Results for “${query}”`;
+  const pageDescription = isProductComparison
+    ? "Compare the listed retailer price first, then check the compatible gift-card and saving options for each seller."
+    : isGiftCardDiscovery
+      ? "Compare who sells the card, the exact promotion mechanic and where the card can be used before adding it to a purchase plan."
+    : "Enter a store, product, gift card or rewards programme. You’ll get a clear plan with cash savings, later rewards and conditions shown separately.";
 
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
       <main className="page-container flex-1 py-7 pb-32 sm:py-10 lg:pb-10">
-        <div className="mx-auto max-w-5xl border-b px-1 pb-8 text-center sm:px-5 sm:pb-10">
-          <p className="eyebrow">Purchase planner</p>
-          <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
-            {query
-              ? `${presentation.recommendationLabel} for “${query}”`
-              : "What are you planning to buy?"}
-          </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Enter a store, product, gift card or rewards programme. You’ll get a
-            clear plan with cash savings, later rewards and conditions shown
-            separately.
-          </p>
+        <div
+          className={
+            query
+              ? "grid gap-5 border-b pb-7 lg:grid-cols-[minmax(0,0.85fr)_minmax(34rem,1.15fr)] lg:items-end"
+              : "mx-auto max-w-5xl border-b px-1 pb-8 text-center sm:px-5 sm:pb-10"
+          }
+        >
+          <div className={query ? "text-left" : undefined}>
+            <p className="eyebrow">Purchase planner</p>
+            <h1 className="mt-3 text-3xl font-black leading-tight tracking-[-0.035em] sm:text-4xl">
+              {pageHeading}
+            </h1>
+            <p
+              className={`mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base ${
+                query ? "" : "mx-auto"
+              }`}
+            >
+              {pageDescription}
+            </p>
+          </div>
           <SearchBar
             defaultValue={query}
             defaultSpend={spend}
             showSpend
             size="lg"
             layout="split"
-            className="mx-auto mt-6 max-w-3xl rounded-2xl border border-foreground/10 bg-card p-2 text-left shadow-sm"
+            className={`${
+              query ? "lg:mt-0" : "mx-auto mt-6"
+            } max-w-3xl rounded-2xl border border-foreground/10 bg-card p-2 text-left shadow-sm`}
             placeholder="Store, gift card, product or rewards programme"
             buttonLabel="Build plan"
           />
@@ -334,6 +372,11 @@ export default async function SearchPage({
           </section>
         ) : null}
 
+        <RetailerGiftCardPlans
+          plans={result.retailerGiftCardPlans}
+          spend={spend}
+        />
+
         {!result.ambiguous && primaryRecommendation ? (
           <aside
             aria-label="Current purchase plan summary"
@@ -378,16 +421,21 @@ export default async function SearchPage({
           </section>
         ) : null}
 
-        {result.currentGiftCardOffers.length > 0 && !result.ambiguous ? (
+        {otherGiftCardOffers.length > 0 ? (
           <section className="mt-10" aria-labelledby="current-gift-cards">
             <div className="flex items-center gap-2">
               <Gift aria-hidden className="size-5 text-violet-600" />
               <h2 id="current-gift-cards" className="text-xl font-bold">
-                Current reviewed gift-card offers
+                Other gift-card offers matching your search
               </h2>
             </div>
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+              These offers match the card brand or rewards search, but are not
+              automatically treated as payment options for another retailer.
+              Check where the card can be redeemed before buying it.
+            </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {result.currentGiftCardOffers.map((offer) => (
+              {otherGiftCardOffers.map((offer) => (
                 <GiftCardOfferCard key={offer.id} offer={offer} now={now} />
               ))}
             </div>

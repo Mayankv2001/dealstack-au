@@ -15,7 +15,7 @@ test("home: hero search live-filters the stores grid", async ({ page }) => {
   ).toBeVisible();
 
   await page
-    .getByPlaceholder("Search a store, e.g. Myer, JB Hi-Fi or Amazon")
+    .getByPlaceholder("Product or store, e.g. Apple or JB Hi-Fi")
     .first()
     .fill("jb hi-fi");
 
@@ -34,7 +34,7 @@ test("home: saving-plan form submits with the default spend (stepMismatch regres
   // blocking EVERY hero submission. Round spends must always submit.
   await page.goto("/");
   await page
-    .getByPlaceholder("Search a store, e.g. Myer, JB Hi-Fi or Amazon")
+    .getByPlaceholder("Product or store, e.g. Apple or JB Hi-Fi")
     .first()
     .fill("Myer");
   await page.getByRole("button", { name: "Build my saving plan" }).click();
@@ -51,17 +51,17 @@ test("public navigation keeps the purchase planner and core tasks easy to reach"
   await page.goto("/");
 
   await expect(
-    page.getByRole("link", { name: "Save at a store" }),
-  ).toHaveAttribute("href", "/stores");
+    page.getByRole("link", { name: "Browse current deals" }),
+  ).toHaveAttribute("href", "/deals");
   await expect(
-    page.getByRole("link", { name: "Find discounted gift cards" }),
+    page.getByRole("link", { name: "Find the right gift card" }),
   ).toHaveAttribute("href", "/gift-cards");
   await expect(
-    page.getByRole("link", { name: "Earn more points" }),
+    page.getByRole("link", { name: "Compare points offers" }),
   ).toHaveAttribute("href", "/rewards");
   await expect(
-    page.getByRole("link", { name: "Expiring opportunities" }),
-  ).toHaveAttribute("href", "/deals?view=expiring");
+    page.getByRole("link", { name: "Check cashback conditions" }),
+  ).toHaveAttribute("href", "/cashback");
 
   await page.goto("/gift-cards");
   const header = page.getByRole("banner");
@@ -174,7 +174,7 @@ test("search: canonical product key compares retailer prices and stacks", async 
   await expect(page.getByText("Costco").first()).toBeVisible();
   await expect(page.getByText("Best price")).toBeVisible();
   await expect(page.getByText(/^Stack:/)).toBeVisible();
-  await expect(page.getByText("$1,749.00")).toBeVisible();
+  await expect(page.getByText("$1,749.00", { exact: true })).toBeVisible();
 });
 
 test("decision hub: store search returns a shareable purchase plan", async ({
@@ -257,11 +257,40 @@ test("decision hub: Apple search surfaces current reviewed sellers", async ({
 }) => {
   await page.goto("/search?q=Apple&spend=500");
   await expect(
-    page.getByRole("heading", { name: "Current reviewed gift-card offers" }),
+    page.getByRole("heading", {
+      name: "Other gift-card offers matching your search",
+    }),
   ).toBeVisible();
   await expect(page.getByText("Apple").first()).toBeVisible();
   await expect(
     page.getByText(/Points are rewards, not cash/i).first(),
+  ).toBeVisible();
+});
+
+test("decision hub: product search exposes retailer-compatible gift-card payment options", async ({
+  page,
+}) => {
+  await page.goto("/search?q=macbook-air-m3&spend=1800");
+  await expect(
+    page.getByRole("heading", { name: "Compare ways to buy “macbook-air-m3”" }),
+  ).toBeVisible();
+  await expect(page.getByText(/No reliable plan available/)).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Gift-card ways to pay by retailer" }),
+  ).toBeVisible();
+  const retailerOptions = page
+    .getByRole("heading", { name: "Gift-card ways to pay by retailer" })
+    .locator("xpath=..")
+    .locator("xpath=..");
+  await expect(retailerOptions.getByRole("heading", { name: "JB Hi-Fi" })).toBeVisible();
+  await expect(retailerOptions.getByText("Ultimate", { exact: true })).toBeVisible();
+  await expect(
+    retailerOptions.getByText(
+      /Included in best plan|Choose instead|Available option/,
+    ),
+  ).toBeVisible();
+  await expect(
+    retailerOptions.getByText(/Points and bonus value stay separate/i),
   ).toBeVisible();
 });
 

@@ -7,10 +7,19 @@ import type {
 } from "@/lib/offers/types";
 import { REWARDS_PROGRAMMES } from "@/lib/rewards/programmes";
 import { isConfirmedCurrentGiftCardOffer } from "@/lib/giftcards/publicQuery";
+import { evaluateGiftCardCompatibility } from "@/lib/giftcards/compatibility";
+import { buildWorkedExample } from "@/lib/giftcards/value";
 import type { Citation } from "@/lib/sources/types";
 import { summariseCitations } from "@/lib/stack/citationSummary";
-import type { SmartStackComparison } from "@/lib/stack/smartStack";
-import type { DecisionResult, DecisionTarget } from "./types";
+import type {
+  SmartStackComparison,
+  SmartStackResult,
+} from "@/lib/stack/smartStack";
+import type {
+  DecisionResult,
+  DecisionTarget,
+  RetailerGiftCardPlan,
+} from "./types";
 
 export interface DecisionInputs {
   bundle: DealsBundle;
@@ -19,6 +28,8 @@ export interface DecisionInputs {
   /** Already-public offers from the same anon/RLS-backed stack-data load. */
   giftCardOffers: GiftCardOffer[];
   productComparisons?: SmartStackComparison[];
+  /** All approved product matches, including single-retailer results. */
+  productMatches?: SmartStackResult[];
 }
 
 const normalise = (value: string) =>
@@ -78,6 +89,152 @@ function citationsFor(
     ...stacks.flatMap((stack) => stack?.citations ?? []),
     ...offers.flatMap((offer) => offer.citations),
   ];
+}
+
+function retailerGiftCardPlans(
+  selectedStoreId: string | null,
+  spend: number,
+  inputs: DecisionInputs,
+): RetailerGiftCardPlan[] {
+  const contexts: Array<{
+    key: string;
+    merchantId: string;
+    merchantName: string;
+    productTitle: string | null;
+    listedPrice: number | null;
+    recommendation: StackRecommendation | null;
+  }> = [];
+  if (selectedStoreId) {
+    const store = inputs.bundle.stores.find((item) => item.id === selectedStoreId);
+    if (store) {
+      contexts.push({
+        key: `store:${store.id}`,
+        merchantId: store.id,
+        merchantName: store.name,
+        productTitle: null,
+        listedPrice: spend,
+        recommendation:
+          inputs.bundle.stackRecommendations.find(
+            (item) => item.merchantId === store.id,
+          ) ?? null,
+      });
+    }
+  }
+  for (const comparison of inputs.productComparisons ?? []) {
+    for (const option of comparison.options) {
+      const merchantId =
+        option.recommendation?.merchantId ?? option.signal.merchantId;
+      if (!merchantId) continue;
+      const store = inputs.bundle.stores.find((item) => item.id === merchantId);
+      contexts.push({
+        key: `${comparison.productGroup}:${merchantId}`,
+        merchantId,
+        merchantName:
+          option.recommendation?.merchantName ?? store?.name ?? "Retailer",
+        productTitle: comparison.title,
+        listedPrice: option.signalPrice,
+        recommendation: option.recommendation,
+      });
+    }
+  }
+  for (const option of inputs.productMatches ?? []) {
+    const merchantId = option.recommendation?.merchantId ?? option.signal.merchantId;
+    if (!merchantId) continue;
+    const store = inputs.bundle.stores.find((item) => item.id === merchantId);
+    contexts.push({
+      key: `${option.signal.productGroup ?? option.signal.id}:${merchantId}`,
+      merchantId,
+      merchantName:
+        option.recommendation?.merchantName ?? store?.name ?? "Retailer",
+      productTitle: option.signal.title,
+      listedPrice: option.signalPrice,
+      recommendation: option.recommendation,
+    });
+  }
+
+  return [...new Map(contexts.map((context) => [context.key, context])).values()].map(
+    (context) => {
+      const faceValue = context.listedPrice ?? spend;
+      const componentByOffer = new Map(
+        (context.recommendation?.components ?? [])
+          .filter((component) => component.sourceOfferId)
+          .map((component) => [component.sourceOfferId!, component]),
+      );
+      const giftCardOptions = inputs.giftCardOffers
+        .filter(
+          (offer) =>
+            isConfirmedCurrentGiftCardOffer(offer) &&
+            offer.acceptedAtMerchantIds.includes(context.merchantId),
+        )
+        .flatMap((offer) => {
+          const compatibility = evaluateGiftCardCompatibility(offer, {
+            storeId: context.merchantId,
+            storeName: context.merchantName,
+          });
+          if (compatibility.status === "incompatible") return [];
+          const worked = buildWorkedExample(
+            {
+              promotionType: offer.promotionType ?? "discount",
+              discountPercent: offer.discountPercent || null,
+              bonusPercent: offer.bonusPercent ?? null,
+              pointsMultiplier: offer.pointsMultiplier ?? null,
+              fixedPoints: offer.fixedPoints ?? null,
+              pointsProgram:
+                offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null,
+              pointsValueCents: offer.pointsValueCents ?? null,
+              fixedDiscountDollars: offer.fixedDiscountDollars ?? null,
+              promoCreditDollars: offer.promoCreditDollars ?? null,
+              feeWaiverDollars: offer.feeWaiverDollars ?? null,
+              thresholdDollars: offer.thresholdDollars ?? null,
+              capDollars: offer.capDollars,
+            },
+            faceValue,
+          );
+          if (!worked) return [];
+          const component = componentByOffer.get(offer.id);
+          return [{
+            offer,
+            role: component
+              ? component.optional
+                ? ("alternative" as const)
+                : ("included" as const)
+              : ("available" as const),
+            compatibilityStatus:
+              component?.compatibilityStatus ?? compatibility.status,
+            compatibilityReason:
+              component?.compatibilityReason ?? compatibility.reason,
+            engineNote: component?.note ?? null,
+            warnings: [
+              ...new Set([
+                ...compatibility.warnings,
+                ...(component?.compatibilityWarnings ?? []),
+              ]),
+            ],
+            coveredGiftCardValue: worked.coveredFaceValue,
+            cashPaid: worked.cashPaid,
+            immediateCashSaving: worked.acquisitionSaving,
+            bonusCardValue: worked.bonusValueDollars,
+            pointsEarned: worked.points,
+            estimatedRewardsValue: worked.rewardValueDollars,
+          }];
+        })
+        .sort((a, b) => {
+          const role = { included: 0, alternative: 1, available: 2 } as const;
+          return (
+            role[a.role] - role[b.role] ||
+            b.immediateCashSaving - a.immediateCashSaving ||
+            (b.estimatedRewardsValue ?? 0) - (a.estimatedRewardsValue ?? 0)
+          );
+        });
+      return {
+        merchantId: context.merchantId,
+        merchantName: context.merchantName,
+        productTitle: context.productTitle,
+        listedPrice: context.listedPrice,
+        giftCardOptions,
+      };
+    },
+  );
 }
 
 export function buildDecisionResult(
@@ -196,6 +353,11 @@ export function buildDecisionResult(
     }
     return !q || matches(offerSearchText(offer), q);
   });
+  const retailerPlans = retailerGiftCardPlans(
+    selectedStoreId,
+    safeSpend,
+    inputs,
+  );
   const productById = new Map(products.map((product) => [product.id, product]));
   const acceptedCards = acceptance.flatMap((row) => {
     if (!q) return [];
@@ -277,6 +439,7 @@ export function buildDecisionResult(
     bestCashStack,
     rewardsStack,
     currentGiftCardOffers: filteredOffers,
+    retailerGiftCardPlans: retailerPlans,
     acceptedCards,
     alternativeStacks,
     communityPulse,

@@ -64,6 +64,7 @@ describe("stack integration — points gift cards", () => {
     expect(rec.pointsEarned).toBe(10_000);
     expect(rec.pointsValueDollars).toBe(50);
     expect(points?.valueDollars).toBe(50);
+    expect(points?.sourceOfferId).toBe("gc-1");
     expect(points?.note).toMatch(/cash price is unchanged/i);
     expect(points?.compatibilityStatus).toBe("likely-compatible");
   });

@@ -5,10 +5,8 @@ import SiteHeader from "@/components/SiteHeader";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
 import {
   CalculatorSection,
-  FinalCTASection,
   HomeFooter,
   SavingsLayersSection,
-  TrustSection,
 } from "@/components/home/HomeStaticSections";
 import { siteUrl } from "@/lib/env";
 import { getTopDeals } from "@/lib/repos/topDeals";
@@ -69,8 +67,6 @@ export default async function Home() {
 
           <SavingsLayersSection />
           <CalculatorSection recommendations={recommendations} />
-          <TrustSection recommendation={featured} />
-          <FinalCTASection />
         </main>
         <HomeFooter />
       </div>
