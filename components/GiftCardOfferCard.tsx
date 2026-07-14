@@ -1,11 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  BadgeCheck,
-  CalendarDays,
-  CheckCircle2,
-  Store,
-} from "lucide-react";
+import { BadgeCheck, CalendarDays, CheckCircle2 } from "lucide-react";
 import type { GiftCardOffer } from "@/lib/offers/types";
 import {
   buildGiftCardOfferCardViewModel,
@@ -97,20 +92,26 @@ export function GiftCardOfferCard({
           {vm.headline}
         </p>
 
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Store aria-hidden className="size-3 shrink-0" />
-          <span className="truncate" title={vm.sellerLabel}>
-            {vm.sellerLabel}
-          </span>
-          {vm.sourceLabel ? (
-            <span
-              className="ml-auto shrink-0 max-w-[45%] truncate text-[11px] text-foreground/75"
-              title={`Sourced from ${vm.sourceLabel}`}
-            >
-              via {vm.sourceLabel}
-            </span>
-          ) : null}
-        </div>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-y py-2 text-[10px]">
+          {[
+            ["Buy from", vm.sellerLabel],
+            ["Offer source", vm.sourceLabel],
+            ["Card brand", vm.brandPrimary],
+            ["Redeem at", vm.redeemAtLabel],
+          ].map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <dt className="font-semibold uppercase tracking-wide text-muted-foreground">
+                {label}
+              </dt>
+              <dd
+                className="truncate text-xs font-medium text-foreground"
+                title={value}
+              >
+                {value}
+              </dd>
+            </div>
+          ))}
+        </dl>
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <CalendarDays aria-hidden className="size-3 shrink-0" />
@@ -126,7 +127,7 @@ export function GiftCardOfferCard({
           <span
             className={cn(
               "inline-flex items-center rounded-full px-2 py-0.5",
-              TONE_CHIP[vm.compatibilityTone]
+              TONE_CHIP[vm.compatibilityTone],
             )}
           >
             {vm.compatibilityLabel}

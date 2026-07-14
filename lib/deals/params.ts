@@ -22,15 +22,15 @@ export const DEALS_VIEWS = [
 export type DealsView = (typeof DEALS_VIEWS)[number];
 
 export const VIEW_LABEL: Record<DealsView, string> = {
-  discover: "Discover",
-  top: "Hot now",
-  recent: "Recently checked",
+  discover: "All deals",
+  top: "Best verified",
+  recent: "Latest",
   stacks: "Best stacks",
   "gift-cards": "Gift cards",
   cashback: "Cashback",
   points: "Points",
   community: "Community",
-  expiring: "Expiring soon",
+  expiring: "Expiring",
 };
 
 /** Views that narrow to one deal kind. */
@@ -39,6 +39,23 @@ export const VIEW_KIND: Partial<Record<DealsView, PublicDealKind>> = {
   cashback: "cashback",
   points: "points",
   community: "community",
+};
+
+export const DEAL_KIND_FILTERS = [
+  "gift-card",
+  "cashback",
+  "points",
+  "community",
+] as const satisfies readonly PublicDealKind[];
+
+export const DEAL_KIND_LABEL: Record<
+  (typeof DEAL_KIND_FILTERS)[number],
+  string
+> = {
+  "gift-card": "Gift cards",
+  cashback: "Cashback",
+  points: "Points",
+  community: "Community",
 };
 
 export const DEALS_SORTS = [
@@ -83,7 +100,11 @@ export const PROGRAM_MATCH: Record<Program, string> = {
   flybuys: "flybuys",
 };
 
-export const TRUST_FILTERS = ["verified", "source-checked", "community"] as const;
+export const TRUST_FILTERS = [
+  "verified",
+  "source-checked",
+  "community",
+] as const;
 export type TrustFilter = (typeof TRUST_FILTERS)[number];
 
 export const TRUST_FILTER_LABEL: Record<TrustFilter, string> = {
@@ -101,6 +122,7 @@ export interface DealsParams {
   merchant: string | null;
   program: Program | null;
   trust: TrustFilter | null;
+  kind: (typeof DEAL_KIND_FILTERS)[number] | null;
   coupon: boolean;
   stackable: boolean;
   membership: boolean;
@@ -119,6 +141,7 @@ export const DEFAULT_PARAMS: DealsParams = {
   merchant: null,
   program: null,
   trust: null,
+  kind: null,
   coupon: false,
   stackable: false,
   membership: false,
@@ -156,9 +179,15 @@ export function parseDealsParams(raw: RawSearchParams): DealsParams {
 
   const rawView = first(raw.view);
   if ((DEALS_VIEWS as readonly string[]).includes(rawView)) {
-    params.view = rawView as DealsView;
+    const view = rawView as DealsView;
+    const legacyKind = VIEW_KIND[view];
+    params.view = legacyKind ? "discover" : view;
+    params.kind = (legacyKind as DealsParams["kind"]) ?? null;
   } else if (rawView in LEGACY_VIEW) {
-    params.view = LEGACY_VIEW[rawView];
+    const view = LEGACY_VIEW[rawView];
+    const legacyKind = VIEW_KIND[view];
+    params.view = legacyKind ? "discover" : view;
+    params.kind = (legacyKind as DealsParams["kind"]) ?? null;
   } else if ((PROGRAMS as readonly string[]).includes(rawView)) {
     // Legacy programme chips were views; they are a filter now.
     params.view = "top";
@@ -182,6 +211,11 @@ export function parseDealsParams(raw: RawSearchParams): DealsParams {
     params.trust = rawTrust as TrustFilter;
   } else if (first(raw.confidence) === "confirmed") {
     params.trust = "verified"; // legacy confidence filter
+  }
+
+  const rawKind = first(raw.kind);
+  if ((DEAL_KIND_FILTERS as readonly string[]).includes(rawKind)) {
+    params.kind = rawKind as DealsParams["kind"];
   }
 
   params.coupon = first(raw.coupon) === "1";
@@ -215,6 +249,7 @@ export function isDiscoverMode(params: DealsParams): boolean {
     params.merchant == null &&
     params.program == null &&
     params.trust == null &&
+    params.kind == null &&
     !params.coupon &&
     !params.stackable &&
     !params.membership &&
@@ -230,6 +265,7 @@ export function activeFilterCount(params: DealsParams): number {
   if (params.merchant) count++;
   if (params.program) count++;
   if (params.trust) count++;
+  if (params.kind) count++;
   if (params.coupon) count++;
   if (params.stackable) count++;
   if (params.membership) count++;
@@ -246,7 +282,7 @@ export function activeFilterCount(params: DealsParams): number {
  */
 export function dealsHref(
   params: DealsParams,
-  overrides: Partial<DealsParams> = {}
+  overrides: Partial<DealsParams> = {},
 ): string {
   const merged = { ...params, ...overrides };
   if (!("page" in overrides)) merged.page = 1;
@@ -257,13 +293,15 @@ export function dealsHref(
   if (merged.merchant) query.set("merchant", merged.merchant);
   if (merged.program) query.set("program", merged.program);
   if (merged.trust) query.set("trust", merged.trust);
+  if (merged.kind) query.set("kind", merged.kind);
   if (merged.coupon) query.set("coupon", "1");
   if (merged.stackable) query.set("stackable", "1");
   if (merged.membership) query.set("membership", "1");
   if (merged.activation) query.set("activation", "1");
   if (merged.targeted) query.set("targeted", "1");
   if (merged.added) query.set("added", merged.added);
-  if (merged.spend !== DEFAULT_PARAMS.spend) query.set("spend", String(merged.spend));
+  if (merged.spend !== DEFAULT_PARAMS.spend)
+    query.set("spend", String(merged.spend));
   if (merged.page > 1) query.set("page", String(merged.page));
   const qs = query.toString();
   return qs ? `/deals?${qs}` : "/deals";

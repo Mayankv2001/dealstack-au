@@ -46,7 +46,7 @@ import {
   type StageAnalysis,
 } from "@/lib/giftcards/stackability";
 import { buildProductAcceptance } from "@/lib/giftcards/acceptanceModel";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Public gift-card offer detail — server component. Reads ONLY approved,
@@ -61,7 +61,10 @@ export const revalidate = 300;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-const PROMO_LABEL: Record<NonNullable<GiftCardOffer["promotionType"]>, string> = {
+const PROMO_LABEL: Record<
+  NonNullable<GiftCardOffer["promotionType"]>,
+  string
+> = {
   discount: "Discount",
   "fixed-dollar-discount": "Fixed-dollar discount",
   "bonus-value": "Bonus value",
@@ -76,10 +79,22 @@ const STATUS_STYLE: Record<
   GiftCardCompatibilityStatus,
   { icon: typeof CheckCircle2; className: string }
 > = {
-  compatible: { icon: CheckCircle2, className: "text-emerald-600 dark:text-emerald-400" },
-  "likely-compatible": { icon: CheckCircle2, className: "text-emerald-600 dark:text-emerald-400" },
-  "requires-verification": { icon: CircleAlert, className: "text-amber-600 dark:text-amber-400" },
-  "insufficient-evidence": { icon: CircleHelp, className: "text-muted-foreground" },
+  compatible: {
+    icon: CheckCircle2,
+    className: "text-emerald-600 dark:text-emerald-400",
+  },
+  "likely-compatible": {
+    icon: CheckCircle2,
+    className: "text-emerald-600 dark:text-emerald-400",
+  },
+  "requires-verification": {
+    icon: CircleAlert,
+    className: "text-amber-600 dark:text-amber-400",
+  },
+  "insufficient-evidence": {
+    icon: CircleHelp,
+    className: "text-muted-foreground",
+  },
   incompatible: { icon: XCircle, className: "text-destructive" },
 };
 
@@ -147,7 +162,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+    <section
+      id={id}
+      className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5"
+    >
       <h2 className="mb-3 flex items-center gap-2 font-semibold">
         <Icon aria-hidden className="size-4 text-muted-foreground" />
         {title}
@@ -162,16 +180,27 @@ function StatusHeading({ analysis }: { analysis: StageAnalysis }) {
   const Icon = style.icon;
   return (
     <p className="flex items-start gap-2">
-      <Icon aria-hidden className={`mt-0.5 size-4 shrink-0 ${style.className}`} />
+      <Icon
+        aria-hidden
+        className={`mt-0.5 size-4 shrink-0 ${style.className}`}
+      />
       <span className="text-sm">
-        <span className="font-semibold">{compatibilityStatusLabel(analysis.status)}.</span>{" "}
+        <span className="font-semibold">
+          {compatibilityStatusLabel(analysis.status)}.
+        </span>{" "}
         <span className="text-muted-foreground">{analysis.reason}</span>
       </span>
     </p>
   );
 }
 
-function StagePanel({ heading, analysis }: { heading: string; analysis: StageAnalysis }) {
+function StagePanel({
+  heading,
+  analysis,
+}: {
+  heading: string;
+  analysis: StageAnalysis;
+}) {
   return (
     <div className="rounded-xl border bg-background p-3">
       <h3 className="text-sm font-semibold">{heading}</h3>
@@ -185,7 +214,9 @@ function StagePanel({ heading, analysis }: { heading: string; analysis: StageAna
             className="flex flex-col gap-0.5 border-b py-2 text-sm last:border-b-0 sm:flex-row sm:justify-between sm:gap-4"
           >
             <dt className="shrink-0 text-muted-foreground">{fact.label}</dt>
-            <dd className={`sm:text-right ${FACT_TONE[fact.tone]}`}>{fact.value}</dd>
+            <dd className={`sm:text-right ${FACT_TONE[fact.tone]}`}>
+              {fact.value}
+            </dd>
           </div>
         ))}
       </dl>
@@ -205,8 +236,8 @@ export default async function GiftCardDetailPage({
   const productIds = [
     ...new Set(
       [offer.productId, ...(offer.includedProductIds ?? [])].filter(
-        (pid): pid is string => Boolean(pid)
-      )
+        (pid): pid is string => Boolean(pid),
+      ),
     ),
   ];
   const [products, acceptance] = await Promise.all([
@@ -230,7 +261,7 @@ export default async function GiftCardDetailPage({
   const productViews = buildProductAcceptance(offer, products, acceptance);
 
   const storeNames: Record<string, string> = Object.fromEntries(
-    stores.map((s) => [s.id, s.name])
+    stores.map((s) => [s.id, s.name]),
   );
   const offerLevelMerchants = [
     ...new Set([
@@ -242,16 +273,28 @@ export default async function GiftCardDetailPage({
 
   const effectivePct = offerEffectiveSaving(offer);
   const seller = offer.purchaseLocation ?? offer.source;
-  const detailUrl = offer.sourceDetailUrl ? safeHttpsUrl(offer.sourceDetailUrl) : null;
+  const detailUrl = offer.sourceDetailUrl
+    ? safePublicSourceUrl(offer.sourceDetailUrl)
+    : null;
   const involvesPoints =
     (offer.pointsMultiplier ?? 0) > 0 ||
     offer.pointsOnPurchase != null ||
     offer.promotionType === "points";
 
   const overviewRows: Array<{ label: string; value: React.ReactNode }> = [
-    { label: "Seller", value: seller },
-    { label: "Source", value: offer.sourceName ?? offer.source },
-    { label: "Promotion type", value: PROMO_LABEL[offer.promotionType ?? "discount"] },
+    { label: "Buy from", value: seller },
+    { label: "Offer source", value: offer.sourceName ?? offer.source },
+    { label: "Card brand", value: offer.brand },
+    {
+      label: "Redeem at",
+      value: offerLevelMerchants.length
+        ? offerLevelMerchants.join(", ")
+        : "See acceptance conditions",
+    },
+    {
+      label: "Promotion type",
+      value: PROMO_LABEL[offer.promotionType ?? "discount"],
+    },
     {
       label: "Saving",
       value:
@@ -267,12 +310,17 @@ export default async function GiftCardDetailPage({
                 : `≈${round1(effectivePct)}% effective`
               : "Not quantifiable",
     },
-    { label: "Starts", value: offer.startDate ? formatDateAU(offer.startDate) : "Not recorded" },
+    {
+      label: "Starts",
+      value: offer.startDate ? formatDateAU(offer.startDate) : "Not recorded",
+    },
     {
       label: "Expires",
       value:
         formatExpiry(offer) ??
-        (offer.isOngoing ? "Ongoing" : "Expiry not recorded — verify at source"),
+        (offer.isOngoing
+          ? "Ongoing"
+          : "Expiry not recorded — verify at source"),
     },
     { label: "Checked", value: formatDateAU(offer.lastCheckedAt.slice(0, 10)) },
   ];
@@ -282,7 +330,10 @@ export default async function GiftCardDetailPage({
       <SiteHeader />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-        <Link href="/gift-cards" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground">
+        <Link
+          href="/gift-cards"
+          className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="size-4" /> All gift cards
         </Link>
         <div className="gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
@@ -298,14 +349,12 @@ export default async function GiftCardDetailPage({
                   {PROMO_LABEL[offer.promotionType ?? "discount"]}
                 </Badge>
                 <ConfidenceBadge confidence={offer.confidence} />
-                {offer.sourceName ? (
-                  <span className="text-xs text-muted-foreground">via {offer.sourceName}</span>
-                ) : null}
               </div>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                 {offerTitle(offer)}
               </h1>
-              {effectivePct != null && offer.promotionType !== "promo-credit" ? (
+              {effectivePct != null &&
+              offer.promotionType !== "promo-credit" ? (
                 <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
                   {offer.discountPercent > 0
                     ? `${round1(offer.discountPercent)}% off face value`
@@ -315,7 +364,9 @@ export default async function GiftCardDetailPage({
               <div className="flex flex-wrap gap-2 pt-1">
                 {buildStackMerchant ? (
                   <Button asChild size="sm">
-                    <Link href={`/?stack=${encodeURIComponent(buildStackMerchant)}#calculator`}>
+                    <Link
+                      href={`/?stack=${encodeURIComponent(buildStackMerchant)}#calculator`}
+                    >
                       <Layers />
                       Build a stack with this card
                     </Link>
@@ -330,30 +381,52 @@ export default async function GiftCardDetailPage({
                 )}
                 {detailUrl ? (
                   <Button asChild size="sm" variant="outline">
-                    <a href={detailUrl} target="_blank" rel="nofollow noopener noreferrer">
+                    <a
+                      href={detailUrl}
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                    >
                       Offer source
                     </a>
                   </Button>
                 ) : null}
               </div>
-              <ReportProblemForm entityType="gift-card-offer" entityId={offer.id} />
+              <ReportProblemForm
+                entityType="gift-card-offer"
+                entityId={offer.id}
+              />
             </div>
 
             {/* Compatibility verdict */}
             <section className="rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
               <div className="flex items-start gap-3">
-                <CompatIcon aria-hidden className={`mt-0.5 size-5 shrink-0 ${compatStyle.className}`} />
+                <CompatIcon
+                  aria-hidden
+                  className={`mt-0.5 size-5 shrink-0 ${compatStyle.className}`}
+                />
                 <div>
                   <p className="flex items-center gap-2 font-semibold">
-                    <ShieldCheck aria-hidden className="size-4 text-muted-foreground" />
-                    Stacking compatibility: {compatibilityStatusLabel(compat.status)}
+                    <ShieldCheck
+                      aria-hidden
+                      className="size-4 text-muted-foreground"
+                    />
+                    Stacking compatibility:{" "}
+                    {compatibilityStatusLabel(compat.status)}
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground">{compat.reason}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {compat.reason}
+                  </p>
                   {compat.warnings.length > 0 ? (
                     <ul className="mt-2 space-y-1">
                       {compat.warnings.map((w) => (
-                        <li key={w} className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-                          <CircleAlert aria-hidden className="mt-0.5 size-3 shrink-0" />
+                        <li
+                          key={w}
+                          className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400"
+                        >
+                          <CircleAlert
+                            aria-hidden
+                            className="mt-0.5 size-3 shrink-0"
+                          />
                           {w}
                         </li>
                       ))}
@@ -364,7 +437,11 @@ export default async function GiftCardDetailPage({
             </section>
 
             {/* 2 · How to claim */}
-            <SectionCard id="how-to-claim" title="How to claim" icon={ListOrdered}>
+            <SectionCard
+              id="how-to-claim"
+              title="How to claim"
+              icon={ListOrdered}
+            >
               <ol className="space-y-2.5">
                 {claimSteps.map((step, index) => (
                   <li key={step.text} className="flex gap-3 text-sm">
@@ -377,7 +454,9 @@ export default async function GiftCardDetailPage({
                     <span>
                       {step.text}
                       {step.note ? (
-                        <span className="block text-xs text-muted-foreground">{step.note}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {step.note}
+                        </span>
                       ) : null}
                     </span>
                   </li>
@@ -390,7 +469,11 @@ export default async function GiftCardDetailPage({
             </SectionCard>
 
             {/* 3 · Included gift cards */}
-            <SectionCard id="included-cards" title="Included gift cards" icon={Ticket}>
+            <SectionCard
+              id="included-cards"
+              title="Included gift cards"
+              icon={Ticket}
+            >
               {productViews.length > 0 ? (
                 <ul className="flex flex-wrap gap-1.5">
                   {productViews.map((view) => (
@@ -412,15 +495,20 @@ export default async function GiftCardDetailPage({
                     </li>
                   </ul>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Individual product records for this promotion haven&apos;t been
-                    published yet — the brand above is taken from the reviewed offer.
+                    Individual product records for this promotion haven&apos;t
+                    been published yet — the brand above is taken from the
+                    reviewed offer.
                   </p>
                 </>
               )}
             </SectionCard>
 
             {/* 4 · Where each card works */}
-            <SectionCard id="acceptance" title="Where each card works" icon={StoreIcon}>
+            <SectionCard
+              id="acceptance"
+              title="Where each card works"
+              icon={StoreIcon}
+            >
               {offerLevelMerchants.length > 0 ? (
                 <div className="mb-3">
                   <p className="mb-1.5 text-xs font-medium text-muted-foreground">
@@ -439,7 +527,10 @@ export default async function GiftCardDetailPage({
                 </div>
               ) : null}
               {productViews.length > 0 ? (
-                <GiftCardAcceptance views={productViews} storeNames={storeNames} />
+                <GiftCardAcceptance
+                  views={productViews}
+                  storeNames={storeNames}
+                />
               ) : offerLevelMerchants.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Acceptance not listed — check the retailer before buying.
@@ -452,16 +543,32 @@ export default async function GiftCardDetailPage({
             </SectionCard>
 
             {/* 5 · Stackability analysis */}
-            <SectionCard id="stackability" title="Stackability analysis" icon={Layers}>
+            <SectionCard
+              id="stackability"
+              title="Stackability analysis"
+              icon={Layers}
+            >
               <div className="grid gap-3 md:grid-cols-2">
-                <StagePanel heading="Buying the card (acquisition)" analysis={stackability.acquisition} />
-                <StagePanel heading="Spending the card (redemption)" analysis={stackability.redemption} />
+                <StagePanel
+                  heading="Buying the card (acquisition)"
+                  analysis={stackability.acquisition}
+                />
+                <StagePanel
+                  heading="Spending the card (redemption)"
+                  analysis={stackability.redemption}
+                />
               </div>
               {stackWarnings.length > 0 ? (
                 <ul className="mt-3 space-y-1">
                   {stackWarnings.map((w) => (
-                    <li key={w} className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-                      <CircleAlert aria-hidden className="mt-0.5 size-3 shrink-0" />
+                    <li
+                      key={w}
+                      className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400"
+                    >
+                      <CircleAlert
+                        aria-hidden
+                        className="mt-0.5 size-3 shrink-0"
+                      />
                       {w}
                     </li>
                   ))}
@@ -470,7 +577,11 @@ export default async function GiftCardDetailPage({
             </SectionCard>
 
             {/* 6 · Worked example */}
-            <SectionCard id="worked-example" title="Worked example" icon={Coins}>
+            <SectionCard
+              id="worked-example"
+              title="Worked example"
+              icon={Coins}
+            >
               <GiftCardWorkedExample
                 stackSearchQuery={`${offer.brand} ${seller}`}
                 inputs={{
@@ -479,7 +590,9 @@ export default async function GiftCardDetailPage({
                   bonusPercent: offer.bonusPercent ?? null,
                   pointsMultiplier: offer.pointsMultiplier ?? null,
                   pointsProgram:
-                    offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null,
+                    offer.pointsProgram ??
+                    offer.pointsOnPurchase?.program ??
+                    null,
                   pointsValueCents: offer.pointsValueCents ?? null,
                   fixedDiscountDollars: offer.fixedDiscountDollars ?? null,
                   promoCreditDollars: offer.promoCreditDollars ?? null,
@@ -498,7 +611,9 @@ export default async function GiftCardDetailPage({
                     key={row.key}
                     className="flex flex-col gap-0.5 border-b py-2.5 text-sm last:border-b-0 sm:flex-row sm:justify-between sm:gap-4"
                   >
-                    <dt className="shrink-0 text-muted-foreground">{row.label}</dt>
+                    <dt className="shrink-0 text-muted-foreground">
+                      {row.label}
+                    </dt>
                     <dd className="font-medium sm:max-w-[65%] sm:text-right">
                       {row.value == null ? (
                         <span className="font-normal text-amber-700 dark:text-amber-400">
@@ -521,19 +636,27 @@ export default async function GiftCardDetailPage({
                   </div>
                 ))}
               </dl>
-              {(offer.usageNotes?.length ?? 0) > 0 || (offer.stackNotes?.length ?? 0) > 0 ? (
+              {(offer.usageNotes?.length ?? 0) > 0 ||
+              (offer.stackNotes?.length ?? 0) > 0 ? (
                 <div className="mt-3 border-t pt-3">
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Reviewer notes</p>
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                    Reviewer notes
+                  </p>
                   <ul className="space-y-1.5 text-sm text-muted-foreground">
                     {(offer.usageNotes ?? []).map((n) => (
                       <li key={`u-${n}`} className="flex gap-1.5">
-                        <span aria-hidden className="text-emerald-600">•</span>
+                        <span aria-hidden className="text-emerald-600">
+                          •
+                        </span>
                         {n}
                       </li>
                     ))}
                     {(offer.stackNotes ?? []).map((n) => (
                       <li key={`s-${n}`} className="flex gap-1.5">
-                        <Layers aria-hidden className="mt-0.5 size-3 shrink-0 text-emerald-600" />
+                        <Layers
+                          aria-hidden
+                          className="mt-0.5 size-3 shrink-0 text-emerald-600"
+                        />
                         {n}
                       </li>
                     ))}
@@ -543,7 +666,11 @@ export default async function GiftCardDetailPage({
             </SectionCard>
 
             {/* 8 · Source and trust */}
-            <SectionCard id="source" title="Source and trust" icon={ShieldCheck}>
+            <SectionCard
+              id="source"
+              title="Source and trust"
+              icon={ShieldCheck}
+            >
               <dl>
                 <div className="flex flex-col gap-0.5 border-b py-2.5 text-sm sm:flex-row sm:justify-between">
                   <dt className="text-muted-foreground">Original source</dt>
@@ -565,7 +692,9 @@ export default async function GiftCardDetailPage({
                 </div>
                 {offer.termsUrl ? (
                   <div className="flex flex-col gap-0.5 border-b py-2.5 text-sm sm:flex-row sm:justify-between">
-                    <dt className="text-muted-foreground">Seller / issuer terms</dt>
+                    <dt className="text-muted-foreground">
+                      Seller / issuer terms
+                    </dt>
                     <dd className="font-medium">
                       <a
                         href={offer.termsUrl}
@@ -580,8 +709,12 @@ export default async function GiftCardDetailPage({
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-0.5 py-2.5 text-sm sm:flex-row sm:justify-between">
-                  <dt className="text-muted-foreground">Checked by DealStack</dt>
-                  <dd className="font-medium">{formatDateAU(offer.lastCheckedAt.slice(0, 10))}</dd>
+                  <dt className="text-muted-foreground">
+                    Checked by DealStack
+                  </dt>
+                  <dd className="font-medium">
+                    {formatDateAU(offer.lastCheckedAt.slice(0, 10))}
+                  </dd>
                 </div>
               </dl>
               <p className="mt-3 rounded-lg border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
@@ -603,29 +736,38 @@ export default async function GiftCardDetailPage({
                     key={row.label}
                     className="flex flex-col gap-0.5 border-b py-2 text-sm last:border-b-0 sm:flex-row sm:justify-between sm:gap-3"
                   >
-                    <dt className="shrink-0 text-muted-foreground">{row.label}</dt>
+                    <dt className="shrink-0 text-muted-foreground">
+                      {row.label}
+                    </dt>
                     <dd className="font-medium sm:text-right">{row.value}</dd>
                   </div>
                 ))}
               </dl>
               <div className="mt-3 flex items-start gap-2 rounded-lg border bg-background px-3 py-2">
-                <CompatIcon aria-hidden className={`mt-0.5 size-4 shrink-0 ${compatStyle.className}`} />
+                <CompatIcon
+                  aria-hidden
+                  className={`mt-0.5 size-4 shrink-0 ${compatStyle.className}`}
+                />
                 <p className="text-xs">
                   <span className="text-muted-foreground">Stacking:</span>{" "}
                   <span className="font-semibold">
                     {compatibilityStatusLabel(compat.status)}
                   </span>{" "}
-                  <span className="text-muted-foreground">— see the full analysis.</span>
+                  <span className="text-muted-foreground">
+                    — see the full analysis.
+                  </span>
                 </p>
               </div>
               {offer.promoCode ? (
                 <p className="mt-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-sm">
-                  Promo code: <code className="font-semibold">{offer.promoCode}</code>
+                  Promo code:{" "}
+                  <code className="font-semibold">{offer.promoCode}</code>
                 </p>
               ) : null}
               {involvesPoints ? (
                 <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                  Points values shown are estimates at our published rate — not cash.
+                  Points values shown are estimates at our published rate — not
+                  cash.
                 </p>
               ) : null}
             </div>
@@ -637,9 +779,14 @@ export default async function GiftCardDetailPage({
           <span className="flex items-center gap-1.5">
             <CalendarClock aria-hidden className="size-3.5" />
             Last checked {formatDateAU(offer.lastCheckedAt.slice(0, 10))}
-            {offer.sourceName ? ` · source: ${offer.sourceName}` : ` · source: ${offer.source}`}
+            {offer.sourceName
+              ? ` · source: ${offer.sourceName}`
+              : ` · source: ${offer.source}`}
           </span>
-          <span>Reviewed by a person before publication. Always confirm current terms.</span>
+          <span>
+            Reviewed by a person before publication. Always confirm current
+            terms.
+          </span>
         </section>
       </main>
       <SiteFooter />

@@ -25,17 +25,36 @@ export function safeHttpsUrl(value: string): string | null {
   }
 }
 
+/** Domains reserved for examples or known demo-only records. */
+export function isKnownPlaceholderUrl(value: string): boolean {
+  const canonical = safeHttpsUrl(value);
+  if (!canonical) return false;
+  const hostname = new URL(canonical).hostname.toLowerCase();
+  return (
+    hostname === "example.com" ||
+    hostname.endsWith(".example.com") ||
+    hostname === "example.org" ||
+    hostname.endsWith(".example.org") ||
+    hostname === "example.net" ||
+    hostname.endsWith(".example.net") ||
+    hostname === "example" ||
+    hostname.endsWith(".example")
+  );
+}
+
+/** Public external source URL, excluding syntactically-valid demo domains. */
+export function safePublicSourceUrl(value: string): string | null {
+  const canonical = safeHttpsUrl(value);
+  return canonical && !isKnownPlaceholderUrl(canonical) ? canonical : null;
+}
+
 /** Safe external HTTPS URL or an application-local root-relative path. */
 export function safePublicHref(value: string): string | null {
-  if (
-    !value ||
-    RAW_WHITESPACE_OR_CONTROL.test(value) ||
-    value.includes("\\")
-  ) {
+  if (!value || RAW_WHITESPACE_OR_CONTROL.test(value) || value.includes("\\")) {
     return null;
   }
 
-  if (!value.startsWith("/")) return safeHttpsUrl(value);
+  if (!value.startsWith("/")) return safePublicSourceUrl(value);
   if (value.startsWith("//")) return null;
 
   const path = value.split(/[?#]/, 1)[0];
@@ -96,7 +115,7 @@ export function isApprovedOzBargainPostUrl(value: string): boolean {
 export function resolveApprovedFeedRedirect(
   sourceType: string,
   currentUrl: string,
-  location: string
+  location: string,
 ): string | null {
   if (!location || RAW_WHITESPACE_OR_CONTROL.test(location)) return null;
   try {

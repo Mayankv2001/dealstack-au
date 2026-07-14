@@ -3,10 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfidencePill } from "@/components/deals/DealMeta";
 import type { Store } from "@/lib/data";
-import { expiryUrgencyLabelAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
+import {
+  expiryUrgencyLabelAU,
+  isPastExpiry,
+  todayAU,
+} from "@/lib/offers/expiry";
 import { formatDateAU } from "@/lib/sources/normalise";
 import type { OzBargainSignal } from "@/lib/offers/types";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 
 /**
  * One approved signal rendered as a compact "deal" card — used for Hot Buys
@@ -34,7 +38,7 @@ export function SignalDealCard({
   const expired = isPastExpiry(signal.expiryDate, todayAU());
   const urgency = expired ? null : expiryUrgencyLabelAU(signal.expiryDate);
   const isCostco = signal.merchantId === "costco";
-  const sourceHref = safeHttpsUrl(signal.sourceUrl);
+  const sourceHref = safePublicSourceUrl(signal.sourceUrl);
 
   return (
     <Card className="gap-0 py-0 shadow-sm">

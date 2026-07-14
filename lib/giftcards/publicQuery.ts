@@ -59,6 +59,8 @@ export interface GiftCardQueryParams {
   format: "digital" | "physical" | null;
   /** Minimum effective saving %, e.g. 5. */
   minSave: number | null;
+  /** Hide offers whose current dates were not confirmed. */
+  confirmedCurrentOnly: boolean;
 }
 
 export const GC_DEFAULTS: GiftCardQueryParams = {
@@ -71,6 +73,7 @@ export const GC_DEFAULTS: GiftCardQueryParams = {
   activation: false,
   format: null,
   minSave: null,
+  confirmedCurrentOnly: true,
 };
 
 type Raw = Record<string, string | string[] | undefined>;
@@ -98,12 +101,13 @@ export function parseGiftCardParams(raw: Raw): GiftCardQueryParams {
   if (Number.isFinite(minSave) && minSave > 0 && minSave < 100) {
     params.minSave = minSave;
   }
+  params.confirmedCurrentOnly = first(raw.dates) !== "all";
   return params;
 }
 
 export function giftCardHref(
   params: GiftCardQueryParams,
-  overrides: Partial<GiftCardQueryParams> = {}
+  overrides: Partial<GiftCardQueryParams> = {},
 ): string {
   const merged = { ...params, ...overrides };
   const query = new URLSearchParams();
@@ -116,6 +120,7 @@ export function giftCardHref(
   if (merged.activation) query.set("activation", "1");
   if (merged.format) query.set("format", merged.format);
   if (merged.minSave != null) query.set("minSave", String(merged.minSave));
+  if (!merged.confirmedCurrentOnly) query.set("dates", "all");
   const qs = query.toString();
   return qs ? `/gift-cards?${qs}` : "/gift-cards";
 }
@@ -139,8 +144,14 @@ export function offerEffectiveSaving(offer: GiftCardOffer): number | null {
 
 export function isMultiRetailer(offer: GiftCardOffer): boolean {
   return (
-    offer.acceptedAtMerchantIds.length > 1 || (offer.acceptedAt?.length ?? 0) >= 3
+    offer.acceptedAtMerchantIds.length > 1 ||
+    (offer.acceptedAt?.length ?? 0) >= 3
   );
+}
+
+/** Missing expiry is current only when a reviewer explicitly marked it ongoing. */
+export function isConfirmedCurrentGiftCardOffer(offer: GiftCardOffer): boolean {
+  return Boolean(offer.expiryDate) || offer.isOngoing === true;
 }
 
 function searchText(offer: GiftCardOffer): string {
@@ -159,7 +170,11 @@ function searchText(offer: GiftCardOffer): string {
     .toLowerCase();
 }
 
-function matchesTab(offer: GiftCardOffer, tab: GiftCardTab, now: Date): boolean {
+function matchesTab(
+  offer: GiftCardOffer,
+  tab: GiftCardTab,
+  now: Date,
+): boolean {
   switch (tab) {
     case "all":
       return true;
@@ -190,13 +205,19 @@ function matchesTab(offer: GiftCardOffer, tab: GiftCardTab, now: Date): boolean 
 export function queryGiftCardOffers(
   offers: GiftCardOffer[],
   params: GiftCardQueryParams,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): GiftCardOffer[] {
   const today = todayAU(now);
   const tokens = params.q.toLowerCase().split(/\s+/).filter(Boolean);
 
   const filtered = offers.filter((offer) => {
     if (isPastExpiry(offer.expiryDate, today)) return false;
+    if (
+      params.confirmedCurrentOnly &&
+      !isConfirmedCurrentGiftCardOffer(offer)
+    ) {
+      return false;
+    }
     if (!matchesTab(offer, params.tab, now)) return false;
     if (tokens.length > 0) {
       const haystack = searchText(offer);
@@ -212,12 +233,17 @@ export function queryGiftCardOffers(
     }
     if (params.program) {
       const program = (
-        offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? ""
+        offer.pointsProgram ??
+        offer.pointsOnPurchase?.program ??
+        ""
       ).toLowerCase();
       if (!program.includes(params.program.toLowerCase())) return false;
     }
-    if (params.membership && offer.membershipRequired !== true &&
-        offer.channel !== "membership-portal") {
+    if (
+      params.membership &&
+      offer.membershipRequired !== true &&
+      offer.channel !== "membership-portal"
+    ) {
       return false;
     }
     if (params.activation && offer.activationRequired !== true) return false;
@@ -246,12 +272,15 @@ export function queryGiftCardOffers(
   switch (params.sort) {
     case "saving":
       sorted.sort(
-        (a, b) => (offerEffectiveSaving(b) ?? -1) - (offerEffectiveSaving(a) ?? -1)
+        (a, b) =>
+          (offerEffectiveSaving(b) ?? -1) - (offerEffectiveSaving(a) ?? -1),
       );
       break;
     case "expiring":
       sorted.sort((a, b) =>
-        (a.expiryDate ?? "9999-12-31").localeCompare(b.expiryDate ?? "9999-12-31")
+        (a.expiryDate ?? "9999-12-31").localeCompare(
+          b.expiryDate ?? "9999-12-31",
+        ),
       );
       break;
     case "newest":
@@ -268,6 +297,7 @@ export function queryGiftCardOffers(
       // demoted by membership walls. Mirrors the deals Recommended philosophy.
       const score = (offer: GiftCardOffer) => {
         let s = (offerEffectiveSaving(offer) ?? 0) * 2;
+        if (!isConfirmedCurrentGiftCardOffer(offer)) s -= 100;
         if (offer.confidence === "confirmed") s += 6;
         if (isExpiringSoonAU(offer.expiryDate, now)) s += 3;
         if (offer.membershipRequired === true) s -= 2;

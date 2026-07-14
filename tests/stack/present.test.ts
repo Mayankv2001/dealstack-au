@@ -6,9 +6,11 @@ import {
   hasChooseOneLayer,
   layerCompatibility,
   layerUncertaintyDetails,
+  isFeaturedStackEligible,
   partitionStacks,
   qualifiesAsBestStack,
   rankBestStacks,
+  recommendationPresentation,
   stackTrustStatus,
 } from "@/lib/stack/present";
 import {
@@ -40,8 +42,12 @@ describe("Best-stack qualification", () => {
 
   it("routes a points-only result into Rewards opportunities, not Best stacks", () => {
     const data = makeStackData({
-      stores: [makeStore({ id: "woolworths", name: "Woolworths", discountPercent: 0 })],
-      pointsOffers: [makePoints({ merchantId: "woolworths", earnMultiple: 20 })],
+      stores: [
+        makeStore({ id: "woolworths", name: "Woolworths", discountPercent: 0 }),
+      ],
+      pointsOffers: [
+        makePoints({ merchantId: "woolworths", earnMultiple: 20 }),
+      ],
     });
     const recs = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     const { best, rewards } = partitionStacks(recs);
@@ -52,7 +58,9 @@ describe("Best-stack qualification", () => {
 
   it("keeps a real cash saving in Best stacks", () => {
     const data = makeStackData({
-      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" })],
+      stores: [
+        makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" }),
+      ],
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     expect(qualifiesAsBestStack(rec)).toBe(true);
@@ -66,7 +74,9 @@ describe("Best-stack qualification", () => {
       cashbackOffers: [makeCashback({ ratePercent: 0.1 })],
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
-    expect(rec.effectiveDiscountPercent).toBeLessThan(MIN_BEST_STACK_DISCOUNT_PERCENT);
+    expect(rec.effectiveDiscountPercent).toBeLessThan(
+      MIN_BEST_STACK_DISCOUNT_PERCENT,
+    );
     expect(qualifiesAsBestStack(rec)).toBe(false);
   });
 });
@@ -75,13 +85,28 @@ describe("rankBestStacks", () => {
   it("ranks stronger cash savings above weaker ones", () => {
     const data = makeStackData({
       stores: [
-        makeStore({ id: "small", name: "Small", discountPercent: 2, discountCode: "S2" }),
-        makeStore({ id: "big", name: "Big", discountPercent: 20, discountCode: "B20" }),
-        makeStore({ id: "mid", name: "Mid", discountPercent: 10, discountCode: "M10" }),
+        makeStore({
+          id: "small",
+          name: "Small",
+          discountPercent: 2,
+          discountCode: "S2",
+        }),
+        makeStore({
+          id: "big",
+          name: "Big",
+          discountPercent: 20,
+          discountCode: "B20",
+        }),
+        makeStore({
+          id: "mid",
+          name: "Mid",
+          discountPercent: 10,
+          discountCode: "M10",
+        }),
       ],
     });
     const { best } = partitionStacks(
-      buildStackRecommendations(undefined, 500, data, TEST_NOW)
+      buildStackRecommendations(undefined, 500, data, TEST_NOW),
     );
     expect(best.map((r) => r.merchantId)).toEqual(["big", "mid", "small"]);
   });
@@ -89,8 +114,18 @@ describe("rankBestStacks", () => {
   it("does not mutate the input array", () => {
     const data = makeStackData({
       stores: [
-        makeStore({ id: "a", name: "A", discountPercent: 5, discountCode: "A5" }),
-        makeStore({ id: "b", name: "B", discountPercent: 15, discountCode: "B15" }),
+        makeStore({
+          id: "a",
+          name: "A",
+          discountPercent: 5,
+          discountCode: "A5",
+        }),
+        makeStore({
+          id: "b",
+          name: "B",
+          discountPercent: 15,
+          discountCode: "B15",
+        }),
       ],
     });
     const recs = buildStackRecommendations(undefined, 500, data, TEST_NOW);
@@ -107,24 +142,123 @@ describe("stackTrustStatus", () => {
       giftCardProducts: [makeGiftCardProduct()],
       giftCardAcceptance: [makeGiftCardAcceptance()],
       giftCardOffers: [
-        makeGiftCard({ productId: "product-1", discountPercent: 5, acceptedAtMerchantIds: ["myer"], confidence: "confirmed" }),
+        makeGiftCard({
+          productId: "product-1",
+          discountPercent: 5,
+          acceptedAtMerchantIds: ["myer"],
+          confidence: "confirmed",
+          citations: [
+            { source: "gcdb", sourceUrl: "https://gcdb.com.au/offer" },
+          ],
+        }),
       ],
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     expect(stackTrustStatus(rec)).toEqual({
-      label: "All layers source checked",
+      label: "All included layers verified",
       tone: "verified",
     });
   });
 
   it("counts the single layer that needs verification", () => {
     const data = makeStackData({
-      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" })],
+      stores: [
+        makeStore({ id: "myer", discountPercent: 10, discountCode: "MYER10" }),
+      ],
     });
     const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
     const status = stackTrustStatus(rec);
     expect(status.label).toBe("1 layer needs verification");
     expect(status.tone).toBe("caution");
+  });
+});
+
+describe("recommendation presentation", () => {
+  it("only calls a plan verified when every included layer has public evidence", () => {
+    const confirmed = buildStackRecommendations(
+      undefined,
+      500,
+      makeStackData({
+        stores: [makeStore({ id: "myer", discountPercent: 0 })],
+        giftCardProducts: [makeGiftCardProduct()],
+        giftCardAcceptance: [makeGiftCardAcceptance()],
+        giftCardOffers: [
+          makeGiftCard({
+            productId: "product-1",
+            acceptedAtMerchantIds: ["myer"],
+            discountPercent: 5,
+            confidence: "confirmed",
+            citations: [
+              { source: "gcdb", sourceUrl: "https://gcdb.com.au/offer" },
+            ],
+          }),
+        ],
+      }),
+      TEST_NOW,
+    )[0];
+    expect(recommendationPresentation(confirmed)).toMatchObject({
+      recommendationLabel: "Best verified plan",
+      verifiedLayerCount: 1,
+      includedLayerCount: 1,
+      planLabel: "Safest available option",
+    });
+
+    const missingSource = {
+      ...confirmed,
+      components: confirmed.components.map((component) => ({
+        ...component,
+        citation: {
+          ...component.citation,
+          sourceUrl: "https://example.com/demo",
+        },
+      })),
+    };
+    expect(recommendationPresentation(missingSource)).toMatchObject({
+      recommendationLabel: "Possible saving route",
+      verifiedLayerCount: 0,
+    });
+  });
+
+  it("reserves compatible-stack wording and featured placement for fresh verified multi-layer plans", () => {
+    const rec = buildStackRecommendations(
+      undefined,
+      500,
+      makeStackData({
+        stores: [makeStore({ id: "myer", discountPercent: 0 })],
+        cashbackOffers: [
+          makeCashback({
+            confidence: "confirmed",
+            citations: [
+              { source: "manual", sourceUrl: "https://www.shopback.com.au" },
+            ],
+          }),
+        ],
+        giftCardProducts: [makeGiftCardProduct()],
+        giftCardAcceptance: [makeGiftCardAcceptance()],
+        giftCardOffers: [
+          makeGiftCard({
+            productId: "product-1",
+            acceptedAtMerchantIds: ["myer"],
+            discountPercent: 5,
+            confidence: "confirmed",
+            citations: [
+              { source: "gcdb", sourceUrl: "https://gcdb.com.au/offer" },
+            ],
+          }),
+        ],
+      }),
+      TEST_NOW,
+    )[0];
+    expect(recommendationPresentation(rec).planLabel).toBe(
+      "Best compatible stack",
+    );
+    expect(isFeaturedStackEligible(rec, TEST_NOW)).toBe(true);
+    expect(
+      isFeaturedStackEligible(
+        rec,
+        new Date(TEST_NOW.getTime() + 8 * 86_400_000),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -159,7 +293,10 @@ describe("layerUncertaintyDetails", () => {
       compatibilityStatus: "requires-verification" as const,
       compatibilityWarnings: ["Check acceptance", "Check acceptance"],
       compatibilityStages: {
-        acquisition: { status: "compatible" as const, reason: "Purchase confirmed." },
+        acquisition: {
+          status: "compatible" as const,
+          reason: "Purchase confirmed.",
+        },
         redemption: {
           status: "requires-verification" as const,
           reason: "Acceptance is only listed.",
@@ -175,7 +312,7 @@ describe("layerUncertaintyDetails", () => {
       layerUncertaintyDetails({
         ...component,
         compatibilityStatus: "likely-compatible",
-      })
+      }),
     ).toBeNull();
   });
 });
@@ -185,12 +322,27 @@ describe("buildStackSteps", () => {
     // ShopBack excludes gift-card payment; the fully-verified gift card saves
     // more, so the engine keeps it and demotes cashback to an alternative.
     const data = makeStackData({
-      stores: [makeStore({ id: "myer", name: "Myer", discountPercent: 10, discountCode: "MYER10" })],
+      stores: [
+        makeStore({
+          id: "myer",
+          name: "Myer",
+          discountPercent: 10,
+          discountCode: "MYER10",
+        }),
+      ],
       giftCardOffers: [
-        makeGiftCard({ productId: "product-1", acceptedAtMerchantIds: ["myer"], discountPercent: 5 }),
+        makeGiftCard({
+          productId: "product-1",
+          acceptedAtMerchantIds: ["myer"],
+          discountPercent: 5,
+        }),
       ],
       cashbackOffers: [
-        makeCashback({ merchantId: "myer", ratePercent: 2, excludesGiftCardPayment: true }),
+        makeCashback({
+          merchantId: "myer",
+          ratePercent: 2,
+          excludesGiftCardPayment: true,
+        }),
       ],
       giftCardProducts: [makeGiftCardProduct()],
       giftCardAcceptance: [makeGiftCardAcceptance()],
@@ -200,10 +352,16 @@ describe("buildStackSteps", () => {
     const numbered = steps.filter((step) => !step.chooseOne);
 
     // The excluded cashback layer must not appear as an instruction…
-    expect(numbered.some((step) => step.title.startsWith("Start at"))).toBe(false);
+    expect(numbered.some((step) => step.title.startsWith("Start at"))).toBe(
+      false,
+    );
     // …the surviving layers do…
-    expect(numbered.some((step) => step.title === "Buy discounted gift cards")).toBe(true);
-    expect(numbered.some((step) => step.title === "Apply the discount code")).toBe(true);
+    expect(
+      numbered.some((step) => step.title === "Buy discounted gift cards"),
+    ).toBe(true);
+    expect(
+      numbered.some((step) => step.title === "Apply the discount code"),
+    ).toBe(true);
     expect(numbered.at(-1)?.title).toBe("Pay with your gift cards");
     // …and the conflict surfaces as an explicit choose-one note.
     const alternatives = steps.filter((step) => step.chooseOne);

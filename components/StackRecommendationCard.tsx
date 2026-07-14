@@ -34,6 +34,7 @@ import {
   layerCompatibility,
   layerStatusLabel,
   layerUncertaintyDetails,
+  recommendationPresentation,
   stackTrustStatus,
   summariseConditions,
   type StackTrustTone,
@@ -124,7 +125,7 @@ function TrustPill({ rec }: { rec: StackRecommendation }) {
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-        trustToneClasses[status.tone]
+        trustToneClasses[status.tone],
       )}
     >
       <Icon aria-hidden className="size-3" />
@@ -147,7 +148,7 @@ function ConditionsSummary({ rec }: { rec: StackRecommendation }) {
       <p
         className={cn(
           "flex items-start gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-snug",
-          style.className
+          style.className,
         )}
       >
         <style.icon aria-hidden className="mt-0.5 size-3 shrink-0" />
@@ -156,7 +157,9 @@ function ConditionsSummary({ rec }: { rec: StackRecommendation }) {
     );
   }
   return (
-    <details className={cn("group/conditions rounded-md border", style.className)}>
+    <details
+      className={cn("group/conditions rounded-md border", style.className)}
+    >
       <summary className="flex cursor-pointer list-none items-start gap-1.5 px-2 py-1 text-[11px] leading-snug focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
         <style.icon aria-hidden className="mt-0.5 size-3 shrink-0" />
         <span className="flex-1">
@@ -173,8 +176,14 @@ function ConditionsSummary({ rec }: { rec: StackRecommendation }) {
       </summary>
       <ul className="space-y-1 border-t border-current/15 px-2 py-1.5">
         {summary.all.slice(1).map((w, i) => (
-          <li key={`${w.code}-${i}`} className="flex items-start gap-1.5 text-[11px] leading-snug">
-            <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-current/60" />
+          <li
+            key={`${w.code}-${i}`}
+            className="flex items-start gap-1.5 text-[11px] leading-snug"
+          >
+            <span
+              aria-hidden
+              className="mt-1.5 size-1 shrink-0 rounded-full bg-current/60"
+            />
             {w.message}
           </li>
         ))}
@@ -204,19 +213,18 @@ function FreshnessRow({ rec }: { rec: StackRecommendation }) {
   );
 }
 
-function LayerStatusChip({
-  confidence,
-}: {
-  confidence: StackComponent["confidence"];
-}) {
-  const status = layerStatusLabel(confidence);
+function LayerStatusChip({ component }: { component: StackComponent }) {
+  const status = layerStatusLabel(
+    component.confidence,
+    component.citation.sourceUrl,
+  );
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0 text-[9px] font-semibold",
         status.tone === "verified"
           ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-          : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+          : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
       )}
     >
       {status.label}
@@ -225,98 +233,123 @@ function LayerStatusChip({
 }
 
 function LayerList({ rec }: { rec: StackRecommendation }) {
-  const combinableCount = rec.components.filter(
-    (c) => !c.optional && (c.valueDollars ?? 0) > 0 && c.layer !== "points"
+  const included = rec.components.filter((component) => !component.optional);
+  const excluded = rec.components.filter((component) => component.optional);
+  const ordered = [...included, ...excluded];
+  const presentation = recommendationPresentation(rec);
+  const combinableCount = included.filter(
+    (c) => !c.optional && (c.valueDollars ?? 0) > 0 && c.layer !== "points",
   ).length;
   return (
     <div className="space-y-1.5">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        The stack
+        Included in recommended plan · {presentation.verifiedLayerCount} of{" "}
+        {presentation.includedLayerCount} verified
       </p>
-      {rec.components.map((c, i) => {
+      {ordered.map((c, i) => {
         const meta = layerMeta[c.layer];
         const compat = layerCompatibility(c);
         const showCombined =
           compat === "combined" && c.layer !== "points" && combinableCount >= 2;
         const uncertainty = layerUncertaintyDetails(c);
         return (
-          <div
-            key={`${c.layer}-${i}`}
-            className={cn(
-              "flex items-start gap-2 rounded-lg border px-2.5 py-1.5",
-              c.optional ? "border-dashed bg-muted/40" : "bg-card"
-            )}
-          >
-            <span
+          <div key={`${c.layer}-${i}`}>
+            {i === included.length && excluded.length > 0 ? (
+              <p className="mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Available but excluded
+              </p>
+            ) : null}
+            <div
               className={cn(
-                "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md",
-                meta.tile
+                "flex items-start gap-2 rounded-lg border px-2.5 py-1.5",
+                c.optional ? "border-dashed bg-muted/40" : "bg-card",
               )}
             >
-              <meta.icon aria-hidden className="size-3" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-medium">{c.label}</span>
-                <LayerStatusChip confidence={c.confidence} />
-                {compat === "choose-one" ? (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] font-semibold text-amber-700 dark:text-amber-400">
-                    <Shuffle aria-hidden className="size-2.5" /> Choose one
-                  </span>
-                ) : showCombined ? (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">
-                    <Link2 aria-hidden className="size-2.5" /> Can be combined
-                  </span>
+              <span
+                className={cn(
+                  "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md",
+                  meta.tile,
+                )}
+              >
+                <meta.icon aria-hidden className="size-3" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-medium">{c.label}</span>
+                  <LayerStatusChip component={c} />
+                  {compat === "choose-one" ? (
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] font-semibold text-amber-700 dark:text-amber-400">
+                      <Shuffle aria-hidden className="size-2.5" /> Choose one
+                    </span>
+                  ) : showCombined ? (
+                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      <Link2 aria-hidden className="size-2.5" /> Can be combined
+                    </span>
+                  ) : null}
+                </div>
+                {c.optional ? (
+                  <p className="mt-0.5 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+                    Not included —{" "}
+                    {c.compatibilityReason ??
+                      c.note ??
+                      "this layer cannot be safely combined with the selected option."}
+                  </p>
+                ) : c.note ? (
+                  <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                    {c.note}
+                  </p>
+                ) : null}
+                {uncertainty ? (
+                  <details className="group/uncertainty mt-1 text-[11px] text-muted-foreground">
+                    <summary className="cursor-pointer list-none font-medium text-amber-700 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
+                      Why this needs checking
+                    </summary>
+                    <dl className="mt-1 space-y-1 border-l-2 border-amber-500/25 pl-2 leading-snug">
+                      <div>
+                        <dt className="inline font-semibold text-foreground/80">
+                          Buy:{" "}
+                        </dt>
+                        <dd className="inline">{uncertainty.acquisition}</dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-semibold text-foreground/80">
+                          Spend:{" "}
+                        </dt>
+                        <dd className="inline">{uncertainty.redemption}</dd>
+                      </div>
+                      {uncertainty.warnings.length > 0 ? (
+                        <div>
+                          <dt className="font-semibold text-foreground/80">
+                            Check:
+                          </dt>
+                          <dd>
+                            <ul className="list-disc pl-4">
+                              {uncertainty.warnings.map((warning) => (
+                                <li key={warning}>{warning}</li>
+                              ))}
+                            </ul>
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </details>
                 ) : null}
               </div>
-              {c.note && (
-                <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                  {c.note}
-                </p>
-              )}
-              {uncertainty ? (
-                <details className="group/uncertainty mt-1 text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer list-none font-medium text-amber-700 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
-                    Why this needs checking
-                  </summary>
-                  <dl className="mt-1 space-y-1 border-l-2 border-amber-500/25 pl-2 leading-snug">
-                    <div>
-                      <dt className="inline font-semibold text-foreground/80">Buy: </dt>
-                      <dd className="inline">{uncertainty.acquisition}</dd>
-                    </div>
-                    <div>
-                      <dt className="inline font-semibold text-foreground/80">Spend: </dt>
-                      <dd className="inline">{uncertainty.redemption}</dd>
-                    </div>
-                    {uncertainty.warnings.length > 0 ? (
-                      <div>
-                        <dt className="font-semibold text-foreground/80">Check:</dt>
-                        <dd>
-                          <ul className="list-disc pl-4">
-                            {uncertainty.warnings.map((warning) => (
-                              <li key={warning}>{warning}</li>
-                            ))}
-                          </ul>
-                        </dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                </details>
-              ) : null}
+              <span className="shrink-0 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                {c.layer === "points"
+                  ? `${(c.pointsEarned ?? 0).toLocaleString("en-AU")} pts`
+                  : c.valueDollars
+                    ? `−${formatAUD(c.valueDollars)}`
+                    : ""}
+              </span>
             </div>
-            <span className="shrink-0 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-              {c.layer === "points"
-                ? `${(c.pointsEarned ?? 0).toLocaleString("en-AU")} pts`
-                : c.valueDollars
-                  ? `−${formatAUD(c.valueDollars)}`
-                  : ""}
-            </span>
           </div>
         );
       })}
       {hasChooseOneLayer(rec) && (
         <p className="text-[10px] leading-snug text-muted-foreground">
-          “Choose one” layers cannot be claimed together — pick the stronger option.
+          “Choose one” layers cannot be claimed together — pick the stronger
+          option.
         </p>
       )}
     </div>
@@ -368,6 +401,7 @@ export function StackRecommendationCard({
     ? undefined
     : rec.merchantName.slice(0, 2).toUpperCase();
   const pointsOnly = rec.kind === "points-only";
+  const presentation = recommendationPresentation(rec);
 
   // ── Compact, scannable variant (top stacks strip) ──────────────────────
   if (compact) {
@@ -394,7 +428,10 @@ export function StackRecommendationCard({
                   key={`${c.layer}-${i}`}
                   className="inline-flex items-center gap-1 rounded-md border bg-card px-1.5 py-0.5 text-[10px] font-medium"
                 >
-                  <meta.icon aria-hidden className="size-2.5 text-muted-foreground" />
+                  <meta.icon
+                    aria-hidden
+                    className="size-2.5 text-muted-foreground"
+                  />
                   {layerChipValue(c)}
                 </span>
               );
@@ -456,6 +493,9 @@ export function StackRecommendationCard({
                 <Star aria-hidden className="mr-1 inline size-3" />
                 {rec.title}
               </p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                {presentation.recommendationLabel}
+              </p>
             </div>
             <TrustPill rec={rec} />
           </div>
@@ -469,7 +509,8 @@ export function StackRecommendationCard({
             </p>
             <p className="mt-1.5 inline-flex items-center gap-1 text-sm font-semibold text-amber-700 dark:text-amber-400">
               <Sparkles aria-hidden className="size-3.5" />
-              Earn approximately {rec.pointsEarned.toLocaleString("en-AU")} points
+              Earn approximately {rec.pointsEarned.toLocaleString("en-AU")}{" "}
+              points
             </p>
             {rec.pointsValueDollars > 0 && (
               <p className="text-[11px] text-muted-foreground">
@@ -495,7 +536,7 @@ export function StackRecommendationCard({
   }
 
   // ── Full cash-stack variant — outcome first ────────────────────────────
-  const fullyVerified = rec.verifiedSaving >= rec.totalSaving && rec.totalSaving > 0;
+  const fullyVerified = presentation.fullyVerified;
   return (
     <Card className="gap-0 py-0 shadow-sm">
       <CardContent className="flex h-full flex-col gap-3 p-4">
@@ -513,6 +554,9 @@ export function StackRecommendationCard({
             </p>
             <p className="truncate text-[11px] font-medium text-muted-foreground">
               {rec.title}
+            </p>
+            <p className="mt-0.5 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300">
+              {presentation.recommendationLabel} · {presentation.planLabel}
             </p>
           </div>
           <TrustPill rec={rec} />
@@ -557,7 +601,9 @@ export function StackRecommendationCard({
           )}
           <div className="mt-2 flex items-end justify-between gap-2 border-t border-emerald-500/20 pt-2">
             <div>
-              <p className="text-[11px] text-muted-foreground">Effective price</p>
+              <p className="text-[11px] text-muted-foreground">
+                Effective price
+              </p>
               <p className="text-xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
                 {formatAUD(rec.effectivePrice)}
               </p>

@@ -11,7 +11,7 @@ import {
   REWARDS_PROGRAMMES,
 } from "@/lib/rewards/programmes";
 import { getGiftCardOffers, getPointsOffers } from "@/lib/repos";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { SOURCE_META } from "@/lib/sources/types";
 
@@ -60,7 +60,9 @@ export default async function RewardsDetailPage({
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
         <RewardsSubnav current={programme.slug} />
-        <h1 className="mt-6 text-3xl font-bold tracking-tight">{programme.name}</h1>
+        <h1 className="mt-6 text-3xl font-bold tracking-tight">
+          {programme.name}
+        </h1>
         <p className="mt-3 max-w-3xl text-muted-foreground">
           {programme.description}
         </p>
@@ -121,7 +123,9 @@ export default async function RewardsDetailPage({
                         {offer.citations.length ? (
                           <div className="mt-3 flex flex-wrap gap-2">
                             {offer.citations.flatMap((citation) => {
-                              const href = safeHttpsUrl(citation.sourceUrl);
+                              const href = safePublicSourceUrl(
+                                citation.sourceUrl,
+                              );
                               return href
                                 ? [
                                     <a

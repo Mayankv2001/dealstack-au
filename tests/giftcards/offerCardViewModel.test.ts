@@ -19,8 +19,15 @@ const AMAZON_BRAND =
 
 describe("splitBrandList", () => {
   it("splits on commas only — never on the ampersand inside a brand name", () => {
-    expect(splitBrandList("Uber & Uber Eats, Harris Farm, Ultimate Active & Wellness"))
-      .toEqual(["Uber & Uber Eats", "Harris Farm", "Ultimate Active & Wellness"]);
+    expect(
+      splitBrandList(
+        "Uber & Uber Eats, Harris Farm, Ultimate Active & Wellness",
+      ),
+    ).toEqual([
+      "Uber & Uber Eats",
+      "Harris Farm",
+      "Ultimate Active & Wellness",
+    ]);
   });
 
   it("returns a single entry for a plain brand", () => {
@@ -32,7 +39,7 @@ describe("brand normalisation", () => {
   it("reduces a long comma list to a primary brand plus a '+N more' summary", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeOffer({ brand: AMAZON_BRAND, purchaseLocation: "Amazon" }),
-      NOW
+      NOW,
     );
     expect(vm.brandPrimary).toBe("Amazon");
     expect(vm.brandSecondary).toBe("+15 more");
@@ -42,16 +49,24 @@ describe("brand normalisation", () => {
   it("never lets the raw brand list reach any rendered string", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeOffer({ brand: AMAZON_BRAND, purchaseLocation: "Amazon" }),
-      NOW
+      NOW,
     );
-    for (const value of [vm.headline, vm.brandPrimary, vm.brandSecondary ?? "", vm.valueBadge]) {
+    for (const value of [
+      vm.headline,
+      vm.brandPrimary,
+      vm.brandSecondary ?? "",
+      vm.valueBadge,
+    ]) {
       expect(value).not.toContain(",");
       expect(value.length).toBeLessThanOrEqual(40);
     }
   });
 
   it("omits the '+N more' summary for a single-brand offer", () => {
-    const vm = buildGiftCardOfferCardViewModel(makeOffer({ brand: "TCN" }), NOW);
+    const vm = buildGiftCardOfferCardViewModel(
+      makeOffer({ brand: "TCN" }),
+      NOW,
+    );
     expect(vm.brandSecondary).toBeUndefined();
     expect(vm.brandCount).toBe(1);
   });
@@ -61,29 +76,29 @@ describe("date truthfulness", () => {
   it("reports a real expiry as a formatted end date", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeOffer({ expiryDate: "2026-07-13" }),
-      NOW
+      NOW,
     );
     expect(vm.dateLabel).toBe("Ends 13 Jul 2026");
   });
 
-  it("says 'No end date listed' — never 'Ongoing' — when the date is missing", () => {
+  it("says 'Date unknown' — never 'Ongoing' — when the date is missing", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeOffer({ expiryDate: null, startDate: null }),
-      NOW
+      NOW,
     );
-    expect(vm.dateLabel).toBe("Dates not recorded — verify at source");
+    expect(vm.dateLabel).toBe("Date unknown");
     expect(vm.dateLabel).not.toMatch(/ongoing/i);
   });
 
   it("adds an urgency label only when genuinely expiring soon", () => {
     const soon = buildGiftCardOfferCardViewModel(
       makeOffer({ expiryDate: "2026-07-15" }),
-      NOW
+      NOW,
     );
     expect(soon.urgencyLabel).toBe("Ends in 3 days");
     const far = buildGiftCardOfferCardViewModel(
       makeOffer({ expiryDate: "2026-09-30" }),
-      NOW
+      NOW,
     );
     expect(far.urgencyLabel).toBeUndefined();
   });
@@ -91,7 +106,7 @@ describe("date truthfulness", () => {
   it("shows Ongoing only for an explicit reviewed ongoing flag", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeOffer({ expiryDate: null, startDate: null, isOngoing: true }),
-      NOW
+      NOW,
     );
     expect(vm.dateLabel).toBe("Ongoing");
   });
@@ -99,7 +114,7 @@ describe("date truthfulness", () => {
   it("labels a future promotion by its start and end dates", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeOffer({ startDate: "2026-07-15", expiryDate: "2026-07-21" }),
-      NOW
+      NOW,
     );
     expect(vm.dateLabel).toBe("Starts 15 Jul 2026 · ends 21 Jul 2026");
   });
@@ -108,8 +123,12 @@ describe("date truthfulness", () => {
 describe("mechanic classification", () => {
   it("classifies a plain discount", () => {
     const vm = buildGiftCardOfferCardViewModel(
-      makeOffer({ brand: "Amazon", discountPercent: 10, channel: "supermarket-promo" }),
-      NOW
+      makeOffer({
+        brand: "Amazon",
+        discountPercent: 10,
+        channel: "supermarket-promo",
+      }),
+      NOW,
     );
     expect(vm.mechanicLabel).toBe("Discount");
     expect(vm.valueBadge).toBe("10% OFF");
@@ -118,8 +137,12 @@ describe("mechanic classification", () => {
 
   it("classifies a member-portal discount distinctly", () => {
     const vm = buildGiftCardOfferCardViewModel(
-      makeOffer({ brand: "Ultimate", discountPercent: 5, channel: "membership-portal" }),
-      NOW
+      makeOffer({
+        brand: "Ultimate",
+        discountPercent: 5,
+        channel: "membership-portal",
+      }),
+      NOW,
     );
     expect(vm.mechanicLabel).toBe("Member rate");
     expect(vm.valueBadge).toBe("5% MEMBER");
@@ -135,7 +158,7 @@ describe("mechanic classification", () => {
         pointsProgram: "Everyday Rewards",
         pointsOnPurchase: { program: "Everyday Rewards", earnNote: "20x" },
       }),
-      NOW
+      NOW,
     );
     expect(vm.mechanicLabel).toBe("Points");
     expect(vm.valueBadge).toBe("20× POINTS");
@@ -151,10 +174,11 @@ describe("mechanic classification", () => {
         discountPercent: 0,
         pointsOnPurchase: {
           program: "Flybuys",
-          earnNote: "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards",
+          earnNote:
+            "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards",
         },
       }),
-      NOW
+      NOW,
     );
     expect(vm.mechanicLabel).toBe("Bonus points");
     expect(vm.valueBadge).toBe("BONUS POINTS");
@@ -172,7 +196,7 @@ describe("mechanic classification", () => {
         promoCreditDollars: 10,
         thresholdDollars: 100,
       }),
-      NOW
+      NOW,
     );
     expect(vm.mechanicLabel).toBe("Promo credit");
     expect(vm.valueBadge).toBe("$10 CREDIT");
@@ -187,7 +211,7 @@ describe("mechanic classification", () => {
         feeWaiverDollars: 4.95,
         thresholdDollars: 100,
       }),
-      NOW
+      NOW,
     );
     expect(vm.mechanicLabel).toBe("Fee waiver");
     expect(vm.headline).toBe("Purchase fee waived");
@@ -197,24 +221,36 @@ describe("mechanic classification", () => {
 describe("seller / source separation", () => {
   it("keeps seller and a distinct source separate", () => {
     const vm = buildGiftCardOfferCardViewModel(
-      makeOffer({ purchaseLocation: "Amazon", source: "GCDB", sourceName: "Gift Card Database" }),
-      NOW
+      makeOffer({
+        purchaseLocation: "Amazon",
+        source: "GCDB",
+        sourceName: "Gift Card Database",
+      }),
+      NOW,
     );
     expect(vm.sellerLabel).toBe("Amazon");
     expect(vm.sourceLabel).toBe("Gift Card Database");
   });
 
-  it("suppresses a redundant source that just repeats the seller", () => {
+  it("keeps a repeated publisher in a separate source field", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeOffer({
         purchaseLocation: "NRMA Blue member portal",
         source: "NRMA Blue",
         sourceName: null,
       }),
-      NOW
+      NOW,
     );
     expect(vm.sellerLabel).toBe("NRMA Blue member portal");
-    expect(vm.sourceLabel).toBeUndefined();
+    expect(vm.sourceLabel).toBe("NRMA Blue");
+  });
+
+  it("derives a compact redeem-at label only from reviewed merchant fields", () => {
+    const vm = buildGiftCardOfferCardViewModel(
+      makeOffer({ acceptedAt: ["JB Hi-Fi", "The Good Guys"] }),
+      NOW,
+    );
+    expect(vm.redeemAtLabel).toBe("JB Hi-Fi +1");
   });
 });
 
@@ -226,28 +262,31 @@ describe("trust and compatibility", () => {
         expiryDate: "2026-09-30",
         acceptedAtMerchantIds: ["jb-hifi"],
       }),
-      NOW
+      NOW,
     );
     expect(vm.trustLabel).toBe("Verified by DealStack");
     expect(vm.compatibilityTone).toBe("positive");
   });
 
-  it("defaults an imported offer with no acceptance evidence to Verify stacking", () => {
+  it("defaults an imported offer with no acceptance evidence to Unknown", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeBareOffer({ confidence: "confirmed", expiryDate: "2026-09-30" }),
-      NOW
+      NOW,
     );
-    expect(vm.compatibilityLabel).toBe("Verify stacking");
+    expect(vm.compatibilityLabel).toBe("Unknown");
     expect(vm.compatibilityTone).toBe("warning");
   });
 
   it("maps a needs-verification offer to a warning tone with a source-checked trust label", () => {
     const vm = buildGiftCardOfferCardViewModel(
-      makeBareOffer({ confidence: "needs-verification", expiryDate: "2026-09-30" }),
-      NOW
+      makeBareOffer({
+        confidence: "needs-verification",
+        expiryDate: "2026-09-30",
+      }),
+      NOW,
     );
     expect(vm.trustLabel).toBe("Source checked");
-    expect(vm.compatibilityLabel).toBe("Verify stacking");
+    expect(vm.compatibilityLabel).toBe("Unknown");
     expect(vm.compatibilityTone).toBe("warning");
   });
 });
@@ -256,14 +295,14 @@ describe("links", () => {
   it("always links to the detail page and only offers a stack link when a store is known", () => {
     const withStore = buildGiftCardOfferCardViewModel(
       makeOffer({ id: "gc-x", acceptedAtMerchantIds: ["jb-hifi"] }),
-      NOW
+      NOW,
     );
     expect(withStore.detailHref).toBe("/gift-cards/gc-x");
     expect(withStore.buildStackHref).toBe("/?stack=jb-hifi#calculator");
 
     const withoutStore = buildGiftCardOfferCardViewModel(
       makeOffer({ acceptedAtMerchantIds: [] }),
-      NOW
+      NOW,
     );
     expect(withoutStore.buildStackHref).toBeUndefined();
   });

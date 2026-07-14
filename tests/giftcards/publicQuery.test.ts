@@ -42,7 +42,9 @@ describe("parseGiftCardParams", () => {
   });
 
   it("accepts known tabs/sorts and ignores unknown ones", () => {
-    expect(parseGiftCardParams({ tab: "points", sort: "saving" })).toMatchObject({
+    expect(
+      parseGiftCardParams({ tab: "points", sort: "saving" }),
+    ).toMatchObject({
       tab: "points",
       sort: "saving",
     });
@@ -53,7 +55,9 @@ describe("parseGiftCardParams", () => {
   });
 
   it("parses boolean and bounded numeric filters", () => {
-    expect(parseGiftCardParams({ membership: "1", minSave: "5" })).toMatchObject({
+    expect(
+      parseGiftCardParams({ membership: "1", minSave: "5" }),
+    ).toMatchObject({
       membership: true,
       minSave: 5,
     });
@@ -67,7 +71,7 @@ describe("giftCardHref", () => {
   it("omits defaults and only serialises non-default state", () => {
     expect(giftCardHref(GC_DEFAULTS)).toBe("/gift-cards");
     expect(giftCardHref(GC_DEFAULTS, { tab: "points", minSave: 5 })).toBe(
-      "/gift-cards?tab=points&minSave=5"
+      "/gift-cards?tab=points&minSave=5",
     );
   });
 });
@@ -77,8 +81,12 @@ describe("offerEffectiveSaving", () => {
     expect(offerEffectiveSaving(gc({ discountPercent: 12 }))).toBe(12);
     expect(
       offerEffectiveSaving(
-        gc({ discountPercent: 0, promotionType: "bonus-value", bonusPercent: 10 })
-      )
+        gc({
+          discountPercent: 0,
+          promotionType: "bonus-value",
+          bonusPercent: 10,
+        }),
+      ),
     ).toBe(9.09);
     expect(
       offerEffectiveSaving(
@@ -87,17 +95,21 @@ describe("offerEffectiveSaving", () => {
           promotionType: "points",
           pointsMultiplier: 20,
           pointsProgram: "Everyday Rewards",
-        })
-      )
+        }),
+      ),
     ).toBe(9.09);
   });
 });
 
 describe("isMultiRetailer", () => {
   it("is true with more than one merchant id or three+ display names", () => {
-    expect(isMultiRetailer(gc({ acceptedAtMerchantIds: ["a", "b"] }))).toBe(true);
+    expect(isMultiRetailer(gc({ acceptedAtMerchantIds: ["a", "b"] }))).toBe(
+      true,
+    );
     expect(
-      isMultiRetailer(gc({ acceptedAtMerchantIds: ["a"], acceptedAt: ["X", "Y", "Z"] }))
+      isMultiRetailer(
+        gc({ acceptedAtMerchantIds: ["a"], acceptedAt: ["X", "Y", "Z"] }),
+      ),
     ).toBe(true);
     expect(isMultiRetailer(gc({ acceptedAtMerchantIds: ["a"] }))).toBe(false);
   });
@@ -124,7 +136,11 @@ describe("queryGiftCardOffers — filtering", () => {
         pointsProgram: "Everyday Rewards",
       }),
     ];
-    const points = queryGiftCardOffers(offers, { ...GC_DEFAULTS, tab: "points" }, NOW);
+    const points = queryGiftCardOffers(
+      offers,
+      { ...GC_DEFAULTS, tab: "points" },
+      NOW,
+    );
     expect(points.map((o) => o.id)).toEqual(["pts"]);
   });
 
@@ -133,7 +149,11 @@ describe("queryGiftCardOffers — filtering", () => {
       gc({ id: "coles", brand: "Coles Group", acceptedAt: ["Coles"] }),
       gc({ id: "myer", brand: "Myer", acceptedAt: ["Myer"] }),
     ];
-    const result = queryGiftCardOffers(offers, { ...GC_DEFAULTS, q: "myer" }, NOW);
+    const result = queryGiftCardOffers(
+      offers,
+      { ...GC_DEFAULTS, q: "myer" },
+      NOW,
+    );
     expect(result.map((o) => o.id)).toEqual(["myer"]);
   });
 
@@ -142,8 +162,49 @@ describe("queryGiftCardOffers — filtering", () => {
       gc({ id: "big", discountPercent: 12 }),
       gc({ id: "small", discountPercent: 3 }),
     ];
-    const result = queryGiftCardOffers(offers, { ...GC_DEFAULTS, minSave: 5 }, NOW);
+    const result = queryGiftCardOffers(
+      offers,
+      { ...GC_DEFAULTS, minSave: 5 },
+      NOW,
+    );
     expect(result.map((o) => o.id)).toEqual(["big"]);
+  });
+
+  it("excludes unknown-date offers by default but keeps them available for research", () => {
+    const offers = [
+      gc({ id: "dated", expiryDate: "2026-07-20" }),
+      gc({
+        id: "unknown",
+        expiryDate: null,
+        isOngoing: false,
+        discountPercent: 40,
+      }),
+      gc({
+        id: "ongoing",
+        expiryDate: null,
+        isOngoing: true,
+        discountPercent: 2,
+      }),
+    ];
+    expect(
+      queryGiftCardOffers(offers, GC_DEFAULTS, NOW).map((offer) => offer.id),
+    ).toEqual(["dated", "ongoing"]);
+    expect(
+      queryGiftCardOffers(
+        offers,
+        { ...GC_DEFAULTS, confirmedCurrentOnly: false },
+        NOW,
+      ).map((offer) => offer.id),
+    ).toEqual(["dated", "ongoing", "unknown"]);
+  });
+
+  it("never treats an unknown date as expiring", () => {
+    const result = queryGiftCardOffers(
+      [gc({ id: "unknown", expiryDate: null, isOngoing: false })],
+      { ...GC_DEFAULTS, tab: "expiring", confirmedCurrentOnly: false },
+      NOW,
+    );
+    expect(result).toEqual([]);
   });
 });
 
@@ -154,7 +215,11 @@ describe("queryGiftCardOffers — sorting", () => {
       gc({ id: "high", discountPercent: 15 }),
       gc({ id: "mid", discountPercent: 9 }),
     ];
-    const result = queryGiftCardOffers(offers, { ...GC_DEFAULTS, sort: "saving" }, NOW);
+    const result = queryGiftCardOffers(
+      offers,
+      { ...GC_DEFAULTS, sort: "saving" },
+      NOW,
+    );
     expect(result.map((o) => o.id)).toEqual(["high", "mid", "low"]);
   });
 
@@ -164,7 +229,11 @@ describe("queryGiftCardOffers — sorting", () => {
       gc({ id: "soon", expiryDate: "2026-07-14" }),
       gc({ id: "evergreen", expiryDate: null }),
     ];
-    const result = queryGiftCardOffers(offers, { ...GC_DEFAULTS, sort: "expiring" }, NOW);
+    const result = queryGiftCardOffers(
+      offers,
+      { ...GC_DEFAULTS, sort: "expiring", confirmedCurrentOnly: false },
+      NOW,
+    );
     expect(result.map((o) => o.id)).toEqual(["soon", "late", "evergreen"]);
   });
 });

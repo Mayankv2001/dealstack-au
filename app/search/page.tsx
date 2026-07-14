@@ -27,6 +27,7 @@ import { formatAUD } from "@/lib/calculateStack";
 import { loadDecisionResult } from "@/lib/decision/loadDecisionResult";
 import type { DecisionTarget } from "@/lib/decision/types";
 import { formatDateAU } from "@/lib/sources/normalise";
+import { recommendationPresentation } from "@/lib/stack/present";
 
 type RawSearchParams = {
   q?: string | string[];
@@ -111,6 +112,8 @@ export default async function SearchPage({
   const query = first(params.q)?.trim() ?? "";
   const spend = parseSpend(first(params.spend));
   const result = await loadDecisionResult(query, spend);
+  const primaryRecommendation = result.bestCashStack ?? result.rewardsStack;
+  const presentation = recommendationPresentation(primaryRecommendation);
   const now = new Date();
   const noResults =
     query.length > 0 &&
@@ -129,11 +132,14 @@ export default async function SearchPage({
         <div className="mx-auto max-w-5xl border-b px-1 pb-8 text-center sm:px-5 sm:pb-10">
           <p className="eyebrow">Purchase planner</p>
           <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
-            {query ? `Best verified way to pay for “${query}”` : "What are you planning to buy?"}
+            {query
+              ? `${presentation.recommendationLabel} for “${query}”`
+              : "What are you planning to buy?"}
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Enter a store, product, gift card or rewards programme. You’ll get
-            a clear plan with cash savings, later rewards and conditions shown separately.
+            Enter a store, product, gift card or rewards programme. You’ll get a
+            clear plan with cash savings, later rewards and conditions shown
+            separately.
           </p>
           <SearchBar
             defaultValue={query}
@@ -148,26 +154,62 @@ export default async function SearchPage({
         </div>
 
         {result.partial ? (
-          <p role="status" className="mx-auto mt-5 max-w-3xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
-            Some published sources are temporarily unavailable. The plan below is partial.
+          <p
+            role="status"
+            className="mx-auto mt-5 max-w-3xl rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+          >
+            Some published sources are temporarily unavailable. The plan below
+            is partial.
           </p>
+        ) : null}
+
+        {!query ? (
+          <Card className="mx-auto mt-8 max-w-3xl border-dashed">
+            <CardContent className="flex flex-col items-center py-10 text-center">
+              <Compass aria-hidden className="size-8 text-emerald-700" />
+              <h2 className="mt-3 text-lg font-semibold">
+                Start a new purchase plan
+              </h2>
+              <p className="mt-1 max-w-lg text-sm text-muted-foreground">
+                Search for a store, product, gift card or rewards programme.
+                DealStack will not choose a default merchant or present a
+                demonstration as your plan.
+              </p>
+            </CardContent>
+          </Card>
         ) : null}
 
         {result.ambiguous ? (
           <Card className="mx-auto mt-8 max-w-4xl">
             <CardContent className="space-y-5 p-5">
               <div className="flex items-start gap-3">
-                <Compass aria-hidden className="mt-0.5 size-5 text-emerald-600" />
+                <Compass
+                  aria-hidden
+                  className="mt-0.5 size-5 text-emerald-600"
+                />
                 <div>
                   <h2 className="font-semibold">Choose what you meant</h2>
                   <p className="text-sm text-muted-foreground">
-                    Several reviewed entities match. DealStack will not silently guess.
+                    Several reviewed entities match. DealStack will not silently
+                    guess.
                   </p>
                 </div>
               </div>
-              <TargetChoices title="Stores" targets={result.targetGroups.stores} spend={spend} />
-              <TargetChoices title="Gift cards" targets={result.targetGroups.giftCards} spend={spend} />
-              <TargetChoices title="Rewards programmes" targets={result.targetGroups.programmes} spend={spend} />
+              <TargetChoices
+                title="Stores"
+                targets={result.targetGroups.stores}
+                spend={spend}
+              />
+              <TargetChoices
+                title="Gift cards"
+                targets={result.targetGroups.giftCards}
+                spend={spend}
+              />
+              <TargetChoices
+                title="Rewards programmes"
+                targets={result.targetGroups.programmes}
+                spend={spend}
+              />
             </CardContent>
           </Card>
         ) : null}
@@ -178,7 +220,8 @@ export default async function SearchPage({
               Compare current retailers
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Same-product listings are grouped only by an approved canonical product key.
+              Same-product listings are grouped only by an approved canonical
+              product key.
             </p>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {result.productComparisons.map((comparison) => (
@@ -198,8 +241,9 @@ export default async function SearchPage({
               <SearchX aria-hidden className="size-8 text-muted-foreground" />
               <h2 className="mt-3 font-semibold">No reviewed match yet</h2>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Try a retailer such as Myer or JB Hi-Fi, a card brand such as Apple,
-                or a programme such as Flybuys. New reviewed records appear after approval.
+                Try a retailer such as Myer or JB Hi-Fi, a card brand such as
+                Apple, or a programme such as Flybuys. New reviewed records
+                appear after approval.
               </p>
             </CardContent>
           </Card>
@@ -221,79 +265,277 @@ export default async function SearchPage({
                   Why this ranks first
                 </summary>
                 <ol className="mt-2 list-decimal space-y-1 pl-4">
-                  {result.rankingExplanation.map((reason) => <li key={reason}>{reason}</li>)}
+                  {result.rankingExplanation.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
                 </ol>
               </details>
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               {result.bestCashStack ? (
-                <StackRecommendationCard recommendation={result.bestCashStack} stores={result.stores} />
+                <StackRecommendationCard
+                  recommendation={result.bestCashStack}
+                  stores={result.stores}
+                />
               ) : (
-                <Card><CardContent className="p-5"><p className="font-semibold">No verified cash reduction recorded</p><p className="mt-1 text-sm text-muted-foreground">The cash price remains {formatAUD(spend)} before any separately shown rewards.</p></CardContent></Card>
+                <Card>
+                  <CardContent className="p-5">
+                    <p className="font-semibold">
+                      No verified cash reduction recorded
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      The cash price remains {formatAUD(spend)} before any
+                      separately shown rewards.
+                    </p>
+                  </CardContent>
+                </Card>
               )}
-              {result.rewardsStack && result.rewardsStack !== result.bestCashStack ? (
-                <StackRecommendationCard recommendation={result.rewardsStack} stores={result.stores} />
+              {result.rewardsStack &&
+              result.rewardsStack !== result.bestCashStack ? (
+                <StackRecommendationCard
+                  recommendation={result.rewardsStack}
+                  stores={result.stores}
+                />
+              ) : result.bestCashStack &&
+                result.bestCashStack.pointsEarned > 0 ? (
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles aria-hidden className="size-5 text-amber-500" />
+                      <h3 className="font-semibold">
+                        Points included in this plan
+                      </h3>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Earn approximately{" "}
+                      {result.bestCashStack.pointsEarned.toLocaleString(
+                        "en-AU",
+                      )}{" "}
+                      points. Their estimated value is shown separately and
+                      never reduces the cash price.
+                    </p>
+                  </CardContent>
+                </Card>
               ) : (
-                <Card><CardContent className="p-5"><div className="flex items-center gap-2"><Sparkles aria-hidden className="size-5 text-amber-500" /><h3 className="font-semibold">Rewards kept separate</h3></div><p className="mt-2 text-sm text-muted-foreground">No distinct points opportunity is recorded for this match. Estimated rewards never reduce the headline cash price.</p></CardContent></Card>
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles aria-hidden className="size-5 text-amber-500" />
+                      <h3 className="font-semibold">Rewards kept separate</h3>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No distinct points opportunity is recorded for this match.
+                      Estimated rewards never reduce the headline cash price.
+                    </p>
+                  </CardContent>
+                </Card>
               )}
             </div>
           </section>
         ) : null}
 
         {result.warnings.length > 0 && !result.ambiguous ? (
-          <section className="mt-8 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4" aria-labelledby="plan-warnings">
-            <h2 id="plan-warnings" className="flex items-center gap-2 font-semibold"><AlertTriangle aria-hidden className="size-4 text-amber-600" /> Conditions to check</h2>
+          <section
+            className="mt-8 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4"
+            aria-labelledby="plan-warnings"
+          >
+            <h2
+              id="plan-warnings"
+              className="flex items-center gap-2 font-semibold"
+            >
+              <AlertTriangle aria-hidden className="size-4 text-amber-600" />{" "}
+              Conditions to check
+            </h2>
             <ul className="mt-2 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-              {result.warnings.slice(0, 8).map((warning) => <li key={warning}>• {warning}</li>)}
+              {result.warnings.slice(0, 8).map((warning) => (
+                <li key={warning}>• {warning}</li>
+              ))}
             </ul>
           </section>
         ) : null}
 
         {result.currentGiftCardOffers.length > 0 && !result.ambiguous ? (
           <section className="mt-10" aria-labelledby="current-gift-cards">
-            <div className="flex items-center gap-2"><Gift aria-hidden className="size-5 text-violet-600" /><h2 id="current-gift-cards" className="text-xl font-bold">Current reviewed gift-card offers</h2></div>
+            <div className="flex items-center gap-2">
+              <Gift aria-hidden className="size-5 text-violet-600" />
+              <h2 id="current-gift-cards" className="text-xl font-bold">
+                Current reviewed gift-card offers
+              </h2>
+            </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {result.currentGiftCardOffers.map((offer) => <GiftCardOfferCard key={offer.id} offer={offer} now={now} />)}
+              {result.currentGiftCardOffers.map((offer) => (
+                <GiftCardOfferCard key={offer.id} offer={offer} now={now} />
+              ))}
             </div>
           </section>
         ) : null}
 
         {result.acceptedCards.length > 0 && !result.ambiguous ? (
           <section className="mt-10" aria-labelledby="accepted-cards">
-            <div className="flex items-center gap-2"><Store aria-hidden className="size-5 text-emerald-600" /><h2 id="accepted-cards" className="text-xl font-bold">Card acceptance evidence</h2></div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {result.acceptedCards.slice(0, 9).map(({ product, acceptance }) => (
-                <Card key={acceptance.id}><CardContent className="p-4"><h3 className="font-semibold">{product.brand}</h3><p className="mt-1 text-sm text-muted-foreground">{acceptance.merchantName ?? acceptance.merchantCategory ?? "Published merchant record"}</p><div className="mt-3 flex flex-wrap items-center gap-2 text-xs"><span className={acceptance.outcome === "unsuccessful" ? "rounded-full bg-red-500/10 px-2 py-1 font-semibold text-red-700" : acceptance.status === "verified" ? "rounded-full bg-emerald-500/10 px-2 py-1 font-semibold text-emerald-700" : "rounded-full bg-muted px-2 py-1 font-semibold text-muted-foreground"}>{acceptance.outcome === "unsuccessful" ? "Known unsuccessful" : acceptance.status === "verified" ? "Verified by DealStack" : acceptance.status === "claimed" ? "Claimed by issuer" : "Community reported"}</span>{acceptance.checkedAt ? <span className="text-muted-foreground">Checked {formatDateAU(acceptance.checkedAt.slice(0, 10))}</span> : null}</div><ReportProblemForm entityType="gift-card-acceptance" entityId={acceptance.id} compact /></CardContent></Card>
-              ))}
+            <div className="flex items-center gap-2">
+              <Store aria-hidden className="size-5 text-emerald-600" />
+              <h2 id="accepted-cards" className="text-xl font-bold">
+                Card acceptance evidence
+              </h2>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">Not recorded never means not accepted. Merchant category coding and terminal routing can affect redemption.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {result.acceptedCards
+                .slice(0, 9)
+                .map(({ product, acceptance }) => (
+                  <Card key={acceptance.id}>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold">{product.brand}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {acceptance.merchantName ??
+                          acceptance.merchantCategory ??
+                          "Published merchant record"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                        <span
+                          className={
+                            acceptance.outcome === "unsuccessful"
+                              ? "rounded-full bg-red-500/10 px-2 py-1 font-semibold text-red-700"
+                              : acceptance.status === "verified"
+                                ? "rounded-full bg-emerald-500/10 px-2 py-1 font-semibold text-emerald-700"
+                                : "rounded-full bg-muted px-2 py-1 font-semibold text-muted-foreground"
+                          }
+                        >
+                          {acceptance.outcome === "unsuccessful"
+                            ? "Known unsuccessful"
+                            : acceptance.status === "verified"
+                              ? "Verified by DealStack"
+                              : acceptance.status === "claimed"
+                                ? "Claimed by issuer"
+                                : "Community reported"}
+                        </span>
+                        {acceptance.checkedAt ? (
+                          <span className="text-muted-foreground">
+                            Checked{" "}
+                            {formatDateAU(acceptance.checkedAt.slice(0, 10))}
+                          </span>
+                        ) : null}
+                      </div>
+                      <ReportProblemForm
+                        entityType="gift-card-acceptance"
+                        entityId={acceptance.id}
+                        compact
+                      />
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Not recorded never means not accepted. Merchant category coding
+              and terminal routing can affect redemption.
+            </p>
           </section>
         ) : null}
 
         {result.communityPulse.length > 0 && !result.ambiguous ? (
           <section className="mt-10" aria-labelledby="community-pulse">
-            <div className="flex items-center gap-2"><ExternalLink aria-hidden className="size-5 text-orange-600" /><h2 id="community-pulse" className="text-xl font-bold">Community pulse</h2></div>
-            <p className="mt-1 text-sm text-muted-foreground">Approved activity summaries link to the original discussion. Votes and comments are ranking tie-breakers, not DealStack verification.</p>
+            <div className="flex items-center gap-2">
+              <ExternalLink aria-hidden className="size-5 text-orange-600" />
+              <h2 id="community-pulse" className="text-xl font-bold">
+                Community pulse
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Approved activity summaries link to the original discussion. Votes
+              and comments are ranking tie-breakers, not DealStack verification.
+            </p>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {result.communityPulse.map((deal) => <DealCard key={deal.id} deal={deal} stores={result.stores} now={now} compact />)}
+              {result.communityPulse.map((deal) => (
+                <DealCard
+                  key={deal.id}
+                  deal={deal}
+                  stores={result.stores}
+                  now={now}
+                  compact
+                />
+              ))}
             </div>
           </section>
         ) : null}
 
-        {!result.ambiguous && (result.freshness.sourceLinkCount > 0 || result.freshness.oldestVerificationDate) ? (
-          <section className="mt-10 grid gap-3 rounded-2xl border bg-card p-5 sm:grid-cols-3" aria-label="Plan trust summary">
-            <div className="flex items-start gap-2"><ShieldCheck aria-hidden className="mt-0.5 size-4 text-emerald-600" /><div><p className="font-semibold">{result.freshness.sourceFamilyCount} publisher {result.freshness.sourceFamilyCount === 1 ? "family" : "families"}</p><p className="text-xs text-muted-foreground">Corroboration is deduplicated by publisher ownership.</p></div></div>
-            <div className="flex items-start gap-2"><CheckCircle2 aria-hidden className="mt-0.5 size-4 text-emerald-600" /><div><p className="font-semibold">{result.freshness.sourceLinkCount} traceable links</p><p className="text-xs text-muted-foreground">Multiple links from one family remain useful, but not independent.</p></div></div>
-            <div className="flex items-start gap-2"><Clock3 aria-hidden className="mt-0.5 size-4 text-emerald-600" /><div><p className="font-semibold">{result.freshness.oldestVerificationDate ? `Oldest check ${formatDateAU(result.freshness.oldestVerificationDate.slice(0, 10))}` : "Check date unavailable"}</p><p className="text-xs text-muted-foreground">The oldest contributing verification date is shown conservatively.</p></div></div>
+        {!result.ambiguous &&
+        (result.freshness.sourceLinkCount > 0 ||
+          result.freshness.oldestVerificationDate) ? (
+          <section
+            className="mt-10 grid gap-3 rounded-2xl border bg-card p-5 sm:grid-cols-3"
+            aria-label="Plan trust summary"
+          >
+            <div className="flex items-start gap-2">
+              <ShieldCheck
+                aria-hidden
+                className="mt-0.5 size-4 text-emerald-600"
+              />
+              <div>
+                <p className="font-semibold">
+                  {result.freshness.sourceFamilyCount} publisher{" "}
+                  {result.freshness.sourceFamilyCount === 1
+                    ? "family"
+                    : "families"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Corroboration is deduplicated by publisher ownership.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle2
+                aria-hidden
+                className="mt-0.5 size-4 text-emerald-600"
+              />
+              <div>
+                <p className="font-semibold">
+                  {result.freshness.sourceLinkCount} traceable links
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Multiple links from one family remain useful, but not
+                  independent.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <Clock3 aria-hidden className="mt-0.5 size-4 text-emerald-600" />
+              <div>
+                <p className="font-semibold">
+                  {result.freshness.oldestVerificationDate
+                    ? `Oldest check ${formatDateAU(result.freshness.oldestVerificationDate.slice(0, 10))}`
+                    : "Check date unavailable"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  The oldest contributing verification date is shown
+                  conservatively.
+                </p>
+              </div>
+            </div>
           </section>
         ) : null}
 
         {result.alternativeStacks.length > 0 && !result.ambiguous ? (
-          <section className="mt-10"><h2 className="text-xl font-bold">Alternative combinations</h2><div className="mt-4 grid gap-4 lg:grid-cols-2">{result.alternativeStacks.map((stack) => <StackRecommendationCard key={stack.merchantId} recommendation={stack} stores={result.stores} />)}</div></section>
+          <section className="mt-10">
+            <h2 className="text-xl font-bold">Alternative combinations</h2>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {result.alternativeStacks.map((stack) => (
+                <StackRecommendationCard
+                  key={stack.merchantId}
+                  recommendation={stack}
+                  stores={result.stores}
+                />
+              ))}
+            </div>
+          </section>
         ) : null}
 
         {!query ? (
-          <div className="mx-auto mt-10 max-w-2xl text-center"><p className="text-sm text-muted-foreground">Start with a store, product, gift-card brand or rewards programme.</p><Button asChild variant="outline" className="mt-4"><Link href="/deals">Browse Discover <ArrowRight aria-hidden /></Link></Button></div>
+          <div className="mx-auto mt-8 max-w-2xl text-center">
+            <Button asChild variant="outline">
+              <Link href="/deals">
+                Browse all deals <ArrowRight aria-hidden />
+              </Link>
+            </Button>
+          </div>
         ) : null}
       </main>
       {!result.ambiguous && result.bestCashStack ? (
@@ -303,11 +545,16 @@ export default async function SearchPage({
         >
           <span className="min-w-0">
             <span className="block truncate text-xs font-semibold text-emerald-100">
-              {result.selectedTarget?.name ?? result.bestCashStack.merchantName} · {formatAUD(spend)}
+              {result.selectedTarget?.name ?? result.bestCashStack.merchantName}{" "}
+              · {formatAUD(spend)}
             </span>
-            <span className="block font-bold">Estimated saving {formatAUD(result.bestCashStack.totalSaving)}</span>
+            <span className="block font-bold">
+              Estimated saving {formatAUD(result.bestCashStack.totalSaving)}
+            </span>
           </span>
-          <span className="shrink-0 text-xs font-bold text-emerald-200">View plan ↑</span>
+          <span className="shrink-0 text-xs font-bold text-emerald-200">
+            View plan ↑
+          </span>
         </Link>
       ) : null}
       <SiteFooter />

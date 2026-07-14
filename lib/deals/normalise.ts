@@ -9,8 +9,15 @@ import type {
   PointsOffer,
   WeeklyDeal,
 } from "@/lib/offers/types";
-import { SOURCE_META, type Citation, type Confidence } from "@/lib/sources/types";
-import { isApprovedOzBargainPostUrl, safeHttpsUrl } from "@/lib/security/urlPolicy";
+import {
+  SOURCE_META,
+  type Citation,
+  type Confidence,
+} from "@/lib/sources/types";
+import {
+  isApprovedOzBargainPostUrl,
+  safePublicSourceUrl,
+} from "@/lib/security/urlPolicy";
 import { sanitisePublicText } from "@/lib/stack/buildStack";
 import { scoreDeal } from "./score";
 import {
@@ -60,7 +67,7 @@ export function parseWasPrice(text: string | null | undefined): number | null {
 export function deriveSavingPercent(
   title: string,
   priceValue: number | null,
-  wasPrice: number | null
+  wasPrice: number | null,
 ): number | null {
   const explicit = title.match(/(\d{1,2})\s*%\s*off/i);
   if (explicit) {
@@ -75,7 +82,7 @@ export function deriveSavingPercent(
 
 function trustFromConfidence(
   confidence: Confidence,
-  kind: PublicDealKind
+  kind: PublicDealKind,
 ): TrustStatus {
   if (confidence === "expired-unknown") return "expired";
   if (confidence === "confirmed") return "verified";
@@ -96,7 +103,7 @@ interface BuildContext {
 
 function publisherFamilyFor(
   citations: Citation[],
-  fallback: string = "dealstack"
+  fallback: string = "dealstack",
 ): string {
   const source = citations[0]?.source;
   return source ? SOURCE_META[source].publisherFamily : fallback;
@@ -105,7 +112,7 @@ function publisherFamilyFor(
 function finalise(
   input: Omit<PublicDeal, "searchText" | "score">,
   extraSearch: Array<string | null | undefined>,
-  now: Date
+  now: Date,
 ): PublicDeal {
   let partial = input;
   partial = {
@@ -133,12 +140,14 @@ function finalise(
 
 export function fromSignal(
   signal: OzBargainSignal,
-  ctx: BuildContext
+  ctx: BuildContext,
 ): PublicDeal {
   const store = signal.merchantId
     ? (ctx.storeById.get(signal.merchantId) ?? null)
     : null;
-  const tags = [...new Set((signal.tags ?? []).map((t) => decodeEntities(t).trim()))]
+  const tags = [
+    ...new Set((signal.tags ?? []).map((t) => decodeEntities(t).trim())),
+  ]
     .filter(Boolean)
     .slice(0, 8);
   const title = decodeEntities(signal.title);
@@ -171,7 +180,9 @@ export function fromSignal(
       wasPrice,
       savingPercent: deriveSavingPercent(title, priceValue, wasPrice),
       couponCode: signal.promoCode ?? null,
-      trust: expired ? "expired" : trustFromConfidence(signal.confidence, "community"),
+      trust: expired
+        ? "expired"
+        : trustFromConfidence(signal.confidence, "community"),
       membershipRequired: false,
       activationRequired: false,
       targeted: hasTargetedTag(tags),
@@ -182,7 +193,7 @@ export function fromSignal(
       sourceName: "OzBargain",
       publisherFamily: SOURCE_META.ozbargain.publisherFamily,
       capturedAt: signal.lastCheckedAt,
-      sourceUrl: externalUrl ? (safeHttpsUrl(externalUrl) ?? null) : null,
+      sourceUrl: externalUrl ? safePublicSourceUrl(externalUrl) : null,
       detailPath: `/deals/signal/${encodeURIComponent(signal.id)}`,
       stackable:
         signal.merchantId != null &&
@@ -193,7 +204,7 @@ export function fromSignal(
       comments: signal.commentCount ?? null,
     },
     [signal.dealKind],
-    ctx.now
+    ctx.now,
   );
 }
 
@@ -205,7 +216,7 @@ const CHANNEL_NOTE: Record<string, string> = {
 
 export function fromGiftCard(
   offer: GiftCardOffer,
-  ctx: BuildContext
+  ctx: BuildContext,
 ): PublicDeal {
   const merchantId =
     offer.acceptedAtMerchantIds.length === 1
@@ -256,8 +267,12 @@ export function fromGiftCard(
       publisherFamily: publisherFamilyFor(offer.citations),
       capturedAt: offer.lastCheckedAt,
       sourceUrl:
-        (offer.sourceDetailUrl ? (safeHttpsUrl(offer.sourceDetailUrl) ?? null) : null) ??
-        (offer.citations[0] ? (safeHttpsUrl(offer.citations[0].sourceUrl) ?? null) : null),
+        (offer.sourceDetailUrl
+          ? safePublicSourceUrl(offer.sourceDetailUrl)
+          : null) ??
+        (offer.citations[0]
+          ? safePublicSourceUrl(offer.citations[0].sourceUrl)
+          : null),
       detailPath: null,
       stackable: true, // a discounted gift card is itself a stack layer
       productGroup: null,
@@ -266,13 +281,13 @@ export function fromGiftCard(
       comments: null,
     },
     [offer.brand, offer.pointsOnPurchase?.program, offer.purchaseLocation],
-    ctx.now
+    ctx.now,
   );
 }
 
 export function fromCashback(
   offer: CashbackOffer,
-  ctx: BuildContext
+  ctx: BuildContext,
 ): PublicDeal {
   const store = ctx.storeById.get(offer.merchantId) ?? null;
   const rate =
@@ -301,10 +316,13 @@ export function fromCashback(
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
       sourceName: offer.provider,
-      publisherFamily: publisherFamilyFor(offer.citations, offer.provider.toLowerCase()),
+      publisherFamily: publisherFamilyFor(
+        offer.citations,
+        offer.provider.toLowerCase(),
+      ),
       capturedAt: offer.lastCheckedAt,
       sourceUrl: offer.citations[0]
-        ? (safeHttpsUrl(offer.citations[0].sourceUrl) ?? null)
+        ? safePublicSourceUrl(offer.citations[0].sourceUrl)
         : null,
       detailPath: null,
       stackable: ctx.stackableMerchantIds.has(offer.merchantId),
@@ -313,8 +331,11 @@ export function fromCashback(
       votes: null,
       comments: null,
     },
-    [offer.provider, offer.excludesGiftCardPayment ? "excludes gift card payment" : null],
-    ctx.now
+    [
+      offer.provider,
+      offer.excludesGiftCardPayment ? "excludes gift card payment" : null,
+    ],
+    ctx.now,
   );
 }
 
@@ -349,10 +370,13 @@ export function fromPoints(offer: PointsOffer, ctx: BuildContext): PublicDeal {
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
       sourceName: offer.program,
-      publisherFamily: publisherFamilyFor(offer.citations, offer.program.toLowerCase()),
+      publisherFamily: publisherFamilyFor(
+        offer.citations,
+        offer.program.toLowerCase(),
+      ),
       capturedAt: offer.lastCheckedAt,
       sourceUrl: offer.citations[0]
-        ? (safeHttpsUrl(offer.citations[0].sourceUrl) ?? null)
+        ? safePublicSourceUrl(offer.citations[0].sourceUrl)
         : null,
       detailPath: null,
       stackable:
@@ -364,13 +388,13 @@ export function fromPoints(offer: PointsOffer, ctx: BuildContext): PublicDeal {
       comments: null,
     },
     [offer.program, offer.mechanism],
-    ctx.now
+    ctx.now,
   );
 }
 
 export function fromWeeklyDeal(
   deal: WeeklyDeal,
-  ctx: BuildContext
+  ctx: BuildContext,
 ): PublicDeal {
   const store = deal.merchantId
     ? (ctx.storeById.get(deal.merchantId) ?? null)
@@ -412,7 +436,7 @@ export function fromWeeklyDeal(
       comments: null,
     },
     [],
-    ctx.now
+    ctx.now,
   );
 }
 
@@ -430,7 +454,7 @@ export interface PublicDealInputs {
 /** Build the full normalised pool the /deals page queries over. */
 export function buildPublicDeals(
   inputs: PublicDealInputs,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): PublicDeal[] {
   const ctx: BuildContext = {
     storeById: new Map(inputs.stores.map((s) => [s.id, s])),

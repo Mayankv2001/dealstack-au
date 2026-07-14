@@ -31,11 +31,15 @@ function matchesSearch(deal: PublicDeal, q: string): boolean {
 function matchesFilters(
   deal: PublicDeal,
   params: DealsParams,
-  now: Date
+  now: Date,
 ): boolean {
-  const kind = VIEW_KIND[params.view];
+  const kind = params.kind ?? VIEW_KIND[params.view];
   if (kind && deal.kind !== kind) return false;
   if (params.view === "expiring" && !isExpiringSoonAU(deal.expiryDate, now)) {
+    return false;
+  }
+  if (params.view === "top" && deal.trust !== "verified") return false;
+  if (params.view === "top" && deal.kind === "gift-card" && !deal.expiryDate) {
     return false;
   }
   if (params.merchant && deal.merchantId !== params.merchant) return false;
@@ -64,7 +68,7 @@ function matchesFilters(
 export function filterActive(deals: PublicDeal[], now: Date): PublicDeal[] {
   const today = todayAU(now);
   return deals.filter(
-    (deal) => deal.trust !== "expired" && !isPastExpiry(deal.expiryDate, today)
+    (deal) => deal.trust !== "expired" && !isPastExpiry(deal.expiryDate, today),
   );
 }
 
@@ -126,12 +130,10 @@ export function groupDeals(deals: PublicDeal[]): DealListItem[] {
       });
       const distinctConditions = new Set(
         options.map((option) =>
-          [
-            option.membershipRequired,
-            option.targeted,
-            option.channelNote,
-          ].join("|")
-        )
+          [option.membershipRequired, option.targeted, option.channelNote].join(
+            "|",
+          ),
+        ),
       );
       if (distinctConditions.size > 1) {
         items.push({ type: "deal", deal });
@@ -176,7 +178,7 @@ const RECOMMENDED_TRUST_RANK: Record<PublicDeal["trust"], number> = {
 
 export function sortItems(
   items: DealListItem[],
-  sort: DealsParams["sort"]
+  sort: DealsParams["sort"],
 ): DealListItem[] {
   const sorted = [...items];
   switch (sort) {
@@ -184,18 +186,19 @@ export function sortItems(
       sorted.sort(
         (a, b) =>
           timeOf(itemScore(b).postedAt ?? itemScore(b).lastCheckedAt) -
-          timeOf(itemScore(a).postedAt ?? itemScore(a).lastCheckedAt)
+          timeOf(itemScore(a).postedAt ?? itemScore(a).lastCheckedAt),
       );
       break;
     case "expiring":
       sorted.sort((a, b) =>
-        expiryKey(itemScore(a)).localeCompare(expiryKey(itemScore(b)))
+        expiryKey(itemScore(a)).localeCompare(expiryKey(itemScore(b))),
       );
       break;
     case "saving":
       sorted.sort(
         (a, b) =>
-          (itemScore(b).savingPercent ?? -1) - (itemScore(a).savingPercent ?? -1)
+          (itemScore(b).savingPercent ?? -1) -
+          (itemScore(a).savingPercent ?? -1),
       );
       break;
     case "price-low":
@@ -211,7 +214,8 @@ export function sortItems(
     case "checked":
       sorted.sort(
         (a, b) =>
-          timeOf(itemScore(b).lastCheckedAt) - timeOf(itemScore(a).lastCheckedAt)
+          timeOf(itemScore(b).lastCheckedAt) -
+          timeOf(itemScore(a).lastCheckedAt),
       );
       break;
     default:
@@ -230,13 +234,14 @@ export function sortItems(
 export function queryDeals(
   deals: PublicDeal[],
   params: DealsParams,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): DealsQueryResult {
   const live = filterActive(deals, now);
   const matched = dedupeDeals(
     live.filter(
-      (deal) => matchesSearch(deal, params.q) && matchesFilters(deal, params, now)
-    )
+      (deal) =>
+        matchesSearch(deal, params.q) && matchesFilters(deal, params, now),
+    ),
   );
   const effectiveSort = params.view === "recent" ? "checked" : params.sort;
   const items = sortItems(groupDeals(matched), effectiveSort);
@@ -245,5 +250,10 @@ export function queryDeals(
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(params.page, pageCount);
   const start = (page - 1) * PAGE_SIZE;
-  return { items: items.slice(start, start + PAGE_SIZE), total, page, pageCount };
+  return {
+    items: items.slice(start, start + PAGE_SIZE),
+    total,
+    page,
+    pageCount,
+  };
 }

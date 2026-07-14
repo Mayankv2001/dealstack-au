@@ -62,7 +62,10 @@ function cashRec(over: Partial<StackRecommendation> = {}): StackRecommendation {
         valuePercent: 6,
         valueDollars: 27,
         optional: false,
-        citation: { source: "manual", sourceUrl: "https://www.shopback.com.au" },
+        citation: {
+          source: "manual",
+          sourceUrl: "https://www.shopback.com.au",
+        },
         confidence: "confirmed",
         note: "Track your purchase through ShopBack to earn up to 6% cashback.",
       },
@@ -80,10 +83,22 @@ function cashRec(over: Partial<StackRecommendation> = {}): StackRecommendation {
     citations: [
       { source: "manual", sourceUrl: "/" },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900002" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900003" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900004" },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900001",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900002",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900003",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900004",
+      },
     ],
     weekOf: "2026-06-15",
     ...over,
@@ -104,7 +119,10 @@ function pointsRec(): StackRecommendation {
         pointsEarned: 500,
         valueDollars: 2.5,
         optional: false,
-        citation: { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
+        citation: {
+          source: "freepoints",
+          sourceUrl: "https://www.freepoints.com.au",
+        },
         confidence: "confirmed",
         note: "Points value is indicative and is not subtracted from the cash price.",
       },
@@ -132,17 +150,19 @@ const occurrences = (haystack: string, needle: string) =>
 describe("StackRecommendationCard — cash stack", () => {
   it("collapses duplicate OzBargain citations to one visible source with an accurate count", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     // Four OzBargain records collapse into a single badge that carries the count.
     expect(html).toContain("OzBargain ×4");
     // The summary distinguishes six links from three independent publishers.
-    expect(html).toContain("6 source links across 3 independent publisher families");
+    expect(html).toContain(
+      "6 source links across 3 independent publisher families",
+    );
   });
 
   it("keeps every citation reachable in the disclosure", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     // Full traceability: the individual node URLs remain in the expandable list.
     expect(html).toContain("https://www.ozbargain.com.au/node/900004");
@@ -151,14 +171,14 @@ describe("StackRecommendationCard — cash stack", () => {
 
   it("shows the stack-level trust status exactly once", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     expect(occurrences(html, "1 layer needs verification")).toBe(1);
   });
 
   it("leads with the outcome and renders no raw ISO dates or sample wording", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     expect(html).toContain("You save $27.00");
     expect(html).toContain("Up to $77.00 including unverified layers");
@@ -172,7 +192,7 @@ describe("StackRecommendationCard — cash stack", () => {
 
   it("offers an accessible copy-code action", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     expect(html).toContain('aria-label="Copy code MYER10"');
   });
@@ -195,14 +215,17 @@ describe("StackRecommendationCard — cash stack", () => {
           valuePercent: 6,
           valueDollars: 27,
           optional: true,
-          citation: { source: "manual", sourceUrl: "https://www.shopback.com.au" },
+          citation: {
+            source: "manual",
+            sourceUrl: "https://www.shopback.com.au",
+          },
           confidence: "confirmed",
           note: "Use instead of the gift card, not together.",
         },
       ],
     });
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={rec} stores={stores} />
+      <StackRecommendationCard recommendation={rec} stores={stores} />,
     );
     expect(html).toContain("Choose one");
   });
@@ -222,7 +245,10 @@ describe("StackRecommendationCard — cash stack", () => {
           compatibilityReason: "Acceptance needs checking.",
           compatibilityWarnings: ["Confirm retailer acceptance."],
           compatibilityStages: {
-            acquisition: { status: "compatible", reason: "Purchase terms are confirmed." },
+            acquisition: {
+              status: "compatible",
+              reason: "Purchase terms are confirmed.",
+            },
             redemption: {
               status: "requires-verification",
               reason: "Acceptance is listed but not independently verified.",
@@ -232,20 +258,22 @@ describe("StackRecommendationCard — cash stack", () => {
       ],
     });
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={rec} stores={stores} />
+      <StackRecommendationCard recommendation={rec} stores={stores} />,
     );
     expect(html).toContain("Why this needs checking");
     expect(html).toContain("Buy:");
     expect(html).toContain("Purchase terms are confirmed.");
     expect(html).toContain("Spend:");
-    expect(html).toContain("Acceptance is listed but not independently verified.");
+    expect(html).toContain(
+      "Acceptance is listed but not independently verified.",
+    );
   });
 });
 
 describe("StackRecommendationCard — points-only", () => {
   it("presents earned points without a 0%-off headline", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={pointsRec()} stores={stores} />
+      <StackRecommendationCard recommendation={pointsRec()} stores={stores} />,
     );
     expect(html).toContain("Cash price remains");
     expect(html).toContain("$500.00");
@@ -259,7 +287,7 @@ describe("StackRecommendationCard — points-only", () => {
 describe("StackRecommendationCard — trust, conditions and freshness", () => {
   it("labels each layer with its own honest verification chip", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     expect(html).toContain(">Unverified<"); // discount layer
     expect(html).toContain(">Verified<"); // confirmed cashback layer
@@ -267,14 +295,14 @@ describe("StackRecommendationCard — trust, conditions and freshness", () => {
 
   it("renders the descriptive layer-derived title", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     expect(html).toContain("10% off code + 6% ShopBack cashback at Myer");
   });
 
   it("shows one freshness row with the oldest layer check", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     expect(html).toContain("Layers checked 12 Jun 2026");
     expect(html).toContain("No known expiry");
@@ -301,17 +329,19 @@ describe("StackRecommendationCard — trust, conditions and freshness", () => {
       ],
     });
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={rec} stores={stores} />
+      <StackRecommendationCard recommendation={rec} stores={stores} />,
     );
     // Most severe condition leads; the rest sit behind one disclosure.
     expect(html).toContain("The MYER10 code is unverified");
     expect(html).toContain("View 2 more conditions");
-    expect(occurrences(html, "rounded-md border px-2 py-1")).toBeLessThanOrEqual(1);
+    expect(
+      occurrences(html, "rounded-md border px-2 py-1"),
+    ).toBeLessThanOrEqual(1);
   });
 
   it("offers Build this stack and store actions", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />
+      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     expect(html).toContain("Build this stack");
     expect(html).toContain("/?stack=myer#calculator");
@@ -324,11 +354,18 @@ describe("StackRecommendationCard — trust, conditions and freshness", () => {
       components: cashRec().components.map((c) => ({
         ...c,
         confidence: "confirmed" as const,
+        citation:
+          c.layer === "discount"
+            ? {
+                source: "manual" as const,
+                sourceUrl: "https://www.myer.com.au",
+              }
+            : c.citation,
       })),
       confidence: "confirmed",
     });
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={rec} stores={stores} />
+      <StackRecommendationCard recommendation={rec} stores={stores} />,
     );
     expect(html).toContain("You save $77.00");
     expect(html).not.toContain("including unverified layers");

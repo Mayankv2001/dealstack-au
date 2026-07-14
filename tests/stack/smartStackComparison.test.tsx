@@ -54,8 +54,8 @@ describe("SmartStackComparisonCard", () => {
             votesSample: 0,
             sentiment: "neutral",
             dealKind: "discount-code",
-            sourceUrl: "https://source.example/item",
-            productUrl: "https://retailer.example/item",
+            sourceUrl: "https://www.ozbargain.com.au/node/900001",
+            productUrl: "https://www.jbhifi.com.au/products/test-product",
             postedAt: null,
             confidence: "confirmed",
             lastCheckedAt: "2026-07-11T00:00:00Z",
@@ -74,7 +74,7 @@ describe("SmartStackComparisonCard", () => {
             votesSample: 0,
             sentiment: "neutral",
             dealKind: "discount-code",
-            sourceUrl: "https://source.example/other",
+            sourceUrl: "https://www.ozbargain.com.au/node/900002",
             priceText: "Ask in store",
             postedAt: null,
             confidence: "needs-verification",
@@ -107,15 +107,17 @@ describe("SmartStackComparisonCard", () => {
     };
 
     const html = renderToStaticMarkup(
-      <SmartStackComparisonCard comparison={comparison} stores={stores} />
+      <SmartStackComparisonCard comparison={comparison} stores={stores} />,
     );
     expect(html).toContain("Compare 2 retailers");
     expect(html).toContain("$100.00");
     expect(html).toContain("Ask in store");
     expect(html).not.toContain("$450.00");
-    expect(html).toContain('href="https://retailer.example/item"');
+    expect(html).toContain(
+      'href="https://www.jbhifi.com.au/products/test-product"',
+    );
     expect(html).toContain("View at Retailer A");
-    expect(html).toContain('href="https://source.example/other"');
+    expect(html).toContain('href="https://www.ozbargain.com.au/node/900002"');
     expect(html).toContain("View deal source");
   });
 });

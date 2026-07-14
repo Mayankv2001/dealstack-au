@@ -12,7 +12,7 @@ import { giftCardDateState } from "@/lib/giftcards/dateState";
  *   - `brand` is a comma-separated list (up to 33 entries, 500+ chars). It is
  *     split into a single `brandPrimary` + a "+N more" `brandSecondary` so a
  *     card never renders a raw list and never grows unbounded.
- *   - a missing (`null`) date is reported as "No end date listed", never
+ *   - a missing (`null`) date is reported as "Date unknown", never
  *     "Ongoing" — we cannot assert an offer is evergreen just because the
  *     source omitted an end date.
  *   - headlines are short and mechanic-driven; the brand is shown separately.
@@ -21,16 +21,15 @@ import { giftCardDateState } from "@/lib/giftcards/dateState";
  */
 
 export type GiftCardCompatibilityTone =
-  | "positive"
-  | "warning"
-  | "negative"
-  | "neutral";
+  "positive" | "warning" | "negative" | "neutral";
 
 export interface GiftCardOfferCardViewModel {
   /** Where you buy the card (purchase location), e.g. "Amazon". */
   sellerLabel: string;
-  /** Who we sourced it from, only when it adds information over the seller. */
-  sourceLabel?: string;
+  /** Publisher or evidence source; never merged with the seller. */
+  sourceLabel: string;
+  /** Compact redemption destination from reviewed merchant fields. */
+  redeemAtLabel: string;
   /** Promotion class, e.g. "Discount", "Points", "Bonus points". */
   mechanicLabel: string;
   /** Compact value pill, e.g. "10% OFF", "20× POINTS", "BONUS POINTS". */
@@ -43,7 +42,7 @@ export interface GiftCardOfferCardViewModel {
   brandCount: number;
   /** Short, mechanic-driven sentence — never contains the raw brand list. */
   headline: string;
-  /** Truthful date line: "Ends 13 Jul 2026" or "No end date listed". */
+  /** Truthful date line: "Ends 13 Jul 2026", "Ongoing" or "Date unknown". */
   dateLabel: string;
   /** "Ends in 3 days" / "Ends today" — only when genuinely expiring soon. */
   urgencyLabel?: string;
@@ -76,8 +75,18 @@ const LOGOS: Record<string, string> = {
 };
 
 const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 /** "2026-07-13" → "13 Jul 2026". DST-immune (formats the date parts). */
@@ -91,7 +100,9 @@ function formatAuDate(iso: string): string {
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
 const displayNumber = (value: number) =>
-  Number.isInteger(round1(value)) ? String(round1(value)) : round1(value).toFixed(1);
+  Number.isInteger(round1(value))
+    ? String(round1(value))
+    : round1(value).toFixed(1);
 
 /** Split the stored comma-list into trimmed brand names (never splits on "&"). */
 export function splitBrandList(brand: string): string[] {
@@ -214,11 +225,11 @@ function headline(offer: GiftCardOffer, mechanic: Mechanic): string {
 }
 
 const COMPAT_LABEL = {
-  compatible: "Compatible",
+  compatible: "Confirmed compatible",
   "likely-compatible": "Likely compatible",
-  "requires-verification": "Verify stacking",
-  "insufficient-evidence": "Insufficient evidence",
-  incompatible: "Incompatible",
+  "requires-verification": "Unknown",
+  "insufficient-evidence": "Unknown",
+  incompatible: "Conflicting",
 } as const;
 
 const COMPAT_TONE: Record<
@@ -238,7 +249,7 @@ function resolveLogo(brandPrimary: string, sellerLabel: string): string | null {
     .map((value) => value.toLowerCase());
   for (const candidate of candidates) {
     const match = Object.entries(LOGOS).find(
-      ([name]) => candidate.includes(name) || name.includes(candidate)
+      ([name]) => candidate.includes(name) || name.includes(candidate),
     );
     if (match) return match[1];
   }
@@ -254,25 +265,28 @@ function initialsFor(brandPrimary: string): string {
 
 export function buildGiftCardOfferCardViewModel(
   offer: GiftCardOffer,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): GiftCardOfferCardViewModel {
   const mechanic = classify(offer);
 
   const brands = splitBrandList(offer.brand);
   const brandPrimary = brands[0] ?? offer.brand.trim() ?? "Gift card";
   const brandCount = Math.max(brands.length, 1);
-  const brandSecondary =
-    brandCount > 1 ? `+${brandCount - 1} more` : undefined;
+  const brandSecondary = brandCount > 1 ? `+${brandCount - 1} more` : undefined;
 
   const sellerLabel = (offer.purchaseLocation ?? offer.source ?? "").trim();
   const sourceCandidate = (offer.sourceName ?? offer.source ?? "").trim();
-  // Only surface the source when it genuinely adds information over the seller.
-  const seller = sellerLabel.toLowerCase();
-  const src = sourceCandidate.toLowerCase();
-  const sourceLabel =
-    sourceCandidate && src !== seller && !seller.includes(src) && !src.includes(seller)
-      ? sourceCandidate
-      : undefined;
+  const sourceLabel = sourceCandidate || "Source unavailable";
+  const redemptionNames = [
+    ...new Set(
+      [...(offer.acceptedAt ?? []), ...offer.acceptedAtMerchantIds].filter(
+        Boolean,
+      ),
+    ),
+  ];
+  const redeemAtLabel = redemptionNames.length
+    ? `${redemptionNames[0]}${redemptionNames.length > 1 ? ` +${redemptionNames.length - 1}` : ""}`
+    : "See conditions";
 
   const dateState = giftCardDateState(offer, now);
   const dateLabel =
@@ -284,26 +298,29 @@ export function buildGiftCardOfferCardViewModel(
         ? `Ends ${formatAuDate(offer.expiryDate)}`
         : dateState === "ongoing"
           ? "Ongoing"
-          : offer.startDate
-            ? "Expiry not recorded — verify at source"
-            : "Dates not recorded — verify at source";
+          : "Date unknown";
   const urgencyLabel = expiryUrgencyLabelAU(offer.expiryDate, now) ?? undefined;
 
   const trustLabel =
-    offer.confidence === "confirmed" ? "Verified by DealStack" : "Source checked";
+    offer.confidence === "confirmed"
+      ? "Verified by DealStack"
+      : "Source checked";
 
   const status = evaluateGiftCardCompatibility(offer, { now }).status;
   const compatibilityLabel = COMPAT_LABEL[status];
   const compatibilityTone = COMPAT_TONE[status];
 
   const isPoints =
-    mechanic === "points" || mechanic === "bonus-points" || offer.pointsOnPurchase != null;
+    mechanic === "points" ||
+    mechanic === "bonus-points" ||
+    offer.pointsOnPurchase != null;
 
   const primaryStore = offer.acceptedAtMerchantIds[0];
 
   return {
     sellerLabel: sellerLabel || brandPrimary,
     sourceLabel,
+    redeemAtLabel,
     mechanicLabel: mechanicLabel(mechanic),
     valueBadge: valueBadge(offer, mechanic),
     brandPrimary,

@@ -10,7 +10,7 @@ import {
 } from "@/components/deals/DealMeta";
 import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { CardOffer, CardOfferType } from "@/lib/offers/types";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import { cn } from "@/lib/utils";
 
 /**
@@ -64,7 +64,10 @@ function headline(offer: CardOffer): { value: string; caption?: string } {
     case "sign_up_bonus":
     case "points_bonus":
       return offer.bonusPoints != null
-        ? { value: `${offer.bonusPoints.toLocaleString()} pts`, caption: "bonus points" }
+        ? {
+            value: `${offer.bonusPoints.toLocaleString()} pts`,
+            caption: "bonus points",
+          }
         : { value: "Bonus points" };
     case "cashback":
       return offer.cashbackAmount != null
@@ -72,7 +75,10 @@ function headline(offer: CardOffer): { value: string; caption?: string } {
         : { value: "Cashback offer" };
     case "statement_credit":
       return offer.statementCreditAmount != null
-        ? { value: `$${offer.statementCreditAmount}`, caption: "statement credit" }
+        ? {
+            value: `$${offer.statementCreditAmount}`,
+            caption: "statement credit",
+          }
         : { value: "Statement credit" };
     case "annual_fee_discount":
       return offer.annualFee != null
@@ -92,7 +98,7 @@ export function CardOfferCard({
   selected?: boolean;
   onSelectionChange?: (selected: boolean) => void;
 }) {
-  const sourceHref = safeHttpsUrl(offer.sourceUrl);
+  const sourceHref = safePublicSourceUrl(offer.sourceUrl);
   const tone = TONE_BY_TYPE[offer.offerType];
   const { value, caption } = headline(offer);
   const expired = isPastExpiry(offer.expiryDate, todayAU());
@@ -118,11 +124,16 @@ export function CardOfferCard({
         <div
           className={cn(
             "flex items-center justify-between gap-3 border-b bg-gradient-to-br px-4 py-3",
-            tone.grad
+            tone.grad,
           )}
         >
           <div>
-            <p className={cn("text-2xl font-extrabold leading-none tracking-tight", tone.text)}>
+            <p
+              className={cn(
+                "text-2xl font-extrabold leading-none tracking-tight",
+                tone.text,
+              )}
+            >
               {value}
             </p>
             {caption ? (
@@ -134,7 +145,7 @@ export function CardOfferCard({
           <span
             className={cn(
               "flex size-10 shrink-0 items-center justify-center rounded-xl",
-              tone.tile
+              tone.tile,
             )}
           >
             <CreditCard className="size-5" />
@@ -161,7 +172,9 @@ export function CardOfferCard({
           </div>
 
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-snug">{offer.cardName}</p>
+            <p className="text-sm font-semibold leading-snug">
+              {offer.cardName}
+            </p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
               via {offer.provider}
             </p>
@@ -180,7 +193,9 @@ export function CardOfferCard({
                   <dt className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {f.label}
                   </dt>
-                  <dd className="text-[11px] font-medium leading-snug">{f.value}</dd>
+                  <dd className="text-[11px] font-medium leading-snug">
+                    {f.value}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -209,19 +224,21 @@ export function CardOfferCard({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button asChild variant="outline" size="sm">
-                <Link href={`/cards/${encodeURIComponent(offer.id)}`}>Details</Link>
+                <Link href={`/cards/${encodeURIComponent(offer.id)}`}>
+                  Details
+                </Link>
               </Button>
               {sourceHref ? (
-              <Button asChild variant="outline" size="sm">
-                <a
-                  href={sourceHref}
-                  target="_blank"
-                  rel="nofollow noopener noreferrer"
-                >
-                  Visit {offer.provider}
-                  <ExternalLink className="size-3" />
-                </a>
-              </Button>
+                <Button asChild variant="outline" size="sm">
+                  <a
+                    href={sourceHref}
+                    target="_blank"
+                    rel="nofollow noopener noreferrer"
+                  >
+                    Visit {offer.provider}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </Button>
               ) : null}
             </div>
           </div>

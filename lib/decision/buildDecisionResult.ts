@@ -6,6 +6,7 @@ import type {
   StackRecommendation,
 } from "@/lib/offers/types";
 import { REWARDS_PROGRAMMES } from "@/lib/rewards/programmes";
+import { isConfirmedCurrentGiftCardOffer } from "@/lib/giftcards/publicQuery";
 import type { Citation } from "@/lib/sources/types";
 import { summariseCitations } from "@/lib/stack/citationSummary";
 import type { SmartStackComparison } from "@/lib/stack/smartStack";
@@ -21,7 +22,10 @@ export interface DecisionInputs {
 }
 
 const normalise = (value: string) =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 function matches(value: string, query: string): boolean {
   const haystack = normalise(value);
@@ -47,20 +51,28 @@ function offerSearchText(offer: GiftCardOffer): string {
 }
 
 function uniqueTargets(targets: DecisionTarget[]): DecisionTarget[] {
-  return [...new Map(targets.map((target) => [`${target.kind}:${target.id}`, target])).values()];
+  return [
+    ...new Map(
+      targets.map((target) => [`${target.kind}:${target.id}`, target]),
+    ).values(),
+  ];
 }
 
-function exactTarget(targets: DecisionTarget[], query: string): DecisionTarget | null {
+function exactTarget(
+  targets: DecisionTarget[],
+  query: string,
+): DecisionTarget | null {
   const needle = normalise(query);
   const exact = targets.filter(
-    (target) => normalise(target.name) === needle || normalise(target.id) === needle
+    (target) =>
+      normalise(target.name) === needle || normalise(target.id) === needle,
   );
   return exact.length === 1 ? exact[0] : null;
 }
 
 function citationsFor(
   stacks: Array<StackRecommendation | null>,
-  offers: GiftCardOffer[]
+  offers: GiftCardOffer[],
 ): Citation[] {
   return [
     ...stacks.flatMap((stack) => stack?.citations ?? []),
@@ -71,14 +83,17 @@ function citationsFor(
 export function buildDecisionResult(
   query: string,
   spend: number,
-  inputs: DecisionInputs
+  inputs: DecisionInputs,
 ): DecisionResult {
   const q = query.trim();
   const { bundle, products, acceptance } = inputs;
   const safeSpend = Number.isFinite(spend) && spend > 0 ? spend : 500;
 
   const storeTargets = bundle.stores
-    .filter((store) => !q || matches(`${store.name} ${store.category} ${store.id}`, q))
+    .filter(
+      (store) =>
+        !q || matches(`${store.name} ${store.category} ${store.id}`, q),
+    )
     .map<DecisionTarget>((store) => ({
       kind: "store",
       id: store.id,
@@ -87,7 +102,11 @@ export function buildDecisionResult(
     }));
 
   const productTargets = products
-    .filter((product) => !q || matches(`${product.brand} ${product.slug} ${product.issuer ?? ""}`, q))
+    .filter(
+      (product) =>
+        !q ||
+        matches(`${product.brand} ${product.slug} ${product.issuer ?? ""}`, q),
+    )
     .map<DecisionTarget>((product) => ({
       kind: "gift-card",
       id: product.id,
@@ -95,34 +114,51 @@ export function buildDecisionResult(
       description: `${product.format.replaceAll("-", " ")} gift card`,
     }));
   const offerBrandTargets = bundle.deals
-    .filter((deal) => deal.kind === "gift-card" && (!q || matches(deal.searchText, q)))
+    .filter(
+      (deal) =>
+        deal.kind === "gift-card" && (!q || matches(deal.searchText, q)),
+    )
     .map<DecisionTarget>((deal) => ({
       kind: "gift-card",
       id: deal.id.replace(/^gift-card:/, ""),
-      name: deal.title.replace(/^(?:\d+(?:\.\d+)?% off )/i, "").replace(/ gift cards?.*$/i, ""),
+      name: deal.title
+        .replace(/^(?:\d+(?:\.\d+)?% off )/i, "")
+        .replace(/ gift cards?.*$/i, ""),
       description: "Current reviewed gift-card offer",
     }));
 
-  const programmeTargets = REWARDS_PROGRAMMES
-    .filter((programme) => !q || matches(`${programme.name} ${programme.shortName}`, q))
-    .map<DecisionTarget>((programme) => ({
-      kind: "programme",
-      id: programme.slug,
-      name: programme.name,
-      description: "Rewards programme",
-    }));
+  const programmeTargets = REWARDS_PROGRAMMES.filter(
+    (programme) => !q || matches(`${programme.name} ${programme.shortName}`, q),
+  ).map<DecisionTarget>((programme) => ({
+    kind: "programme",
+    id: programme.slug,
+    name: programme.name,
+    description: "Rewards programme",
+  }));
 
-  const giftCardTargets = uniqueTargets([...productTargets, ...offerBrandTargets]);
+  const giftCardTargets = uniqueTargets([
+    ...productTargets,
+    ...offerBrandTargets,
+  ]);
   const allTargets = [...storeTargets, ...giftCardTargets, ...programmeTargets];
   const selectedTarget = q
-    ? exactTarget(allTargets, q) ?? (allTargets.length === 1 ? allTargets[0] : null)
+    ? (exactTarget(allTargets, q) ??
+      (allTargets.length === 1 ? allTargets[0] : null))
     : null;
-  const ambiguous = q.length > 0 && allTargets.length > 1 && selectedTarget === null;
+  const ambiguous =
+    q.length > 0 && allTargets.length > 1 && selectedTarget === null;
 
-  const selectedStoreId = selectedTarget?.kind === "store" ? selectedTarget.id : null;
-  const candidateStacks = selectedStoreId
-    ? bundle.stackRecommendations.filter((stack) => stack.merchantId === selectedStoreId)
-    : bundle.stackRecommendations.filter((stack) => !q || matches(`${stack.merchantName} ${stack.title}`, q));
+  const selectedStoreId =
+    selectedTarget?.kind === "store" ? selectedTarget.id : null;
+  const candidateStacks = !q
+    ? []
+    : selectedStoreId
+      ? bundle.stackRecommendations.filter(
+          (stack) => stack.merchantId === selectedStoreId,
+        )
+      : bundle.stackRecommendations.filter((stack) =>
+          matches(`${stack.merchantName} ${stack.title}`, q),
+        );
   const bestCashStack =
     candidateStacks.find((stack) => stack.kind === "cash") ?? null;
   const rewardsStack =
@@ -136,36 +172,45 @@ export function buildDecisionResult(
           .filter(
             (product) =>
               product.id === selectedTarget.id ||
-              normalise(product.brand) === normalise(selectedTarget.name)
+              normalise(product.brand) === normalise(selectedTarget.name),
           )
           .map((product) => product.id)
-      : []
+      : [],
   );
   const selectedProgramme =
     selectedTarget?.kind === "programme" ? selectedTarget.name : null;
   const filteredOffers = inputs.giftCardOffers.filter((offer) => {
-    if (selectedStoreId) return offer.acceptedAtMerchantIds.includes(selectedStoreId);
+    if (!q || !isConfirmedCurrentGiftCardOffer(offer)) return false;
+    if (selectedStoreId)
+      return offer.acceptedAtMerchantIds.includes(selectedStoreId);
     if (selectedProductIds.size > 0) {
       return [offer.productId, ...(offer.includedProductIds ?? [])].some(
-        (id) => id != null && selectedProductIds.has(id)
+        (id) => id != null && selectedProductIds.has(id),
       );
     }
     if (selectedProgramme) {
       return matches(
         `${offer.pointsProgram ?? ""} ${offer.pointsOnPurchase?.program ?? ""}`,
-        selectedProgramme
+        selectedProgramme,
       );
     }
     return !q || matches(offerSearchText(offer), q);
   });
   const productById = new Map(products.map((product) => [product.id, product]));
   const acceptedCards = acceptance.flatMap((row) => {
+    if (!q) return [];
     const product = productById.get(row.productId);
     if (!product) return [];
     if (selectedStoreId && row.storeId !== selectedStoreId) return [];
-    if (selectedProductIds.size > 0 && !selectedProductIds.has(row.productId)) return [];
+    if (selectedProductIds.size > 0 && !selectedProductIds.has(row.productId))
+      return [];
     if (!selectedStoreId && selectedProductIds.size === 0 && q) {
-      if (!matches(`${product.brand} ${row.merchantName ?? ""} ${row.merchantCategory ?? ""}`, q)) {
+      if (
+        !matches(
+          `${product.brand} ${row.merchantName ?? ""} ${row.merchantCategory ?? ""}`,
+          q,
+        )
+      ) {
         return [];
       }
     }
@@ -175,18 +220,22 @@ export function buildDecisionResult(
   const communityPulse = bundle.deals
     .filter(
       (deal) =>
+        q.length > 0 &&
         deal.kind === "community" &&
         deal.sourceUrl != null &&
         (selectedStoreId
           ? deal.merchantId === selectedStoreId
-          : !q || matches(deal.searchText, q))
+          : !q || matches(deal.searchText, q)),
     )
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
 
   const alternativeStacks = bundle.stackRecommendations
     .filter((stack) => stack !== bestCashStack && stack !== rewardsStack)
-    .filter((stack) => !q || matches(`${stack.merchantName} ${stack.title}`, q))
+    .filter(
+      (stack) =>
+        q.length > 0 && matches(`${stack.merchantName} ${stack.title}`, q),
+    )
     .slice(0, 3);
   const warnings = [
     ...new Set([
@@ -197,7 +246,7 @@ export function buildDecisionResult(
   const citations = citationsFor([bestCashStack, rewardsStack], filteredOffers);
   const citationSummary = summariseCitations(citations, 0);
   const publisherFamilies = new Set(
-    citationSummary.providers.map((provider) => provider.publisherFamily)
+    citationSummary.providers.map((provider) => provider.publisherFamily),
   );
   communityPulse.forEach((deal) => publisherFamilies.add(deal.publisherFamily));
   const checkedDates = [
@@ -229,7 +278,9 @@ export function buildDecisionResult(
     freshness: {
       sourceFamilyCount: publisherFamilies.size,
       sourceLinkCount: citationSummary.total + communityPulse.length,
-      oldestVerificationDate: checkedDates.length ? [...checkedDates].sort()[0] : null,
+      oldestVerificationDate: checkedDates.length
+        ? [...checkedDates].sort()[0]
+        : null,
     },
     rankingExplanation: [
       "Immediate verified cash value",

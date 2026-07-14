@@ -1,6 +1,10 @@
 import { buildPublicDeals } from "@/lib/deals/normalise";
 import type { DealsBundle } from "@/lib/deals/load";
-import { getAllGiftCardAcceptance, getAllGiftCardProducts, getWeeklyDeals } from "@/lib/repos";
+import {
+  getAllGiftCardAcceptance,
+  getAllGiftCardProducts,
+  getWeeklyDeals,
+} from "@/lib/repos";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
 import {
@@ -13,7 +17,7 @@ import type { DecisionResult } from "./types";
 export async function loadDecisionResult(
   query: string,
   spend: number = 500,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<DecisionResult> {
   const [stackSettled, weeklySettled, productsSettled, acceptanceSettled] =
     await Promise.allSettled([
@@ -22,9 +26,12 @@ export async function loadDecisionResult(
       getAllGiftCardProducts(),
       getAllGiftCardAcceptance(),
     ]);
-  const partial = [stackSettled, weeklySettled, productsSettled, acceptanceSettled].some(
-    (result) => result.status === "rejected"
-  );
+  const partial = [
+    stackSettled,
+    weeklySettled,
+    productsSettled,
+    acceptanceSettled,
+  ].some((result) => result.status === "rejected");
   const stackData =
     stackSettled.status === "fulfilled"
       ? stackSettled.value
@@ -40,14 +47,19 @@ export async function loadDecisionResult(
   const products =
     productsSettled.status === "fulfilled"
       ? productsSettled.value
-      : stackData.giftCardProducts ?? [];
+      : (stackData.giftCardProducts ?? []);
   const acceptance =
     acceptanceSettled.status === "fulfilled"
       ? acceptanceSettled.value
-      : stackData.giftCardAcceptance ?? [];
-  const stackRecommendations = buildStackRecommendations(undefined, spend, stackData, now);
+      : (stackData.giftCardAcceptance ?? []);
+  const stackRecommendations = buildStackRecommendations(
+    undefined,
+    spend,
+    stackData,
+    now,
+  );
   const stackableMerchantIds = new Set(
-    stackRecommendations.map((recommendation) => recommendation.merchantId)
+    stackRecommendations.map((recommendation) => recommendation.merchantId),
   );
   const deals = buildPublicDeals(
     {
@@ -59,7 +71,7 @@ export async function loadDecisionResult(
       weekly: weeklySettled.status === "fulfilled" ? weeklySettled.value : [],
       stackableMerchantIds,
     },
-    now
+    now,
   );
   const bundle: DealsBundle = {
     deals,
@@ -67,9 +79,11 @@ export async function loadDecisionResult(
     stackRecommendations,
     partial,
   };
-  const productComparisons = buildSmartStackView(
-    buildSmartStackResults(query, stackData, now)
-  ).flatMap((item) => (item.kind === "comparison" ? [item] : []));
+  const productComparisons = query.trim()
+    ? buildSmartStackView(
+        buildSmartStackResults(query, stackData, now),
+      ).flatMap((item) => (item.kind === "comparison" ? [item] : []))
+    : [];
   return buildDecisionResult(query, spend, {
     bundle,
     products,

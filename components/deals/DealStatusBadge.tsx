@@ -23,13 +23,13 @@ const TRUST_BADGE: Record<
   { label: string; icon: typeof ShieldCheck; className: string }
 > = {
   verified: {
-    label: "Verified by DealStack",
+    label: "Retailer confirmed",
     icon: ShieldCheck,
     className:
       "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   },
   "source-checked": {
-    label: "Source checked",
+    label: "Specialist source confirmed",
     icon: BadgeCheck,
     className: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400",
   },
@@ -40,7 +40,7 @@ const TRUST_BADGE: Record<
       "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400",
   },
   expired: {
-    label: "Expired",
+    label: "Source unavailable",
     icon: CircleAlert,
     className: "border-border bg-muted text-muted-foreground",
   },
@@ -60,7 +60,7 @@ export function DealStatusBadge({
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
         badge.className,
-        className
+        className,
       )}
     >
       <Icon aria-hidden className="size-3" />
@@ -92,7 +92,11 @@ export function DealConditionBadges({
 }) {
   const conditions: { key: string; label: string; icon: typeof Lock }[] = [];
   if (deal.membershipRequired) {
-    conditions.push({ key: "membership", label: "Membership required", icon: Lock });
+    conditions.push({
+      key: "membership",
+      label: "Membership required",
+      icon: Lock,
+    });
   }
   if (deal.activationRequired) {
     conditions.push({ key: "activation", label: "Activate first", icon: Zap });

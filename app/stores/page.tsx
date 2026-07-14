@@ -10,6 +10,7 @@ import SiteHeader from "@/components/SiteHeader";
 import type { Store } from "@/lib/data";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
+import { recommendationPresentation } from "@/lib/stack/present";
 
 export const metadata: Metadata = {
   title: "All stores — DealStack AU",
@@ -42,9 +43,13 @@ export default async function StoresIndexPage() {
   const stores = data.stores;
   const recommendations = buildStackRecommendations(undefined, 500, data);
   const recommendationByStore = new Map(
-    recommendations.map((rec) => [rec.merchantId, rec])
+    recommendations.map((rec) => [rec.merchantId, rec]),
   );
   const groups = groupByCategory(stores);
+  const verifiedStoreCount = recommendations.filter(
+    (recommendation) =>
+      recommendationPresentation(recommendation).fullyVerified,
+  ).length;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -54,15 +59,19 @@ export default async function StoresIndexPage() {
         <section className="soft-panel p-5 sm:p-7">
           <div className="grid gap-6 lg:grid-cols-[1fr_0.72fr] lg:items-end">
             <div>
-              <p className="eyebrow inline-flex items-center gap-2"><StoreIcon aria-hidden className="size-4" /> Store planner</p>
+              <p className="eyebrow inline-flex items-center gap-2">
+                <StoreIcon aria-hidden className="size-4" /> Store planner
+              </p>
               <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
                 Start with where you’re shopping
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                Open a store to see one compatible purchase plan—not a pile of disconnected rates. Checkout savings, later cashback and points stay clearly separated.
+                Open a store to see one compatible purchase plan—not a pile of
+                disconnected rates. Checkout savings, later cashback and points
+                stay clearly separated.
               </p>
               <p className="mt-4 text-xs font-semibold text-muted-foreground">
-                {`${stores.length} reviewed ${stores.length === 1 ? "store" : "stores"}`}
+                {`${stores.length} listed ${stores.length === 1 ? "store" : "stores"} · ${verifiedStoreCount} with fully verified plans`}
               </p>
             </div>
             <div>
@@ -72,8 +81,12 @@ export default async function StoresIndexPage() {
                 placeholder="Search a store, product or programme"
                 buttonLabel="Plan"
               />
-              <Link href="/deals?view=stacks" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:underline">
-                Compare the best current stacks <ArrowRight aria-hidden className="size-4" />
+              <Link
+                href="/deals?view=stacks"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:underline"
+              >
+                Compare the best current stacks{" "}
+                <ArrowRight aria-hidden className="size-4" />
               </Link>
             </div>
           </div>
@@ -88,7 +101,9 @@ export default async function StoresIndexPage() {
                 Published stores are temporarily unavailable. Browse current
                 deals or try again after the data source recovers.
               </p>
-              <Button asChild variant="outline" size="sm"><Link href="/deals">Browse deals</Link></Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/deals">Browse deals</Link>
+              </Button>
             </CardContent>
           </Card>
         ) : (

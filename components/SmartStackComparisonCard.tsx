@@ -1,11 +1,16 @@
-import { AlertTriangle, ExternalLink, Layers, Store as StoreIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  ExternalLink,
+  Layers,
+  Store as StoreIcon,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StoreLogo } from "@/components/StoreLogo";
 import { formatAUD } from "@/lib/calculateStack";
 import type { Store } from "@/lib/data";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import {
   comparablePrice,
   type SmartStackComparison,
@@ -22,18 +27,18 @@ function retailerName(result: SmartStackResult, stores: Store[]): string {
 
 function retailerLink(
   result: SmartStackResult,
-  retailer: string
+  retailer: string,
 ): { href: string; label: string } | null {
   if (result.signal.isSample) return null;
   const productUrl = result.signal.productUrl
-    ? safeHttpsUrl(result.signal.productUrl)
+    ? safePublicSourceUrl(result.signal.productUrl)
     : null;
   const merchantUrl = result.signal.merchantUrl
-    ? safeHttpsUrl(result.signal.merchantUrl)
+    ? safePublicSourceUrl(result.signal.merchantUrl)
     : null;
   if (productUrl) return { href: productUrl, label: `View at ${retailer}` };
   if (merchantUrl) return { href: merchantUrl, label: `Visit ${retailer}` };
-  const sourceUrl = safeHttpsUrl(result.signal.sourceUrl);
+  const sourceUrl = safePublicSourceUrl(result.signal.sourceUrl);
   return sourceUrl ? { href: sourceUrl, label: "View deal source" } : null;
 }
 
@@ -71,10 +76,10 @@ export function SmartStackComparisonCard({
             const name = retailerName(result, stores);
             const link = retailerLink(result, name);
             const included = recommendation?.components.filter(
-              (component) => !component.optional
+              (component) => !component.optional,
             );
             const alternatives = recommendation?.components.filter(
-              (component) => component.optional
+              (component) => component.optional,
             );
 
             return (
@@ -101,12 +106,18 @@ export function SmartStackComparisonCard({
                     <div className="space-y-1 text-xs text-muted-foreground">
                       {included && included.length > 0 ? (
                         <p>
-                          Stack: {included.map((component) => component.label).join(" + ")}
+                          Stack:{" "}
+                          {included
+                            .map((component) => component.label)
+                            .join(" + ")}
                         </p>
                       ) : null}
                       {alternatives && alternatives.length > 0 ? (
                         <p>
-                          Alternative: {alternatives.map((component) => component.label).join("; ")}
+                          Alternative:{" "}
+                          {alternatives
+                            .map((component) => component.label)
+                            .join("; ")}
                         </p>
                       ) : null}
                       {recommendation.warnings.map((warning) => (
@@ -136,7 +147,7 @@ export function SmartStackComparisonCard({
                     <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
                       {effectivePrice !== null
                         ? formatAUD(effectivePrice)
-                        : signal.priceText ?? "Check retailer"}
+                        : (signal.priceText ?? "Check retailer")}
                     </p>
                     {recommendation && signalPrice !== null ? (
                       <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
@@ -146,7 +157,11 @@ export function SmartStackComparisonCard({
                   </div>
                   {link ? (
                     <Button asChild size="sm" variant="outline">
-                      <a href={link.href} target="_blank" rel="noopener noreferrer nofollow">
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                      >
                         {link.label} <ExternalLink className="size-3" />
                       </a>
                     </Button>

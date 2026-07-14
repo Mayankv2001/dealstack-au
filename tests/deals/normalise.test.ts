@@ -1,13 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { buildPublicDeals, decodeEntities, deriveSavingPercent, tidyPriceText } from "@/lib/deals/normalise";
+import {
+  buildPublicDeals,
+  decodeEntities,
+  deriveSavingPercent,
+  tidyPriceText,
+} from "@/lib/deals/normalise";
 import { stackableChipLabel } from "@/lib/deals/types";
 import type { OzBargainSignal } from "@/lib/offers/types";
 
-const signal: OzBargainSignal = { id: "sig-1", sourceNativeId: "ozb:1", merchantId: null, title: "Headphones &amp; case", summary: "Community price", votesSample: 5, sentiment: "neutral", dealKind: "discount-code", sourceUrl: "https://www.ozbargain.com.au/node/1", postedAt: "2026-07-12T01:00:00Z", confidence: "needs-verification", lastCheckedAt: "2026-07-12T02:00:00Z", isSample: false, status: "approved", priceText: "$80 (was $100)", expiryDate: "2026-07-13" };
+const signal: OzBargainSignal = {
+  id: "sig-1",
+  sourceNativeId: "ozb:1",
+  merchantId: null,
+  title: "Headphones &amp; case",
+  summary: "Community price",
+  votesSample: 5,
+  sentiment: "neutral",
+  dealKind: "discount-code",
+  sourceUrl: "https://www.ozbargain.com.au/node/1",
+  postedAt: "2026-07-12T01:00:00Z",
+  confidence: "needs-verification",
+  lastCheckedAt: "2026-07-12T02:00:00Z",
+  isSample: false,
+  status: "approved",
+  priceText: "$80 (was $100)",
+  expiryDate: "2026-07-13",
+};
 
 describe("public deal normalisation", () => {
   it("keeps approved community content honestly community-reported", () => {
-    const [deal] = buildPublicDeals({ stores: [], signals: [signal], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() }, new Date("2026-07-12T12:00:00+10:00"));
+    const [deal] = buildPublicDeals(
+      {
+        stores: [],
+        signals: [signal],
+        giftCards: [],
+        cashback: [],
+        points: [],
+        weekly: [],
+        stackableMerchantIds: new Set(),
+      },
+      new Date("2026-07-12T12:00:00+10:00"),
+    );
     expect(deal.trust).toBe("community");
     expect(deal.title).toBe("Headphones & case");
     expect(deal.sourceNativeId).toBe("ozb:1");
@@ -19,17 +52,60 @@ describe("public deal normalisation", () => {
   });
 
   it("links community heat to the discussion rather than a merchant destination", () => {
-    const [deal] = buildPublicDeals({ stores: [], signals: [{ ...signal, productUrl: "https://retailer.example/product", merchantUrl: "https://retailer.example" }], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() });
+    const [deal] = buildPublicDeals({
+      stores: [],
+      signals: [
+        {
+          ...signal,
+          productUrl: "https://retailer.example/product",
+          merchantUrl: "https://retailer.example",
+        },
+      ],
+      giftCards: [],
+      cashback: [],
+      points: [],
+      weekly: [],
+      stackableMerchantIds: new Set(),
+    });
     expect(deal.sourceUrl).toBe("https://www.ozbargain.com.au/node/1");
   });
 
   it("does not present a non-OzBargain URL as an OzBargain discussion", () => {
-    const [deal] = buildPublicDeals({ stores: [], signals: [{ ...signal, sourceUrl: "https://retailer.example/deal" }], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() });
+    const [deal] = buildPublicDeals({
+      stores: [],
+      signals: [{ ...signal, sourceUrl: "https://retailer.example/deal" }],
+      giftCards: [],
+      cashback: [],
+      points: [],
+      weekly: [],
+      stackableMerchantIds: new Set(),
+    });
     expect(deal.sourceUrl).toBeNull();
   });
 
   it("never renders sample placeholder URLs as actions", () => {
-    const [deal] = buildPublicDeals({ stores: [], signals: [{ ...signal, isSample: true }], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() });
+    const [deal] = buildPublicDeals({
+      stores: [],
+      signals: [{ ...signal, isSample: true }],
+      giftCards: [],
+      cashback: [],
+      points: [],
+      weekly: [],
+      stackableMerchantIds: new Set(),
+    });
+    expect(deal.sourceUrl).toBeNull();
+  });
+
+  it("never exposes a known placeholder domain from a non-sample public record", () => {
+    const [deal] = buildPublicDeals({
+      stores: [],
+      signals: [{ ...signal, sourceUrl: "https://example.com/node/1" }],
+      giftCards: [],
+      cashback: [],
+      points: [],
+      weekly: [],
+      stackableMerchantIds: new Set(),
+    });
     expect(deal.sourceUrl).toBeNull();
   });
 
@@ -51,7 +127,15 @@ describe("tidyPriceText", () => {
   });
 
   it("is applied to community deals end-to-end", () => {
-    const [deal] = buildPublicDeals({ stores: [], signals: [{ ...signal, priceText: "$395," }], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() });
+    const [deal] = buildPublicDeals({
+      stores: [],
+      signals: [{ ...signal, priceText: "$395," }],
+      giftCards: [],
+      cashback: [],
+      points: [],
+      weekly: [],
+      stackableMerchantIds: new Set(),
+    });
     expect(deal.priceText).toBe("$395");
   });
 });
@@ -71,27 +155,35 @@ describe("gift-card deal titles from seeded earn notes", () => {
     const [deal] = buildPublicDeals({
       stores: [],
       signals: [],
-      giftCards: [{
-        id: "gc-colon",
-        brand: "Coles Group",
-        discountPercent: 0,
-        channel: "supermarket-promo",
-        source: "Coles in-store promo",
-        acceptedAtMerchantIds: [],
-        pointsOnPurchase: { program: "Flybuys", earnNote: "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards" },
-        capDollars: null,
-        expiryDate: null,
-        startDate: null,
-        citations: [],
-        confidence: "needs-verification",
-        lastCheckedAt: "2026-07-12T00:00:00Z",
-      }],
+      giftCards: [
+        {
+          id: "gc-colon",
+          brand: "Coles Group",
+          discountPercent: 0,
+          channel: "supermarket-promo",
+          source: "Coles in-store promo",
+          acceptedAtMerchantIds: [],
+          pointsOnPurchase: {
+            program: "Flybuys",
+            earnNote:
+              "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards",
+          },
+          capDollars: null,
+          expiryDate: null,
+          startDate: null,
+          citations: [],
+          confidence: "needs-verification",
+          lastCheckedAt: "2026-07-12T00:00:00Z",
+        },
+      ],
       cashback: [],
       points: [],
       weekly: [],
       stackableMerchantIds: new Set(),
     });
     expect(deal.title).not.toContain("— :");
-    expect(deal.title).toContain("Coles Group gift cards — 2,000 bonus Flybuys");
+    expect(deal.title).toContain(
+      "Coles Group gift cards — 2,000 bonus Flybuys",
+    );
   });
 });

@@ -5,6 +5,7 @@ import type {
   StackWarning,
   StackWarningLevel,
 } from "@/lib/offers/types";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Presentation-layer derivations for Best stacks.
@@ -34,12 +35,10 @@ export const BEST_STACK_INITIAL_COUNT = 5;
 export function qualifiesAsBestStack(rec: StackRecommendation): boolean {
   if (rec.kind !== "cash") return false;
   if (rec.totalSaving <= 0) return false;
-  if (rec.effectiveDiscountPercent < MIN_BEST_STACK_DISCOUNT_PERCENT) return false;
+  if (rec.effectiveDiscountPercent < MIN_BEST_STACK_DISCOUNT_PERCENT)
+    return false;
   return rec.components.some(
-    (c) =>
-      !c.optional &&
-      c.layer !== "points" &&
-      (c.valueDollars ?? 0) > 0
+    (c) => !c.optional && c.layer !== "points" && (c.valueDollars ?? 0) > 0,
   );
 }
 
@@ -55,7 +54,7 @@ const CONFIDENCE_RANK: Record<Confidence, number> = {
  * alphabetical tiebreak. Returns a new array; does not mutate the input.
  */
 export function rankBestStacks(
-  recs: StackRecommendation[]
+  recs: StackRecommendation[],
 ): StackRecommendation[] {
   return [...recs].sort((a, b) => {
     if (b.totalSaving !== a.totalSaving) return b.totalSaving - a.totalSaving;
@@ -81,11 +80,11 @@ export interface PartitionedStacks {
  * — they have nothing useful to show.
  */
 export function partitionStacks(
-  recs: StackRecommendation[]
+  recs: StackRecommendation[],
 ): PartitionedStacks {
   const best = rankBestStacks(recs.filter(qualifiesAsBestStack));
   const rewards = recs.filter(
-    (r) => r.kind === "points-only" && r.pointsEarned > 0
+    (r) => r.kind === "points-only" && r.pointsEarned > 0,
   );
   return { best, rewards };
 }
@@ -97,6 +96,103 @@ export interface StackTrustStatus {
   tone: StackTrustTone;
 }
 
+export type RecommendationLabel =
+  | "Best verified plan"
+  | "Best available plan — verification required"
+  | "Possible saving route"
+  | "No reliable plan available";
+
+export interface RecommendationPresentation {
+  recommendationLabel: RecommendationLabel;
+  planLabel: "Best compatible stack" | "Safest available option";
+  includedLayerCount: number;
+  verifiedLayerCount: number;
+  excludedLayerCount: number;
+  fullyVerified: boolean;
+}
+
+/** A layer is verified only with confirmed confidence and traceable public evidence. */
+export function isVerifiedStackLayer(component: StackComponent): boolean {
+  return (
+    !component.optional &&
+    component.confidence === "confirmed" &&
+    safePublicSourceUrl(component.citation.sourceUrl) !== null
+  );
+}
+
+/**
+ * One recommendation vocabulary shared by search, stores, cards and featured
+ * surfaces. This derives presentation only; it never changes engine arithmetic
+ * or compatibility decisions.
+ */
+export function recommendationPresentation(
+  rec: StackRecommendation | null,
+): RecommendationPresentation {
+  const included =
+    rec?.components.filter((component) => !component.optional) ?? [];
+  const verifiedLayerCount = included.filter(isVerifiedStackLayer).length;
+  const excludedLayerCount =
+    rec?.components.filter((component) => component.optional).length ?? 0;
+  const weakCompatibility = included.some((component) =>
+    ["incompatible", "requires-verification", "insufficient-evidence"].includes(
+      component.compatibilityStatus ?? "",
+    ),
+  );
+  const fullyVerified =
+    included.length > 0 &&
+    verifiedLayerCount === included.length &&
+    rec?.confidence === "confirmed" &&
+    !weakCompatibility;
+  const cashLayers = included.filter(
+    (component) =>
+      component.layer !== "points" && (component.valueDollars ?? 0) > 0,
+  );
+  const genuineCompatibleStack =
+    cashLayers.length >= 2 && !weakCompatibility && rec?.kind === "cash";
+
+  let recommendationLabel: RecommendationLabel;
+  if (!rec || included.length === 0) {
+    recommendationLabel = "No reliable plan available";
+  } else if (fullyVerified) {
+    recommendationLabel = "Best verified plan";
+  } else if (verifiedLayerCount > 0 && !weakCompatibility) {
+    recommendationLabel = "Best available plan — verification required";
+  } else {
+    recommendationLabel = "Possible saving route";
+  }
+
+  return {
+    recommendationLabel,
+    planLabel: genuineCompatibleStack
+      ? "Best compatible stack"
+      : "Safest available option",
+    includedLayerCount: included.length,
+    verifiedLayerCount,
+    excludedLayerCount,
+    fullyVerified,
+  };
+}
+
+/** Featured plans must be a fresh, fully verified, genuine multi-layer stack. */
+export const FEATURED_STACK_MAX_AGE_DAYS = 7;
+
+export function isFeaturedStackEligible(
+  rec: StackRecommendation,
+  now: Date = new Date(),
+): boolean {
+  const presentation = recommendationPresentation(rec);
+  if (
+    !presentation.fullyVerified ||
+    presentation.planLabel !== "Best compatible stack"
+  ) {
+    return false;
+  }
+  if (!rec.checkedAsOf) return false;
+  const checked = Date.parse(rec.checkedAsOf);
+  if (Number.isNaN(checked) || checked > now.getTime()) return false;
+  return now.getTime() - checked <= FEATURED_STACK_MAX_AGE_DAYS * 86_400_000;
+}
+
 /**
  * One stack-level trust line, derived from the engine's worst-of confidence and
  * its verification warnings — shown once per card instead of repeating a
@@ -106,11 +202,14 @@ export function stackTrustStatus(rec: StackRecommendation): StackTrustStatus {
   if (rec.confidence === "expired-unknown") {
     return { label: "Terms may have changed", tone: "caution" };
   }
-  const needsVerification = rec.components.filter(
-    (c) => c.confidence !== "confirmed"
-  ).length;
-  if (rec.confidence === "confirmed" && needsVerification === 0) {
-    return { label: "All layers source checked", tone: "verified" };
+  const presentation = recommendationPresentation(rec);
+  if (presentation.includedLayerCount === 0) {
+    return { label: "No reliable plan available", tone: "caution" };
+  }
+  const needsVerification =
+    presentation.includedLayerCount - presentation.verifiedLayerCount;
+  if (presentation.fullyVerified) {
+    return { label: "All included layers verified", tone: "verified" };
   }
   if (needsVerification === 1) {
     return { label: "1 layer needs verification", tone: "caution" };
@@ -123,9 +222,19 @@ export function stackTrustStatus(rec: StackRecommendation): StackTrustStatus {
 
 /** Honest per-layer status chip label, from the layer's stored confidence. */
 export function layerStatusLabel(
-  confidence: Confidence
+  confidence: Confidence,
+  sourceUrl?: string,
 ): { label: string; tone: "verified" | "caution" } {
-  if (confidence === "confirmed") return { label: "Verified", tone: "verified" };
+  if (
+    confidence === "confirmed" &&
+    sourceUrl &&
+    safePublicSourceUrl(sourceUrl)
+  ) {
+    return { label: "Verified", tone: "verified" };
+  }
+  if (confidence === "confirmed") {
+    return { label: "Source unavailable", tone: "caution" };
+  }
   if (confidence === "expired-unknown") {
     return { label: "Unable to verify", tone: "caution" };
   }
@@ -152,10 +261,10 @@ export interface StackConditionsSummary {
  * expandable list — replacing the old stack of repeated warning banners.
  */
 export function summariseConditions(
-  rec: StackRecommendation
+  rec: StackRecommendation,
 ): StackConditionsSummary {
   const all = [...rec.warnings].sort(
-    (a, b) => WARNING_LEVEL_RANK[a.level] - WARNING_LEVEL_RANK[b.level]
+    (a, b) => WARNING_LEVEL_RANK[a.level] - WARNING_LEVEL_RANK[b.level],
   );
   return {
     lead: all[0] ?? null,
@@ -173,7 +282,7 @@ export type LayerCompatibility = "combined" | "choose-one";
  * compatible layers non-optional.
  */
 export function layerCompatibility(
-  component: StackComponent
+  component: StackComponent,
 ): LayerCompatibility {
   return component.optional ? "choose-one" : "combined";
 }
@@ -204,7 +313,7 @@ function cashbackProviderFrom(label: string): string | null {
  */
 export function buildStackSteps(
   storeName: string,
-  rec: StackRecommendation | null
+  rec: StackRecommendation | null,
 ): StackStep[] {
   if (!rec) {
     return [
@@ -221,7 +330,9 @@ export function buildStackSteps(
   if (cashback) {
     const provider = cashbackProviderFrom(cashback.label);
     steps.push({
-      title: provider ? `Start at ${provider}` : "Start at the cashback provider",
+      title: provider
+        ? `Start at ${provider}`
+        : "Start at the cashback provider",
       description: `Click through to ${storeName} first so the tracked cashback (${cashback.label}) can record your purchase.`,
     });
   }
@@ -263,7 +374,7 @@ export function buildStackSteps(
           description: cashback
             ? "Pay as usual, then wait for the cashback to confirm."
             : "Pay as usual and keep the receipts for any conditions above.",
-        }
+        },
   );
 
   for (const alternative of rec.components.filter((c) => c.optional)) {
@@ -289,7 +400,7 @@ export interface LayerUncertaintyDetails {
  * the engine's exact acquisition/redemption reasons without recomputing them.
  */
 export function layerUncertaintyDetails(
-  component: StackComponent
+  component: StackComponent,
 ): LayerUncertaintyDetails | null {
   if (
     component.compatibilityStatus !== "requires-verification" &&

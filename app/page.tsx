@@ -14,14 +14,15 @@ import { siteUrl } from "@/lib/env";
 import { getTopDeals } from "@/lib/repos/topDeals";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
-import { partitionStacks } from "@/lib/stack/present";
+import { isFeaturedStackEligible, partitionStacks } from "@/lib/stack/present";
 import {
   buildOrganizationJsonLd,
   buildWebSiteJsonLd,
 } from "@/lib/structuredData";
 
 export const metadata: Metadata = {
-  title: "DealStack AU — Stack cashback, gift cards & points at Australian stores",
+  title:
+    "DealStack AU — Stack cashback, gift cards & points at Australian stores",
   description:
     "See the best way to stack discount codes, cashback, discounted gift cards and points at popular Australian retailers — plus admin-reviewed OzBargain deal signals.",
 };
@@ -45,10 +46,11 @@ export default async function Home() {
   const [data, topDeals] = await Promise.all([loadStackData(), getTopDeals()]);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const { best } = partitionStacks(recommendations);
-  const featured = best[0] ?? null;
-  const heroStack =
-    best.find((recommendation) => recommendation.merchantId === "myer") ??
-    featured;
+  const featured =
+    best.find((recommendation) =>
+      isFeaturedStackEligible(recommendation, now),
+    ) ?? null;
+  const heroStack = featured;
   const site = siteUrl();
 
   return (
@@ -66,9 +68,7 @@ export default async function Home() {
           />
 
           <SavingsLayersSection />
-          <CalculatorSection
-            recommendations={recommendations}
-          />
+          <CalculatorSection recommendations={recommendations} />
           <TrustSection recommendation={featured} />
           <FinalCTASection />
         </main>

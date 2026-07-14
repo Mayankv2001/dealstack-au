@@ -6,12 +6,13 @@ import {
   safeHttpsUrl,
   safeLogoPath,
   safePublicHref,
+  safePublicSourceUrl,
 } from "@/lib/security/urlPolicy";
 
 describe("public URL policy", () => {
   it("canonicalises safe HTTPS URLs", () => {
     expect(safeHttpsUrl("https://Example.com/path")).toBe(
-      "https://example.com/path"
+      "https://example.com/path",
     );
   });
 
@@ -32,8 +33,17 @@ describe("public URL policy", () => {
 
   it.each(["/", "/resources", "/search?q=gift#results"])(
     "allows local href %s",
-    (value) => expect(safePublicHref(value)).toBe(value)
+    (value) => expect(safePublicHref(value)).toBe(value),
   );
+
+  it("rejects known placeholder domains from public source links", () => {
+    expect(safePublicSourceUrl("https://example.com/deal")).toBeNull();
+    expect(safePublicSourceUrl("https://seller.example/terms")).toBeNull();
+    expect(safePublicHref("https://example.org/source")).toBeNull();
+    expect(safePublicSourceUrl("https://www.ozbargain.com.au/node/1")).toBe(
+      "https://www.ozbargain.com.au/node/1",
+    );
+  });
 
   it.each([
     "//evil.test",
@@ -77,29 +87,31 @@ describe("monitor URL allowlist", () => {
   it("allows same-host relative redirects only", () => {
     const current = "https://www.ozbargain.com.au/deals/feed";
     expect(resolveApprovedFeedRedirect("ozbargain", current, "/feed/new")).toBe(
-      "https://www.ozbargain.com.au/feed/new"
+      "https://www.ozbargain.com.au/feed/new",
     );
     expect(
       resolveApprovedFeedRedirect(
         "ozbargain",
         current,
-        "https://ozbargain.com.au/feed"
-      )
+        "https://ozbargain.com.au/feed",
+      ),
     ).toBeNull();
     expect(
-      resolveApprovedFeedRedirect("ozbargain", current, "http://localhost")
+      resolveApprovedFeedRedirect("ozbargain", current, "http://localhost"),
     ).toBeNull();
   });
 
   it("allows only exact HTTPS OzBargain deal-post URLs for validation", () => {
     expect(
-      isApprovedOzBargainPostUrl("https://www.ozbargain.com.au/node/123456")
+      isApprovedOzBargainPostUrl("https://www.ozbargain.com.au/node/123456"),
     ).toBe(true);
     expect(
-      isApprovedOzBargainPostUrl("https://www.ozbargain.com.au/node/123?next=/")
+      isApprovedOzBargainPostUrl(
+        "https://www.ozbargain.com.au/node/123?next=/",
+      ),
     ).toBe(false);
-    expect(
-      isApprovedOzBargainPostUrl("https://evil.test/node/123456")
-    ).toBe(false);
+    expect(isApprovedOzBargainPostUrl("https://evil.test/node/123456")).toBe(
+      false,
+    );
   });
 });
