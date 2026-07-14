@@ -22,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/gift-cards",
     "/gift-cards/products",
     "/gift-cards/where-to-use",
+    "/gift-cards/where-to-buy",
     "/gift-cards/history",
     "/gift-cards/programmes",
     "/rewards",

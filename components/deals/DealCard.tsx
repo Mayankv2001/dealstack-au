@@ -34,11 +34,13 @@ export function DealCard({
   stores,
   now,
   compact = false,
+  list = false,
 }: {
   deal: PublicDeal;
   stores: Store[];
   now: Date;
   compact?: boolean;
+  list?: boolean;
 }) {
   const store = deal.merchantId
     ? stores.find((candidate) => candidate.id === deal.merchantId)
@@ -46,6 +48,49 @@ export function DealCard({
   const href = deal.detailPath ?? deal.sourceUrl;
   const external = href?.startsWith("http") ?? false;
   const visibleTags = deal.tags.slice(0, 3);
+
+  if (list) {
+    const planHref = deal.merchantName
+      ? `/search?q=${encodeURIComponent(deal.merchantName)}&spend=500`
+      : "/search";
+    return (
+      <article className="grid gap-3 py-4 sm:grid-cols-[2.75rem_minmax(0,1fr)_9rem_auto] sm:items-center">
+        <StoreLogo
+          store={store}
+          text={deal.merchantName?.slice(0, 2).toUpperCase() ?? deal.sourceName.slice(0, 2).toUpperCase()}
+          size="sm"
+        />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground">{deal.merchantName ?? deal.sourceName}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{deal.category}</span>
+          </div>
+          <h3 className="mt-1 line-clamp-2 font-semibold leading-snug">{deal.title}</h3>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            <DealStatusBadge trust={deal.trust} />
+            <DealFreshness deal={deal} now={now} />
+            {deal.stackable ? <span className="inline-flex items-center gap-1"><Layers3 aria-hidden className="size-3" /> {stackableChipLabel(deal.kind)}</span> : null}
+            {deal.votes != null ? <span className="inline-flex items-center gap-1"><ThumbsUp aria-hidden className="size-3" /> {deal.votes}</span> : null}
+            {deal.comments != null ? <span className="inline-flex items-center gap-1"><MessageSquare aria-hidden className="size-3" /> {deal.comments}</span> : null}
+          </div>
+        </div>
+        <div className="sm:text-right">
+          <DealPrice deal={deal} />
+          {deal.couponCode ? <p className="mt-1 text-[11px] text-muted-foreground">Code <code className="font-semibold text-foreground">{deal.couponCode}</code></p> : null}
+        </div>
+        <div className="flex items-center gap-2 sm:justify-end">
+          {href ? (
+            external ? (
+              <a href={href} target="_blank" rel="nofollow noopener noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted">View deal <ExternalLink aria-hidden className="size-3" /></a>
+            ) : (
+              <Link href={href} className="inline-flex h-8 items-center rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted">View deal</Link>
+            )
+          ) : null}
+          <Link href={planHref} className="inline-flex h-8 items-center rounded-lg bg-emerald-700 px-2.5 text-xs font-semibold text-white hover:bg-emerald-800">Plan</Link>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <Card className="h-full gap-0 py-0 shadow-sm transition-shadow hover:shadow-md">

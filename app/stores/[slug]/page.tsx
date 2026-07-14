@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowRight,
   BadgePercent,
   Clock,
   CreditCard,
@@ -34,6 +35,7 @@ import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
 import { buildStackSteps } from "@/lib/stack/present";
 import { buildStoreBreadcrumbJsonLd } from "@/lib/structuredData";
+import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
@@ -85,6 +87,7 @@ export default async function StorePage({
   const recommendation =
     recommendations.find((rec) => rec.merchantId === store.id) ?? null;
   const steps = buildStackSteps(store.name, recommendation);
+  const activeLayerCount = recommendation?.components.filter((component) => !component.optional).length ?? 0;
 
   const layers = [
     {
@@ -158,7 +161,7 @@ export default async function StorePage({
         </Link>
 
         {/* Store hero: identity + best stack estimate in one panel */}
-        <div className="mt-3 rounded-2xl border bg-gradient-to-br from-emerald-500/10 via-background to-background p-4 shadow-sm sm:p-5">
+        <div className="mt-3 rounded-xl border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <StoreLogo store={store} size="lg" />
@@ -169,6 +172,10 @@ export default async function StorePage({
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {store.category}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-muted-foreground">
+                  <span>Current verified layers: {activeLayerCount}</span>
+                  <span>Last full check: {formatDateAU(recommendation?.checkedAsOf?.slice(0, 10) ?? null) ?? "not recorded"}</span>
+                </div>
               </div>
             </div>
             <div className="rounded-xl border border-emerald-500/25 bg-background px-4 py-3 shadow-sm sm:min-w-56 sm:text-right">
@@ -210,6 +217,9 @@ export default async function StorePage({
             Results sourced from OzBargain, Point Hacks,
             FreePoints, GCDB and DealStack-verified entries.
           </p>
+          <Link href={`/search?q=${encodeURIComponent(store.name)}&spend=${SAMPLE_SPEND}`} className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white hover:bg-emerald-800">
+            Plan a {store.name} purchase <ArrowRight aria-hidden className="size-4" />
+          </Link>
         </div>
 
         {/* Savings layers */}
@@ -310,7 +320,7 @@ export default async function StorePage({
         <Card className="mt-6 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">
-              How to stack at {store.name}
+              Safest current combination for {store.name}
             </CardTitle>
           </CardHeader>
           <CardContent>

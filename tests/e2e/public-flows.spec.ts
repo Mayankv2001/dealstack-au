@@ -11,7 +11,7 @@ import AxeBuilder from "@axe-core/playwright";
 test("home: hero search live-filters the stores grid", async ({ page }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "See every saving you can stack before you buy" })
+    page.getByRole("heading", { name: "Plan the cheapest way to buy" })
   ).toBeVisible();
 
   await page.getByPlaceholder("Search a store, e.g. Myer, JB Hi-Fi or Amazon").first().fill("jb hi-fi");
@@ -24,14 +24,49 @@ test("home: hero search live-filters the stores grid", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("home: Plan purchase submits with the default spend (stepMismatch regression)", async ({ page }) => {
+test("home: saving-plan form submits with the default spend (stepMismatch regression)", async ({ page }) => {
   // step={10} with min={1} used to make 500 an HTML stepMismatch, silently
   // blocking EVERY hero submission. Round spends must always submit.
   await page.goto("/");
   await page.getByPlaceholder("Search a store, e.g. Myer, JB Hi-Fi or Amazon").first().fill("Myer");
-  await page.getByRole("button", { name: "Plan purchase" }).click();
+  await page.getByRole("button", { name: "Build my saving plan" }).click();
   await page.waitForURL(/\/search\?q=Myer&spend=500/);
   await expect(page.getByRole("heading", { name: "Your $500.00 purchase plan" })).toBeVisible();
+});
+
+test("public navigation keeps the purchase planner and core tasks easy to reach", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  await expect(page.getByRole("link", { name: "Save at a store" })).toHaveAttribute("href", "/stores");
+  await expect(page.getByRole("link", { name: "Find discounted gift cards" })).toHaveAttribute("href", "/gift-cards");
+  await expect(page.getByRole("link", { name: "Earn more points" })).toHaveAttribute("href", "/rewards");
+  await expect(page.getByRole("link", { name: "Expiring opportunities" })).toHaveAttribute("href", "/deals?view=expiring");
+
+  await page.goto("/gift-cards");
+  const header = page.getByRole("banner");
+  await expect(header.getByRole("link", { name: "Gift cards", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(header.getByRole("link", { name: "Plan a purchase" })).toHaveAttribute("href", "/search");
+});
+
+test("mobile navigation exposes labelled destinations without horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open navigation" }).click();
+
+  const mobileNav = page.getByRole("navigation", { name: "Mobile navigation" });
+  await expect(mobileNav.getByRole("link", { name: "Deals" })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "Gift cards" })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "Stores" })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "Cashback" })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "Points" })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "Card offers" })).toBeVisible();
+  await expect(mobileNav.getByRole("link", { name: "Build a purchase plan" })).toBeVisible();
+  const quickNav = page.getByRole("navigation", { name: "Mobile quick navigation" });
+  await expect(quickNav.getByRole("link", { name: "Plan", exact: true })).toHaveAttribute("href", "/search");
+  await expect(quickNav.getByRole("link")).toHaveCount(5);
+  const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(scrollWidth).toBeLessThanOrEqual(390);
 });
 
 test("home: sourced and custom calculator modes keep cashback timing consistent", async ({ page }) => {
@@ -126,6 +161,23 @@ test("gift-card product directory search is URL-backed", async ({ page }) => {
   await page.getByLabel("Search gift-card products").fill("Apple");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page).toHaveURL(/gift-cards\/products\?q=Apple/);
+});
+
+test("gift-card navigation separates seller lookup from card acceptance", async ({ page }) => {
+  await page.goto("/gift-cards/where-to-buy?q=Apple");
+  await expect(page.getByRole("heading", { name: "Where can I buy this gift card?" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Gift card tools" }).getByRole("link", { name: "Where can I buy it?" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByLabel("Search gift-card brands or sellers")).toHaveValue("Apple");
+});
+
+test("points page starts from programmes and compares immediate with later value", async ({ page }) => {
+  await page.goto("/rewards");
+  const programmes = page.getByRole("navigation", { name: "Points programmes" });
+  await expect(programmes.getByRole("link", { name: "All programs" })).toHaveAttribute("aria-current", "page");
+  await expect(programmes.getByRole("link", { name: "Qantas" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Compare cash now with value later" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Checkout saving" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Later / estimated value" })).toBeVisible();
 });
 
 test("gift-card acceptance lookup preserves the not-recorded distinction", async ({ page }) => {

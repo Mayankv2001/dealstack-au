@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Logo from "@/components/Logo";
+import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 
 /**
  * Root 404 boundary — rendered for notFound() calls (e.g. unknown store
@@ -16,29 +17,11 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/deals">Deals</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/stores">Stores</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/cards">Cards</Link>
-            </Button>
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/resources">Resources</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="mx-auto flex max-w-lg flex-col items-center gap-3 rounded-2xl border bg-card px-6 py-12 text-center shadow-sm">
+        <div className="soft-panel mx-auto flex max-w-lg flex-col items-center gap-3 px-6 py-12 text-center">
           <SearchX className="size-8 text-muted-foreground" />
           <h1 className="text-2xl font-bold tracking-tight">Page not found</h1>
           <p className="text-sm text-muted-foreground">
@@ -58,6 +41,7 @@ export default function NotFound() {
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

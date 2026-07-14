@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Logo from "@/components/Logo";
+import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 
 /**
  * Root error boundary (Next 16: `unstable_retry` re-fetches and re-renders
@@ -24,15 +25,11 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-screen bg-emerald-500/[0.04]">
-      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center px-4 sm:px-6">
-          <Logo />
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col">
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="mx-auto flex max-w-lg flex-col items-center gap-3 rounded-2xl border bg-card px-6 py-12 text-center shadow-sm">
+        <div className="soft-panel mx-auto flex max-w-lg flex-col items-center gap-3 px-6 py-12 text-center">
           <AlertTriangle className="size-8 text-amber-600 dark:text-amber-400" />
           <h1 className="text-2xl font-bold tracking-tight">
             Something went wrong
@@ -49,6 +46,7 @@ export default function Error({
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

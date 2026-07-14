@@ -5,7 +5,6 @@ import SiteHeader from "@/components/SiteHeader";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
 import {
   CalculatorSection,
-  FeaturedStackSection,
   FinalCTASection,
   HomeFooter,
   SavingsLayersSection,
@@ -63,14 +62,10 @@ export default async function Home() {
             stores={data.stores}
             recommendations={recommendations}
             heroStack={heroStack}
+            todayFeed={<TopDealsSection deals={topDeals.slice(0, 5)} />}
           />
 
           <SavingsLayersSection />
-          <FeaturedStackSection
-            recommendation={featured}
-            stores={data.stores}
-          />
-          <TopDealsSection deals={topDeals.slice(0, 3)} />
           <CalculatorSection
             recommendations={recommendations}
           />

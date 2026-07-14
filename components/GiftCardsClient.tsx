@@ -122,29 +122,29 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50/70 dark:bg-stone-950">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6">
-        <section className="flex flex-col justify-between gap-3 rounded-xl border bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 px-5 py-4 text-white shadow-sm sm:flex-row sm:items-center sm:px-6">
+      <main className="page-container flex-1 py-6 sm:py-10">
+        <section className="soft-panel flex flex-col justify-between gap-5 px-5 py-6 sm:flex-row sm:items-end sm:px-7 sm:py-7">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">
-              <Gift className="size-4" /> Reviewed Australian offers
+            <div className="eyebrow flex items-center gap-2">
+              <Gift className="size-4" /> Gift-card savings
             </div>
-            <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Gift card deals</h1>
-            <p className="mt-1 max-w-2xl text-sm text-emerald-50/80">
-              Find discounts, bonus value and points promotions worth adding to your next stack.
+            <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">Gift card deals</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Compare reviewed discounts, bonus value and points promotions. Open any offer to check eligibility before you buy.
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs text-emerald-50">
-            <CheckCircle2 className="size-4 text-emerald-300" />
+          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+            <CheckCircle2 className="size-4 text-emerald-700 dark:text-emerald-300" />
             Human-reviewed before publication
           </div>
         </section>
 
-        <GiftCardsSubnav current="/gift-cards" className="mt-3" />
+        <GiftCardsSubnav current="/gift-cards" className="mt-4" />
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           <label className="relative flex-1">
             <Search aria-hidden className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -152,11 +152,11 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
               value={params.q}
               placeholder="Search gift cards, sellers or rewards programmes"
               onChange={(event) => update({ q: event.target.value })}
-              className="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-sm shadow-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+              className="h-11 w-full rounded-xl border bg-background pl-9 pr-3 text-sm shadow-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
               aria-label="Search gift card offers"
             />
           </label>
-          <label className="flex h-10 items-center gap-2 rounded-lg border bg-background px-3 text-xs text-muted-foreground shadow-sm">
+          <label className="flex h-11 items-center gap-2 rounded-xl border bg-background px-3 text-xs text-muted-foreground shadow-sm">
             Sort
             <select
               value={params.sort}

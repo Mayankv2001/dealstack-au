@@ -79,9 +79,9 @@ export function StoreCard({
           : "No active stack found"
       : "Watching for offers";
     return (
-      <Link href={`/stores/${store.id}`} className="group block">
-        <Card className="h-full rounded-xl py-0 shadow-none transition-colors group-hover:border-emerald-500/60">
-          <CardContent className="flex h-full flex-col gap-3 p-4">
+      <Link href={`/stores/${store.id}`} className="group block h-full">
+        <Card className="h-full rounded-2xl border-0 py-0 shadow-sm ring-1 ring-foreground/10 transition-all group-hover:-translate-y-0.5 group-hover:ring-emerald-500/50 group-hover:shadow-md">
+          <CardContent className="flex h-full flex-col gap-3.5 p-4.5">
             <div className="flex items-center gap-3">
               <StoreLogo store={store} size="sm" />
               <div className="min-w-0 flex-1">
@@ -100,7 +100,7 @@ export function StoreCard({
               </p>
               <p
                 className={cn(
-                  "mt-0.5 font-serif text-2xl font-bold tracking-tight",
+                  "mt-0.5 text-2xl font-black tracking-[-0.035em]",
                   recommendation?.kind === "cash" && recommendation.totalSaving > 0
                     ? "text-emerald-800 dark:text-emerald-300"
                     : "text-foreground"
@@ -110,7 +110,7 @@ export function StoreCard({
               </p>
             </div>
 
-            <div className="flex min-h-6 flex-wrap gap-1.5">
+            <div className="flex min-h-6 flex-wrap gap-1.5 border-t pt-3">
               {activeLayers.map((component, index) => (
                 <span
                   key={`${component.layer}-${index}`}
@@ -130,8 +130,8 @@ export function StoreCard({
               <Clock aria-hidden className="size-3" />
               {checked ? `Checked ${checked}` : "Not yet checked"}
             </p>
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 group-hover:underline dark:text-emerald-300">
-              View stack <ArrowRight aria-hidden className="size-3.5" />
+            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 group-hover:underline dark:text-emerald-300">
+              Open purchase plan <ArrowRight aria-hidden className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>
           </CardContent>
         </Card>

@@ -123,19 +123,17 @@ export default async function SearchPage({
     result.productComparisons.length === 0;
 
   return (
-    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-            Purchase decision hub
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+      <main className="page-container flex-1 py-7 sm:py-10">
+        <div className="mx-auto max-w-5xl border-b px-1 pb-8 text-center sm:px-5 sm:pb-10">
+          <p className="eyebrow">Purchase planner</p>
+          <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
             {query ? `Best verified way to pay for “${query}”` : "What are you planning to buy?"}
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Cash savings, points, compatible cards, conditions and community
-            activity are shown separately so popularity never masquerades as verification.
+            Enter a store, product, gift card or rewards programme. You’ll get
+            a clear plan with cash savings, later rewards and conditions shown separately.
           </p>
           <SearchBar
             defaultValue={query}
@@ -143,7 +141,7 @@ export default async function SearchPage({
             showSpend
             size="lg"
             layout="split"
-            className="mx-auto mt-6 max-w-3xl text-left"
+            className="mx-auto mt-6 max-w-3xl rounded-2xl border border-foreground/10 bg-card p-2 text-left shadow-sm"
             placeholder="Store, gift card, product or rewards programme"
             buttonLabel="Build plan"
           />
@@ -298,6 +296,20 @@ export default async function SearchPage({
           <div className="mx-auto mt-10 max-w-2xl text-center"><p className="text-sm text-muted-foreground">Start with a store, product, gift-card brand or rewards programme.</p><Button asChild variant="outline" className="mt-4"><Link href="/deals">Browse Discover <ArrowRight aria-hidden /></Link></Button></div>
         ) : null}
       </main>
+      {!result.ambiguous && result.bestCashStack ? (
+        <Link
+          href="#purchase-plan"
+          className="fixed inset-x-3 bottom-[4.65rem] z-40 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/25 bg-emerald-950 px-4 py-3 text-white shadow-xl lg:hidden"
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-xs font-semibold text-emerald-100">
+              {result.selectedTarget?.name ?? result.bestCashStack.merchantName} · {formatAUD(spend)}
+            </span>
+            <span className="block font-bold">Estimated saving {formatAUD(result.bestCashStack.totalSaving)}</span>
+          </span>
+          <span className="shrink-0 text-xs font-bold text-emerald-200">View plan ↑</span>
+        </Link>
+      ) : null}
       <SiteFooter />
     </div>
   );

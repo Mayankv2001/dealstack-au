@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SearchX } from "lucide-react";
+import { ArrowRight, SearchX, Store as StoreIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import SearchBar from "@/components/SearchBar";
@@ -47,18 +47,37 @@ export default async function StoresIndexPage() {
   const groups = groupByCategory(stores);
 
   return (
-    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-          All stores
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {`${stores.length} ${stores.length === 1 ? "store" : "stores"} with stackable savings`}
-        </p>
-
-        <SearchBar defaultValue="" className="mt-3 max-w-md" />
+      <main className="page-container flex-1 py-8 sm:py-12">
+        <section className="soft-panel p-5 sm:p-7">
+          <div className="grid gap-6 lg:grid-cols-[1fr_0.72fr] lg:items-end">
+            <div>
+              <p className="eyebrow inline-flex items-center gap-2"><StoreIcon aria-hidden className="size-4" /> Store planner</p>
+              <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
+                Start with where you’re shopping
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                Open a store to see one compatible purchase plan—not a pile of disconnected rates. Checkout savings, later cashback and points stay clearly separated.
+              </p>
+              <p className="mt-4 text-xs font-semibold text-muted-foreground">
+                {`${stores.length} reviewed ${stores.length === 1 ? "store" : "stores"}`}
+              </p>
+            </div>
+            <div>
+              <SearchBar
+                defaultValue=""
+                className="max-w-xl"
+                placeholder="Search a store, product or programme"
+                buttonLabel="Plan"
+              />
+              <Link href="/deals?view=stacks" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:underline">
+                Compare the best current stacks <ArrowRight aria-hidden className="size-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
 
         {stores.length === 0 ? (
           <Card className="mt-5 shadow-sm">
@@ -74,11 +93,11 @@ export default async function StoresIndexPage() {
           </Card>
         ) : (
           Array.from(groups.entries()).map(([category, categoryStores]) => (
-            <section key={category} className="mt-8 first:mt-5">
-              <h2 className="text-lg font-bold tracking-tight sm:text-xl">
+            <section key={category} className="mt-10 first:mt-8">
+              <h2 className="text-xl font-black tracking-tight sm:text-2xl">
                 {category}
               </h2>
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {categoryStores.map((store) => (
                   <StoreCard
                     key={store.id}

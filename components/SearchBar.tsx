@@ -93,17 +93,18 @@ export function SearchBar({
           autoFocus={autoFocus}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search stores"
+          aria-label="Search stores, products or programmes"
           className={cn(
-            "w-full bg-background shadow-sm",
-            lg ? "h-14 rounded-2xl pl-12 text-base" : "h-11 rounded-xl pl-9",
+            "w-full border-foreground/10 bg-background shadow-none transition focus-visible:border-emerald-600 focus-visible:ring-4 focus-visible:ring-emerald-500/10",
+            lg ? "h-14 rounded-xl pl-12 text-base" : "h-11 rounded-xl pl-9",
             split ? (lg ? "pr-4" : "pr-3") : lg ? "pr-32" : "pr-24"
           )}
         />
       </div>
       {showSpend ? (
-        <label className="flex h-14 items-center gap-2 rounded-2xl border bg-background px-3 text-sm shadow-sm sm:w-36">
-          <span className="font-medium text-muted-foreground">Spend $</span>
+        <label className="flex h-14 items-center gap-2 rounded-xl border border-foreground/10 bg-background px-3 text-sm sm:w-40">
+          <span className="font-semibold text-muted-foreground">Spend</span>
+          <span aria-hidden className="font-bold">$</span>
           <input
             type="number"
             inputMode="decimal"
@@ -123,10 +124,10 @@ export function SearchBar({
         type="submit"
         size={lg ? "default" : "sm"}
         className={cn(
-          "bg-emerald-700 text-white hover:bg-emerald-800",
+          "bg-emerald-700 font-bold text-white shadow-sm hover:bg-emerald-800",
           split
             ? lg
-              ? "h-14 rounded-2xl px-6 text-base"
+              ? "h-14 rounded-xl px-6 text-base"
               : "rounded-xl px-4"
             : cn("absolute top-1/2 -translate-y-1/2", lg ? "right-2 h-10 px-5" : "right-1.5")
         )}

@@ -118,12 +118,12 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
   );
 
   return (
-    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <main className="page-container flex-1 py-7 sm:py-10">
         {/* Hero */}
-        <div className="rounded-2xl border bg-gradient-to-br from-emerald-500/10 via-background to-background p-4 shadow-sm sm:p-5">
+        <div className="soft-panel p-5 sm:p-7">
           <div className="max-w-2xl">
             <Badge
               variant="outline"
@@ -132,19 +132,11 @@ export function CardsClient({ offers }: { offers: CardOffer[] }) {
               <Landmark className="size-3" />
               Bank &amp; credit card offers
             </Badge>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-              Card{" "}
-              <span className="text-emerald-600 dark:text-emerald-400">
-                offers
-              </span>
+            <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
+              Compare card offers with the important costs visible
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Every offer here is{" "}
-              <span className="font-medium text-foreground">
-                manually entered and reviewed by a person
-              </span>
-              , never auto-scraped — each card shows when it was last checked.
-              Always confirm current terms with the bank before applying.
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+              Compare reviewed bonuses, annual fees, minimum spend and eligibility before opening the detail page. No application is ranked as personal financial advice.
             </p>
           </div>
 
