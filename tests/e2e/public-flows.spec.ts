@@ -44,6 +44,32 @@ test("home: saving-plan form submits with the default spend (stepMismatch regres
   ).toBeVisible();
 });
 
+test("home: the offer marquee plays the week's gift-card offers", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const marquee = page.getByRole("region", {
+    name: "This week's gift-card offers",
+  });
+  // The marquee renders only when live offers exist in the dataset.
+  test.skip((await marquee.count()) === 0, "no live gift-card offers in dataset");
+  await expect(marquee).toBeVisible();
+  await expect(
+    marquee.getByRole("link", { name: /All \d+ reviewed offers/ }),
+  ).toBeVisible();
+
+  const counter = marquee.getByText(/^1 \/ \d+$/);
+  if ((await counter.count()) > 0) {
+    await expect(counter).toBeVisible();
+    await marquee
+      .getByRole("button", { name: "Next offer" })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await expect(marquee.getByText(/^2 \/ \d+$/)).toBeVisible();
+  }
+});
+
 test("public navigation keeps the purchase planner and core tasks easy to reach", async ({
   page,
 }) => {

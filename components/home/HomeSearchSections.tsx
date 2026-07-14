@@ -63,12 +63,15 @@ export function HomeSearchSections({
   recommendations,
   heroStack,
   nowIso,
+  marquee,
   todayFeed,
 }: {
   stores: Store[];
   recommendations: StackRecommendation[];
   heroStack: StackRecommendation | null;
   nowIso: string;
+  /** The gift-card offer marquee, rendered directly after the hero. */
+  marquee?: React.ReactNode;
   todayFeed?: React.ReactNode;
 }) {
   const now = new Date(nowIso);
@@ -198,6 +201,8 @@ export function HomeSearchSections({
           </ol>
         </div>
       </section>
+
+      {marquee}
 
       {todayFeed}
 

@@ -3,12 +3,14 @@ import { JsonLd } from "@/components/JsonLd";
 import TopDealsSection from "@/components/TopDealsSection";
 import SiteHeader from "@/components/SiteHeader";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
+import OfferMarquee from "@/components/home/OfferMarquee";
 import {
   CalculatorSection,
   HomeFooter,
   SavingsLayersSection,
 } from "@/components/home/HomeStaticSections";
 import { siteUrl } from "@/lib/env";
+import { buildMarquee } from "@/lib/giftcards/marquee";
 import { getTopDeals } from "@/lib/repos/topDeals";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
@@ -48,6 +50,9 @@ export default async function Home() {
       isFeaturedStackEligible(recommendation, now),
     ) ?? null;
   const heroStack = featured;
+  // Design 3 "offer marquee": the week's live gift-card offers, ending
+  // soonest first, derived from the same published offers the grid uses.
+  const marquee = buildMarquee(data.giftCardOffers, now);
   const site = siteUrl();
 
   return (
@@ -62,6 +67,12 @@ export default async function Home() {
             recommendations={recommendations}
             heroStack={heroStack}
             nowIso={now.toISOString()}
+            marquee={
+              <OfferMarquee
+                slides={marquee.slides}
+                liveCount={marquee.liveCount}
+              />
+            }
             todayFeed={<TopDealsSection deals={topDeals.slice(0, 5)} />}
           />
 
