@@ -62,9 +62,13 @@ export function GiftCardOfferCard({
               {vm.initials}
             </span>
           )}
-          <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
-            {vm.mechanicLabel}
-          </span>
+          {/* Skip the mechanic when the value badge already says the same
+              thing ("Bonus points" + "BONUS POINTS" read as a duplicate). */}
+          {vm.mechanicLabel.toLowerCase() !== vm.valueBadge.toLowerCase() ? (
+            <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+              {vm.mechanicLabel}
+            </span>
+          ) : null}
         </div>
         <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-700 px-2.5 py-1 text-xs font-black tracking-tight text-white shadow-sm">
           {vm.valueBadge}

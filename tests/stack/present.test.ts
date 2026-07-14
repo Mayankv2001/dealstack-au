@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import {
   MIN_BEST_STACK_DISCOUNT_PERCENT,
+  buildStackSteps,
   hasChooseOneLayer,
   layerCompatibility,
   layerUncertaintyDetails,
@@ -176,5 +177,56 @@ describe("layerUncertaintyDetails", () => {
         compatibilityStatus: "likely-compatible",
       })
     ).toBeNull();
+  });
+});
+
+describe("buildStackSteps", () => {
+  it("never instructs cashback AND gift cards together when the provider excludes gift-card payment", () => {
+    // ShopBack excludes gift-card payment; the fully-verified gift card saves
+    // more, so the engine keeps it and demotes cashback to an alternative.
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", name: "Myer", discountPercent: 10, discountCode: "MYER10" })],
+      giftCardOffers: [
+        makeGiftCard({ productId: "product-1", acceptedAtMerchantIds: ["myer"], discountPercent: 5 }),
+      ],
+      cashbackOffers: [
+        makeCashback({ merchantId: "myer", ratePercent: 2, excludesGiftCardPayment: true }),
+      ],
+      giftCardProducts: [makeGiftCardProduct()],
+      giftCardAcceptance: [makeGiftCardAcceptance()],
+    });
+    const [rec] = buildStackRecommendations("myer", 500, data, TEST_NOW);
+    const steps = buildStackSteps("Myer", rec);
+    const numbered = steps.filter((step) => !step.chooseOne);
+
+    // The excluded cashback layer must not appear as an instruction…
+    expect(numbered.some((step) => step.title.startsWith("Start at"))).toBe(false);
+    // …the surviving layers do…
+    expect(numbered.some((step) => step.title === "Buy discounted gift cards")).toBe(true);
+    expect(numbered.some((step) => step.title === "Apply the discount code")).toBe(true);
+    expect(numbered.at(-1)?.title).toBe("Pay with your gift cards");
+    // …and the conflict surfaces as an explicit choose-one note.
+    const alternatives = steps.filter((step) => step.chooseOne);
+    expect(alternatives).toHaveLength(1);
+    expect(alternatives[0].description).toMatch(/instead of the gift card/i);
+  });
+
+  it("keeps the cashback click-through step when there is no conflict", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", name: "Myer", discountPercent: 0 })],
+      cashbackOffers: [makeCashback({ merchantId: "myer", ratePercent: 5 })],
+    });
+    const [rec] = buildStackRecommendations("myer", 500, data, TEST_NOW);
+    const steps = buildStackSteps("Myer", rec);
+    expect(steps[0].title).toBe("Start at ShopBack");
+    expect(steps.at(-1)?.title).toBe("Pay as usual");
+    expect(steps.some((step) => step.chooseOne)).toBe(false);
+  });
+
+  it("falls back to a single honest step when no stack is recommended", () => {
+    const steps = buildStackSteps("Costco", null);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].title).toBe("Check current promotions");
+    expect(steps[0].description).toContain("Costco");
   });
 });

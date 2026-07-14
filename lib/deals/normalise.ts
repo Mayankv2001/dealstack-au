@@ -39,6 +39,12 @@ export function decodeEntities(value: string): string {
     .replace(/&nbsp;/gi, " ");
 }
 
+/** Feed price snippets often end mid-list ("$395,") — drop dangling punctuation. */
+export function tidyPriceText(value: string | null | undefined): string | null {
+  const tidied = value?.trim().replace(/[\s,;:.]+$/, "") ?? "";
+  return tidied.length > 0 ? tidied : null;
+}
+
 /** Parse a "(was $X)" style struck price out of curated price text. */
 export function parseWasPrice(text: string | null | undefined): number | null {
   if (!text) return null;
@@ -160,7 +166,7 @@ export function fromSignal(
       merchantName: store?.name ?? null,
       category: tags[0] ?? KIND_LABEL.community,
       tags,
-      priceText: signal.priceText ?? null,
+      priceText: tidyPriceText(signal.priceText),
       priceValue,
       wasPrice,
       savingPercent: deriveSavingPercent(title, priceValue, wasPrice),

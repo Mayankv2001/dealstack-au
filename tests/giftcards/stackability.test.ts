@@ -176,3 +176,30 @@ describe("redemption stage", () => {
     expect(redemption.status).toBe("requires-verification");
   });
 });
+
+describe("store-acceptance retailer count", () => {
+  it("dedupes merchant ids against their display names and pluralises correctly", () => {
+    // "jb-hifi" and "JB Hi-Fi" are the same retailer — the old code counted 5
+    // here (2 ids + 3 names) while the page listed 3 retailers.
+    const analysis = analyseGiftCardStackability(
+      makeOffer({
+        acceptedAtMerchantIds: ["jb-hifi", "the-good-guys"],
+        acceptedAt: ["JB Hi-Fi", "The Good Guys", "many Ultimate-network retailers"],
+      }),
+      { now: NOW }
+    );
+    const fact = analysis.redemption.facts.find((f) => f.label === "Store acceptance");
+    expect(fact?.value).toContain("3 listed retailers");
+    expect(fact?.value).not.toContain("retailer(s)");
+  });
+
+  it("uses the singular for a single listed retailer", () => {
+    const analysis = analyseGiftCardStackability(
+      makeOffer({ acceptedAtMerchantIds: ["myer"], acceptedAt: ["Myer"] }),
+      { now: NOW }
+    );
+    const fact = analysis.redemption.facts.find((f) => f.label === "Store acceptance");
+    expect(fact?.value).toContain("1 listed retailer");
+    expect(fact?.value).not.toContain("retailers");
+  });
+});

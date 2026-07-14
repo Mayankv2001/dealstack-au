@@ -107,3 +107,19 @@ describe("buildTermsRows", () => {
     expect(row(rows, "expires")?.value).toBeNull();
   });
 });
+
+describe("dev wording never reaches the public terms table", () => {
+  it("scrubs '(sample)' from the limit-per-customer row", () => {
+    const rows = buildTermsRows(
+      makeOffer({ usesPerCustomer: null, limitPerCustomer: "No stated cap (sample)" })
+    );
+    expect(row(rows, "uses-per-customer")?.value).toBe("No stated cap");
+  });
+
+  it("scrubs dev wording from the denomination note", () => {
+    const rows = buildTermsRows(
+      makeOffer({ denominationNote: "Sample: $50 and $100 cards only" })
+    );
+    expect(row(rows, "denominations")?.value).toBe("$50 and $100 cards only");
+  });
+});

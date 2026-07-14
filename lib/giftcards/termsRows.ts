@@ -1,4 +1,5 @@
 import type { GiftCardOffer } from "@/lib/offers/types";
+import { sanitisePublicText } from "@/lib/stack/buildStack";
 import { formatDateAU } from "@/lib/sources/normalise";
 
 /**
@@ -88,7 +89,11 @@ export function buildTermsRows(offer: GiftCardOffer): TermsRow[] {
     add("reward-destination", "Reward destination", "Extra gift-card face value");
   }
   if (offer.denominationNote) {
-    add("denominations", "Denominations", offer.denominationNote);
+    add(
+      "denominations",
+      "Denominations",
+      sanitisePublicText(offer.denominationNote) || null
+    );
   }
 
   if (offer.usesPerCustomer != null) {
@@ -98,7 +103,13 @@ export function buildTermsRows(offer: GiftCardOffer): TermsRow[] {
       offer.usesPerCustomer === 1 ? "One use" : `${offer.usesPerCustomer} uses`
     );
   } else if (offer.limitPerCustomer) {
-    add("uses-per-customer", "Limit per customer", offer.limitPerCustomer);
+    // Free-text field seeded from sample data in places — scrub dev wording
+    // ("No stated cap (sample)") before it reaches the public table.
+    add(
+      "uses-per-customer",
+      "Limit per customer",
+      sanitisePublicText(offer.limitPerCustomer) || null
+    );
   }
 
   if (offer.format && offer.format !== "unknown") {

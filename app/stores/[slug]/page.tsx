@@ -25,13 +25,14 @@ import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
 import SiteFooter from "@/components/SiteFooter";
 import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
-import { calculateStack, formatAUD } from "@/lib/calculateStack";
-import { formatExpiry, type Store } from "@/lib/data";
+import { formatAUD } from "@/lib/calculateStack";
+import { formatExpiry } from "@/lib/data";
 import { siteUrl } from "@/lib/env";
 import { getStores } from "@/lib/repos";
 import { storeSourceResults } from "@/lib/repos/sourceResults";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
+import { buildStackSteps } from "@/lib/stack/present";
 import { buildStoreBreadcrumbJsonLd } from "@/lib/structuredData";
 import { cn } from "@/lib/utils";
 
@@ -63,47 +64,6 @@ export async function generateMetadata({
   };
 }
 
-function buildSteps(store: Store) {
-  const steps: { title: string; description: string }[] = [];
-  if (store.cashbackPercent > 0) {
-    steps.push({
-      title: `Start at ${store.cashbackProvider}`,
-      description: `Open the ${store.cashbackProvider} app or site and click through to ${store.name} so your ${store.cashbackPercent}% cashback tracks.`,
-    });
-  }
-  if (store.giftCardDiscountPercent > 0) {
-    steps.push({
-      title: "Buy discounted gift cards",
-      description: `Grab ${store.name} gift cards at ${store.giftCardDiscountPercent}% off via ${store.giftCardSource} — buy enough to cover your expected checkout total.`,
-    });
-  }
-  if (store.discountPercent > 0) {
-    steps.push({
-      title: "Apply the discount code",
-      description: `Enter ${store.discountCode} at checkout for ${store.discountPercent}% off.`,
-    });
-  } else {
-    steps.push({
-      title: "Check current promotions",
-      description: `${store.name} has ${store.discountCode.toLowerCase()} — watch for sale events instead.`,
-    });
-  }
-  if (store.pointsProgram !== "—") {
-    steps.push({
-      title: `Scan ${store.pointsProgram}`,
-      description: `Add your ${store.pointsProgram} membership at checkout to earn ${store.pointsRate.toLowerCase()} on top of everything else.`,
-    });
-  }
-  steps.push({
-    title: "Pay with your gift cards",
-    description:
-      store.giftCardDiscountPercent > 0
-        ? "Pay the discounted total with the gift cards you bought below face value."
-        : "Pay as usual — then wait for your cashback to confirm.",
-  });
-  return steps;
-}
-
 export default async function StorePage({
   params,
 }: {
@@ -115,17 +75,16 @@ export default async function StorePage({
   const store = stores.find((s) => s.id === slug);
   if (!store) notFound();
 
-  const stack = calculateStack({
-    originalPrice: SAMPLE_SPEND,
-    discountPercent: store.discountPercent,
-    cashbackPercent: store.cashbackPercent,
-    giftCardDiscountPercent: store.giftCardDiscountPercent,
-  });
-  const steps = buildSteps(store);
   // Source checks come from the repository layer (Supabase published/approved
   // rows when configured, static sample pipeline otherwise).
   const sourceResults = await storeSourceResults(store.id);
   const recommendations = buildStackRecommendations(undefined, 500, data);
+  // The hero estimate and how-to steps come from the SAME engine output as the
+  // Decision Hub, homepage and calculator — never from naively compounding the
+  // store's recorded rates (which ignored gift-card/cashback exclusions).
+  const recommendation =
+    recommendations.find((rec) => rec.merchantId === store.id) ?? null;
+  const steps = buildStackSteps(store.name, recommendation);
 
   const layers = [
     {
@@ -191,7 +150,7 @@ export default async function StorePage({
 
       <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
         <Link
-          href="/"
+          href="/stores"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" />
@@ -214,18 +173,36 @@ export default async function StorePage({
             </div>
             <div className="rounded-xl border border-emerald-500/25 bg-background px-4 py-3 shadow-sm sm:min-w-56 sm:text-right">
               <p className="text-xs text-muted-foreground">
-                Best stack estimate
+                Best compatible stack
               </p>
-              <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                ~{stack.totalSavingPercent}% off
-              </p>
-              <p className="text-xs text-muted-foreground">
-                e.g. pay{" "}
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                  {formatAUD(stack.finalEffectivePrice)}
-                </span>{" "}
-                effective on a {formatAUD(SAMPLE_SPEND)} purchase
-              </p>
+              {recommendation && recommendation.totalSaving > 0 ? (
+                <>
+                  <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                    ~{recommendation.effectiveDiscountPercent}% off
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. pay{" "}
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      {formatAUD(recommendation.effectivePrice)}
+                    </span>{" "}
+                    effective on a {formatAUD(SAMPLE_SPEND)} purchase —
+                    compatible layers only
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold tracking-tight">
+                    {recommendation?.kind === "points-only"
+                      ? "Points only"
+                      : "None verified"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {recommendation?.kind === "points-only"
+                      ? "Rewards are shown separately; the cash price is unchanged."
+                      : "The rates below are individual layers, not a combined saving."}
+                  </p>
+                </>
+              )}
             </div>
           </div>
           <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
@@ -339,9 +316,16 @@ export default async function StorePage({
           <CardContent>
             <ol className="space-y-4">
               {steps.map((step, i) => (
-                <li key={step.title} className="flex gap-3">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    {i + 1}
+                <li key={`${i}-${step.title}`} className="flex gap-3">
+                  <span
+                    className={cn(
+                      "flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold",
+                      step.chooseOne
+                        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    )}
+                  >
+                    {step.chooseOne ? "!" : i + 1}
                   </span>
                   <div>
                     <p className="text-sm font-semibold leading-6">

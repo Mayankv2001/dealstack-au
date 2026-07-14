@@ -90,15 +90,20 @@ export const MAX_SIGNAL_CITATIONS = 3;
  * "Illustrative", etc.; this scrubs them so shoppers see accurate wording.
  */
 const DEV_TOKEN_RE =
-  /\b(?:samples?|illustrative|demonstration|demo|fixture|placeholder)\b/gi;
+  /\b(?:samples?|illustrative|demonstration|demo|fixture|placeholder)\b\s*[:;,]?/gi;
 
 /** Strip development wording from a public string and tidy the result. */
 export function sanitisePublicText(text: string): string {
   if (!text) return text;
   const cleaned = text
+    // Consume a trailing colon/semicolon with the token so "Sample: 2,000
+    // bonus…" never leaves an orphaned "… — : 2,000 bonus…" behind.
     .replace(DEV_TOKEN_RE, " ")
+    // Brackets emptied by the removal — "(sample)" → "()" — go too.
+    .replace(/\(\s*\)|\[\s*\]/g, " ")
     .replace(/\s{2,}/g, " ")
     .replace(/^[\s:;,.\-–—]+/, "")
+    .replace(/\s+([:;,.])/g, "$1")
     .trim();
   return cleaned.replace(/^([a-z])/, (m) => m.toUpperCase());
 }

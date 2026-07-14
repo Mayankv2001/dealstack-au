@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildStackRecommendations } from "../../lib/stack/buildStack";
+import {
+  buildStackRecommendations,
+  sanitisePublicText,
+} from "../../lib/stack/buildStack";
 import {
   TEST_NOW,
   makeGiftCardAcceptance,
@@ -418,5 +421,30 @@ describe("buildStackRecommendations", () => {
     const thursday = new Date("2026-06-18T12:00:00+10:00");
     const [recLater] = buildStackRecommendations(undefined, 500, data, thursday);
     expect(recLater.weekOf).toBe("2026-06-15");
+  });
+});
+
+describe("sanitisePublicText", () => {
+  it("consumes the colon after a dev token so no orphaned punctuation remains", () => {
+    expect(
+      sanitisePublicText("Coles Group gift cards — Sample: 2,000 bonus Flybuys")
+    ).toBe("Coles Group gift cards — 2,000 bonus Flybuys");
+  });
+
+  it("removes brackets emptied by dev-token removal", () => {
+    expect(sanitisePublicText("No stated cap (sample)")).toBe("No stated cap");
+    expect(sanitisePublicText("Up to $500 per order (sample)")).toBe(
+      "Up to $500 per order"
+    );
+  });
+
+  it("still strips a leading dev prefix entirely", () => {
+    expect(sanitisePublicText("Sample: bonus Everyday Rewards points")).toBe(
+      "Bonus Everyday Rewards points"
+    );
+  });
+
+  it("leaves clean public text untouched", () => {
+    expect(sanitisePublicText("10% off with MYER10")).toBe("10% off with MYER10");
   });
 });

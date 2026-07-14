@@ -31,4 +31,30 @@ describe("POST public gift-card correction", () => {
     const response = await POST(request({ reason: "terms", details: "The source lists different purchase restrictions." }), { params: Promise.resolve({ entityType: "gift-card-product", id: "product-1" }) });
     expect(response.status).toBe(429);
   });
+
+  it("returns a controlled 503 while migration 026 is unavailable", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: {
+        message:
+          "Could not find the function public.submit_public_correction in the schema cache",
+      },
+    });
+    const response = await POST(
+      request({
+        reason: "expiry",
+        details: "The source now shows a different expiry date.",
+      }),
+      {
+        params: Promise.resolve({
+          entityType: "gift-card-offer",
+          id: "offer-1",
+        }),
+      }
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: "Reporting is awaiting the approved database rollout.",
+    });
+  });
 });

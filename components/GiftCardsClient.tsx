@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GiftCardOfferCard } from "@/components/GiftCardOfferCard";
+import GiftCardsSubnav from "@/components/GiftCardsSubnav";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import type { GiftCardOffer } from "@/lib/offers/types";
@@ -142,19 +142,7 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
           </div>
         </section>
 
-        <nav aria-label="Gift card tools" className="mt-3 flex gap-2 overflow-x-auto pb-1 text-xs font-semibold [scrollbar-width:none]">
-          {[
-            ["Current offers", "/gift-cards"],
-            ["Product directory", "/gift-cards/products"],
-            ["Where to use", "/gift-cards/where-to-use"],
-            ["Offer history", "/gift-cards/history"],
-            ["Programmes", "/gift-cards/programmes"],
-          ].map(([label, href]) => (
-            <Link key={href} href={href} className="shrink-0 rounded-full border bg-background px-3 py-1.5 hover:border-emerald-500/50">
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <GiftCardsSubnav current="/gift-cards" className="mt-3" />
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <label className="relative flex-1">

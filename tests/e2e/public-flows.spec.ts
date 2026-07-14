@@ -24,6 +24,16 @@ test("home: hero search live-filters the stores grid", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("home: Plan purchase submits with the default spend (stepMismatch regression)", async ({ page }) => {
+  // step={10} with min={1} used to make 500 an HTML stepMismatch, silently
+  // blocking EVERY hero submission. Round spends must always submit.
+  await page.goto("/");
+  await page.getByPlaceholder("Search a store, e.g. Myer, JB Hi-Fi or Amazon").first().fill("Myer");
+  await page.getByRole("button", { name: "Plan purchase" }).click();
+  await page.waitForURL(/\/search\?q=Myer&spend=500/);
+  await expect(page.getByRole("heading", { name: "Your $500.00 purchase plan" })).toBeVisible();
+});
+
 test("home: sourced and custom calculator modes keep cashback timing consistent", async ({ page }) => {
   await page.goto("/?stack=myer#calculator");
   const calculator = page.locator("#calculator");
@@ -47,7 +57,7 @@ test("home → store page shows the stack breakdown", async ({ page }) => {
   await expect(
     page.getByRole("heading", { level: 1, name: "JB Hi-Fi" })
   ).toBeVisible();
-  await expect(page.getByText("Best stack estimate").first()).toBeVisible();
+  await expect(page.getByText("Best compatible stack").first()).toBeVisible();
 });
 
 test("search: canonical product key compares retailer prices and stacks", async ({
@@ -308,9 +318,12 @@ test("security: HTML responses carry a nonce-based report-only CSP", async ({ pa
   expect(csp).not.toContain("'unsafe-inline'");
   const nonce = csp.match(/'nonce-([^']+)'/)?.[1];
   expect(nonce).toBeTruthy();
-  const renderedNonce = await page.locator("script").first().evaluate(
-    (script) => (script as HTMLScriptElement).nonce
-  );
+  // JSON-LD data blocks are exempt from script-src and carry no nonce; the
+  // assertion targets an executable framework script.
+  const renderedNonce = await page
+    .locator('script:not([type="application/ld+json"])')
+    .first()
+    .evaluate((script) => (script as HTMLScriptElement).nonce);
   expect(renderedNonce).toBe(nonce);
 });
 

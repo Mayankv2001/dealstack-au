@@ -109,7 +109,9 @@ export function SearchBar({
             inputMode="decimal"
             min={1}
             max={100000}
-            step={10}
+            // step must divide every whole-dollar amount evenly; step={10} with
+            // min={1} made 500 a stepMismatch, silently blocking form submit.
+            step={1}
             value={spend}
             onChange={(event) => setSpend(Number(event.target.value) || defaultSpend)}
             aria-label="Planned spend in Australian dollars"

@@ -56,6 +56,10 @@ export async function generateMetadata({
       : "Plan a purchase | DealStack AU",
     description:
       "Find a verified cash stack, separate rewards estimate, compatible gift cards, conditions and source freshness for an Australian purchase.",
+    // Query-parameterised plans are an unbounded URL space of near-duplicate
+    // pages; only the blank tool page is worth indexing.
+    robots: query ? { index: false, follow: true } : undefined,
+    alternates: { canonical: "/search" },
   };
 }
 

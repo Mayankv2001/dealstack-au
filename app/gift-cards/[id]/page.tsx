@@ -611,10 +611,11 @@ export default async function GiftCardDetailPage({
               <div className="mt-3 flex items-start gap-2 rounded-lg border bg-background px-3 py-2">
                 <CompatIcon aria-hidden className={`mt-0.5 size-4 shrink-0 ${compatStyle.className}`} />
                 <p className="text-xs">
+                  <span className="text-muted-foreground">Stacking:</span>{" "}
                   <span className="font-semibold">
                     {compatibilityStatusLabel(compat.status)}
                   </span>{" "}
-                  <span className="text-muted-foreground">for stacking — see the full analysis.</span>
+                  <span className="text-muted-foreground">— see the full analysis.</span>
                 </p>
               </div>
               {offer.promoCode ? (

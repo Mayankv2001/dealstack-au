@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import StoreLogo from "@/components/StoreLogo";
-import { calculateStack, formatAUD } from "@/lib/calculateStack";
+import { formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, type Store } from "@/lib/data";
 import type { StackRecommendation } from "@/lib/offers/types";
 import { formatDateAU } from "@/lib/sources/normalise";
@@ -58,13 +58,6 @@ export function StoreCard({
   recommendation?: StackRecommendation | null;
   variant?: "detailed" | "stack";
 }) {
-  const stack = calculateStack({
-    originalPrice: SAMPLE_SPEND,
-    discountPercent: store.discountPercent,
-    cashbackPercent: store.cashbackPercent,
-    giftCardDiscountPercent: store.giftCardDiscountPercent,
-  });
-
   const hasPoints = store.pointsProgram !== "—";
 
   if (variant === "stack") {
@@ -135,7 +128,7 @@ export function StoreCard({
             </div>
             <p className="mt-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground">
               <Clock aria-hidden className="size-3" />
-              {checked ? `Checked ${checked}` : "No checked time available"}
+              {checked ? `Checked ${checked}` : "Not yet checked"}
             </p>
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 group-hover:underline dark:text-emerald-300">
               View stack <ArrowRight aria-hidden className="size-3.5" />
@@ -230,24 +223,34 @@ export function StoreCard({
             </SavingRow>
           </div>
 
-          {/* Estimated stack value on a $500 spend (customise in the calculator) */}
-          <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2 dark:from-emerald-500/15 dark:to-emerald-500/5">
-            <p className="text-[11px] text-muted-foreground">
-              On a {formatAUD(SAMPLE_SPEND)} spend
-            </p>
-            <div className="mt-0.5 flex items-center justify-between">
-              <span className="text-xs font-medium">Effective price</span>
-              <span className="text-base font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
-                {formatAUD(stack.finalEffectivePrice)}
-              </span>
+          {/* Engine-verified estimate on a $500 spend — compatible layers only,
+              matching the Decision Hub and homepage instead of naively
+              compounding every recorded rate. */}
+          {recommendation && recommendation.totalSaving > 0 ? (
+            <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2 dark:from-emerald-500/15 dark:to-emerald-500/5">
+              <p className="text-[11px] text-muted-foreground">
+                On a {formatAUD(recommendation.basePrice)} spend · compatible layers only
+              </p>
+              <div className="mt-0.5 flex items-center justify-between">
+                <span className="text-xs font-medium">Effective price</span>
+                <span className="text-base font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
+                  {formatAUD(recommendation.effectivePrice)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium">Estimated saving</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                  {formatAUD(recommendation.totalSaving)} · {recommendation.effectiveDiscountPercent}%
+                </span>
+              </div>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-medium">Estimated saving</span>
-              <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                {formatAUD(stack.totalSaving)} · {stack.totalSavingPercent}%
-              </span>
+          ) : (
+            <div className="rounded-xl border border-dashed px-3 py-2 text-xs text-muted-foreground">
+              {recommendation?.kind === "points-only"
+                ? "Points-only opportunity — the cash price is unchanged."
+                : "No compatible stack estimate yet — layers above are individual rates, not a combined saving."}
             </div>
-          </div>
+          )}
 
           <span
             className={cn(

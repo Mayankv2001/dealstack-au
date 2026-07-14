@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildPublicDeals, decodeEntities, deriveSavingPercent } from "@/lib/deals/normalise";
+import { buildPublicDeals, decodeEntities, deriveSavingPercent, tidyPriceText } from "@/lib/deals/normalise";
+import { stackableChipLabel } from "@/lib/deals/types";
 import type { OzBargainSignal } from "@/lib/offers/types";
 
 const signal: OzBargainSignal = { id: "sig-1", sourceNativeId: "ozb:1", merchantId: null, title: "Headphones &amp; case", summary: "Community price", votesSample: 5, sentiment: "neutral", dealKind: "discount-code", sourceUrl: "https://www.ozbargain.com.au/node/1", postedAt: "2026-07-12T01:00:00Z", confidence: "needs-verification", lastCheckedAt: "2026-07-12T02:00:00Z", isSample: false, status: "approved", priceText: "$80 (was $100)", expiryDate: "2026-07-13" };
@@ -35,5 +36,62 @@ describe("public deal normalisation", () => {
   it("decodes the supported feed entities and bounds explicit percentages", () => {
     expect(decodeEntities("A &lt; B &amp; C")).toBe("A < B & C");
     expect(deriveSavingPercent("100% off", 0, 100)).toBe(100);
+  });
+});
+
+describe("tidyPriceText", () => {
+  it("strips the dangling comma a feed snippet leaves after the first price", () => {
+    expect(tidyPriceText("$395,")).toBe("$395");
+  });
+
+  it("keeps a clean price untouched and nulls out empty leftovers", () => {
+    expect(tidyPriceText("$69.99")).toBe("$69.99");
+    expect(tidyPriceText("  ,")).toBeNull();
+    expect(tidyPriceText(null)).toBeNull();
+  });
+
+  it("is applied to community deals end-to-end", () => {
+    const [deal] = buildPublicDeals({ stores: [], signals: [{ ...signal, priceText: "$395," }], giftCards: [], cashback: [], points: [], weekly: [], stackableMerchantIds: new Set() });
+    expect(deal.priceText).toBe("$395");
+  });
+});
+
+describe("stackableChipLabel", () => {
+  it("distinguishes merchant-level stackability from an actual stack layer", () => {
+    expect(stackableChipLabel("community")).toBe("Stackable store");
+    expect(stackableChipLabel("editorial")).toBe("Stackable store");
+    expect(stackableChipLabel("gift-card")).toBe("Stack layer");
+    expect(stackableChipLabel("cashback")).toBe("Stack layer");
+    expect(stackableChipLabel("points")).toBe("Stack layer");
+  });
+});
+
+describe("gift-card deal titles from seeded earn notes", () => {
+  it("never renders an orphaned ' — : ' when the earn note carried a dev prefix", () => {
+    const [deal] = buildPublicDeals({
+      stores: [],
+      signals: [],
+      giftCards: [{
+        id: "gc-colon",
+        brand: "Coles Group",
+        discountPercent: 0,
+        channel: "supermarket-promo",
+        source: "Coles in-store promo",
+        acceptedAtMerchantIds: [],
+        pointsOnPurchase: { program: "Flybuys", earnNote: "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards" },
+        capDollars: null,
+        expiryDate: null,
+        startDate: null,
+        citations: [],
+        confidence: "needs-verification",
+        lastCheckedAt: "2026-07-12T00:00:00Z",
+      }],
+      cashback: [],
+      points: [],
+      weekly: [],
+      stackableMerchantIds: new Set(),
+    });
+    expect(deal.title).not.toContain("— :");
+    expect(deal.title).toContain("Coles Group gift cards — 2,000 bonus Flybuys");
   });
 });

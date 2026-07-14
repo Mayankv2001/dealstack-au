@@ -26,6 +26,18 @@ export const KIND_LABEL: Record<PublicDealKind, string> = {
 };
 
 /**
+ * Honest wording for the stackability chip. Offer kinds (gift cards, cashback,
+ * points) ARE saving layers themselves; community/editorial entries merely
+ * point at a merchant that has layers on file — a bare "Stackable" implied the
+ * DEAL itself was verified to stack, which no reviewer asserted.
+ */
+export function stackableChipLabel(kind: PublicDealKind): string {
+  return kind === "community" || kind === "editorial"
+    ? "Stackable store"
+    : "Stack layer";
+}
+
+/**
  * Honest, user-facing trust states mapped from the real record state:
  *  - verified        confidence === "confirmed" (a human confirmed the offer)
  *  - source-checked  admin-curated offer entered from a named source, not yet

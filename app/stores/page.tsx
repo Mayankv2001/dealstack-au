@@ -7,8 +7,9 @@ import SearchBar from "@/components/SearchBar";
 import StoreCard from "@/components/StoreCard";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
-import { getStores } from "@/lib/repos";
 import type { Store } from "@/lib/data";
+import { buildStackRecommendations } from "@/lib/stack/buildStack";
+import { loadStackData } from "@/lib/stack/loadStack";
 
 export const metadata: Metadata = {
   title: "All stores — DealStack AU",
@@ -35,7 +36,14 @@ function groupByCategory(stores: Store[]): Map<string, Store[]> {
 }
 
 export default async function StoresIndexPage() {
-  const stores = await getStores();
+  // Same engine + data bundle as the homepage and store pages, so the
+  // "estimated saving" on these cards can never disagree with them.
+  const data = await loadStackData();
+  const stores = data.stores;
+  const recommendations = buildStackRecommendations(undefined, 500, data);
+  const recommendationByStore = new Map(
+    recommendations.map((rec) => [rec.merchantId, rec])
+  );
   const groups = groupByCategory(stores);
 
   return (
@@ -72,7 +80,11 @@ export default async function StoresIndexPage() {
               </h2>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {categoryStores.map((store) => (
-                  <StoreCard key={store.id} store={store} />
+                  <StoreCard
+                    key={store.id}
+                    store={store}
+                    recommendation={recommendationByStore.get(store.id) ?? null}
+                  />
                 ))}
               </div>
             </section>

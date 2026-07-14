@@ -358,22 +358,31 @@ function analyseRedemption(
   const warnings: string[] = [];
   const acceptance = context.acceptance ?? [];
 
-  // Target-store acceptance
+  // Target-store acceptance. Merchant ids ("jb-hifi") and display names
+  // ("JB Hi-Fi") describe the same retailers — dedupe on a normalised key so
+  // the count matches the retailer list shown elsewhere on the page.
   const namedAcceptance = [
     ...offer.acceptedAtMerchantIds,
     ...(offer.acceptedAt ?? []),
   ];
+  const retailerCount = new Set(
+    namedAcceptance.map((name) => name.toLowerCase().replace(/[^a-z0-9]+/g, ""))
+  ).size;
   const verifiedRows = acceptance.filter(
     (row) => row.status === "verified" && row.outcome !== "unsuccessful"
   );
   if (namedAcceptance.length > 0 || acceptance.length > 0) {
     const parts: string[] = [];
-    if (namedAcceptance.length > 0) {
-      parts.push(`${new Set(namedAcceptance).size} listed retailer(s)`);
+    if (retailerCount > 0) {
+      parts.push(
+        `${retailerCount} listed ${retailerCount === 1 ? "retailer" : "retailers"}`
+      );
     }
     if (acceptance.length > 0) {
       parts.push(
-        `${verifiedRows.length} verified of ${acceptance.length} recorded acceptance fact(s)`
+        `${verifiedRows.length} verified of ${acceptance.length} recorded ${
+          acceptance.length === 1 ? "acceptance fact" : "acceptance facts"
+        }`
       );
     }
     facts.push({

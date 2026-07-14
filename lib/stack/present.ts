@@ -183,6 +183,100 @@ export function hasChooseOneLayer(rec: StackRecommendation): boolean {
   return rec.components.some((c) => c.optional);
 }
 
+export interface StackStep {
+  title: string;
+  description: string;
+  /** True for the trailing choose-one caution derived from an optional layer. */
+  chooseOne?: boolean;
+}
+
+/** Provider named in a cashback layer label, e.g. "ShopBack". */
+function cashbackProviderFrom(label: string): string | null {
+  return label.match(/\b(ShopBack|TopCashback)\b/)?.[1] ?? null;
+}
+
+/**
+ * How-to steps derived ONLY from the engine's chosen components — never from
+ * raw store columns, so the instructions can never tell a shopper to combine
+ * layers the engine excluded as incompatible (the old buildSteps bug).
+ * Optional (choose-one) layers become an explicit alternative note instead of
+ * an instruction to stack them.
+ */
+export function buildStackSteps(
+  storeName: string,
+  rec: StackRecommendation | null
+): StackStep[] {
+  if (!rec) {
+    return [
+      {
+        title: "Check current promotions",
+        description: `No compatible saving stack is verified for ${storeName} right now — watch for reviewed offers instead.`,
+      },
+    ];
+  }
+  const included = rec.components.filter((c) => !c.optional);
+  const steps: StackStep[] = [];
+
+  const cashback = included.find((c) => c.layer === "cashback");
+  if (cashback) {
+    const provider = cashbackProviderFrom(cashback.label);
+    steps.push({
+      title: provider ? `Start at ${provider}` : "Start at the cashback provider",
+      description: `Click through to ${storeName} first so the tracked cashback (${cashback.label}) can record your purchase.`,
+    });
+  }
+
+  const giftCard = included.find((c) => c.layer === "gift-card");
+  if (giftCard) {
+    steps.push({
+      title: "Buy discounted gift cards",
+      description: `${giftCard.label} — buy enough to cover your expected checkout total.`,
+    });
+  }
+
+  const discount = included.find((c) => c.layer === "discount");
+  if (discount) {
+    steps.push({
+      title: discount.code ? "Apply the discount code" : "Apply the discount",
+      description:
+        discount.note ?? `${discount.label} reduces the checkout price.`,
+    });
+  }
+
+  const points = included.find((c) => c.layer === "points");
+  if (points) {
+    steps.push({
+      title: "Earn points at checkout",
+      description: `${points.label}. Points are rewards, not cash — their value is never subtracted from what you pay.`,
+    });
+  }
+
+  steps.push(
+    giftCard
+      ? {
+          title: "Pay with your gift cards",
+          description:
+            "Pay the discounted total with the gift cards you bought below face value.",
+        }
+      : {
+          title: "Pay as usual",
+          description: cashback
+            ? "Pay as usual, then wait for the cashback to confirm."
+            : "Pay as usual and keep the receipts for any conditions above.",
+        }
+  );
+
+  for (const alternative of rec.components.filter((c) => c.optional)) {
+    steps.push({
+      title: "Alternative, not an extra layer",
+      description: `${alternative.label} — ${alternative.note ?? "use it instead of the conflicting layer, not together."}`,
+      chooseOne: true,
+    });
+  }
+
+  return steps;
+}
+
 export interface LayerUncertaintyDetails {
   acquisition: string;
   redemption: string;
