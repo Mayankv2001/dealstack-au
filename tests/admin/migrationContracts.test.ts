@@ -129,7 +129,8 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("raw_item.canonical_url !~ '^https://'");
     expect(sql).toContain("gift_card_offers_public_accuracy_check");
     expect(sql).toContain("not valid");
-    expect(sql).toContain("Points require a multiplier and programme");
+    expect(sql).toContain("Points require exactly one of multiplier or fixed points, plus a programme");
+    expect(sql).toContain("fixed_points");
     expect(sql).toContain("Promo credits require a threshold");
     expect(sql).toContain("to service_role");
     expect(sql).toContain("from public, anon, authenticated");
@@ -155,6 +156,7 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("gift_card_offer_occurrences");
     expect(sql).toContain("end_date < current_date");
     expect(sql).toContain("reject_gift_card_occurrence_mutation");
+    expect(sql).toContain("fixed_points");
     expect(sql).not.toContain("raw_payload");
     expect(sql).not.toMatch(/\n\s*comments\s+(text|jsonb?)/);
   });
@@ -165,6 +167,15 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("v_recent >= 5");
     expect(sql).toContain("No public policies");
     expect(sql).toContain("gift-card-acceptance");
+  });
+
+  it("registers Point Hacks as a disabled, permission-gated HTML source", () => {
+    const sql = migration("027_point_hacks_weekly_gift_cards.sql");
+    expect(sql).toContain("'rss', 'atom', 'api', 'html'");
+    expect(sql).toContain("pointhacks_weekly_gift_cards");
+    expect(sql).toContain("'html', false, false, null, null");
+    expect(sql).not.toMatch(/is_published\s*=\s*true/i);
+    expect(sql).not.toMatch(/automated_fetch_allowed[^;]*true/i);
   });
 
 });

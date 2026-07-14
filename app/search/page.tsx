@@ -128,7 +128,7 @@ export default async function SearchPage({
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
-      <main className="page-container flex-1 py-7 sm:py-10">
+      <main className="page-container flex-1 py-7 pb-32 sm:py-10 lg:pb-10">
         <div className="mx-auto max-w-5xl border-b px-1 pb-8 text-center sm:px-5 sm:pb-10">
           <p className="eyebrow">Purchase planner</p>
           <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
@@ -332,6 +332,30 @@ export default async function SearchPage({
               )}
             </div>
           </section>
+        ) : null}
+
+        {!result.ambiguous && primaryRecommendation ? (
+          <aside
+            aria-label="Current purchase plan summary"
+            className="fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 rounded-xl border border-emerald-500/25 bg-background/95 p-3 shadow-xl backdrop-blur lg:hidden"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold">
+                  {result.selectedTarget?.name ?? primaryRecommendation.merchantName} · {formatAUD(spend)}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Estimated effective cost: {formatAUD(primaryRecommendation.effectivePrice)}
+                </p>
+              </div>
+              <a
+                href="#purchase-plan"
+                className="shrink-0 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
+              >
+                View plan
+              </a>
+            </div>
+          </aside>
         ) : null}
 
         {result.warnings.length > 0 && !result.ambiguous ? (
@@ -538,25 +562,6 @@ export default async function SearchPage({
           </div>
         ) : null}
       </main>
-      {!result.ambiguous && result.bestCashStack ? (
-        <Link
-          href="#purchase-plan"
-          className="fixed inset-x-3 bottom-[4.65rem] z-40 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/25 bg-emerald-950 px-4 py-3 text-white shadow-xl lg:hidden"
-        >
-          <span className="min-w-0">
-            <span className="block truncate text-xs font-semibold text-emerald-100">
-              {result.selectedTarget?.name ?? result.bestCashStack.merchantName}{" "}
-              · {formatAUD(spend)}
-            </span>
-            <span className="block font-bold">
-              Estimated saving {formatAUD(result.bestCashStack.totalSaving)}
-            </span>
-          </span>
-          <span className="shrink-0 text-xs font-bold text-emerald-200">
-            View plan ↑
-          </span>
-        </Link>
-      ) : null}
       <SiteFooter />
     </div>
   );

@@ -204,6 +204,65 @@ describe("deals query engine", () => {
     if (first.type === "deal") expect(first.deal.id).toBe("newer");
   });
 
+  it("orders the Popular view by captured discussion without treating heat as verification", () => {
+    const moreVotes = deal({
+      id: "more-votes",
+      sourceNativeId: "more-votes",
+      votes: 500,
+      comments: 3,
+    });
+    const moreDiscussion = deal({
+      id: "more-discussion",
+      sourceNativeId: "more-discussion",
+      votes: 5,
+      comments: 40,
+    });
+    const result = queryDeals(
+      [moreVotes, moreDiscussion],
+      { ...DEFAULT_PARAMS, view: "popular" },
+      NOW,
+    );
+    expect(result.items[0]).toMatchObject({
+      type: "deal",
+      deal: { id: "more-discussion", trust: "community" },
+    });
+  });
+
+  it("filters by channel, ending window and a recorded minimum saving", () => {
+    const result = queryDeals(
+      [
+        deal(),
+        deal({
+          id: "too-late",
+          sourceNativeId: "too-late",
+          expiryDate: "2026-07-20",
+        }),
+        deal({
+          id: "in-store",
+          sourceNativeId: "in-store",
+          channelNote: "In-store",
+        }),
+        deal({
+          id: "small-saving",
+          sourceNativeId: "small-saving",
+          savingPercent: 4,
+        }),
+      ],
+      {
+        ...DEFAULT_PARAMS,
+        channel: "online",
+        ending: "72h",
+        minSaving: 10,
+      },
+      NOW,
+    );
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      type: "deal",
+      deal: { id: "community:1" },
+    });
+  });
+
   it("limits Best verified to current, fresh, evidenced DealStack outcomes", () => {
     const verified = deal({
       id: "verified-current",

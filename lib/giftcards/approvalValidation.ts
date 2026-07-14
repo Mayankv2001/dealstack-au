@@ -54,6 +54,7 @@ export interface RawApprovalInput {
   discountPercent: string;
   bonusPercent: string;
   pointsMultiplier: string;
+  fixedPoints?: string;
   pointsProgram: string;
   pointsValueCents: string;
   fixedDiscountDollars?: string;
@@ -101,6 +102,7 @@ export interface ParsedApproval {
   discountPercent: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints: number | null;
   pointsProgram: string | null;
   pointsValueCents: number | null;
   fixedDiscountDollars: number | null;
@@ -194,6 +196,8 @@ export function validateGiftCardApproval(
   if (typeof bonusPercent === "string") return err(bonusPercent);
   const pointsMultiplier = nonNegative(input.pointsMultiplier, "Points multiplier");
   if (typeof pointsMultiplier === "string") return err(pointsMultiplier);
+  const fixedPoints = nonNegative(input.fixedPoints ?? "", "Fixed points");
+  if (typeof fixedPoints === "string") return err(fixedPoints);
   const pointsValueCents = nonNegative(input.pointsValueCents, "Point value (cents)");
   if (typeof pointsValueCents === "string") return err(pointsValueCents);
   const pointsProgram = input.pointsProgram.trim() || null;
@@ -228,8 +232,14 @@ export function validateGiftCardApproval(
   ) {
     return err("A discount offer needs a percentage between 0 and 100.");
   }
-  if (promotionType === "points" && (!pointsMultiplier || !pointsProgram)) {
-    return err("A points offer needs a multiplier and a programme.");
+  if (
+    promotionType === "points" &&
+    ((!pointsMultiplier && !fixedPoints) || !pointsProgram)
+  ) {
+    return err("A points offer needs either a multiplier or fixed points, plus a programme.");
+  }
+  if (promotionType === "points" && pointsMultiplier && fixedPoints) {
+    return err("A points offer cannot use both a multiplier and fixed points; split mixed mechanics first.");
   }
   if (promotionType === "bonus-value" && (!bonusPercent || bonusPercent <= 0)) {
     return err("A bonus-value offer needs a bonus percentage.");
@@ -268,6 +278,7 @@ export function validateGiftCardApproval(
     discountPercent: discountPercent ?? null,
     bonusPercent: bonusPercent ?? null,
     pointsMultiplier: pointsMultiplier ?? null,
+    fixedPoints: fixedPoints ?? null,
     pointsProgram,
     pointsValueCents: pointsValueCents ?? null,
     fixedDiscountDollars: fixedDiscountDollars ?? null,
@@ -392,6 +403,7 @@ export function validateGiftCardApproval(
       discountPercent: discountPercent ?? null,
       bonusPercent: bonusPercent ?? null,
       pointsMultiplier: pointsMultiplier ?? null,
+      fixedPoints: fixedPoints ?? null,
       pointsProgram,
       pointsValueCents: pointsValueCents ?? null,
       fixedDiscountDollars: fixedDiscountDollars ?? null,

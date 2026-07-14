@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -182,6 +183,19 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
         </section>
 
         <GiftCardsSubnav current="/gift-cards" className="mt-4" />
+
+        <Link
+          href="/gift-cards/weekly"
+          className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-4 py-3 text-sm transition hover:border-emerald-500/50"
+        >
+          <span>
+            <strong>Weekly Coles and Woolworths offers</strong>
+            <span className="ml-2 text-xs text-muted-foreground">
+              Compare Flybuys and Everyday Rewards promotions
+            </span>
+          </span>
+          <span aria-hidden className="text-emerald-700">→</span>
+        </Link>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           <label className="relative flex-1">

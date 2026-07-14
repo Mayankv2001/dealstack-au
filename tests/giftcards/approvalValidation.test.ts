@@ -20,6 +20,7 @@ function base(overrides: Partial<RawApprovalInput> = {}): RawApprovalInput {
     discountPercent: "10",
     bonusPercent: "",
     pointsMultiplier: "",
+    fixedPoints: "",
     pointsProgram: "",
     pointsValueCents: "",
     fixedDiscountDollars: "",
@@ -88,6 +89,38 @@ describe("happy path", () => {
         })
       )
     ).toBeNull();
+  });
+
+  it("accepts fixed points without treating them as a spend multiplier", () => {
+    const result = validateGiftCardApproval(
+      base({
+        promotionType: "points",
+        discountPercent: "",
+        fixedPoints: "2000",
+        pointsProgram: "Flybuys",
+        rewardDestination: "loyalty-points",
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.values.fixedPoints).toBe(2000);
+      expect(result.values.pointsMultiplier).toBeNull();
+    }
+  });
+
+  it("blocks points that combine fixed and multiplier mechanics", () => {
+    expect(
+      errorOf(
+        base({
+          promotionType: "points",
+          discountPercent: "",
+          pointsMultiplier: "20",
+          fixedPoints: "2000",
+          pointsProgram: "Flybuys",
+          rewardDestination: "loyalty-points",
+        }),
+      ),
+    ).toMatch(/cannot use both/i);
   });
 });
 

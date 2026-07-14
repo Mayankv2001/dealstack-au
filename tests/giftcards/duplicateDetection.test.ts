@@ -14,7 +14,9 @@ const candidate = (
   discountPercent: null,
   bonusPercent: null,
   pointsMultiplier: 20,
+  fixedPoints: null,
   pointsProgram: "Everyday Rewards",
+  denominationNote: "$50, $100",
   startsAt: "2026-07-15",
   expiresAt: "2026-07-21",
   sourceUrl: "https://gcdb.com.au/offer/12845/",
@@ -31,7 +33,9 @@ const published = (
   discountPercent: null,
   bonusPercent: null,
   pointsMultiplier: 20,
+  fixedPoints: null,
   pointsProgram: "Everyday Rewards",
+  denominationNote: "$50, $100",
   startDate: "2026-07-15",
   expiryDate: "2026-07-21",
   sourceDetailUrl: "https://gcdb.com.au/offer/12845/",
@@ -51,6 +55,33 @@ describe("gift-card duplicate warnings", () => {
       [published({ sourceDetailUrl: "https://gcdb.com.au/" })]
     );
     expect(matches[0]?.verdict).not.toBe("exact-duplicate");
+  });
+
+  it("compares fixed points and does not confuse them with a multiplier", () => {
+    const matches = findDuplicateOffers(
+      candidate({
+        sourceUrl: "https://example.com/new",
+        pointsMultiplier: null,
+        fixedPoints: 2000,
+      }),
+      [
+        published({
+          sourceDetailUrl: "https://example.com/old",
+          pointsMultiplier: null,
+          fixedPoints: 2000,
+        }),
+      ],
+    );
+    expect(matches[0]?.verdict).toBe("probable-duplicate");
+  });
+
+  it("warns about overlapping campaigns when recorded denominations differ", () => {
+    const matches = findDuplicateOffers(
+      candidate({ sourceUrl: "https://example.com/new", denominationNote: "$100" }),
+      [published({ sourceDetailUrl: "https://example.com/old", denominationNote: "$50" })],
+    );
+    expect(matches[0]?.verdict).toBe("overlapping-campaign");
+    expect(matches[0]?.reasons.join(" ")).toMatch(/denominations differ/i);
   });
 
   it("warns on same seller/brand/value/date from a different source", () => {

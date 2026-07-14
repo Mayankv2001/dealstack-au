@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  CircleHelp,
   Copy,
   ExternalLink,
   Layers3,
@@ -96,6 +97,10 @@ export function DealCard({
               dealStackVerified={deal.dealStackVerified}
             />
             <DealFreshness deal={deal} now={now} />
+            <span className="inline-flex items-center gap-1">
+              <CircleHelp aria-hidden className="size-3" /> Compatibility:
+              unknown — check plan
+            </span>
             {deal.stackable ? (
               <span className="inline-flex items-center gap-1">
                 <Layers3 aria-hidden className="size-3" />{" "}

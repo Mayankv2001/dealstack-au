@@ -205,7 +205,7 @@ interface OfferRow {
   id: string; brand: string; product_id: string | null; purchase_location: string | null;
   promotion_type: string; discount_percent: number | null; fixed_discount_dollars?: number | null;
   promo_credit_dollars?: number | null; fee_waiver_dollars?: number | null; bonus_percent: number | null;
-  points_multiplier: number | null; points_program: string | null; threshold_dollars?: number | null;
+  points_multiplier: number | null; fixed_points?: number | null; points_program: string | null; threshold_dollars?: number | null;
   start_date: string | null; expiry_date: string | null; source_detail_url: string | null; last_checked_at: string;
 }
 
@@ -218,7 +218,8 @@ export async function sealExpiredOfferOccurrence(offerId: string, today: string)
     promotionType: row.promotion_type, discountPercent: row.discount_percent,
     fixedDiscountDollars: row.fixed_discount_dollars ?? null, promoCreditDollars: row.promo_credit_dollars ?? null,
     feeWaiverDollars: row.fee_waiver_dollars ?? null, bonusPercent: row.bonus_percent,
-    pointsMultiplier: row.points_multiplier, pointsProgramme: row.points_program,
+    pointsMultiplier: row.points_multiplier, fixedPoints: row.fixed_points ?? null,
+    pointsProgramme: row.points_program,
     thresholdDollars: row.threshold_dollars ?? null, startDate: row.start_date, endDate: row.expiry_date,
     sourceUrl: row.source_detail_url, verifiedAt: row.last_checked_at,
   };

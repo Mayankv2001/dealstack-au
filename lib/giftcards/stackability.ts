@@ -7,7 +7,7 @@ import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import { giftCardCashbackConflictWarning } from "@/lib/stack/compatibility";
 import type { GiftCardCompatibilityStatus } from "./compatibility";
 import { offerEffectiveSaving } from "./publicQuery";
-import { valuePointsOffer } from "./value";
+import { valueFixedPointsOffer, valuePointsOffer } from "./value";
 
 /**
  * Two-stage stackability analysis for the offer detail page:
@@ -156,11 +156,15 @@ function analyseAcquisition(
   const points =
     offer.pointsMultiplier && program
       ? valuePointsOffer(offer.pointsMultiplier, 100, program, offer.pointsValueCents)
-      : null;
+      : offer.fixedPoints && program
+        ? valueFixedPointsOffer(offer.fixedPoints, 100, program, offer.pointsValueCents)
+        : null;
   if (points) {
     facts.push({
       label: "Points on purchase",
-      value: `${offer.pointsMultiplier}× ${program} — an estimate, not cash`,
+      value: offer.fixedPoints
+        ? `${offer.fixedPoints.toLocaleString("en-AU")} ${program} points — an estimate, not cash`
+        : `${offer.pointsMultiplier}× ${program} — an estimate, not cash`,
       tone: "positive",
     });
     warnings.push(

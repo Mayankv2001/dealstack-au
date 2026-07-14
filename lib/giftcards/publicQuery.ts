@@ -132,6 +132,7 @@ export function offerEffectiveSaving(offer: GiftCardOffer): number | null {
     discountPercent: offer.discountPercent || null,
     bonusPercent: offer.bonusPercent ?? null,
     pointsMultiplier: offer.pointsMultiplier ?? null,
+    fixedPoints: offer.fixedPoints ?? null,
     pointsProgram:
       offer.pointsProgram ?? offer.pointsOnPurchase?.program ?? null,
     pointsValueCents: offer.pointsValueCents ?? null,

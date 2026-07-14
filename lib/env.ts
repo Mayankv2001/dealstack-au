@@ -203,3 +203,27 @@ export const gcdbUserAgent = (): string => {
 /** Hard cap on feed items processed per ingest run. */
 export const gcdbMaxItemsPerRun = (): number =>
   optionalPositiveInt("GCDB_MAX_ITEMS_PER_RUN", 40);
+
+// ── Point Hacks weekly gift-card page — SERVER ONLY ─────────────────────────
+// This is independently gated from GCDB. The flag defaults off and a matching
+// source row must also be enabled, fetch-permitted, and carry completed terms
+// and robots reviews before any request is attempted.
+
+export const pointHacksWeeklyIngestEnabled = (): boolean =>
+  process.env.POINTHACKS_WEEKLY_INGEST_ENABLED === "true";
+
+export const pointHacksWeeklyUserAgent = (): string => {
+  const value = process.env.POINTHACKS_WEEKLY_REQUEST_USER_AGENT?.trim();
+  if (!value) {
+    throw new Error(
+      "POINTHACKS_WEEKLY_REQUEST_USER_AGENT is required when Point Hacks weekly ingestion is enabled.",
+    );
+  }
+  return value;
+};
+
+export const pointHacksWeeklyMaxItems = (): number =>
+  Math.min(
+    20,
+    optionalPositiveInt("POINTHACKS_WEEKLY_MAX_ITEMS_PER_RUN", 10),
+  );

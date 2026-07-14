@@ -5,11 +5,14 @@ import { requireAdmin } from "@/lib/admin/auth";
 import {
   listGiftCardCandidates,
   listPublishedOfferSummaries,
+  getGiftCardSource,
 } from "@/lib/admin/repos/giftCardPipeline";
 import { listStores } from "@/lib/admin/repos/stores";
 import { Button } from "@/components/ui/button";
 import { GiftCardReviewCard } from "@/components/admin/GiftCardReviewCard";
 import { findDuplicateOffers } from "@/lib/giftcards/duplicateDetection";
+import { WeeklyGiftCardSubmissionForm } from "@/components/admin/WeeklyGiftCardSubmissionForm";
+import { POINT_HACKS_WEEKLY_SOURCE_ID } from "@/lib/giftcards/pointHacksWeekly";
 
 /**
  * Gift-card candidate review queue — the human gate between the GCDB ingest
@@ -24,10 +27,11 @@ export const metadata: Metadata = {
 
 export default async function GiftCardReviewPage() {
   await requireAdmin();
-  const [candidates, stores, publishedOffers] = await Promise.all([
+  const [candidates, stores, publishedOffers, weeklySource] = await Promise.all([
     listGiftCardCandidates(),
     listStores(),
     listPublishedOfferSummaries(),
+    getGiftCardSource(POINT_HACKS_WEEKLY_SOURCE_ID),
   ]);
   const storeOptions = stores.map((s) => ({ id: s.id, name: s.name }));
   const today = new Date().toISOString().slice(0, 10);
@@ -42,7 +46,13 @@ export default async function GiftCardReviewPage() {
           discountPercent: candidate.discountPercent,
           bonusPercent: candidate.bonusPercent,
           pointsMultiplier: candidate.pointsMultiplier,
+          fixedPoints: candidate.fixedPoints,
           pointsProgram: candidate.pointsProgram,
+          denominationNote: candidate.terms.weeklyFacts?.variableLoadRange
+            ? `$${candidate.terms.weeklyFacts.variableLoadRange.min}–$${candidate.terms.weeklyFacts.variableLoadRange.max} variable load`
+            : candidate.terms.weeklyFacts?.denominations
+                .map((value) => `$${value}`)
+                .join(", ") || null,
           startsAt: candidate.startsAt,
           expiresAt: candidate.expiresAt,
           sourceUrl: candidate.sourceUrl,
@@ -61,14 +71,28 @@ export default async function GiftCardReviewPage() {
             Gift card review queue
           </h1>
           <p className="text-sm text-muted-foreground">
-            Candidates staged by the GCDB ingest. Nothing is public until you
-            approve it here; edited values win over parser output.
+            Candidates staged by approved source pipelines or structured admin
+            capture. Nothing is public until you approve it here; edited values
+            win over parser output.
           </p>
         </div>
         <Button asChild variant="outline">
           <Link href="/admin/gift-cards">Published offers</Link>
         </Button>
       </header>
+
+      <WeeklyGiftCardSubmissionForm
+        sourceInstalled={weeklySource != null}
+        automatedFetchAllowed={
+          weeklySource?.enabled === true &&
+          weeklySource.automated_fetch_allowed === true &&
+          Boolean(weeklySource.terms_checked_at) &&
+          Boolean(weeklySource.robots_checked_at)
+        }
+        lastSuccessAt={weeklySource?.last_success_at ?? null}
+        lastFailureAt={weeklySource?.last_error_at ?? null}
+        lastFailure={weeklySource?.last_error ?? null}
+      />
 
       <datalist id="store-ids">
         {storeOptions.map((store) => (

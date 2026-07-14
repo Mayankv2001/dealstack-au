@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import type { WeeklyGiftCardFacts } from "./pointHacksWeekly";
 
 /**
  * Pure GCDB RSS parser — OFFLINE ONLY, no network. The compliance-gated
@@ -38,6 +39,8 @@ export interface GcdbFeedItem {
   sourceMarkedExpired: boolean;
   /** Bounded plain-text factual excerpt (never the full body). */
   excerpt: string;
+  /** Structured facts supplied by the permission-gated weekly adapter. */
+  weeklyFacts?: WeeklyGiftCardFacts;
 }
 
 type XmlNode = Record<string, unknown>;

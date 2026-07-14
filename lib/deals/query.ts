@@ -59,6 +59,28 @@ function matchesFilters(
   if (params.membership && !deal.membershipRequired) return false;
   if (params.activation && !deal.activationRequired) return false;
   if (params.targeted && !deal.targeted) return false;
+  if (params.channel) {
+    const channel = deal.channelNote?.toLowerCase() ?? "";
+    if (params.channel === "online" && !channel.includes("online")) return false;
+    if (params.channel === "in-store" && !channel.includes("in-store")) {
+      return false;
+    }
+  }
+  if (
+    params.minSaving != null &&
+    (deal.savingPercent == null || deal.savingPercent < params.minSaving)
+  ) {
+    return false;
+  }
+  if (params.ending) {
+    if (!deal.expiryDate) return false;
+    const today = Date.parse(`${todayAU(now)}T00:00:00Z`);
+    const expiry = Date.parse(`${deal.expiryDate}T00:00:00Z`);
+    if (Number.isNaN(expiry)) return false;
+    const days = Math.floor((expiry - today) / 86_400_000);
+    const limit = params.ending === "72h" ? 3 : 7;
+    if (days < 0 || days > limit) return false;
+  }
   if (params.added) {
     const age = daysSince(deal.postedAt, now);
     if (age == null) return false;
@@ -210,6 +232,19 @@ export function sortItems(
           timeOf(itemScore(a).postedAt ?? itemScore(a).lastCheckedAt),
       );
       break;
+    case "discussed":
+      sorted.sort((a, b) => {
+        const comments =
+          (itemScore(b).comments ?? -1) - (itemScore(a).comments ?? -1);
+        if (comments !== 0) return comments;
+        const votes = (itemScore(b).votes ?? -1) - (itemScore(a).votes ?? -1);
+        if (votes !== 0) return votes;
+        return (
+          timeOf(itemScore(b).capturedAt ?? itemScore(b).lastCheckedAt) -
+          timeOf(itemScore(a).capturedAt ?? itemScore(a).lastCheckedAt)
+        );
+      });
+      break;
     case "expiring":
       sorted.sort((a, b) =>
         expiryKey(itemScore(a)).localeCompare(expiryKey(itemScore(b))),
@@ -302,7 +337,12 @@ export function queryDeals(
         matchesSearch(deal, params.q) && matchesFilters(deal, params, now),
     ),
   );
-  const effectiveSort = params.view === "recent" ? "checked" : params.sort;
+  const effectiveSort =
+    params.view === "recent"
+      ? "checked"
+      : params.view === "popular"
+        ? "discussed"
+        : params.sort;
   const items = sortItems(groupDeals(matched), effectiveSort, now);
 
   const total = items.length;

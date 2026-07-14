@@ -21,6 +21,9 @@ describe("deals URL state", () => {
       activation: "1",
       targeted: "1",
       added: "week",
+      channel: "in-store",
+      ending: "72h",
+      minSaving: "10",
       page: "3",
     });
     expect(params).toMatchObject({
@@ -37,10 +40,33 @@ describe("deals URL state", () => {
       activation: true,
       targeted: true,
       added: "week",
+      channel: "in-store",
+      ending: "72h",
+      minSaving: 10,
       page: 3,
     });
-    expect(activeFilterCount(params)).toBe(10);
+    expect(activeFilterCount(params)).toBe(13);
     expect(isDiscoverMode(params)).toBe(false);
+  });
+
+  it("supports scan-first popular navigation and compact deal filters", () => {
+    const params = parseDealsParams({
+      view: "popular",
+      sort: "discussed",
+      channel: "online",
+      ending: "week",
+      minSaving: "20",
+    });
+    expect(params).toMatchObject({
+      view: "popular",
+      sort: "discussed",
+      channel: "online",
+      ending: "week",
+      minSaving: 20,
+    });
+    expect(dealsHref(params)).toBe(
+      "/deals?view=popular&sort=discussed&channel=online&ending=week&minSaving=20",
+    );
   });
 
   it("supports legacy links without preserving obsolete parameter names", () => {

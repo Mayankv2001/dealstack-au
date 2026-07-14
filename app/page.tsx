@@ -21,10 +21,9 @@ import {
 } from "@/lib/structuredData";
 
 export const metadata: Metadata = {
-  title:
-    "DealStack AU — Stack cashback, gift cards & points at Australian stores",
+  title: "DealStack AU — Plan the cheapest way to buy",
   description:
-    "See the best way to stack discount codes, cashback, discounted gift cards and points at popular Australian retailers — plus admin-reviewed OzBargain deal signals.",
+    "Enter an Australian store and expected spend to compare compatible codes, gift cards, cashback and points in the safest order.",
 };
 
 /**

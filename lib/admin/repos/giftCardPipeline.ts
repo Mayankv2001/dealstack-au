@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import {
   hasCompoundMechanics,
   type ExtractedOffer,
@@ -11,6 +12,14 @@ import type {
   RawItemState,
   StagedCandidate,
 } from "@/lib/giftcards/runIngest";
+import {
+  extractPointHacksWeeklyOffer,
+  POINT_HACKS_WEEKLY_PARSER_VERSION,
+  POINT_HACKS_WEEKLY_SOURCE_ID,
+  weeklyFactsToSourceItem,
+  type WeeklyGiftCardFacts,
+} from "@/lib/giftcards/pointHacksWeekly";
+import { contentHashOf } from "@/lib/giftcards/runIngest";
 
 /**
  * Gift-card pipeline data access — SERVICE-ROLE ONLY (staging tables carry no
@@ -34,6 +43,8 @@ export interface GiftCardSourceRow {
   feed_url: string;
   enabled: boolean;
   automated_fetch_allowed: boolean;
+  terms_checked_at: string | null;
+  robots_checked_at: string | null;
   etag: string | null;
   last_modified: string | null;
   last_success_at: string | null;
@@ -48,7 +59,7 @@ export async function getGiftCardSource(
   const { data, error } = await db
     .from("gift_card_sources")
     .select(
-      "id, name, feed_url, enabled, automated_fetch_allowed, etag, last_modified, last_success_at, last_error_at, last_error"
+      "id, name, feed_url, enabled, automated_fetch_allowed, terms_checked_at, robots_checked_at, etag, last_modified, last_success_at, last_error_at, last_error"
     )
     .eq("id", id)
     .maybeSingle();
@@ -349,6 +360,7 @@ export async function stageCandidate(
       couponRequired: e.couponRequired,
       minSpend: e.minSpend,
       purchaseLimitNote: e.purchaseLimitNote,
+      fixedPoints: e.fixedPoints,
       subOfferKey: e.subOfferKey,
       parentIsCompound: e.parentIsCompound,
       candidateRole: e.parentIsCompound
@@ -365,7 +377,8 @@ export async function stageCandidate(
       isOngoing: e.isOngoing,
       sourceMarkedExpired: e.sourceMarkedExpired,
       targeted: e.targeted,
-    },
+      weeklyFacts: e.weeklyFacts ?? null,
+    } as unknown as Json,
     extraction_confidence: e.confidence,
     extraction_warnings: e.warnings,
     change_kind: staged.changeKind,
@@ -402,6 +415,123 @@ export async function recordSourceState(
   if (error) throw new Error(`recordSourceState failed: ${error.message}`);
 }
 
+/**
+ * Authenticated admin-assisted path. No network request is made and the source
+ * row's automated-fetch flag is irrelevant; the result is still only a private
+ * candidate and must pass the normal approval RPC.
+ */
+export async function stageAdminAssistedWeeklyOffer(
+  facts: WeeklyGiftCardFacts,
+  now: Date = new Date(),
+): Promise<"new" | "changed" | "unchanged"> {
+  const source = await getGiftCardSource(POINT_HACKS_WEEKLY_SOURCE_ID);
+  if (!source) {
+    throw new Error(
+      "Point Hacks weekly source configuration is not installed. Migration 027 remains approval-gated.",
+    );
+  }
+  const item = weeklyFactsToSourceItem(facts);
+  const extraction = extractPointHacksWeeklyOffer(item)[0];
+  if (!extraction) throw new Error("The submitted facts could not be normalised.");
+  const hash = contentHashOf(item, POINT_HACKS_WEEKLY_PARSER_VERSION);
+  const [existing] = await loadRawItems(source.id, [item.externalId]);
+  if (!existing) {
+    const rawItemId = await insertRawItem(
+      source.id,
+      item,
+      hash,
+      [extraction],
+      now,
+    );
+    await stageCandidate(source.id, {
+      rawItemId,
+      extraction,
+      changeKind: null,
+      changedFields: [],
+      reviewStatus: "new",
+    });
+    return "new";
+  }
+  if (existing.contentHash === hash) {
+    await touchRawItem(existing.id, now);
+    return "unchanged";
+  }
+  await updateRawItem(existing.id, item, hash, [extraction], now);
+  await stageCandidate(source.id, {
+    rawItemId: existing.id,
+    extraction,
+    changeKind: "material-offer",
+    changedFields: ["weeklyFacts"],
+    reviewStatus: existing.approvedOfferId ? "changed" : "new",
+  });
+  return "changed";
+}
+
+export async function recordWeeklySourceRestriction(
+  reviewer: string,
+): Promise<void> {
+  const db = pipelineDb();
+  const { error } = await db
+    .from("gift_card_sources")
+    .update({
+      enabled: false,
+      automated_fetch_allowed: false,
+      last_error_at: new Date().toISOString(),
+      last_error: `Automated retrieval restricted by ${reviewer}`.slice(0, 500),
+    })
+    .eq("id", POINT_HACKS_WEEKLY_SOURCE_ID);
+  if (error)
+    throw new Error(`recordWeeklySourceRestriction failed: ${error.message}`);
+}
+
+/** Attach independent discovery evidence to one canonical public offer. */
+export async function attachCandidateEvidenceToOffer(
+  candidateId: string,
+  offerId: string,
+  reviewer: string,
+): Promise<void> {
+  const context = await getGiftCardCandidateApprovalContext(candidateId);
+  const sourceUrl = safePublicSourceUrl(context.sourceUrl);
+  if (!sourceUrl || !context.sourceName.trim())
+    throw new Error("The candidate does not have safe source evidence.");
+  const db = pipelineDb();
+  const { data, error } = await db
+    .from("gift_card_offers")
+    .select("citations")
+    .eq("id", offerId)
+    .single();
+  if (error) throw new Error(`load canonical offer failed: ${error.message}`);
+  const citations = Array.isArray(data.citations)
+    ? (data.citations as Array<{ source?: unknown; sourceUrl?: unknown }>)
+    : [];
+  const exists = citations.some(
+    (citation) =>
+      typeof citation.sourceUrl === "string" &&
+      safePublicSourceUrl(citation.sourceUrl) === sourceUrl,
+  );
+  const next = exists
+    ? citations
+    : [
+        ...citations,
+        { source: context.sourceName.trim(), sourceUrl },
+      ];
+  const update = await db
+    .from("gift_card_offers")
+    .update({
+      citations: next as unknown as Json,
+      source_last_seen_at: new Date().toISOString(),
+    })
+    .eq("id", offerId);
+  if (update.error)
+    throw new Error(`attach canonical evidence failed: ${update.error.message}`);
+  await setCandidateStatus(
+    candidateId,
+    "archived",
+    reviewer,
+    `Duplicate evidence attached to canonical offer ${offerId}`,
+  );
+}
+
 // ── Admin review reads/writes ────────────────────────────────────────────────
 
 export interface AdminGiftCardCandidate {
@@ -413,6 +543,7 @@ export interface AdminGiftCardCandidate {
   discountPercent: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints: number | null;
   pointsProgram: string | null;
   effectiveDiscountPercent: number | null;
   startsAt: string | null;
@@ -423,6 +554,7 @@ export interface AdminGiftCardCandidate {
     couponRequired?: boolean;
     minSpend?: number | null;
     purchaseLimitNote?: string | null;
+    fixedPoints?: number | null;
     subOfferKey?: string;
     parentIsCompound?: boolean;
     candidateRole?: "single-offer" | "suboffer" | "compound-summary";
@@ -435,6 +567,7 @@ export interface AdminGiftCardCandidate {
     isOngoing?: boolean;
     sourceMarkedExpired?: boolean;
     targeted?: boolean;
+    weeklyFacts?: import("@/lib/giftcards/pointHacksWeekly").WeeklyGiftCardFacts;
   };
   confidence: number;
   warnings: string[];
@@ -564,6 +697,10 @@ export async function listGiftCardCandidates(
       discountPercent: num(row.discount_percent),
       bonusPercent: num(row.bonus_percent),
       pointsMultiplier: num(row.points_multiplier),
+      fixedPoints:
+        row.terms_json?.fixedPoints ??
+        row.terms_json?.weeklyFacts?.fixedPoints ??
+        null,
       pointsProgram: row.points_program,
       effectiveDiscountPercent: num(row.effective_discount_percent),
       startsAt: row.starts_at,
@@ -591,7 +728,9 @@ interface PublishedOfferRow {
   discount_percent: number | string | null;
   bonus_percent: number | string | null;
   points_multiplier: number | string | null;
+  fixed_points: number | string | null;
   points_program: string | null;
+  denomination_note: string | null;
   start_date: string | null;
   expiry_date: string | null;
   source_detail_url: string | null;
@@ -611,7 +750,7 @@ export async function listPublishedOfferSummaries(): Promise<
   const { data, error } = await db
     .from("gift_card_offers")
     .select(
-      "id, brand, purchase_location, promotion_type, discount_percent, bonus_percent, points_multiplier, points_program, start_date, expiry_date, source_detail_url"
+      "id, brand, purchase_location, promotion_type, discount_percent, bonus_percent, points_multiplier, fixed_points, points_program, denomination_note, start_date, expiry_date, source_detail_url"
     )
     .eq("is_published", true);
   if (error) {
@@ -625,7 +764,9 @@ export async function listPublishedOfferSummaries(): Promise<
     discountPercent: num(row.discount_percent),
     bonusPercent: num(row.bonus_percent),
     pointsMultiplier: num(row.points_multiplier),
+    fixedPoints: num(row.fixed_points),
     pointsProgram: row.points_program,
+    denominationNote: row.denomination_note,
     startDate: row.start_date,
     expiryDate: row.expiry_date,
     sourceDetailUrl: row.source_detail_url,

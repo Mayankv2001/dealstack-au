@@ -5,16 +5,25 @@ import { requireAdmin } from "@/lib/admin/auth";
 import { checkAdminRateLimit } from "@/lib/admin/rate-limit";
 import {
   approveGiftCardCandidate,
+  attachCandidateEvidenceToOffer,
   getGiftCardCandidateApprovalContext,
+  listGiftCardCandidates,
   listPublishedOfferSummaries,
   setCandidateStatus,
+  stageAdminAssistedWeeklyOffer,
+  recordWeeklySourceRestriction,
 } from "@/lib/admin/repos/giftCardPipeline";
 import { logAudit } from "@/lib/admin/repos/audit";
 import { validateGiftCardApproval } from "@/lib/giftcards/approvalValidation";
 import { findDuplicateOffers } from "@/lib/giftcards/duplicateDetection";
+import {
+  parseWeeklyAdminSubmission,
+  POINT_HACKS_WEEKLY_SOURCE_ID,
+} from "@/lib/giftcards/pointHacksWeekly";
 
 /** Returned to the review forms. Empty object means success. */
 export type ReviewActionState = { error?: string };
+export type WeeklySubmissionState = { error?: string; success?: string };
 
 /**
  * Gift-card candidate review actions. SECURITY: every action calls
@@ -50,6 +59,159 @@ const text = (form: FormData, name: string): string =>
 const checked = (form: FormData, name: string): boolean =>
   form.get(name) === "on";
 
+export async function submitWeeklyCandidate(
+  _previous: WeeklySubmissionState,
+  formData: FormData,
+): Promise<WeeklySubmissionState> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  const values = Object.fromEntries(
+    [...formData.entries()].map(([key, value]) => [key, String(value)]),
+  );
+  const parsed = parseWeeklyAdminSubmission(values);
+  if (!parsed.ok) return { error: parsed.error };
+  try {
+    const result = await stageAdminAssistedWeeklyOffer(parsed.facts);
+    await logAudit({
+      actorEmail: email,
+      action: "submit-weekly-gift-card-candidate",
+      tableName: "gift_card_offer_candidates",
+      rowId: POINT_HACKS_WEEKLY_SOURCE_ID,
+      diff: {
+        result,
+        weekIdentifier: parsed.facts.weekIdentifier,
+        seller: parsed.facts.seller,
+        promotionType: parsed.facts.promotionType,
+        brands: parsed.facts.giftCardBrands,
+      },
+    });
+    revalidatePath("/admin/gift-cards/review");
+    return {
+      success:
+        result === "unchanged"
+          ? "The same factual snapshot is already staged. Its last-seen time was refreshed."
+          : `Weekly offer ${result === "new" ? "staged" : "restaged after a material change"} for private review.`,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not stage the weekly offer.",
+    };
+  }
+}
+
+export async function restrictWeeklySource(): Promise<ReviewActionState> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  try {
+    await recordWeeklySourceRestriction(email);
+    await logAudit({
+      actorEmail: email,
+      action: "restrict-weekly-gift-card-source",
+      tableName: "gift_card_sources",
+      rowId: POINT_HACKS_WEEKLY_SOURCE_ID,
+      diff: { enabled: false, automated_fetch_allowed: false },
+    });
+    revalidatePath("/admin/gift-cards/review");
+    return {};
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Could not record the restriction.",
+    };
+  }
+}
+
+export async function attachDuplicateEvidence(
+  candidateId: string,
+  offerId: string,
+  _previous: ReviewActionState,
+  _formData: FormData,
+): Promise<ReviewActionState> {
+  void _previous;
+  void _formData;
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  try {
+    const candidate = (await listGiftCardCandidates()).find(
+      (item) => item.id === candidateId,
+    );
+    const published = await listPublishedOfferSummaries();
+    const target = published.find((offer) => offer.id === offerId);
+    if (!candidate || !target) return { error: "Candidate or canonical offer was not found." };
+    const matches = findDuplicateOffers(
+      {
+        sellerName: candidate.sellerName,
+        giftCardBrands: candidate.giftCardBrands,
+        promotionType: candidate.promotionType,
+        discountPercent: candidate.discountPercent,
+        bonusPercent: candidate.bonusPercent,
+        pointsMultiplier: candidate.pointsMultiplier,
+        fixedPoints: candidate.fixedPoints,
+        pointsProgram: candidate.pointsProgram,
+        denominationNote: candidate.terms.weeklyFacts?.variableLoadRange
+          ? `$${candidate.terms.weeklyFacts.variableLoadRange.min}–$${candidate.terms.weeklyFacts.variableLoadRange.max} variable load`
+          : candidate.terms.weeklyFacts?.denominations
+              .map((value) => `$${value}`)
+              .join(", ") || null,
+        startsAt: candidate.startsAt,
+        expiresAt: candidate.expiresAt,
+        sourceUrl: candidate.sourceUrl,
+      },
+      [target],
+      new Date().toISOString().slice(0, 10),
+    );
+    if (!matches.length)
+      return { error: "The selected offer is not a reviewed duplicate or overlap." };
+    await attachCandidateEvidenceToOffer(candidateId, offerId, email);
+    await logAudit({
+      actorEmail: email,
+      action: "attach-gift-card-candidate-evidence",
+      tableName: "gift_card_offers",
+      rowId: offerId,
+      diff: { candidateId, verdict: matches[0].verdict },
+    });
+    revalidatePath("/gift-cards");
+    revalidatePath("/gift-cards/weekly");
+    revalidatePath("/admin/gift-cards/review");
+    return {};
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "Could not attach evidence.",
+    };
+  }
+}
+
+export async function markHistoricalCandidate(
+  candidateId: string,
+): Promise<ReviewActionState> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  await setCandidateStatus(
+    candidateId,
+    "archived",
+    email,
+    "Historical source item; not an active public offer",
+  );
+  await logAudit({
+    actorEmail: email,
+    action: "mark-gift-card-candidate-historical",
+    tableName: "gift_card_offer_candidates",
+    rowId: candidateId,
+  });
+  revalidatePath("/admin/gift-cards/review");
+  return {};
+}
+
 export async function approveCandidate(
   candidateId: string,
   _prev: ReviewActionState,
@@ -80,6 +242,7 @@ export async function approveCandidate(
     discountPercent: text(formData, "discount_percent"),
     bonusPercent: text(formData, "bonus_percent"),
     pointsMultiplier: text(formData, "points_multiplier"),
+    fixedPoints: text(formData, "fixed_points"),
     pointsProgram: text(formData, "points_program"),
     pointsValueCents: text(formData, "points_value_cents"),
     fixedDiscountDollars: text(formData, "fixed_discount_dollars"),
@@ -140,7 +303,9 @@ export async function approveCandidate(
         discountPercent: v.discountPercent,
         bonusPercent: v.bonusPercent,
         pointsMultiplier: v.pointsMultiplier,
+        fixedPoints: v.fixedPoints,
         pointsProgram: v.pointsProgram,
+        denominationNote: text(formData, "denomination_note").trim() || null,
         startsAt: v.startDate,
         expiresAt: v.expiryDate,
         sourceUrl: v.sourceUrl,
@@ -170,7 +335,9 @@ export async function approveCandidate(
       v.promotionType === "points" && v.pointsProgram
         ? {
             program: v.pointsProgram,
-            earnNote: `${v.pointsMultiplier}x ${v.pointsProgram} points on purchase`,
+            earnNote: v.fixedPoints
+              ? `${v.fixedPoints.toLocaleString("en-AU")} ${v.pointsProgram} points on purchase`
+              : `${v.pointsMultiplier}x ${v.pointsProgram} points on purchase`,
           }
         : null,
     cap_dollars: v.capDollars,
@@ -183,11 +350,17 @@ export async function approveCandidate(
     usage_notes: list(formData, "usage_notes"),
     stack_notes: list(formData, "stack_notes"),
     source_detail_url: v.sourceUrl,
-    citations: [{ source: v.sourceName, sourceUrl: v.sourceUrl }],
+    citations: [
+      { source: v.sourceName, sourceUrl: v.sourceUrl },
+      ...(v.termsUrl
+        ? [{ source: "manual" as const, sourceUrl: v.termsUrl }]
+        : []),
+    ],
     confidence: "needs-verification",
     promotion_type: v.promotionType,
     bonus_percent: v.bonusPercent,
     points_multiplier: v.pointsMultiplier,
+    fixed_points: v.fixedPoints,
     points_program: v.pointsProgram,
     points_value_cents: v.pointsValueCents,
     membership_required: v.membershipRequired,

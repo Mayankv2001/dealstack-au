@@ -12,7 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   approveCandidate,
+  attachDuplicateEvidence,
   archiveCandidate,
+  markHistoricalCandidate,
   rejectCandidate,
   type ReviewActionState,
 } from "@/app/admin/(protected)/gift-cards/review/actions";
@@ -82,6 +84,27 @@ function Check({
   );
 }
 
+function AttachEvidenceButton({
+  candidateId,
+  offerId,
+}: {
+  candidateId: string;
+  offerId: string;
+}) {
+  const [state, action, pending] = useActionState<ReviewActionState, FormData>(
+    attachDuplicateEvidence.bind(null, candidateId, offerId),
+    {},
+  );
+  return (
+    <form action={action} className="mt-1">
+      {state.error ? <p role="alert" className="text-xs">{state.error}</p> : null}
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>
+        {pending ? "Attaching…" : "Attach evidence to canonical offer"}
+      </Button>
+    </form>
+  );
+}
+
 export function GiftCardReviewCard({
   candidate,
   stores,
@@ -103,6 +126,10 @@ export function GiftCardReviewCard({
     () => archiveCandidate(candidate.id),
     {}
   );
+  const [, markHistorical, markingHistorical] = useActionState<
+    ReviewActionState,
+    FormData
+  >(() => markHistoricalCandidate(candidate.id), {});
   const changed = candidate.reviewStatus === "changed";
   const hasExactDuplicate = duplicates.some(
     (match) => match.verdict === "exact-duplicate"
@@ -111,6 +138,7 @@ export function GiftCardReviewCard({
     candidate.terms.candidateRole === "compound-summary" ||
     candidate.promotionType === "mixed";
   const sourceRemoved = candidate.terms.sourcePresence === "removed";
+  const weekly = candidate.terms.weeklyFacts;
   const defaultRewardDestination =
     candidate.terms.rewardDestination ??
     ({
@@ -156,6 +184,42 @@ export function GiftCardReviewCard({
           </div>
         </div>
 
+        {weekly ? (
+          <dl className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="font-semibold text-muted-foreground">Weekly period</dt>
+              <dd>{weekly.weekIdentifier ? `${weekly.weekIdentifier} · ` : ""}{weekly.startDate}–{weekly.endDate}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-muted-foreground">Discovery source</dt>
+              <dd>Point Hacks · specialist editorial source</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-muted-foreground">Retailer evidence</dt>
+              <dd>{weekly.retailerCatalogueUrl ? "Attached" : "Missing — approval remains unverified"}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-muted-foreground">Limits</dt>
+              <dd>{[
+                weekly.perCustomerLimit ? `${weekly.perCustomerLimit}/customer` : null,
+                weekly.perMemberLimit ? `${weekly.perMemberLimit}/member` : null,
+                weekly.perDayLimit ? `${weekly.perDayLimit}/day` : null,
+              ].filter(Boolean).join(" · ") || "Not recorded"}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="font-semibold text-muted-foreground">Denominations</dt>
+              <dd>{weekly.variableLoadRange ? `$${weekly.variableLoadRange.min}–$${weekly.variableLoadRange.max} variable load` : weekly.denominations.length ? weekly.denominations.map((value) => `$${value}`).join(", ") : "Not recorded"}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="font-semibold text-muted-foreground">Exclusions</dt>
+              <dd>{[
+                ...weekly.excludedDenominations.map((value) => `$${value}`),
+                ...weekly.excludedCardVariants,
+              ].join(", ") || "None recorded"}</dd>
+            </div>
+          </dl>
+        ) : null}
+
         {changed && candidate.changedFields.length > 0 ? (
           <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-800 dark:text-amber-300">
             Changed fields since the last extraction:{" "}
@@ -194,6 +258,10 @@ export function GiftCardReviewCard({
                     <li key={reason}>{reason}</li>
                   ))}
                 </ul>
+                <AttachEvidenceButton
+                  candidateId={candidate.id}
+                  offerId={match.offer.id}
+                />
               </li>
             ))}
           </ul>
@@ -258,6 +326,7 @@ export function GiftCardReviewCard({
             <Field label="Discount %" name="discount_percent" type="number" defaultValue={candidate.discountPercent} />
             <Field label="Bonus value %" name="bonus_percent" type="number" defaultValue={candidate.bonusPercent} />
             <Field label="Points multiplier" name="points_multiplier" type="number" defaultValue={candidate.pointsMultiplier} />
+            <Field label="Fixed points" name="fixed_points" type="number" defaultValue={candidate.fixedPoints} />
             <Field label="Points programme" name="points_program" defaultValue={candidate.pointsProgram} />
             <Field label="Point value (cents)" name="points_value_cents" type="number" placeholder="0.5 = 2,000 pts → $10" />
             <Field label="Fixed discount $" name="fixed_discount_dollars" type="number" defaultValue={candidate.terms.fixedDiscountDollars ?? null} />
@@ -283,7 +352,18 @@ export function GiftCardReviewCard({
             <Field label="Face-value cap $" name="cap_dollars" type="number" />
             <Field label="Uses per customer" name="uses_per_customer" type="number" placeholder="1" />
             <Field label="Limit per customer" name="limit_per_customer" defaultValue={candidate.terms.purchaseLimitNote ?? null} />
-            <Field label="Denominations" name="denomination_note" placeholder="e.g. $20–$500 variable load" />
+            <Field
+              label="Denominations"
+              name="denomination_note"
+              defaultValue={
+                weekly?.variableLoadRange
+                  ? `$${weekly.variableLoadRange.min}–$${weekly.variableLoadRange.max} variable load`
+                  : weekly?.denominations.length
+                    ? weekly.denominations.map((value) => `$${value}`).join(", ")
+                    : null
+              }
+              placeholder="e.g. $20–$500 variable load"
+            />
             <label className="grid gap-1 text-xs font-medium">
               Format
               <select name="format" defaultValue="unknown" className="h-8 rounded-md border bg-background px-2 text-sm font-normal">
@@ -321,7 +401,22 @@ export function GiftCardReviewCard({
               />
             </label>
             <Field label="Accepted at (display names)" name="accepted_at" placeholder="JB Hi-Fi, The Good Guys" />
-            <Field label="Usage notes (comma/newline separated)" name="usage_notes" />
+            <Field
+              label="Usage notes (comma/newline separated)"
+              name="usage_notes"
+              defaultValue={
+                weekly
+                  ? [
+                      weekly.excludedDenominations.length
+                        ? `Excluded denominations: ${weekly.excludedDenominations.map((value) => `$${value}`).join(", ")}`
+                        : null,
+                      weekly.excludedCardVariants.length
+                        ? `Excluded variants: ${weekly.excludedCardVariants.join(", ")}`
+                        : null,
+                    ].filter(Boolean).join("; ") || null
+                  : null
+              }
+            />
             <Field label="Stack notes" name="stack_notes" placeholder="e.g. Cashback usually excludes gift-card payment" />
             <Field
               label="Source URL (stored evidence)"
@@ -329,7 +424,12 @@ export function GiftCardReviewCard({
               defaultValue={candidate.sourceUrl}
               readOnly
             />
-            <Field label="Official terms URL" name="terms_url" placeholder="https://seller.example/terms" />
+            <Field
+              label="Retailer evidence / official terms URL"
+              name="terms_url"
+              defaultValue={weekly?.retailerCatalogueUrl ?? null}
+              placeholder="https://seller.example/terms"
+            />
             <Field
               label="Included product ids (comma-separated)"
               name="included_product_ids"
@@ -381,6 +481,16 @@ export function GiftCardReviewCard({
           <form action={archive}>
             <Button type="submit" size="sm" variant="ghost" disabled={archiving}>
               Archive
+            </Button>
+          </form>
+          <form action={markHistorical}>
+            <Button
+              type="submit"
+              size="sm"
+              variant="ghost"
+              disabled={markingHistorical}
+            >
+              Mark historical
             </Button>
           </form>
         </div>

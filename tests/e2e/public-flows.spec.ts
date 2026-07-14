@@ -71,6 +71,11 @@ test("public navigation keeps the purchase planner and core tasks easy to reach"
   await expect(
     header.getByRole("link", { name: "Plan a purchase" }),
   ).toHaveAttribute("href", "/search");
+
+  await page.goto("/cashback");
+  await expect(
+    page.getByRole("banner").getByRole("link", { name: "Cashback" }),
+  ).toHaveAttribute("aria-current", "page");
 });
 
 test("mobile navigation exposes labelled destinations without horizontal overflow", async ({
@@ -149,6 +154,13 @@ test("home → store page shows the stack breakdown", async ({ page }) => {
   await expect(
     page.getByText("Included in recommended plan").first(),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Scan this store by saving layer" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Promo codes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Gift cards" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cashback" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Points" })).toBeVisible();
   await expect(page.getByText("DealStack verified")).toHaveCount(0);
 });
 
@@ -174,6 +186,54 @@ test("decision hub: store search returns a shareable purchase plan", async ({
   ).toBeVisible();
   await expect(page.getByText("Rewards kept separate")).toBeVisible();
   await expect(page).toHaveURL(/q=myer&spend=750/);
+});
+
+test("decision hub: mobile keeps the current purchase summary within reach", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/search?q=myer&spend=500");
+  const summary = page.getByLabel("Current purchase plan summary");
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText("Myer · $500.00");
+  await expect(page.getByLabel("Current purchase plan summary")).toHaveCount(1);
+  await expect(summary.getByRole("link", { name: "View plan" })).toHaveAttribute(
+    "href",
+    "#purchase-plan",
+  );
+});
+
+test("deals: compact controls preserve a full-width scan-first feed", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/deals?view=popular");
+  await expect(
+    page.getByRole("link", { name: "Popular", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("heading", { name: "Refine results" }),
+  ).toBeVisible();
+  await expect(page.getByText(/Popularity uses captured comment and vote counts/)).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Deal filters" })).toHaveCount(0);
+});
+
+test("cashback: rate discovery explains timing and compatibility separately", async ({
+  page,
+}) => {
+  await page.goto("/cashback");
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Compare cashback without hiding the catches",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Source status", { exact: true })).toBeVisible();
+  await expect(page.getByText("Freshness", { exact: true })).toBeVisible();
+  await expect(page.getByText("Compatibility", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(/never presented as money removed from the checkout price/i),
+  ).toBeVisible();
 });
 
 test("decision hub: an empty search never chooses a default merchant", async ({
@@ -594,14 +654,18 @@ test("public routes do not overflow the viewport", async ({ page }) => {
   for (const path of [
     "/",
     "/deals",
+    "/deals?view=popular",
     "/deals?view=top&trust=verified",
     "/cards",
+    "/cashback",
     "/gift-cards",
     "/gift-cards/gc-coles-group-bonus-points",
     "/gift-cards/products",
     "/gift-cards/where-to-use",
     "/gift-cards/history",
     "/gift-cards/programmes",
+    "/gift-cards/weekly",
+    "/gift-cards/weekly/plan",
     "/rewards",
     "/rewards/everyday-rewards",
     "/stores",
@@ -622,6 +686,29 @@ test("public routes do not overflow the viewport", async ({ page }) => {
   }
 });
 
+test("weekly gift-card hub exposes reviewed views and a controlled planner empty state", async ({
+  page,
+}) => {
+  await page.goto("/gift-cards/weekly");
+  await expect(
+    page.getByRole("heading", {
+      name: "This week’s supermarket gift-card offers",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Weekly offer views" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Coles" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Woolworths" })).toBeVisible();
+  await expect(page.getByText(/retailer catalogue or promotion page first/i)).toBeVisible();
+
+  await page.goto("/gift-cards/weekly/plan");
+  await expect(
+    page.getByRole("heading", {
+      name: "This weekly offer is not currently available",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Return to weekly offers" })).toBeVisible();
+});
+
 test("admin: protected pages bounce to the login route", async ({ page }) => {
   for (const path of ["/admin/dashboard", "/admin/gift-card-intelligence"]) {
     await page.goto(path);
@@ -640,7 +727,10 @@ test("core decision routes have no serious automated accessibility violations", 
   for (const path of [
     "/",
     "/search?q=myer&spend=500",
+    "/deals?view=popular",
+    "/cashback",
     "/gift-cards",
+    "/gift-cards/weekly",
     "/rewards/everyday-rewards",
   ]) {
     await page.goto(path);

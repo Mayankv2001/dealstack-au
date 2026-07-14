@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 const LINKS: ReadonlyArray<readonly [label: string, href: string]> = [
   ["Find an offer", "/gift-cards"],
+  ["Weekly supermarket offers", "/gift-cards/weekly"],
   ["Find a gift card", "/gift-cards/products"],
   ["Where can I use it?", "/gift-cards/where-to-use"],
   ["Where can I buy it?", "/gift-cards/where-to-buy"],
@@ -30,14 +31,14 @@ export function GiftCardsSubnav({
         className
       )}
     >
-      {LINKS.map(([label, href], index) => (
+      {LINKS.map(([label, href]) => (
         <Link
           key={href}
           href={href}
           aria-current={href === current ? "page" : undefined}
           className={cn(
             "shrink-0 rounded-xl border border-transparent px-3 py-2 text-muted-foreground transition hover:bg-muted hover:text-foreground",
-            index === 4 && "ml-1 border-l-foreground/10",
+            href === "/gift-cards/history" && "ml-1 border-l-foreground/10",
             href === current &&
               "border-emerald-700 bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 hover:text-white"
           )}

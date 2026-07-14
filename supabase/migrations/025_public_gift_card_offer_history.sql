@@ -17,6 +17,7 @@ create table if not exists public.gift_card_offer_occurrences (
   fixed_dollars       numeric,
   bonus_percent       numeric,
   points_multiplier   numeric,
+  fixed_points        numeric,
   points_programme    text,
   threshold_dollars   numeric,
   start_date          date,
@@ -32,7 +33,9 @@ create table if not exists public.gift_card_offer_occurrences (
       when 'discount' then discount_percent > 0
       when 'fixed-dollar-discount' then fixed_dollars > 0 and threshold_dollars > 0
       when 'bonus-value' then bonus_percent > 0
-      when 'points' then points_multiplier > 0 and nullif(btrim(points_programme), '') is not null
+      when 'points' then (coalesce(points_multiplier, 0) > 0 or coalesce(fixed_points, 0) > 0)
+        and not (coalesce(points_multiplier, 0) > 0 and coalesce(fixed_points, 0) > 0)
+        and nullif(btrim(points_programme), '') is not null
       when 'promo-credit' then fixed_dollars > 0 and threshold_dollars > 0
       when 'fee-waiver' then fixed_dollars is null or fixed_dollars >= 0
       when 'membership' then discount_percent > 0

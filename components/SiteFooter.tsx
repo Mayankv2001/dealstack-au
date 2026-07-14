@@ -6,6 +6,7 @@ const EXPLORE_LINKS = [
   ["Deals", "/deals"],
   ["Stores", "/stores"],
   ["Gift-card deals", "/gift-cards"],
+  ["Cashback", "/cashback"],
   ["Points", "/rewards"],
   ["Card offers", "/cards"],
 ] as const;

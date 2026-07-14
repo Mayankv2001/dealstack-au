@@ -46,6 +46,7 @@ export interface PublicGiftCardOccurrence {
   fixedDollars: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints: number | null;
   pointsProgramme: string | null;
   thresholdDollars: number | null;
   startDate: string | null;
@@ -97,6 +98,7 @@ interface OccurrenceRow {
   fixed_dollars: number | string | null;
   bonus_percent: number | string | null;
   points_multiplier: number | string | null;
+  fixed_points: number | string | null;
   points_programme: string | null;
   threshold_dollars: number | string | null;
   start_date: string | null;
@@ -217,6 +219,7 @@ export async function getGiftCardOfferOccurrences(): Promise<PublicGiftCardOccur
       fixedDollars: toNumberOrNull(row.fixed_dollars),
       bonusPercent: toNumberOrNull(row.bonus_percent),
       pointsMultiplier: toNumberOrNull(row.points_multiplier),
+      fixedPoints: toNumberOrNull(row.fixed_points),
       pointsProgramme: row.points_programme,
       thresholdDollars: toNumberOrNull(row.threshold_dollars),
       startDate: row.start_date,

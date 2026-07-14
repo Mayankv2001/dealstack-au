@@ -179,6 +179,8 @@ function valueBadge(offer: GiftCardOffer, mechanic: Mechanic): string {
     case "points":
       return offer.pointsMultiplier
         ? `${displayNumber(offer.pointsMultiplier)}× POINTS`
+        : offer.fixedPoints
+          ? `${displayNumber(offer.fixedPoints)} POINTS`
         : "POINTS";
     case "member-discount":
       return `${displayNumber(offer.discountPercent)}% MEMBER`;
@@ -212,6 +214,8 @@ function headline(offer: GiftCardOffer, mechanic: Mechanic): string {
     case "points":
       return offer.pointsMultiplier
         ? `${displayNumber(offer.pointsMultiplier)}× ${pointsProgram(offer)} points`
+        : offer.fixedPoints
+          ? `${displayNumber(offer.fixedPoints)} ${pointsProgram(offer)} points`
         : `${pointsProgram(offer)} points`;
     case "bonus-points":
       return `Bonus ${pointsProgram(offer)} points`;

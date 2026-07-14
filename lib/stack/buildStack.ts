@@ -35,7 +35,8 @@ import {
   summariseGiftCardStackability,
   type GiftCardStackability,
 } from "@/lib/giftcards/stackability";
-import { valuePointsOffer } from "@/lib/giftcards/value";
+import { valueFixedPointsOffer, valuePointsOffer } from "@/lib/giftcards/value";
+import { offerEffectiveSaving } from "@/lib/giftcards/publicQuery";
 
 /**
  * The stack engine.
@@ -166,12 +167,14 @@ function bestPointsGiftCard(
     (offer) =>
       offer.acceptedAtMerchantIds.includes(merchantId) &&
       offer.promotionType === "points" &&
-      (offer.pointsMultiplier ?? 0) > 0 &&
+      ((offer.pointsMultiplier ?? 0) > 0 || (offer.fixedPoints ?? 0) > 0) &&
       Boolean(offer.pointsProgram ?? offer.pointsOnPurchase?.program)
   );
   if (accepted.length === 0) return null;
   return accepted.reduce((best, offer) =>
-    (offer.pointsMultiplier ?? 0) > (best.pointsMultiplier ?? 0) ? offer : best
+    (offerEffectiveSaving(offer) ?? 0) > (offerEffectiveSaving(best) ?? 0)
+      ? offer
+      : best
   );
 }
 
@@ -601,6 +604,13 @@ function buildForStore(
           pointsGiftCard.pointsOnPurchase?.program ??
           null,
         pointsGiftCard.pointsValueCents ?? null
+      ) ?? valueFixedPointsOffer(
+        pointsGiftCard.fixedPoints ?? null,
+        checkoutPrice,
+        pointsGiftCard.pointsProgram ??
+          pointsGiftCard.pointsOnPurchase?.program ??
+          null,
+        pointsGiftCard.pointsValueCents ?? null,
       )
     : null;
   const pointsGiftCardOptional = Boolean(
@@ -631,7 +641,9 @@ function buildForStore(
     }
     components.push({
       layer: "points",
-      label: `${pointsGiftCard.pointsMultiplier}× ${programme} when buying ${pointsGiftCard.brand} gift cards via ${pointsGiftCard.source}`,
+      label: pointsGiftCard.fixedPoints
+        ? `${pointsGiftCard.fixedPoints.toLocaleString("en-AU")} ${programme} points when buying ${pointsGiftCard.brand} gift cards via ${pointsGiftCard.source}`
+        : `${pointsGiftCard.pointsMultiplier}× ${programme} when buying ${pointsGiftCard.brand} gift cards via ${pointsGiftCard.source}`,
       pointsEarned: pointsGiftCardValuation.points,
       valueDollars: pointsGiftCardValuation.valueDollars,
       optional: pointsGiftCardOptional,

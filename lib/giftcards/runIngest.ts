@@ -70,6 +70,9 @@ export interface IngestMetrics {
 
 export interface RunIngestDeps {
   now(): Date;
+  /** Source adapter; absent preserves the GCDB RSS parser. */
+  parseBody?(body: string): GcdbFeedItem[];
+  parserVersion?: number;
   /** Optional approved structured-data adapter for compound source children. */
   extractItem?(item: GcdbFeedItem): ExtractedOffer[];
   /** Bounded, allowlisted conditional GET. */
@@ -97,9 +100,12 @@ export interface RunIngestConfig {
 }
 
 /** Stable content hash over the item's factual fields (order-independent). */
-export function contentHashOf(item: GcdbFeedItem): string {
+export function contentHashOf(
+  item: GcdbFeedItem,
+  parserVersion: number = GCDB_PARSER_VERSION,
+): string {
   const basis = [
-    `parser:${GCDB_PARSER_VERSION}`,
+    `parser:${parserVersion}`,
     `extractor:${EXTRACTOR_VERSION}`,
     item.title,
     item.canonicalUrl,
@@ -111,6 +117,7 @@ export function contentHashOf(item: GcdbFeedItem): string {
     item.isOngoing ? "ongoing" : "",
     item.sourceMarkedExpired ? "expired" : "",
     item.excerpt,
+    item.weeklyFacts ? JSON.stringify(item.weeklyFacts) : "",
   ].join("");
   return createHash("sha256").update(basis).digest("hex");
 }
@@ -157,7 +164,9 @@ export async function runGiftCardIngest(
   }
 
   metrics.snapshotHash = createHash("sha256").update(fetched.body).digest("hex");
-  const items = parseGcdbFeed(fetched.body).slice(0, Math.max(1, config.maxItems));
+  const items = (
+    deps.parseBody?.(fetched.body) ?? parseGcdbFeed(fetched.body)
+  ).slice(0, Math.max(1, config.maxItems));
   metrics.itemsSeen = items.length;
 
   const existing = await deps.loadRawItems(source.id, items.map((i) => i.externalId));
@@ -169,7 +178,7 @@ export async function runGiftCardIngest(
       if (extractions.length === 0) {
         throw new Error("No review candidates were extracted from the source item.");
       }
-      const hash = contentHashOf(item);
+      const hash = contentHashOf(item, deps.parserVersion);
       const before = byExternalId.get(item.externalId);
 
       if (!before) {

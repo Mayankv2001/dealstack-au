@@ -92,6 +92,7 @@ function PrimaryNav({ params }: { params: DealsParams }) {
       trust: "verified" as const,
     },
     { label: "Latest", view: "recent" as const, trust: null },
+    { label: "Popular", view: "popular" as const, trust: null },
     { label: "Expiring", view: "expiring" as const, trust: null },
     { label: "All deals", view: "discover" as const, trust: null },
   ];
@@ -191,6 +192,24 @@ function ActiveFilters({ params }: { params: DealsParams }) {
     filters.push(["targeted", "Targeted", { targeted: false }]);
   if (params.added)
     filters.push(["added", `Added: ${params.added}`, { added: null }]);
+  if (params.channel)
+    filters.push([
+      "channel",
+      params.channel === "in-store" ? "In-store" : "Online",
+      { channel: null },
+    ]);
+  if (params.ending)
+    filters.push([
+      "ending",
+      params.ending === "72h" ? "Ending within 72h" : "Ending this week",
+      { ending: null },
+    ]);
+  if (params.minSaving != null)
+    filters.push([
+      "minSaving",
+      `Saving: ${params.minSaving}%+`,
+      { minSaving: null },
+    ]);
   if (!filters.length) return null;
   return (
     <div
@@ -435,6 +454,19 @@ function Results({
           {params.added ? (
             <input type="hidden" name="added" value={params.added} />
           ) : null}
+          {params.channel ? (
+            <input type="hidden" name="channel" value={params.channel} />
+          ) : null}
+          {params.ending ? (
+            <input type="hidden" name="ending" value={params.ending} />
+          ) : null}
+          {params.minSaving != null ? (
+            <input
+              type="hidden"
+              name="minSaving"
+              value={params.minSaving}
+            />
+          ) : null}
           <label className="grid gap-1 text-xs font-medium" htmlFor="deal-sort">
             Sort by
             <select
@@ -455,53 +487,55 @@ function Results({
           </Button>
         </Form>
       </div>
-      <div className="flex flex-col gap-4 lg:flex-row">
+      <div className="space-y-4">
         <DealsFilters params={params} stores={bundle.stores} />
-        <div className="min-w-0 flex-1">
-          <ActiveFilters params={params} />
-          {result.items.length ? (
-            <div className="mt-4">
-              <DealGrid items={result.items} stores={bundle.stores} now={now} />
-            </div>
-          ) : (
-            <EmptyState
-              filtered={activeFilterCount(params) > 0 || Boolean(params.q)}
-              verified={params.view === "top" || params.trust === "verified"}
-            />
-          )}
-          {result.pageCount > 1 ? (
-            <nav
-              aria-label="Results pages"
-              className="mt-8 flex items-center justify-center gap-3"
-            >
-              {result.page > 1 ? (
-                <Button asChild variant="outline">
-                  <Link href={dealsHref(params, { page: result.page - 1 })}>
-                    <ArrowLeft aria-hidden /> Previous
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="outline" disabled>
+        <ActiveFilters params={params} />
+        {params.view === "popular" ? (
+          <p className="rounded-lg border border-orange-500/20 bg-orange-500/[0.06] px-3 py-2 text-xs text-muted-foreground">
+            Popularity uses captured comment and vote counts for discovery. It
+            does not prove that an offer is current or compatible.
+          </p>
+        ) : null}
+        {result.items.length ? (
+          <DealGrid items={result.items} stores={bundle.stores} now={now} />
+        ) : (
+          <EmptyState
+            filtered={activeFilterCount(params) > 0 || Boolean(params.q)}
+            verified={params.view === "top" || params.trust === "verified"}
+          />
+        )}
+        {result.pageCount > 1 ? (
+          <nav
+            aria-label="Results pages"
+            className="mt-8 flex items-center justify-center gap-3"
+          >
+            {result.page > 1 ? (
+              <Button asChild variant="outline">
+                <Link href={dealsHref(params, { page: result.page - 1 })}>
                   <ArrowLeft aria-hidden /> Previous
-                </Button>
-              )}
-              <span className="text-sm text-muted-foreground">
-                Page {result.page} of {result.pageCount}
-              </span>
-              {result.page < result.pageCount ? (
-                <Button asChild variant="outline">
-                  <Link href={dealsHref(params, { page: result.page + 1 })}>
-                    Next <ArrowRight aria-hidden />
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="outline" disabled>
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
+                <ArrowLeft aria-hidden /> Previous
+              </Button>
+            )}
+            <span className="text-sm text-muted-foreground">
+              Page {result.page} of {result.pageCount}
+            </span>
+            {result.page < result.pageCount ? (
+              <Button asChild variant="outline">
+                <Link href={dealsHref(params, { page: result.page + 1 })}>
                   Next <ArrowRight aria-hidden />
-                </Button>
-              )}
-            </nav>
-          ) : null}
-        </div>
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
+                Next <ArrowRight aria-hidden />
+              </Button>
+            )}
+          </nav>
+        ) : null}
       </div>
     </section>
   );

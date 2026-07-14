@@ -61,6 +61,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   "024_gift_card_programmes.sql",
   "025_public_gift_card_offer_history.sql",
   "026_public_correction_reports.sql",
+  // Constraint + disabled registry row only. It permits the private source
+  // registry to describe HTML, but leaves fetch and publication gates closed.
+  "027_point_hacks_weekly_gift_cards.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -106,6 +109,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "combinable_with_seller_promotions", "terms_url", "included_product_ids",
       "seller_name", "source_id", "source_raw_item_id", "source_candidate_id",
       "source_suboffer_key", "reward_destination", "fixed_discount_dollars",
+      "fixed_points",
       "promo_credit_dollars", "fee_waiver_dollars", "threshold_dollars",
       "is_ongoing", "targeted",
     ],
@@ -140,6 +144,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       source_suboffer_key: "023_gift_card_accuracy_model.sql",
       reward_destination: "023_gift_card_accuracy_model.sql",
       fixed_discount_dollars: "023_gift_card_accuracy_model.sql",
+      fixed_points: "023_gift_card_accuracy_model.sql",
       promo_credit_dollars: "023_gift_card_accuracy_model.sql",
       fee_waiver_dollars: "023_gift_card_accuracy_model.sql",
       threshold_dollars: "023_gift_card_accuracy_model.sql",
@@ -364,6 +369,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "reviewed_at", "rejection_reason", "approved_offer_id", "created_at",
       "updated_at", "suboffer_key", "candidate_role", "source_fingerprint",
       "reward_destination", "fixed_discount_dollars", "promo_credit_dollars",
+      "fixed_points",
       "fee_waiver_dollars", "threshold_dollars", "is_ongoing", "targeted",
       "source_present", "source_removed_at",
     ],
@@ -371,6 +377,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       [
         "suboffer_key", "candidate_role", "source_fingerprint",
         "reward_destination", "fixed_discount_dollars", "promo_credit_dollars",
+        "fixed_points",
         "fee_waiver_dollars", "threshold_dollars", "is_ongoing", "targeted",
         "source_present", "source_removed_at",
       ].map((column) => [column, "023_gift_card_accuracy_model.sql"])
@@ -402,7 +409,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
   gift_card_offer_occurrences: table("025_public_gift_card_offer_history.sql", [
     "id", "source_offer_id", "seller_key", "seller_name", "product_key",
     "product_name", "promotion_type", "discount_percent", "fixed_dollars",
-    "bonus_percent", "points_multiplier", "points_programme",
+    "bonus_percent", "points_multiplier", "fixed_points", "points_programme",
     "threshold_dollars", "start_date", "end_date", "source_url",
     "verified_at", "sealed_at", "created_at",
   ]),

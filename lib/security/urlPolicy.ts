@@ -2,6 +2,10 @@ const RAW_WHITESPACE_OR_CONTROL = /[\u0000-\u0020\u007f]/;
 const APPROVED_FEED_HOSTS: Readonly<Record<string, ReadonlySet<string>>> = {
   ozbargain: new Set(["ozbargain.com.au", "www.ozbargain.com.au"]),
   gcdb: new Set(["gcdb.com.au", "www.gcdb.com.au"]),
+  pointhacks_weekly_gift_cards: new Set([
+    "pointhacks.com.au",
+    "www.pointhacks.com.au",
+  ]),
 };
 
 /** Canonical public HTTPS URL, or null when navigation would be unsafe. */
@@ -96,6 +100,21 @@ export function isApprovedFeedUrl(sourceType: string, value: string): boolean {
 
   const url = new URL(canonical);
   return approvedHosts.has(url.hostname.toLowerCase());
+}
+
+/** The only editorial HTML page the weekly gift-card adapter may request. */
+export function isApprovedPointHacksWeeklyUrl(value: string): boolean {
+  const canonical = safeHttpsUrl(value);
+  if (!canonical) return false;
+  const url = new URL(canonical);
+  return (
+    APPROVED_FEED_HOSTS.pointhacks_weekly_gift_cards.has(
+      url.hostname.toLowerCase(),
+    ) &&
+    url.pathname.replace(/\/+$/, "") === "/weekly-gift-card-offers" &&
+    url.search === "" &&
+    url.hash === ""
+  );
 }
 
 /** Exact OzBargain deal-post URL permitted for status-only HEAD validation. */

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import GiftCardOfferCard from "@/components/GiftCardOfferCard";
 import RewardsCalculator from "@/components/RewardsCalculator";
@@ -66,6 +67,19 @@ export default async function RewardsDetailPage({
         <p className="mt-3 max-w-3xl text-muted-foreground">
           {programme.description}
         </p>
+        {programme.slug === "flybuys" ||
+        programme.slug === "everyday-rewards" ? (
+          <Link
+            href={
+              programme.slug === "flybuys"
+                ? "/gift-cards/weekly?view=flybuys"
+                : "/gift-cards/weekly?view=everyday-rewards"
+            }
+            className="mt-4 inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2 text-sm font-semibold text-emerald-800 hover:border-emerald-500/60"
+          >
+            Weekly supermarket gift-card offers
+          </Link>
+        ) : null}
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <RewardsCalculator
             programme={programme.name}

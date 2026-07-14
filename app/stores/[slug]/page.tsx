@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, FileSearch, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BadgePercent,
+  CircleDollarSign,
+  FileSearch,
+  Gift,
+  ShieldCheck,
+  Star,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DealStackCalculator from "@/components/DealStackCalculator";
 import { JsonLd } from "@/components/JsonLd";
@@ -15,6 +24,7 @@ import { formatAUD } from "@/lib/calculateStack";
 import { siteUrl } from "@/lib/env";
 import { publicFreshness } from "@/lib/freshness";
 import { getStores } from "@/lib/repos";
+import type { StackLayer, StackRecommendation } from "@/lib/offers/types";
 import { storeSourceResults } from "@/lib/repos/sourceResults";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
@@ -29,6 +39,99 @@ import { cn } from "@/lib/utils";
 // the home, search and /deals routes. getStores() falls back to static data when
 // Supabase is unconfigured or unavailable, so every store page still renders.
 export const revalidate = 300;
+
+const LAYER_SECTIONS: ReadonlyArray<{
+  layer: StackLayer;
+  title: string;
+  empty: string;
+  icon: typeof BadgePercent;
+}> = [
+  {
+    layer: "discount",
+    title: "Promo codes",
+    empty: "No reviewed current code",
+    icon: BadgePercent,
+  },
+  {
+    layer: "gift-card",
+    title: "Gift cards",
+    empty: "No compatible card saving recorded",
+    icon: Gift,
+  },
+  {
+    layer: "cashback",
+    title: "Cashback",
+    empty: "No reviewed current rate",
+    icon: CircleDollarSign,
+  },
+  {
+    layer: "points",
+    title: "Points",
+    empty: "No reviewed points opportunity",
+    icon: Star,
+  },
+];
+
+function StoreLayerOverview({
+  recommendation,
+}: {
+  recommendation: StackRecommendation | null;
+}) {
+  return (
+    <section className="mt-7" aria-labelledby="current-opportunities">
+      <p className="eyebrow">Current opportunities</p>
+      <h2 id="current-opportunities" className="mt-2 text-xl font-black tracking-tight sm:text-2xl">
+        Scan this store by saving layer
+      </h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        These are the exact layers considered by the purchase-planning engine.
+        A recorded offer is not automatically compatible with every other one.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {LAYER_SECTIONS.map(({ layer, title, empty, icon: Icon }) => {
+          const component = recommendation?.components.find(
+            (candidate) => candidate.layer === layer,
+          );
+          return (
+            <article key={layer} className="rounded-xl border bg-card p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-700">
+                  <Icon aria-hidden className="size-4" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                  {component
+                    ? component.optional
+                      ? "Check before use"
+                      : "Included in plan"
+                    : "Not recorded"}
+                </span>
+              </div>
+              <h3 className="mt-3 text-sm font-black">{title}</h3>
+              {component ? (
+                <>
+                  <p className="mt-1 line-clamp-2 text-sm leading-snug">
+                    {component.label}
+                  </p>
+                  <p className="mt-3 text-xs font-semibold text-emerald-700">
+                    {layer === "points"
+                      ? `Estimated later value ${formatAUD(component.valueDollars ?? 0)}`
+                      : layer === "cashback"
+                        ? `Expected later ${formatAUD(component.valueDollars ?? 0)}`
+                        : `Immediate value ${formatAUD(component.valueDollars ?? 0)}`}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {empty}
+                </p>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 // Pre-render one page per trusted store. In live-data mode getStores() fails
 // closed to an empty list when the database is unavailable; dynamicParams keeps
@@ -167,7 +270,18 @@ export default async function StorePage({
               Plan a {store.name} purchase{" "}
               <ArrowRight aria-hidden className="size-4" />
             </Link>
+            {store.id === "coles" || store.id === "woolworths" ? (
+              <Link
+                href={`/gift-cards/weekly?view=${store.id}`}
+                className="mt-2 inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold hover:bg-muted"
+              >
+                View this week’s {store.name} gift-card offers
+                <ArrowRight aria-hidden className="size-3.5" />
+              </Link>
+            ) : null}
           </div>
+
+          <StoreLayerOverview recommendation={recommendation} />
 
           {recommendation ? (
             <section className="mt-6" aria-labelledby="store-plan-breakdown">

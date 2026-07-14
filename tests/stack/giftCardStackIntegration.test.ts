@@ -67,6 +67,31 @@ describe("stack integration — points gift cards", () => {
     expect(points?.note).toMatch(/cash price is unchanged/i);
     expect(points?.compatibilityStatus).toBe("likely-compatible");
   });
+
+  it("keeps a fixed points award constant and separate from cash paid", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer" })],
+      giftCardProducts: [makeGiftCardProduct()],
+      giftCardAcceptance: [makeGiftCardAcceptance()],
+      giftCardOffers: [makeGiftCard({
+        productId: "product-1",
+        acceptedAtMerchantIds: ["myer"],
+        discountPercent: 0,
+        promotionType: "points",
+        pointsMultiplier: null,
+        fixedPoints: 2000,
+        pointsProgram: "Flybuys",
+      })],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    expect(rec.effectivePrice).toBe(500);
+    expect(rec.totalSaving).toBe(0);
+    expect(rec.pointsEarned).toBe(2000);
+    expect(rec.pointsValueDollars).toBe(10);
+    expect(
+      rec.components.find((component) => component.layer === "points")?.label,
+    ).toMatch(/2,000 Flybuys points/i);
+  });
 });
 
 describe("stack integration — action-gated gift cards", () => {

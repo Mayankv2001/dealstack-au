@@ -28,6 +28,8 @@ function occurrenceValue(
     return `${occurrence.bonusPercent}% bonus value`;
   if ((occurrence.pointsMultiplier ?? 0) > 0)
     return `${occurrence.pointsMultiplier}× ${occurrence.pointsProgramme ?? "points"}`;
+  if ((occurrence.fixedPoints ?? 0) > 0)
+    return `${occurrence.fixedPoints!.toLocaleString("en-AU")} ${occurrence.pointsProgramme ?? "points"}`;
   if ((occurrence.fixedDollars ?? 0) > 0)
     return `$${occurrence.fixedDollars} ${occurrence.promotionType.replaceAll("-", " ")}`;
   return occurrence.promotionType.replaceAll("-", " ");
@@ -40,6 +42,7 @@ function numericValue(
     occurrence.discountPercent ??
     occurrence.bonusPercent ??
     occurrence.pointsMultiplier ??
+    occurrence.fixedPoints ??
     occurrence.fixedDollars ??
     0
   );

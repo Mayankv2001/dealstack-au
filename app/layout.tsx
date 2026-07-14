@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 // Site-wide defaults; routes that export their own metadata override these.
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: "DealStack AU — Stack cashback, gift cards & points",
+  title: "DealStack AU — Plan a purchase and combine savings",
   description:
-    "A deal-stacking research tool for Australian shoppers: combine discount codes, cashback, discounted gift cards and points programmes into one effective price.",
+    "An Australian purchase-planning tool that keeps checkout savings, later cashback and points separate while checking compatibility.",
   openGraph: {
     siteName: "DealStack AU",
     locale: "en_AU",

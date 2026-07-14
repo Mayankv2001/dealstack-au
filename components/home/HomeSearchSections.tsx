@@ -81,10 +81,10 @@ export function HomeSearchSections({
   return (
     <>
       <section className="border-b border-foreground/10 bg-card">
-        <div className="page-container py-10 sm:py-14 lg:py-16">
-          <div className="max-w-4xl">
+        <div className="page-container grid gap-8 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(30rem,1.1fr)] lg:items-center lg:gap-12 lg:py-16">
+          <div>
             <p className="eyebrow">Australia’s purchase-planning engine</p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-black leading-[1.04] tracking-[-0.045em] sm:text-5xl lg:text-[3.5rem]">
+            <h1 className="mt-3 max-w-3xl text-4xl font-black leading-[1.04] tracking-[-0.045em] sm:text-5xl lg:text-[3.35rem]">
               Plan the cheapest way to buy
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -92,24 +92,7 @@ export function HomeSearchSections({
               codes, gift cards, cashback and points, then shows the safest
               order to use them.
             </p>
-
-            <div
-              id="store-search"
-              className="mt-6 max-w-3xl scroll-mt-24 rounded-xl border border-foreground/10 bg-background p-2.5 shadow-sm"
-            >
-              <SearchBar
-                size="lg"
-                layout="split"
-                value={query}
-                onValueChange={setQuery}
-                placeholder="Search a store, e.g. Myer, JB Hi-Fi or Amazon"
-                buttonLabel="Build my saving plan"
-                showSpend
-                defaultSpend={500}
-              />
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
+            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
               <Link
                 href="/deals"
                 className="inline-flex items-center gap-1.5 text-emerald-800 hover:underline dark:text-emerald-300"
@@ -124,44 +107,79 @@ export function HomeSearchSections({
                 Search by store
               </a>
             </div>
-            <div className="mt-6 flex flex-wrap gap-3 text-xs font-semibold text-muted-foreground">
-              {[
-                "Human-reviewed",
-                "Sources visible",
-                "Points kept separate from cash",
-              ].map((item) => (
-                <span key={item} className="inline-flex items-center gap-1.5">
-                  <Check aria-hidden className="size-3.5 text-emerald-700" />{" "}
-                  {item}
-                </span>
-              ))}
+          </div>
+
+          <div
+            id="store-search"
+            className="scroll-mt-24 rounded-2xl border border-foreground/10 bg-background p-4 shadow-[0_18px_50px_-32px_rgba(6,78,59,0.45)] sm:p-5"
+          >
+            <div className="flex items-start justify-between gap-4 border-b pb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
+                  Build your plan
+                </p>
+                <h2 className="mt-1 text-lg font-black tracking-tight">
+                  Where are you shopping?
+                </h2>
+              </div>
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-200">
+                Takes about 30 seconds
+              </span>
             </div>
+
+            <SearchBar
+              className="mt-4"
+              size="lg"
+              layout="split"
+              value={query}
+              onValueChange={setQuery}
+              placeholder="Search a store, e.g. Myer, JB Hi-Fi or Amazon"
+              buttonLabel="Build my saving plan"
+              showSpend
+              defaultSpend={500}
+            />
+
+            <dl className="mt-5 grid gap-2 text-xs sm:grid-cols-3">
+              {[
+                ["Cash today", "Codes and gift-card cost"],
+                ["Value later", "Cashback and points"],
+                ["Use this order", "Compatibility and warnings"],
+              ].map(([term, detail]) => (
+                <div key={term} className="rounded-lg bg-muted/60 p-3">
+                  <dt className="flex items-center gap-1.5 font-bold">
+                    <Check aria-hidden className="size-3.5 text-emerald-700" />
+                    {term}
+                  </dt>
+                  <dd className="mt-1 leading-relaxed text-muted-foreground">
+                    {detail}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">
+              Human-reviewed sources. Points and delayed rewards never reduce
+              the cash you pay today.
+            </p>
           </div>
         </div>
       </section>
 
-      <section
-        className="page-container py-8 sm:py-10"
-        aria-labelledby="featured-plan-heading"
-      >
-        <p className="eyebrow">Featured purchase plan</p>
-        <h2
-          id="featured-plan-heading"
-          className="mt-2 text-2xl font-black tracking-tight"
+      {heroStack ? (
+        <section
+          className="page-container py-8 sm:py-10"
+          aria-labelledby="featured-plan-heading"
         >
-          See the answer before the fine print
-        </h2>
-        {heroStack ? (
+          <p className="eyebrow">Featured purchase plan</p>
+          <h2
+            id="featured-plan-heading"
+            className="mt-2 text-2xl font-black tracking-tight"
+          >
+            See the answer before the fine print
+          </h2>
           <HeroReceipt recommendation={heroStack} />
-        ) : (
-          <Card className="mt-5 border-dashed bg-background shadow-none">
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              No fully verified featured stack is available right now. Search a
-              store to review its available saving layers and exclusions.
-            </CardContent>
-          </Card>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       {todayFeed}
 

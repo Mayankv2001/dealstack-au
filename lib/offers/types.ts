@@ -83,6 +83,8 @@ export interface GiftCardOffer {
   bonusPercent?: number | null;
   /** "20x points" style promotions. */
   pointsMultiplier?: number | null;
+  /** A fixed points award, kept distinct from a spend multiplier. */
+  fixedPoints?: number | null;
   pointsProgram?: string | null;
   /** Cents-per-point for the disclosed valuation (overrides the default). */
   pointsValueCents?: number | null;

@@ -90,11 +90,37 @@ export function valuePointsOffer(
   };
 }
 
+/** Value a fixed points award without pretending it scales with spend. */
+export function valueFixedPointsOffer(
+  fixedPoints: number | null,
+  faceValue: number,
+  program: string | null,
+  pointValueCentsOverride?: number | null,
+): PointsValuation | null {
+  if (!fixedPoints || !Number.isFinite(fixedPoints) || fixedPoints <= 0)
+    return null;
+  if (!Number.isFinite(faceValue) || faceValue <= 0) return null;
+  const cents = pointValueCentsOverride ?? defaultPointValueCents(program);
+  if (cents == null || cents <= 0) return null;
+  const points = Math.round(fixedPoints);
+  const valueDollars = round2((points * cents) / 100);
+  return {
+    points,
+    valueDollars,
+    pointValueCents: cents,
+    effectiveDiscountPercent: round2(
+      (valueDollars / (faceValue + valueDollars)) * 100,
+    ),
+    effectiveCostDollars: round2(faceValue - valueDollars),
+  };
+}
+
 export interface OfferValueInputs {
   promotionType: string;
   discountPercent: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints?: number | null;
   pointsProgram: string | null;
   pointsValueCents?: number | null;
   fixedDiscountDollars?: number | null;
@@ -152,12 +178,19 @@ export function effectiveDiscountPercent(
         100
     );
   }
-  const points = valuePointsOffer(
-    offer.pointsMultiplier,
-    faceValue,
-    offer.pointsProgram,
-    offer.pointsValueCents
-  );
+  const points =
+    valuePointsOffer(
+      offer.pointsMultiplier,
+      faceValue,
+      offer.pointsProgram,
+      offer.pointsValueCents,
+    ) ??
+    valueFixedPointsOffer(
+      offer.fixedPoints ?? null,
+      faceValue,
+      offer.pointsProgram,
+      offer.pointsValueCents,
+    );
   return points ? points.effectiveDiscountPercent : null;
 }
 
@@ -218,12 +251,19 @@ export function buildWorkedExample(
   const discount =
     offer.discountPercent && offer.discountPercent > 0 ? offer.discountPercent : 0;
   const bonus = offer.bonusPercent && offer.bonusPercent > 0 ? offer.bonusPercent : 0;
-  const pointsValuation = valuePointsOffer(
-    offer.pointsMultiplier,
-    covered,
-    offer.pointsProgram,
-    offer.pointsValueCents
-  );
+  const pointsValuation =
+    valuePointsOffer(
+      offer.pointsMultiplier,
+      covered,
+      offer.pointsProgram,
+      offer.pointsValueCents,
+    ) ??
+    valueFixedPointsOffer(
+      offer.fixedPoints ?? null,
+      covered,
+      offer.pointsProgram,
+      offer.pointsValueCents,
+    );
   if (discount <= 0 && bonus <= 0 && !pointsValuation) return null;
 
   const cashPaid = round2(covered * (1 - discount / 100));

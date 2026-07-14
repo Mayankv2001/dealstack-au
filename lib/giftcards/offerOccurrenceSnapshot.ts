@@ -22,6 +22,7 @@ export interface ExpiredGiftCardOfferForHistory {
   feeWaiverDollars: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints: number | null;
   pointsProgramme: string | null;
   thresholdDollars: number | null;
   startDate: string | null;
@@ -41,6 +42,7 @@ export interface OfferOccurrenceInsert {
   fixed_dollars: number | null;
   bonus_percent: number | null;
   points_multiplier: number | null;
+  fixed_points: number | null;
   points_programme: string | null;
   threshold_dollars: number | null;
   start_date: string | null;
@@ -71,7 +73,10 @@ export function buildOfferOccurrenceSnapshot(
   const valid =
     ((promotionType === "discount" || promotionType === "membership") && (offer.discountPercent ?? 0) > 0) ||
     (promotionType === "bonus-value" && (offer.bonusPercent ?? 0) > 0) ||
-    (promotionType === "points" && (offer.pointsMultiplier ?? 0) > 0 && Boolean(offer.pointsProgramme?.trim())) ||
+    (promotionType === "points" &&
+      ((offer.pointsMultiplier ?? 0) > 0 || (offer.fixedPoints ?? 0) > 0) &&
+      !((offer.pointsMultiplier ?? 0) > 0 && (offer.fixedPoints ?? 0) > 0) &&
+      Boolean(offer.pointsProgramme?.trim())) ||
     ((promotionType === "fixed-dollar-discount" || promotionType === "promo-credit") && (fixedDollars ?? 0) > 0 && (offer.thresholdDollars ?? 0) > 0) ||
     (promotionType === "fee-waiver" && (fixedDollars == null || fixedDollars >= 0));
   if (!valid) throw new Error("The offer does not have the structured value required for its mechanic.");
@@ -86,6 +91,7 @@ export function buildOfferOccurrenceSnapshot(
     fixed_dollars: fixedDollars,
     bonus_percent: promotionType === "bonus-value" ? offer.bonusPercent : null,
     points_multiplier: promotionType === "points" ? offer.pointsMultiplier : null,
+    fixed_points: promotionType === "points" ? offer.fixedPoints : null,
     points_programme: promotionType === "points" ? offer.pointsProgramme?.trim() || null : null,
     threshold_dollars: offer.thresholdDollars,
     start_date: offer.startDate,

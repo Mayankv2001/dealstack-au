@@ -23,7 +23,9 @@ export interface DedupCandidate {
   discountPercent: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints: number | null;
   pointsProgram: string | null;
+  denominationNote: string | null;
   startsAt: string | null;
   expiresAt: string | null;
   sourceUrl: string | null;
@@ -38,7 +40,9 @@ export interface PublishedOfferSummary {
   discountPercent: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints: number | null;
   pointsProgram: string | null;
+  denominationNote: string | null;
   startDate: string | null;
   expiryDate: string | null;
   sourceDetailUrl: string | null;
@@ -115,10 +119,25 @@ function valuesMatch(c: DedupCandidate, o: PublishedOfferSummary): boolean {
         !o.pointsProgram)
     );
   }
+  if ((c.fixedPoints ?? 0) > 0 || (o.fixedPoints ?? 0) > 0) {
+    return (
+      c.fixedPoints != null &&
+      c.fixedPoints === o.fixedPoints &&
+      (norm(c.pointsProgram) === norm(o.pointsProgram) ||
+        !c.pointsProgram ||
+        !o.pointsProgram)
+    );
+  }
   if ((c.bonusPercent ?? 0) > 0 || (o.bonusPercent ?? 0) > 0) {
     return c.bonusPercent != null && c.bonusPercent === o.bonusPercent;
   }
   return false;
+}
+
+function denominationsMatch(c: DedupCandidate, o: PublishedOfferSummary): boolean {
+  const candidate = norm(c.denominationNote).replace(/\s+/g, " ");
+  const published = norm(o.denominationNote).replace(/\s+/g, " ");
+  return !candidate || !published || candidate === published;
 }
 
 function datesMatch(c: DedupCandidate, o: PublishedOfferSummary): boolean {
@@ -161,6 +180,7 @@ export function findDuplicateOffers(
     const sameType = norm(candidate.promotionType) === norm(offer.promotionType);
     const sameValue = valuesMatch(candidate, offer);
     const sameDates = datesMatch(candidate, offer);
+    const sameDenominations = denominationsMatch(candidate, offer);
     const offerExpired = Boolean(
       today && offer.expiryDate && offer.expiryDate < today
     );
@@ -174,9 +194,12 @@ export function findDuplicateOffers(
     }
 
     if (sameType && sameValue) {
-      if (sameDates) {
-        reasons.push("Same promotion type, value and dates.");
+      if (sameDates && sameDenominations) {
+        reasons.push("Same promotion type, value, dates and recorded denominations.");
         matches.push({ offer, verdict: "probable-duplicate", reasons });
+      } else if (!sameDenominations) {
+        reasons.push("Same mechanic and value but the recorded denominations differ.");
+        matches.push({ offer, verdict: "overlapping-campaign", reasons });
       } else {
         reasons.push(
           "Same promotion type and value but the dates changed — likely a renewed campaign."

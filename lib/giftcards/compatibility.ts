@@ -107,6 +107,7 @@ export function evaluateGiftCardCompatibility(
   }
   const isPoints =
     (offer.pointsMultiplier ?? 0) > 0 ||
+    (offer.fixedPoints ?? 0) > 0 ||
     offer.pointsOnPurchase != null ||
     offer.promotionType === "points";
   if (isPoints) {

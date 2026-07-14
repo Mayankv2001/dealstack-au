@@ -22,8 +22,7 @@ const NAV_LINKS = [
   { label: "Gift cards", href: "/gift-cards", icon: Gift },
   {
     label: "Cashback",
-    href: "/deals?kind=cashback",
-    matchPath: "/cashback",
+    href: "/cashback",
     icon: CircleDollarSign,
   },
   { label: "Points", href: "/rewards", icon: Star },
@@ -61,11 +60,8 @@ export function SiteHeader() {
             className="ml-4 hidden items-center gap-1 lg:flex"
             aria-label="Primary navigation"
           >
-            {NAV_LINKS.map(({ label, href, ...link }) => {
-              const active = isActive(
-                pathname,
-                "matchPath" in link ? link.matchPath : href,
-              );
+            {NAV_LINKS.map(({ label, href }) => {
+              const active = isActive(pathname, href);
               return (
                 <Link
                   key={href}
@@ -147,11 +143,8 @@ export function SiteHeader() {
               aria-label="Mobile navigation"
               className="mx-auto grid max-w-7xl gap-1 px-4 py-3 sm:grid-cols-2 sm:px-6"
             >
-              {NAV_LINKS.map(({ label, href, icon: Icon, ...link }) => {
-                const active = isActive(
-                  pathname,
-                  "matchPath" in link ? link.matchPath : href,
-                );
+              {NAV_LINKS.map(({ label, href, icon: Icon }) => {
+                const active = isActive(pathname, href);
                 return (
                   <Link
                     key={href}

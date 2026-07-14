@@ -42,6 +42,7 @@ export function classifyOfferChange(
   if (numChanged(before.discountPercent, after.discountPercent)) changed.push("discountPercent");
   if (numChanged(before.bonusPercent, after.bonusPercent)) changed.push("bonusPercent");
   if (numChanged(before.pointsMultiplier, after.pointsMultiplier)) changed.push("pointsMultiplier");
+  if (numChanged(before.fixedPoints ?? null, after.fixedPoints ?? null)) changed.push("fixedPoints");
   if (numChanged(before.fixedDiscountDollars, after.fixedDiscountDollars)) changed.push("fixedDiscountDollars");
   if (numChanged(before.promoCreditDollars, after.promoCreditDollars)) changed.push("promoCreditDollars");
   if (numChanged(before.feeWaiverDollars, after.feeWaiverDollars)) changed.push("feeWaiverDollars");
@@ -64,7 +65,7 @@ export function classifyOfferChange(
   if (brandsBefore !== brandsAfter) changed.push("giftCardBrands");
 
   // Value/seller/type changes are material — the promotion itself changed.
-  const material = ["discountPercent", "bonusPercent", "pointsMultiplier",
+  const material = ["discountPercent", "bonusPercent", "pointsMultiplier", "fixedPoints",
     "fixedDiscountDollars", "promoCreditDollars", "feeWaiverDollars",
     "thresholdDollars", "pointsProgram", "promotionType",
     "rewardDestination", "sellerName", "sourcePresence"];

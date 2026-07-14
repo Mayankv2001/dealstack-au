@@ -58,6 +58,7 @@ interface GiftCardRow {
   promotion_type: GiftCardOffer["promotionType"] | null;
   bonus_percent: number | string | null;
   points_multiplier: number | string | null;
+  fixed_points: number | string | null;
   points_program: string | null;
   points_value_cents: number | string | null;
   fixed_discount_dollars: number | string | null;
@@ -123,6 +124,7 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
     promotionType: r.promotion_type ?? "discount",
     bonusPercent: toNumberOrNull(r.bonus_percent),
     pointsMultiplier: toNumberOrNull(r.points_multiplier),
+    fixedPoints: toNumberOrNull(r.fixed_points),
     pointsProgram: r.points_program,
     pointsValueCents: toNumberOrNull(r.points_value_cents),
     fixedDiscountDollars: toNumberOrNull(r.fixed_discount_dollars),

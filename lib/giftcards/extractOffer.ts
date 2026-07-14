@@ -1,4 +1,5 @@
 import type { GcdbFeedItem } from "./parseGcdbFeed";
+import type { WeeklyGiftCardFacts } from "./pointHacksWeekly";
 import { bonusEffectiveDiscountPercent, effectiveDiscountPercent } from "./value";
 
 /**
@@ -38,6 +39,7 @@ export interface SourceSubOffer {
   fixedDiscountDollars?: number | null;
   bonusPercent?: number | null;
   pointsMultiplier?: number | null;
+  fixedPoints?: number | null;
   pointsProgram?: string | null;
   promoCreditDollars?: number | null;
   feeWaiverDollars?: number | null;
@@ -62,6 +64,7 @@ export interface ExtractedOffer {
   discountPercent: number | null;
   bonusPercent: number | null;
   pointsMultiplier: number | null;
+  fixedPoints?: number | null;
   pointsProgram: string | null;
   fixedDiscountDollars: number | null;
   promoCreditDollars: number | null;
@@ -82,6 +85,8 @@ export interface ExtractedOffer {
   /** 0–1: how confidently the structured fields were extracted. */
   confidence: number;
   warnings: string[];
+  /** Source-specific factual fields retained privately for admin review. */
+  weeklyFacts?: WeeklyGiftCardFacts;
 }
 
 const PROGRAM_PATTERNS: Array<[RegExp, string]> = [
@@ -233,6 +238,7 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
     discountPercent,
     bonusPercent,
     pointsMultiplier,
+    fixedPoints: null,
     pointsProgram,
     fixedDiscountDollars: null,
     promoCreditDollars: null,
@@ -277,6 +283,7 @@ function extractionFromSubOffer(
     discountPercent: child.discountPercent ?? null,
     bonusPercent: child.bonusPercent ?? null,
     pointsMultiplier: child.pointsMultiplier ?? null,
+    fixedPoints: child.fixedPoints ?? null,
     pointsProgram: child.pointsProgram ?? null,
     fixedDiscountDollars: child.fixedDiscountDollars ?? null,
     promoCreditDollars: child.promoCreditDollars ?? null,
@@ -297,6 +304,7 @@ function extractionFromSubOffer(
     discountPercent: child.discountPercent ?? null,
     bonusPercent: child.bonusPercent ?? null,
     pointsMultiplier: child.pointsMultiplier ?? null,
+    fixedPoints: child.fixedPoints ?? null,
     pointsProgram: child.pointsProgram ?? null,
     fixedDiscountDollars: child.fixedDiscountDollars ?? null,
     promoCreditDollars: child.promoCreditDollars ?? null,
@@ -348,6 +356,7 @@ export function extractOffers(
         discountPercent: null,
         bonusPercent: null,
         pointsMultiplier: null,
+        fixedPoints: null,
         pointsProgram: null,
         effectiveDiscountPercent: null,
         warnings: [

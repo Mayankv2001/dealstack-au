@@ -12,6 +12,7 @@ export const DEALS_VIEWS = [
   "discover",
   "top",
   "recent",
+  "popular",
   "stacks",
   "gift-cards",
   "cashback",
@@ -25,6 +26,7 @@ export const VIEW_LABEL: Record<DealsView, string> = {
   discover: "All deals",
   top: "Best verified",
   recent: "Latest",
+  popular: "Popular",
   stacks: "Best stacks",
   "gift-cards": "Gift cards",
   cashback: "Cashback",
@@ -61,6 +63,7 @@ export const DEAL_KIND_LABEL: Record<
 export const DEALS_SORTS = [
   "recommended",
   "newest",
+  "discussed",
   "expiring",
   "saving",
   "price-low",
@@ -71,6 +74,7 @@ export type DealsSort = (typeof DEALS_SORTS)[number];
 export const SORT_LABEL: Record<DealsSort, string> = {
   recommended: "Recommended",
   newest: "Newly added",
+  discussed: "Most discussed",
   expiring: "Expiring soon",
   saving: "Biggest saving",
   "price-low": "Lowest price",
@@ -114,6 +118,8 @@ export const TRUST_FILTER_LABEL: Record<TrustFilter, string> = {
 };
 
 export type AddedFilter = "today" | "week" | null;
+export type ChannelFilter = "online" | "in-store" | null;
+export type EndingFilter = "72h" | "week" | null;
 
 export interface DealsParams {
   q: string;
@@ -129,6 +135,9 @@ export interface DealsParams {
   activation: boolean;
   targeted: boolean;
   added: AddedFilter;
+  channel: ChannelFilter;
+  ending: EndingFilter;
+  minSaving: number | null;
   page: number;
   /** Spend (dollars) the stack estimates are calculated on. */
   spend: number;
@@ -148,6 +157,9 @@ export const DEFAULT_PARAMS: DealsParams = {
   activation: false,
   targeted: false,
   added: null,
+  channel: null,
+  ending: null,
+  minSaving: null,
   page: 1,
   spend: 500,
 };
@@ -227,6 +239,19 @@ export function parseDealsParams(raw: RawSearchParams): DealsParams {
   const rawAdded = first(raw.added);
   if (rawAdded === "today" || rawAdded === "week") params.added = rawAdded;
 
+  const rawChannel = first(raw.channel);
+  if (rawChannel === "online" || rawChannel === "in-store") {
+    params.channel = rawChannel;
+  }
+
+  const rawEnding = first(raw.ending);
+  if (rawEnding === "72h" || rawEnding === "week") {
+    params.ending = rawEnding;
+  }
+
+  const minSaving = Number.parseInt(first(raw.minSaving), 10);
+  if ([5, 10, 20].includes(minSaving)) params.minSaving = minSaving;
+
   const page = Number.parseInt(first(raw.page), 10);
   if (Number.isFinite(page) && page >= 1 && page <= 500) params.page = page;
 
@@ -255,7 +280,10 @@ export function isDiscoverMode(params: DealsParams): boolean {
     !params.membership &&
     !params.activation &&
     !params.targeted &&
-    params.added == null
+    params.added == null &&
+    params.channel == null &&
+    params.ending == null &&
+    params.minSaving == null
   );
 }
 
@@ -272,6 +300,9 @@ export function activeFilterCount(params: DealsParams): number {
   if (params.activation) count++;
   if (params.targeted) count++;
   if (params.added) count++;
+  if (params.channel) count++;
+  if (params.ending) count++;
+  if (params.minSaving != null) count++;
   return count;
 }
 
@@ -300,6 +331,10 @@ export function dealsHref(
   if (merged.activation) query.set("activation", "1");
   if (merged.targeted) query.set("targeted", "1");
   if (merged.added) query.set("added", merged.added);
+  if (merged.channel) query.set("channel", merged.channel);
+  if (merged.ending) query.set("ending", merged.ending);
+  if (merged.minSaving != null)
+    query.set("minSaving", String(merged.minSaving));
   if (merged.spend !== DEFAULT_PARAMS.spend)
     query.set("spend", String(merged.spend));
   if (merged.page > 1) query.set("page", String(merged.page));

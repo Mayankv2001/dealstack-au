@@ -132,6 +132,9 @@ function offerTitle(offer: GiftCardOffer): string {
   if ((offer.pointsMultiplier ?? 0) > 0 && program) {
     return `${round1(offer.pointsMultiplier!)}× ${program} points on ${offer.brand} gift cards at ${seller}`;
   }
+  if ((offer.fixedPoints ?? 0) > 0 && program) {
+    return `${offer.fixedPoints!.toLocaleString("en-AU")} ${program} points on ${offer.brand} gift cards at ${seller}`;
+  }
   return `${offer.brand} gift card offer at ${seller}`;
 }
 
@@ -278,6 +281,7 @@ export default async function GiftCardDetailPage({
     : null;
   const involvesPoints =
     (offer.pointsMultiplier ?? 0) > 0 ||
+    (offer.fixedPoints ?? 0) > 0 ||
     offer.pointsOnPurchase != null ||
     offer.promotionType === "points";
 
@@ -589,6 +593,7 @@ export default async function GiftCardDetailPage({
                   discountPercent: offer.discountPercent || null,
                   bonusPercent: offer.bonusPercent ?? null,
                   pointsMultiplier: offer.pointsMultiplier ?? null,
+                  fixedPoints: offer.fixedPoints ?? null,
                   pointsProgram:
                     offer.pointsProgram ??
                     offer.pointsOnPurchase?.program ??

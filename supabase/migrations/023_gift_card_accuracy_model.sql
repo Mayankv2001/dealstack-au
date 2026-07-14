@@ -34,6 +34,7 @@ alter table public.gift_card_offer_candidates
       'loyalty-points', 'waived-fee'
     )),
   add column if not exists fixed_discount_dollars numeric,
+  add column if not exists fixed_points numeric,
   add column if not exists promo_credit_dollars numeric,
   add column if not exists fee_waiver_dollars numeric,
   add column if not exists threshold_dollars numeric,
@@ -45,6 +46,7 @@ alter table public.gift_card_offer_candidates
 alter table public.gift_card_offer_candidates
   add constraint gift_card_candidates_accuracy_values_check check (
     (fixed_discount_dollars is null or fixed_discount_dollars > 0) and
+    (fixed_points is null or fixed_points > 0) and
     (promo_credit_dollars is null or promo_credit_dollars > 0) and
     (fee_waiver_dollars is null or fee_waiver_dollars > 0) and
     (threshold_dollars is null or threshold_dollars > 0) and
@@ -65,6 +67,7 @@ begin
   new.candidate_role := coalesce(nullif(new.terms_json->>'candidateRole', ''), new.candidate_role, 'single-offer');
   new.reward_destination := coalesce(nullif(new.terms_json->>'rewardDestination', ''), new.reward_destination);
   new.fixed_discount_dollars := coalesce((new.terms_json->>'fixedDiscountDollars')::numeric, new.fixed_discount_dollars);
+  new.fixed_points := coalesce((new.terms_json->>'fixedPoints')::numeric, new.fixed_points);
   new.promo_credit_dollars := coalesce((new.terms_json->>'promoCreditDollars')::numeric, new.promo_credit_dollars);
   new.fee_waiver_dollars := coalesce((new.terms_json->>'feeWaiverDollars')::numeric, new.fee_waiver_dollars);
   new.threshold_dollars := coalesce((new.terms_json->>'thresholdDollars')::numeric, new.threshold_dollars);
@@ -82,6 +85,7 @@ begin
     'fixed', new.fixed_discount_dollars,
     'bonus', new.bonus_percent,
     'points', new.points_multiplier,
+    'fixedPoints', new.fixed_points,
     'program', new.points_program,
     'credit', new.promo_credit_dollars,
     'fee', new.fee_waiver_dollars,
@@ -175,6 +179,7 @@ alter table public.gift_card_offers
       'loyalty-points', 'waived-fee'
     )),
   add column if not exists fixed_discount_dollars numeric,
+  add column if not exists fixed_points numeric,
   add column if not exists promo_credit_dollars numeric,
   add column if not exists fee_waiver_dollars numeric,
   add column if not exists threshold_dollars numeric,
@@ -188,6 +193,7 @@ where seller_name is null and purchase_location is not null;
 alter table public.gift_card_offers
   add constraint gift_card_offers_accuracy_values_check check (
     (fixed_discount_dollars is null or fixed_discount_dollars > 0) and
+    (fixed_points is null or fixed_points > 0) and
     (promo_credit_dollars is null or promo_credit_dollars > 0) and
     (fee_waiver_dollars is null or fee_waiver_dollars > 0) and
     (threshold_dollars is null or threshold_dollars > 0) and
@@ -211,7 +217,8 @@ alter table public.gift_card_offers
           and threshold_dollars > 0 and reward_destination = 'checkout-discount'
         when 'bonus-value' then bonus_percent > 0
           and reward_destination = 'gift-card-value'
-        when 'points' then points_multiplier > 0
+        when 'points' then (coalesce(points_multiplier, 0) > 0 or coalesce(fixed_points, 0) > 0)
+          and not (coalesce(points_multiplier, 0) > 0 and coalesce(fixed_points, 0) > 0)
           and nullif(btrim(points_program), '') is not null
           and reward_destination = 'loyalty-points'
         when 'promo-credit' then promo_credit_dollars > 0
@@ -286,9 +293,12 @@ begin
     raise exception 'An offer cannot be dated and ongoing.';
   end if;
   if mechanic = 'points' and (
-    coalesce((p_offer->>'points_multiplier')::numeric, 0) <= 0 or
+    (coalesce((p_offer->>'points_multiplier')::numeric, 0) <= 0 and
+      coalesce((p_offer->>'fixed_points')::numeric, 0) <= 0) or
+    (coalesce((p_offer->>'points_multiplier')::numeric, 0) > 0 and
+      coalesce((p_offer->>'fixed_points')::numeric, 0) > 0) or
     nullif(btrim(p_offer->>'points_program'), '') is null
-  ) then raise exception 'Points require a multiplier and programme.'; end if;
+  ) then raise exception 'Points require exactly one of multiplier or fixed points, plus a programme.'; end if;
   if mechanic = 'fixed-dollar-discount' and (
     coalesce((p_offer->>'fixed_discount_dollars')::numeric, 0) <= 0 or
     coalesce((p_offer->>'threshold_dollars')::numeric, 0) <= 0
@@ -307,7 +317,7 @@ begin
     expiry_date, start_date, purchase_location, purchase_method,
     limit_per_customer, accepted_at, usage_notes, stack_notes,
     source_detail_url, citations, confidence, last_checked_at, is_published,
-    promotion_type, bonus_percent, points_multiplier, points_program,
+    promotion_type, bonus_percent, points_multiplier, fixed_points, points_program,
     points_value_cents, membership_required, activation_required,
     coupon_required, min_spend, denomination_note, format, source_name,
     product_id, source_last_seen_at, promo_code, expiry_time, expiry_timezone,
@@ -331,7 +341,8 @@ begin
     raw_item.canonical_url, coalesce(p_offer->'citations', '[]'::jsonb),
     coalesce(p_offer->>'confidence', 'needs-verification'), now(), true,
     mechanic, (p_offer->>'bonus_percent')::numeric,
-    (p_offer->>'points_multiplier')::numeric, p_offer->>'points_program',
+    (p_offer->>'points_multiplier')::numeric,
+    (p_offer->>'fixed_points')::numeric, p_offer->>'points_program',
     (p_offer->>'points_value_cents')::numeric,
     coalesce((p_offer->>'membership_required')::boolean, false),
     coalesce((p_offer->>'activation_required')::boolean, false),
@@ -368,6 +379,7 @@ begin
     confidence = excluded.confidence, last_checked_at = excluded.last_checked_at,
     is_published = true, promotion_type = excluded.promotion_type,
     bonus_percent = excluded.bonus_percent, points_multiplier = excluded.points_multiplier,
+    fixed_points = excluded.fixed_points,
     points_program = excluded.points_program, points_value_cents = excluded.points_value_cents,
     membership_required = excluded.membership_required,
     activation_required = excluded.activation_required, coupon_required = excluded.coupon_required,
