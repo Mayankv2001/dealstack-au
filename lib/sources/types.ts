@@ -1,17 +1,8 @@
 export type SourceId =
-  | "ozbargain"
-  | "pointhacks"
-  | "freepoints"
-  | "gcdb"
-  | "manual";
+  "ozbargain" | "pointhacks" | "freepoints" | "gcdb" | "manual";
 
 export type DealKind =
-  | "discount-code"
-  | "cashback"
-  | "gift-card"
-  | "points"
-  | "guide"
-  | "card";
+  "discount-code" | "cashback" | "gift-card" | "points" | "guide" | "card";
 
 export type Confidence = "confirmed" | "needs-verification" | "expired-unknown";
 
@@ -101,7 +92,7 @@ export const SOURCE_META: Record<SourceId, SourceMeta> = {
     trustWeight: 0.8,
   },
   manual: {
-    displayName: "DealStack verified",
+    displayName: "DealStack record",
     homepage: "/",
     publisherFamily: "dealstack",
     trustWeight: 1,

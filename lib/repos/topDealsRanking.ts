@@ -6,12 +6,16 @@
  * The DB read + safety filtering live in lib/repos/topDeals.ts; this module is
  * the testable scoring core.
  *
- * Ranking order (highest first):
- *   1. tracked-store match (an item that names one of our stores)
- *   2. relevance score = useful keyword hits MINUS broad/unrelated penalties
+ * Ranking order (highest first, after upstream publication eligibility):
+ *   1. confirmed-current date state (unknown dates remain visible but lower)
+ *   2. most recent completed source check
+ *   3. tracked-store match (an item that names one of our stores)
+ *   4. relevance score = useful keyword hits MINUS broad/unrelated penalties
  *      (so anime figures, random gaming peripherals, generic fashion and
  *      unrelated home goods sink below genuine stacking signals)
- *   3. recency (newest posted_at, else fetched_at)
+ *   5. recency (newest posted_at, else fetched_at)
+ * The final homepage selection prefers one item per merchant, normally caps a
+ * merchant at two, and relaxes that cap only for genuinely sparse data.
  */
 
 import { DEAL_CATEGORY_KEYWORDS } from "@/lib/dealCategories";
@@ -33,6 +37,8 @@ export interface RankableFeedItem {
   link: string;
   postedAt: string | null;
   fetchedAt: string;
+  lastCheckedAt: string | null;
+  expiryDate: string | null;
   categories: string[];
 }
 
@@ -45,6 +51,8 @@ export interface TopDeal {
   sourceHost: string;
   postedAt: string | null;
   fetchedAt: string;
+  lastCheckedAt: string | null;
+  expiryDate: string | null;
   categories: string[];
   nativeId: string;
   relevance: Relevance;
@@ -238,13 +246,16 @@ export function sourceHostFromUrl(url: string): string {
 
 /** Lowercased store name with a trailing " au"/" australia" trimmed for matching. */
 function storeNeedle(name: string): string {
-  return name.toLowerCase().replace(/\s+(au|australia)$/, "").trim();
+  return name
+    .toLowerCase()
+    .replace(/\s+(au|australia)$/, "")
+    .trim();
 }
 
 /** First tracked store named in the haystack, or null. */
 export function matchStoreName(
   haystack: string,
-  stores: StoreRef[]
+  stores: StoreRef[],
 ): string | null {
   for (const store of stores) {
     const needle = storeNeedle(store.name);
@@ -260,7 +271,7 @@ export function matchStoreName(
 export function countKeywordHits(haystack: string): number {
   return POSITIVE_KEYWORDS.reduce(
     (n, kw) => (haystack.includes(kw) ? n + 1 : n),
-    0
+    0,
   );
 }
 
@@ -268,7 +279,7 @@ export function countKeywordHits(haystack: string): number {
 export function countNegativeHits(haystack: string): number {
   return TOP_DEAL_NEGATIVE_KEYWORDS.reduce(
     (n, kw) => (haystack.includes(kw) ? n + 1 : n),
-    0
+    0,
   );
 }
 
@@ -288,11 +299,13 @@ interface Scored {
   /** Net relevance: useful keyword hits minus broad/unrelated penalties. */
   relevanceScore: number;
   ts: number;
+  checkedTs: number;
+  confirmedCurrent: boolean;
 }
 
 function score(item: RankableFeedItem, stores: StoreRef[]): Scored {
-  const haystack = `${item.title} ${item.summary} ${item.categories.join(" ")}`
-    .toLowerCase();
+  const haystack =
+    `${item.title} ${item.summary} ${item.categories.join(" ")}`.toLowerCase();
   const keywordHits = countKeywordHits(haystack);
   const negativeHits = countNegativeHits(haystack);
   return {
@@ -302,6 +315,8 @@ function score(item: RankableFeedItem, stores: StoreRef[]): Scored {
     negativeHits,
     relevanceScore: keywordHits - negativeHits,
     ts: recencyMs(item),
+    checkedTs: item.lastCheckedAt ? Date.parse(item.lastCheckedAt) || 0 : 0,
+    confirmedCurrent: item.expiryDate !== null,
   };
 }
 
@@ -316,13 +331,66 @@ function relevanceOf(s: Scored): Relevance {
  * pass in the already-filtered candidate items (no ignored/duplicate) and the
  * tracked stores. Sort is by store match, then keyword hits, then recency.
  */
+export function merchantDiverseSelection<T>(
+  ranked: T[],
+  merchantKey: (item: T) => string | null,
+  limit: number,
+  merchantCap = 2,
+): T[] {
+  const target = Math.max(0, limit);
+  if (target === 0) return [];
+
+  const selected: T[] = [];
+  const selectedItems = new Set<T>();
+  const counts = new Map<string, number>();
+  const keyFor = (item: T, index: number) =>
+    merchantKey(item)?.trim().toLowerCase() || `unknown:${index}`;
+
+  // First pass: best-ranked entry for each known merchant (unknown merchants
+  // stay distinct because there is no evidence they are the same retailer).
+  const seen = new Set<string>();
+  ranked.forEach((item, index) => {
+    if (selected.length >= target) return;
+    const key = keyFor(item, index);
+    if (seen.has(key)) return;
+    seen.add(key);
+    selected.push(item);
+    selectedItems.add(item);
+    counts.set(key, 1);
+  });
+
+  // Second pass: preserve original rank while respecting the normal cap.
+  ranked.forEach((item, index) => {
+    if (selected.length >= target || selectedItems.has(item)) return;
+    const key = keyFor(item, index);
+    if ((counts.get(key) ?? 0) >= merchantCap) return;
+    selected.push(item);
+    selectedItems.add(item);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  // Sparse datasets may contain only one or two merchants. Fill truthfully
+  // rather than inventing diversity or returning an unnecessarily short feed.
+  ranked.forEach((item) => {
+    if (selected.length >= target || selectedItems.has(item)) return;
+    selected.push(item);
+    selectedItems.add(item);
+  });
+
+  return selected;
+}
+
 export function rankTopDeals(
   items: RankableFeedItem[],
   stores: StoreRef[],
-  limit = 5
+  limit = 5,
 ): TopDeal[] {
   const scored = items.map((item) => score(item, stores));
   scored.sort((a, b) => {
+    if (a.confirmedCurrent !== b.confirmedCurrent) {
+      return Number(b.confirmedCurrent) - Number(a.confirmedCurrent);
+    }
+    if (a.checkedTs !== b.checkedTs) return b.checkedTs - a.checkedTs;
     const aStore = a.matchedStoreName ? 1 : 0;
     const bStore = b.matchedStoreName ? 1 : 0;
     if (aStore !== bStore) return bStore - aStore;
@@ -332,7 +400,7 @@ export function rankTopDeals(
     return b.ts - a.ts;
   });
 
-  return scored.slice(0, Math.max(0, limit)).map((s) => ({
+  const ranked = scored.map((s) => ({
     id: s.item.id,
     title: s.item.title,
     summary: s.item.summary,
@@ -340,9 +408,16 @@ export function rankTopDeals(
     sourceHost: sourceHostFromUrl(s.item.link),
     postedAt: s.item.postedAt,
     fetchedAt: s.item.fetchedAt,
+    lastCheckedAt: s.item.lastCheckedAt,
+    expiryDate: s.item.expiryDate,
     categories: s.item.categories,
     nativeId: s.item.nativeId,
     relevance: relevanceOf(s),
     matchedStoreName: s.matchedStoreName,
   }));
+  return merchantDiverseSelection(
+    ranked,
+    (deal) => deal.matchedStoreName,
+    limit,
+  );
 }

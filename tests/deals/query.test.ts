@@ -4,6 +4,7 @@ import {
   dedupeDeals,
   filterActive,
   groupDeals,
+  isStrictlyVerifiedDeal,
   queryDeals,
   sortItems,
 } from "@/lib/deals/query";
@@ -27,6 +28,7 @@ function deal(over: Partial<PublicDeal> = {}): PublicDeal {
     savingPercent: 31,
     couponCode: null,
     trust: "community",
+    dealStackVerified: false,
     membershipRequired: false,
     activationRequired: false,
     targeted: false,
@@ -34,6 +36,7 @@ function deal(over: Partial<PublicDeal> = {}): PublicDeal {
     postedAt: "2026-07-12T01:00:00Z",
     lastCheckedAt: "2026-07-12T02:00:00Z",
     expiryDate: "2026-07-15",
+    dateStatus: "confirmed-current",
     sourceName: "OzBargain",
     publisherFamily: "ozbargain",
     capturedAt: "2026-07-12T02:00:00Z",
@@ -199,5 +202,174 @@ describe("deals query engine", () => {
     const first = result.items[0];
     expect(first.type).toBe("deal");
     if (first.type === "deal") expect(first.deal.id).toBe("newer");
+  });
+
+  it("limits Best verified to current, fresh, evidenced DealStack outcomes", () => {
+    const verified = deal({
+      id: "verified-current",
+      kind: "gift-card",
+      trust: "verified",
+      dealStackVerified: true,
+      lastCheckedAt: "2026-07-11T00:00:00Z",
+      expiryDate: "2026-07-20",
+      dateStatus: "confirmed-current",
+      sourceUrl: "https://www.gcdb.com.au/offer/current",
+    });
+    const needsRecheck = {
+      ...verified,
+      id: "needs-recheck",
+      sourceNativeId: "needs-recheck",
+      lastCheckedAt: "2026-06-01T00:00:00Z",
+    };
+    const unknownDate = {
+      ...verified,
+      id: "unknown-date",
+      sourceNativeId: "unknown-date",
+      expiryDate: null,
+      dateStatus: "unknown" as const,
+    };
+    const sourceConfirmedOnly = {
+      ...verified,
+      id: "source-confirmed",
+      sourceNativeId: "source-confirmed",
+      dealStackVerified: false,
+    };
+    const missingSource = {
+      ...verified,
+      id: "missing-source",
+      sourceNativeId: "missing-source",
+      sourceUrl: null,
+    };
+    const expired = {
+      ...verified,
+      id: "expired",
+      sourceNativeId: "expired",
+      expiryDate: "2026-07-11",
+      dateStatus: "expired" as const,
+    };
+
+    expect(isStrictlyVerifiedDeal(verified, NOW)).toBe(true);
+    const result = queryDeals(
+      [
+        needsRecheck,
+        unknownDate,
+        sourceConfirmedOnly,
+        expired,
+        missingSource,
+        verified,
+      ],
+      { ...DEFAULT_PARAMS, view: "top", trust: "verified" },
+      NOW,
+    );
+    expect(
+      result.items.map((item) =>
+        item.type === "deal" ? item.deal.id : item.group.productGroup,
+      ),
+    ).toEqual(["verified-current"]);
+  });
+
+  it("applies strict verified semantics to trust=verified outside the top view", () => {
+    const sourceConfirmedOnly = deal({
+      id: "source-confirmed",
+      kind: "gift-card",
+      trust: "verified",
+      dealStackVerified: false,
+      sourceUrl: "https://www.gcdb.com.au/offer/current",
+    });
+    const result = queryDeals(
+      [sourceConfirmedOnly],
+      { ...DEFAULT_PARAMS, view: "discover", trust: "verified" },
+      NOW,
+    );
+    expect(result.total).toBe(0);
+  });
+
+  it("ranks confirmed-current records above comparable unknown-date records", () => {
+    const unknown = deal({
+      id: "unknown",
+      sourceNativeId: "unknown",
+      dateStatus: "unknown",
+      expiryDate: null,
+      score: 100,
+      postedAt: "2026-07-12T10:00:00Z",
+    });
+    const current = deal({
+      id: "current",
+      sourceNativeId: "current",
+      dateStatus: "confirmed-current",
+      expiryDate: "2026-07-20",
+      score: 1,
+      postedAt: "2026-07-10T10:00:00Z",
+    });
+    const sorted = sortItems(
+      [
+        { type: "deal", deal: unknown },
+        { type: "deal", deal: current },
+      ],
+      "recommended",
+      NOW,
+    );
+    expect(sorted[0]).toMatchObject({ type: "deal", deal: { id: "current" } });
+  });
+
+  it("does not let an unknown-date unverified record outrank a comparable current one", () => {
+    const current = deal({
+      id: "current-unverified",
+      sourceNativeId: "current-unverified",
+      trust: "source-checked",
+      dateStatus: "confirmed-current",
+      score: 5,
+    });
+    const unknown = deal({
+      id: "unknown-unverified",
+      sourceNativeId: "unknown-unverified",
+      trust: "source-checked",
+      dateStatus: "unknown",
+      expiryDate: null,
+      score: 99,
+    });
+    const sorted = sortItems(
+      [
+        { type: "deal", deal: unknown },
+        { type: "deal", deal: current },
+      ],
+      "recommended",
+      NOW,
+    );
+    expect(sorted[0]).toMatchObject({
+      type: "deal",
+      deal: { id: "current-unverified" },
+    });
+  });
+
+  it("keeps equal-status ordering stable", () => {
+    const first = deal({ id: "first", sourceNativeId: "first" });
+    const second = deal({ id: "second", sourceNativeId: "second" });
+    const sorted = sortItems(
+      [
+        { type: "deal", deal: first },
+        { type: "deal", deal: second },
+      ],
+      "recommended",
+      NOW,
+    );
+    expect(
+      sorted.map((item) => (item.type === "deal" ? item.deal.id : "")),
+    ).toEqual(["first", "second"]);
+  });
+
+  it("keeps unknown-date offers in All deals but out of Expiring", () => {
+    const unknown = deal({
+      id: "unknown",
+      sourceNativeId: "unknown",
+      expiryDate: null,
+      dateStatus: "unknown",
+    });
+    expect(
+      queryDeals([unknown], { ...DEFAULT_PARAMS, view: "discover" }, NOW).total,
+    ).toBe(1);
+    expect(
+      queryDeals([unknown], { ...DEFAULT_PARAMS, view: "expiring" }, NOW).total,
+    ).toBe(0);
   });
 });

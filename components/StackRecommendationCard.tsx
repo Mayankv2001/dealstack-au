@@ -10,7 +10,6 @@ import {
   Info,
   Link2,
   type LucideIcon,
-  Shuffle,
   Sparkles,
   Star,
   Store as StoreIcon,
@@ -23,6 +22,7 @@ import StoreLogo from "@/components/StoreLogo";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatAUD } from "@/lib/calculateStack";
 import type { Store } from "@/lib/data";
+import { publicFreshness } from "@/lib/freshness";
 import type {
   StackComponent,
   StackLayer,
@@ -30,7 +30,9 @@ import type {
   StackWarningLevel,
 } from "@/lib/offers/types";
 import {
+  excludedLayerReason,
   hasChooseOneLayer,
+  isVerifiedStackLayer,
   layerCompatibility,
   layerStatusLabel,
   layerUncertaintyDetails,
@@ -193,21 +195,19 @@ function ConditionsSummary({ rec }: { rec: StackRecommendation }) {
 }
 
 /** "Checked 25 Jun 2026 · Ends 31 Jul 2026" — the card's currency proof. */
-function FreshnessRow({ rec }: { rec: StackRecommendation }) {
-  const checked = formatDateAU(rec.checkedAsOf?.slice(0, 10) ?? null);
+function FreshnessRow({ rec, now }: { rec: StackRecommendation; now: Date }) {
+  const freshness = publicFreshness(rec.checkedAsOf, now);
   const ends = formatDateAU(rec.soonestExpiry ?? null);
-  if (!checked && !ends) return null;
   return (
     <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-      {checked ? (
-        <span className="inline-flex items-center gap-1">
-          <CalendarClock aria-hidden className="size-3" />
-          Layers checked {checked}
-        </span>
-      ) : null}
+      <span className="inline-flex items-center gap-1">
+        <CalendarClock aria-hidden className="size-3" />
+        {freshness.label}
+        {freshness.checkedDate ? ` · checked ${freshness.checkedDate}` : ""}
+      </span>
       <span className="inline-flex items-center gap-1">
         <Info aria-hidden className="size-3" />
-        {ends ? `First layer ends ${ends}` : "No known expiry"}
+        {ends ? `First layer ends ${ends}` : "Date unknown"}
       </span>
     </p>
   );
@@ -232,120 +232,199 @@ function LayerStatusChip({ component }: { component: StackComponent }) {
   );
 }
 
-function LayerList({ rec }: { rec: StackRecommendation }) {
-  const included = rec.components.filter((component) => !component.optional);
-  const excluded = rec.components.filter((component) => component.optional);
-  const ordered = [...included, ...excluded];
-  const presentation = recommendationPresentation(rec);
-  const combinableCount = included.filter(
-    (c) => !c.optional && (c.valueDollars ?? 0) > 0 && c.layer !== "points",
-  ).length;
+function layerDisplayValue(component: StackComponent): string {
+  if (component.layer === "points") {
+    const points = (component.pointsEarned ?? 0).toLocaleString("en-AU");
+    return component.valueDollars
+      ? `${points} points · estimated ${formatAUD(component.valueDollars)}`
+      : `${points} points`;
+  }
+  const percent =
+    typeof component.valuePercent === "number" && component.valuePercent > 0
+      ? `${component.valuePercent}%`
+      : null;
+  const dollars = component.valueDollars
+    ? formatAUD(component.valueDollars)
+    : null;
+  return [percent, dollars].filter(Boolean).join(" · ") || "Value not recorded";
+}
+
+function LayerRow({
+  component,
+  section,
+  combinableCount,
+}: {
+  component: StackComponent;
+  section: "included" | "excluded" | "rewards";
+  combinableCount: number;
+}) {
+  const meta = layerMeta[component.layer];
+  const compat = layerCompatibility(component);
+  const showCombined =
+    section === "included" && compat === "combined" && combinableCount >= 2;
+  const uncertainty = layerUncertaintyDetails(component);
+
   return (
-    <div className="space-y-1.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Included in recommended plan · {presentation.verifiedLayerCount} of{" "}
-        {presentation.includedLayerCount} verified
-      </p>
-      {ordered.map((c, i) => {
-        const meta = layerMeta[c.layer];
-        const compat = layerCompatibility(c);
-        const showCombined =
-          compat === "combined" && c.layer !== "points" && combinableCount >= 2;
-        const uncertainty = layerUncertaintyDetails(c);
-        return (
-          <div key={`${c.layer}-${i}`}>
-            {i === included.length && excluded.length > 0 ? (
-              <p className="mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Available but excluded
+    <div
+      className={cn(
+        "flex items-start gap-2 rounded-lg border px-2.5 py-2",
+        section === "excluded" && "border-dashed bg-muted/40",
+        section === "rewards" && "border-amber-500/20 bg-amber-500/[0.04]",
+      )}
+    >
+      <span
+        className={cn(
+          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md",
+          meta.tile,
+        )}
+      >
+        <meta.icon aria-hidden className="size-3" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium">{component.label}</span>
+          <LayerStatusChip component={component} />
+          {section === "excluded" ? (
+            <span className="inline-flex shrink-0 items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] font-semibold text-amber-700 dark:text-amber-400">
+              Not included
+            </span>
+          ) : section === "rewards" ? (
+            <span className="inline-flex shrink-0 items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] font-semibold text-amber-700 dark:text-amber-400">
+              Rewards only
+            </span>
+          ) : showCombined ? (
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">
+              <Link2 aria-hidden className="size-2.5" /> Can be combined
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">
+          Offer type: {meta.label} · {layerDisplayValue(component)}
+        </p>
+        {section === "excluded" ? (
+          <p className="mt-1 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+            Not included — {excludedLayerReason(component)}
+          </p>
+        ) : section === "rewards" ? (
+          <>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              Shown separately as estimated rewards value and not deducted from
+              cash paid.
+            </p>
+            {component.optional ? (
+              <p className="mt-1 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+                Not included — {excludedLayerReason(component)}
               </p>
             ) : null}
-            <div
-              className={cn(
-                "flex items-start gap-2 rounded-lg border px-2.5 py-1.5",
-                c.optional ? "border-dashed bg-muted/40" : "bg-card",
-              )}
-            >
-              <span
-                className={cn(
-                  "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md",
-                  meta.tile,
-                )}
-              >
-                <meta.icon aria-hidden className="size-3" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-medium">{c.label}</span>
-                  <LayerStatusChip component={c} />
-                  {compat === "choose-one" ? (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] font-semibold text-amber-700 dark:text-amber-400">
-                      <Shuffle aria-hidden className="size-2.5" /> Choose one
-                    </span>
-                  ) : showCombined ? (
-                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">
-                      <Link2 aria-hidden className="size-2.5" /> Can be combined
-                    </span>
-                  ) : null}
-                </div>
-                {c.optional ? (
-                  <p className="mt-0.5 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
-                    Not included —{" "}
-                    {c.compatibilityReason ??
-                      c.note ??
-                      "this layer cannot be safely combined with the selected option."}
-                  </p>
-                ) : c.note ? (
-                  <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                    {c.note}
-                  </p>
-                ) : null}
-                {uncertainty ? (
-                  <details className="group/uncertainty mt-1 text-[11px] text-muted-foreground">
-                    <summary className="cursor-pointer list-none font-medium text-amber-700 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
-                      Why this needs checking
-                    </summary>
-                    <dl className="mt-1 space-y-1 border-l-2 border-amber-500/25 pl-2 leading-snug">
-                      <div>
-                        <dt className="inline font-semibold text-foreground/80">
-                          Buy:{" "}
-                        </dt>
-                        <dd className="inline">{uncertainty.acquisition}</dd>
-                      </div>
-                      <div>
-                        <dt className="inline font-semibold text-foreground/80">
-                          Spend:{" "}
-                        </dt>
-                        <dd className="inline">{uncertainty.redemption}</dd>
-                      </div>
-                      {uncertainty.warnings.length > 0 ? (
-                        <div>
-                          <dt className="font-semibold text-foreground/80">
-                            Check:
-                          </dt>
-                          <dd>
-                            <ul className="list-disc pl-4">
-                              {uncertainty.warnings.map((warning) => (
-                                <li key={warning}>{warning}</li>
-                              ))}
-                            </ul>
-                          </dd>
-                        </div>
-                      ) : null}
-                    </dl>
-                  </details>
-                ) : null}
+          </>
+        ) : component.note ? (
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            {component.note}
+          </p>
+        ) : null}
+        {uncertainty ? (
+          <details className="group/uncertainty mt-1 text-[11px] text-muted-foreground">
+            <summary className="cursor-pointer list-none font-medium text-amber-700 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
+              Why this needs checking
+            </summary>
+            <dl className="mt-1 space-y-1 border-l-2 border-amber-500/25 pl-2 leading-snug">
+              <div>
+                <dt className="inline font-semibold text-foreground/80">
+                  Buy:{" "}
+                </dt>
+                <dd className="inline">{uncertainty.acquisition}</dd>
               </div>
-              <span className="shrink-0 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                {c.layer === "points"
-                  ? `${(c.pointsEarned ?? 0).toLocaleString("en-AU")} pts`
-                  : c.valueDollars
-                    ? `−${formatAUD(c.valueDollars)}`
-                    : ""}
-              </span>
-            </div>
-          </div>
-        );
-      })}
+              <div>
+                <dt className="inline font-semibold text-foreground/80">
+                  Spend:{" "}
+                </dt>
+                <dd className="inline">{uncertainty.redemption}</dd>
+              </div>
+              {uncertainty.warnings.length > 0 ? (
+                <div>
+                  <dt className="font-semibold text-foreground/80">Check:</dt>
+                  <dd>
+                    <ul className="list-disc pl-4">
+                      {uncertainty.warnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </details>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LayerList({ rec }: { rec: StackRecommendation }) {
+  const included = rec.components.filter(
+    (component) => !component.optional && component.layer !== "points",
+  );
+  const excluded = rec.components.filter(
+    (component) => component.optional && component.layer !== "points",
+  );
+  const rewards = rec.components.filter(
+    (component) => component.layer === "points",
+  );
+  const verifiedIncluded = included.filter(isVerifiedStackLayer).length;
+  const combinableCount = included.filter(
+    (component) => (component.valueDollars ?? 0) > 0,
+  ).length;
+  return (
+    <div className="space-y-3">
+      {included.length > 0 ? (
+        <section className="space-y-1.5" aria-label="Included layers">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Included in recommended plan · {verifiedIncluded} of{" "}
+            {included.length} verified
+          </p>
+          {included.map((component, index) => (
+            <LayerRow
+              key={`included-${component.layer}-${index}`}
+              component={component}
+              section="included"
+              combinableCount={combinableCount}
+            />
+          ))}
+        </section>
+      ) : null}
+
+      {excluded.length > 0 ? (
+        <section className="space-y-1.5" aria-label="Excluded layers">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Available but not included
+          </p>
+          {excluded.map((component, index) => (
+            <LayerRow
+              key={`excluded-${component.layer}-${index}`}
+              component={component}
+              section="excluded"
+              combinableCount={combinableCount}
+            />
+          ))}
+        </section>
+      ) : null}
+
+      {rewards.length > 0 ? (
+        <section className="space-y-1.5" aria-label="Points and later value">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Points and later value
+          </p>
+          {rewards.map((component, index) => (
+            <LayerRow
+              key={`rewards-${component.layer}-${index}`}
+              component={component}
+              section="rewards"
+              combinableCount={combinableCount}
+            />
+          ))}
+        </section>
+      ) : null}
+
       {hasChooseOneLayer(rec) && (
         <p className="text-[10px] leading-snug text-muted-foreground">
           “Choose one” layers cannot be claimed together — pick the stronger
@@ -390,11 +469,13 @@ export function StackRecommendationCard({
   stores,
   compact = false,
   rank,
+  now = new Date(),
 }: {
   recommendation: StackRecommendation;
   stores: Store[];
   compact?: boolean;
   rank?: number;
+  now?: Date;
 }) {
   const store = stores.find((s) => s.id === rec.merchantId);
   const fallbackText = store
@@ -526,7 +607,7 @@ export function StackRecommendationCard({
           <ConditionsSummary rec={rec} />
 
           <div className="mt-auto flex flex-col gap-2.5 border-t pt-2.5">
-            <FreshnessRow rec={rec} />
+            <FreshnessRow rec={rec} now={now} />
             <StackActions rec={rec} store={store} />
             <StackSourceDisclosure citations={rec.citations} />
           </div>
@@ -628,7 +709,7 @@ export function StackRecommendationCard({
         <ConditionsSummary rec={rec} />
 
         <div className="mt-auto flex flex-col gap-2.5 border-t pt-2.5">
-          <FreshnessRow rec={rec} />
+          <FreshnessRow rec={rec} now={now} />
           <StackActions rec={rec} store={store} />
           <StackSourceDisclosure citations={rec.citations} />
         </div>

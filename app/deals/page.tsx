@@ -321,6 +321,7 @@ function Results({
                   recommendation={stack}
                   stores={bundle.stores}
                   rank={index + 1}
+                  now={now}
                 />
               ))}
             </div>
@@ -340,6 +341,7 @@ function Results({
                       recommendation={stack}
                       stores={bundle.stores}
                       rank={BEST_STACK_INITIAL_COUNT + index + 1}
+                      now={now}
                     />
                   ))}
                 </div>
@@ -347,7 +349,7 @@ function Results({
             ) : null}
           </>
         ) : (
-          <EmptyState filtered={false} />
+          <EmptyState filtered={false} verified={false} />
         )}
 
         {rewards.length ? (
@@ -372,6 +374,7 @@ function Results({
                   key={stack.merchantId}
                   recommendation={stack}
                   stores={bundle.stores}
+                  now={now}
                 />
               ))}
             </div>
@@ -463,6 +466,7 @@ function Results({
           ) : (
             <EmptyState
               filtered={activeFilterCount(params) > 0 || Boolean(params.q)}
+              verified={params.view === "top" || params.trust === "verified"}
             />
           )}
           {result.pageCount > 1 ? (
@@ -503,7 +507,13 @@ function Results({
   );
 }
 
-function EmptyState({ filtered }: { filtered: boolean }) {
+function EmptyState({
+  filtered,
+  verified,
+}: {
+  filtered: boolean;
+  verified: boolean;
+}) {
   return (
     <div className="mt-4 rounded-2xl border border-dashed bg-card p-10 text-center">
       <SlidersHorizontal
@@ -511,14 +521,18 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         className="mx-auto size-8 text-muted-foreground"
       />
       <h2 className="mt-3 text-lg font-semibold">
-        {filtered
-          ? "No deals match those choices"
-          : "No active deals are available"}
+        {verified
+          ? "No currently verified offers are available."
+          : filtered
+            ? "No deals match those choices"
+            : "No active deals are available"}
       </h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        {filtered
-          ? "Remove a filter or try a broader search. We never fill an empty production result with demo records."
-          : "Published offers will appear here when they pass the public approval boundary."}
+        {verified
+          ? "Latest, Expiring and All deals may still contain reviewed listings that need another check."
+          : filtered
+            ? "Remove a filter or try a broader search. We never fill an empty production result with demo records."
+            : "Published offers will appear here when they pass the public approval boundary."}
       </p>
       <Button asChild variant="outline" className="mt-4">
         <Link href="/deals">Clear search and filters</Link>
@@ -541,8 +555,8 @@ export default async function DealsPage({
       <main className="page-container flex-1 py-7 sm:py-10">
         <header className="border-b pb-6 text-left sm:pb-8">
           <div className="inline-flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-            <ShieldCheck aria-hidden className="size-3.5" /> Reviewed, current
-            and clearly sourced
+            <ShieldCheck aria-hidden className="size-3.5" /> Reviewed listings
+            with clear source and freshness labels
           </div>
           <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
             Find a deal worth stacking

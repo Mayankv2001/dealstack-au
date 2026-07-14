@@ -93,11 +93,15 @@ export default async function SignalDealPage({ params }: SignalPageProps) {
             </div>
             <DealStatusBadge
               trust={deal.trust}
+              dealStackVerified={deal.dealStackVerified}
               className="hidden sm:inline-flex"
             />
           </div>
           <div className="mt-4 sm:hidden">
-            <DealStatusBadge trust={deal.trust} />
+            <DealStatusBadge
+              trust={deal.trust}
+              dealStackVerified={deal.dealStackVerified}
+            />
           </div>
           {deal.priceText ? (
             <p className="mt-5 text-2xl font-bold text-emerald-700 dark:text-emerald-400">

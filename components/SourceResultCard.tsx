@@ -69,7 +69,11 @@ export function SourceResultCard({
       ? `${result.discountPercent}% off`
       : result.pointsAmount;
   const expired = result.confidence === "expired-unknown";
-  const sourceHref = safePublicHref(result.sourceUrl);
+  const candidateHref = safePublicHref(result.sourceUrl);
+  const sourceHref =
+    result.source === "manual" && candidateHref?.startsWith("/")
+      ? null
+      : candidateHref;
 
   return (
     <Card className={cn("gap-0 py-0", expired && "opacity-70")}>

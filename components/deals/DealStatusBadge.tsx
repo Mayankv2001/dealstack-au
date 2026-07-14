@@ -9,6 +9,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { PublicDeal, TrustStatus } from "@/lib/deals/types";
+import { publicFreshness } from "@/lib/freshness";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,12 +49,19 @@ const TRUST_BADGE: Record<
 
 export function DealStatusBadge({
   trust,
+  dealStackVerified = false,
   className,
 }: {
   trust: TrustStatus;
+  dealStackVerified?: boolean;
   className?: string;
 }) {
-  const badge = TRUST_BADGE[trust];
+  const badge =
+    trust === "verified" && dealStackVerified
+      ? { ...TRUST_BADGE.verified, label: "DealStack verified" }
+      : trust === "verified"
+        ? { ...TRUST_BADGE.verified, label: "Source confirmed" }
+        : TRUST_BADGE[trust];
   const Icon = badge.icon;
   return (
     <span
@@ -69,15 +77,11 @@ export function DealStatusBadge({
   );
 }
 
-/** Days after which an unrevalidated offer earns a "price may have changed" hint. */
-export const STALE_PRICE_DAYS = 14;
-
 export function isStalePrice(deal: PublicDeal, now: Date): boolean {
-  const iso = deal.lastCheckedAt ?? deal.postedAt;
-  if (!iso) return false;
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return false;
-  return now.getTime() - ms > STALE_PRICE_DAYS * 86_400_000;
+  return (
+    publicFreshness(deal.lastCheckedAt ?? deal.postedAt, now).state ===
+    "needs-recheck"
+  );
 }
 
 /** Secondary condition badges — rendered only when the record says so. */

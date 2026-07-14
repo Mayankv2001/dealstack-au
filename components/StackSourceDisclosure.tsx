@@ -32,10 +32,12 @@ const sourceBadgeClasses: Record<SourceId, string> = {
 function ProviderBadge({ provider }: { provider: CitationProvider }) {
   const classes = cn(
     "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
-    sourceBadgeClasses[provider.source]
+    sourceBadgeClasses[provider.source],
   );
   const label =
-    provider.count > 1 ? `${provider.displayName} ×${provider.count}` : provider.displayName;
+    provider.count > 1
+      ? `${provider.displayName} ×${provider.count}`
+      : provider.displayName;
   return <span className={classes}>{label}</span>;
 }
 
@@ -49,17 +51,25 @@ export function StackSourceDisclosure({
   const summary = summariseCitations(citations, MAX_VISIBLE_SOURCES);
   if (summary.total === 0) return null;
 
-  const linkLabel = `${summary.total} ${summary.total === 1 ? "source link" : "source links"}`;
+  const linkLabel = summary.linkCount
+    ? `${summary.linkCount} ${summary.linkCount === 1 ? "source link" : "source links"}`
+    : "No public evidence links";
   const familyLabel = `${summary.publisherFamilyCount} independent ${
-    summary.publisherFamilyCount === 1 ? "publisher family" : "publisher families"
+    summary.publisherFamilyCount === 1
+      ? "publisher family"
+      : "publisher families"
   }`;
-  const countLabel = `${linkLabel} across ${familyLabel}`;
+  const countLabel = summary.publisherFamilyCount
+    ? `${linkLabel} across ${familyLabel}`
+    : linkLabel;
 
   return (
     <details className={cn("group/sources", className)}>
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1.5 rounded-md text-[11px] text-muted-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
         <span className="font-medium text-foreground/80">{countLabel}</span>
-        <span aria-hidden className="text-muted-foreground/50">·</span>
+        <span aria-hidden className="text-muted-foreground/50">
+          ·
+        </span>
         {summary.visibleProviders.map((p) => (
           <ProviderBadge key={p.source} provider={p} />
         ))}

@@ -1,5 +1,6 @@
 import { CalendarClock, Clock } from "lucide-react";
 import { daysUntilExpiryAU, expiryUrgencyLabelAU } from "@/lib/offers/expiry";
+import { publicFreshness } from "@/lib/freshness";
 import type { PublicDeal } from "@/lib/deals/types";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
@@ -31,14 +32,7 @@ export function relativeTimeLabel(
 
 export function freshnessLabel(deal: PublicDeal, now: Date): string | null {
   if (deal.trust === "expired") return "Expired";
-  const iso = deal.lastCheckedAt ?? deal.postedAt;
-  if (!iso) return "Needs recheck";
-  const checked = Date.parse(iso);
-  if (Number.isNaN(checked)) return "Needs recheck";
-  const ageDays = Math.floor((now.getTime() - checked) / 86_400_000);
-  if (ageDays <= 0) return "Checked today";
-  if (ageDays <= 7) return "Checked this week";
-  return "Needs recheck";
+  return publicFreshness(deal.lastCheckedAt ?? deal.postedAt, now).label;
 }
 
 export function expiryLabel(deal: PublicDeal, now: Date): string {

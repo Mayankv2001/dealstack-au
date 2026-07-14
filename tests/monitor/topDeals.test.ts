@@ -33,6 +33,8 @@ function item(over: Partial<RankableFeedItem>): RankableFeedItem {
     link: "https://www.ozbargain.com.au/node/1",
     postedAt: "2026-06-20T00:00:00.000Z",
     fetchedAt: "2026-06-20T00:00:00.000Z",
+    lastCheckedAt: "2026-06-20T00:00:00.000Z",
+    expiryDate: "2026-06-30",
     categories: [],
     ...over,
   };
@@ -40,7 +42,7 @@ function item(over: Partial<RankableFeedItem>): RankableFeedItem {
 
 function candidate(
   rowOver: Partial<Omit<TopDealCandidateRow, "signal">> = {},
-  signalOver: Partial<TopDealSignalRow> = {}
+  signalOver: Partial<TopDealSignalRow> = {},
 ): TopDealCandidateRow {
   return {
     id: "feed-item-1",
@@ -76,30 +78,27 @@ describe("topDeals — opt-in publication (safety invariant)", () => {
     "excludes a %s promoted signal after import",
     (status) => {
       expect(
-        topDealCandidateToRankable(
-          candidate({}, { status }),
-          "2026-06-20"
-        )
+        topDealCandidateToRankable(candidate({}, { status }), "2026-06-20"),
       ).toBeNull();
-    }
+    },
   );
 
   it("includes an imported, approved, non-sample, live signal", () => {
-    expect(
-      topDealCandidateToRankable(candidate(), "2026-06-20")
-    ).toMatchObject({
-      id: "signal-1",
-      nativeId: "ozb:signal-1",
-      title: "Approved edited title",
-    });
+    expect(topDealCandidateToRankable(candidate(), "2026-06-20")).toMatchObject(
+      {
+        id: "signal-1",
+        nativeId: "ozb:signal-1",
+        title: "Approved edited title",
+      },
+    );
   });
 
   it("keeps the independent homepage-hidden veto", () => {
     expect(
       topDealCandidateToRankable(
         candidate({ hidden_from_homepage: true }),
-        "2026-06-20"
-      )
+        "2026-06-20",
+      ),
     ).toBeNull();
   });
 
@@ -107,14 +106,14 @@ describe("topDeals — opt-in publication (safety invariant)", () => {
     expect(
       topDealCandidateToRankable(
         candidate({}, { is_sample: true }),
-        "2026-06-20"
-      )
+        "2026-06-20",
+      ),
     ).toBeNull();
     expect(
       topDealCandidateToRankable(
         candidate({ review_state: "new" }),
-        "2026-06-20"
-      )
+        "2026-06-20",
+      ),
     ).toBeNull();
   });
 
@@ -129,8 +128,8 @@ describe("topDeals — opt-in publication (safety invariant)", () => {
     expect(
       topDealCandidateToRankable(
         candidate({}, { source_url: "javascript:alert(1)" }),
-        "2026-06-20"
-      )
+        "2026-06-20",
+      ),
     ).toBeNull();
   });
 
@@ -150,6 +149,8 @@ describe("topDeals — opt-in publication (safety invariant)", () => {
       link: "https://www.ozbargain.com.au/node/1",
       postedAt: "2026-06-19",
       fetchedAt: "2026-06-20T02:00:00.000Z",
+      lastCheckedAt: "2026-06-20T01:00:00.000Z",
+      expiryDate: "2026-06-21",
       categories: ["gift card", "Myer"],
     });
   });
@@ -166,8 +167,8 @@ describe("topDeals — opt-in publication (safety invariant)", () => {
     expect(
       topDealCandidateToRankable(
         { ...candidate(), signal: null },
-        "2026-06-20"
-      )
+        "2026-06-20",
+      ),
     ).toBeNull();
   });
 });
@@ -175,22 +176,24 @@ describe("topDeals — opt-in publication (safety invariant)", () => {
 describe("topDealsRanking — helpers", () => {
   it("strips www. for the source host", () => {
     expect(sourceHostFromUrl("https://www.ozbargain.com.au/node/9")).toBe(
-      "ozbargain.com.au"
+      "ozbargain.com.au",
     );
     expect(sourceHostFromUrl("not a url")).toBe("");
   });
 
   it("matches a tracked store by name, trimming a trailing AU", () => {
-    expect(matchStoreName("10% off at jb hi-fi today", STORES)).toBe("JB Hi-Fi");
+    expect(matchStoreName("10% off at jb hi-fi today", STORES)).toBe(
+      "JB Hi-Fi",
+    );
     // "Amazon AU" should still match a bare "amazon" mention.
     expect(matchStoreName("big amazon price drop", STORES)).toBe("Amazon AU");
     expect(matchStoreName("a generic deal", STORES)).toBeNull();
   });
 
   it("counts distinct keyword hits", () => {
-    expect(
-      countKeywordHits("bonus qantas points plus cashback at myer")
-    ).toBe(4); // qantas, points, cashback, myer
+    expect(countKeywordHits("bonus qantas points plus cashback at myer")).toBe(
+      4,
+    ); // qantas, points, cashback, myer
     expect(countKeywordHits("nothing relevant here")).toBe(0);
   });
 
@@ -198,10 +201,16 @@ describe("topDealsRanking — helpers", () => {
     // tech, fashion, beauty, automotive and home terms are now positive.
     // (countKeywordHits matches lowercase keywords against its raw input, so the
     // test strings are lowercase — score() lowercases the haystack for callers.)
-    expect(countKeywordHits("lg 4k tv with soundbar")).toBeGreaterThanOrEqual(2); // tv, soundbar
+    expect(countKeywordHits("lg 4k tv with soundbar")).toBeGreaterThanOrEqual(
+      2,
+    ); // tv, soundbar
     expect(countKeywordHits("nike running sneakers")).toBeGreaterThanOrEqual(1); // sneakers
-    expect(countKeywordHits("designer perfume / fragrance set")).toBeGreaterThanOrEqual(2); // perfume, fragrance
-    expect(countKeywordHits("car tyre and motor oil bundle")).toBeGreaterThanOrEqual(2); // tyre, motor oil
+    expect(
+      countKeywordHits("designer perfume / fragrance set"),
+    ).toBeGreaterThanOrEqual(2); // perfume, fragrance
+    expect(
+      countKeywordHits("car tyre and motor oil bundle"),
+    ).toBeGreaterThanOrEqual(2); // tyre, motor oil
     expect(countKeywordHits("kitchen cookware set")).toBeGreaterThanOrEqual(2); // kitchen, cookware
   });
 
@@ -212,7 +221,9 @@ describe("topDealsRanking — helpers", () => {
   });
 
   it("counts the new de-prioritised terms (collectibles, gaming pre-orders, liquor, snacks)", () => {
-    expect(countNegativeHits("rare anime figurine + funko collectible")).toBe(4);
+    expect(countNegativeHits("rare anime figurine + funko collectible")).toBe(
+      4,
+    );
     expect(countNegativeHits("PS5 pre-order with download code")).toBe(2); // pre-order, download code
     expect(countNegativeHits("premium whisky and wine mystery box")).toBe(2); // whisky, wine
     expect(countNegativeHits("chocolate snack multipack")).toBe(2); // chocolate, snack
@@ -235,18 +246,28 @@ describe("topDealsRanking — helpers", () => {
   });
 
   it("counts broader-expansion keywords as positive hits (bank offers, card bonuses, cashback portals, dining delivery)", () => {
-    expect(countKeywordHits("nab credit card sign-up bonus")).toBeGreaterThanOrEqual(2); // nab, credit card
-    expect(countKeywordHits("westpac amex statement credit")).toBeGreaterThanOrEqual(2); // westpac, amex
+    expect(
+      countKeywordHits("nab credit card sign-up bonus"),
+    ).toBeGreaterThanOrEqual(2); // nab, credit card
+    expect(
+      countKeywordHits("westpac amex statement credit"),
+    ).toBeGreaterThanOrEqual(2); // westpac, amex
     // "topcashback" also contains "cashback" as a substring (this file scores
     // by substring, not whole-word), so this legitimately counts 3 hits.
-    expect(countKeywordHits("shopback and topcashback rates")).toBeGreaterThanOrEqual(2);
-    expect(countKeywordHits("25% off doordash this week")).toBeGreaterThanOrEqual(1); // doordash
+    expect(
+      countKeywordHits("shopback and topcashback rates"),
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      countKeywordHits("25% off doordash this week"),
+    ).toBeGreaterThanOrEqual(1); // doordash
   });
 
   it("does not score generic 'grocery'/'groceries' wording (OzBargain tags supplements under it too)", () => {
     // Unlike coles/woolworths (precise store matches), a bare "groceries" tag
     // is too broad to score — see the comment in topDealsRanking.ts.
-    expect(countKeywordHits("groceries: bodybuilding supplement 50% off")).toBe(0);
+    expect(countKeywordHits("groceries: bodybuilding supplement 50% off")).toBe(
+      0,
+    );
   });
 });
 
@@ -257,7 +278,7 @@ describe("topDealsRanking — rankTopDeals", () => {
         item({ id: "kw", title: "Qantas points bonus" }),
         item({ id: "store", title: "Myer sale this week" }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("store");
     expect(ranked[0].relevance).toBe("high");
@@ -271,7 +292,7 @@ describe("topDealsRanking — rankTopDeals", () => {
         item({ id: "one", title: "cashback offer" }),
         item({ id: "many", title: "Flybuys + Velocity + gift card + points" }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("many");
   });
@@ -282,7 +303,7 @@ describe("topDealsRanking — rankTopDeals", () => {
         item({ id: "old", title: "Coles", postedAt: "2026-06-01T00:00:00Z" }),
         item({ id: "new", title: "Coles", postedAt: "2026-06-21T00:00:00Z" }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("new");
   });
@@ -299,7 +320,7 @@ describe("topDealsRanking — rankTopDeals", () => {
         item({ id: "anime", title: "Limited anime figurine restock" }),
         item({ id: "neutral", title: "Mystery box clearance" }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("neutral");
     expect(ranked[1].id).toBe("anime");
@@ -312,7 +333,7 @@ describe("topDealsRanking — rankTopDeals", () => {
         item({ id: "junk", title: "Gaming chair + mattress mega sale" }),
         item({ id: "real", title: "Bonus Qantas points on gift card" }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("real");
     expect(ranked[0].relevance).toBe("medium");
@@ -323,9 +344,13 @@ describe("topDealsRanking — rankTopDeals", () => {
     const ranked = rankTopDeals(
       [
         item({ id: "booze", title: "Premium whisky 12-pack mystery box" }),
-        item({ id: "tech", title: "LG 4K TV with soundbar", categories: ["Electrical & Electronics"] }),
+        item({
+          id: "tech",
+          title: "LG 4K TV with soundbar",
+          categories: ["Electrical & Electronics"],
+        }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("tech");
     expect(ranked[0].relevance).toBe("medium");
@@ -336,7 +361,7 @@ describe("topDealsRanking — rankTopDeals", () => {
   it("treats a fashion/footwear deal as a genuine (not penalised) signal", () => {
     const ranked = rankTopDeals(
       [item({ id: "shoes", title: "Nike running sneakers + apparel sale" })],
-      STORES
+      STORES,
     );
     // Previously fashion/footwear were penalised to low; now they are priorities.
     expect(ranked[0].relevance).toBe("medium");
@@ -350,7 +375,7 @@ describe("topDealsRanking — rankTopDeals", () => {
         // 2 keywords (cashback, points), no penalties = +2.
         item({ id: "clean", title: "Cashback and points boost" }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("clean");
     expect(ranked[0].relevance).toBe("medium");
@@ -365,7 +390,7 @@ describe("topDealsRanking — rankTopDeals", () => {
         item({ id: "kw", title: "Bonus points and cashback everywhere" }),
         item({ id: "store", title: "JB Hi-Fi gaming headset clearance" }),
       ],
-      STORES
+      STORES,
     );
     // Store match dominates even with a negative term present.
     expect(ranked[0].id).toBe("store");
@@ -375,9 +400,85 @@ describe("topDealsRanking — rankTopDeals", () => {
 
   it("returns at most the requested limit", () => {
     const many = Array.from({ length: 9 }, (_, i) =>
-      item({ id: `i${i}`, nativeId: `ozb:${i}` })
+      item({ id: `i${i}`, nativeId: `ozb:${i}` }),
     );
     expect(rankTopDeals(many, STORES, 5)).toHaveLength(5);
+  });
+
+  it("caps a dominant merchant at two when alternatives are available", () => {
+    const ranked = rankTopDeals(
+      [
+        ...Array.from({ length: 6 }, (_, index) =>
+          item({
+            id: `amazon-${index}`,
+            nativeId: `amazon:${index}`,
+            title: `Amazon deal ${index}`,
+            postedAt: `2026-06-${20 - index}T00:00:00Z`,
+          }),
+        ),
+        item({ id: "myer", nativeId: "myer", title: "Myer deal" }),
+        item({ id: "jb", nativeId: "jb", title: "JB Hi-Fi deal" }),
+        item({ id: "coles", nativeId: "coles", title: "Coles deal" }),
+      ],
+      STORES,
+      5,
+    );
+
+    expect(
+      ranked.filter((deal) => deal.matchedStoreName === "Amazon AU"),
+    ).toHaveLength(2);
+    expect(new Set(ranked.map((deal) => deal.matchedStoreName))).toEqual(
+      new Set(["Amazon AU", "Myer", "JB Hi-Fi", "Coles"]),
+    );
+    expect(
+      ranked.filter((deal) => deal.matchedStoreName === "Amazon AU")[0].id,
+    ).toBe("amazon-0");
+  });
+
+  it("fills the feed truthfully when there are fewer merchants than slots", () => {
+    const ranked = rankTopDeals(
+      [
+        item({ id: "amazon-1", nativeId: "amazon:1", title: "Amazon one" }),
+        item({ id: "amazon-2", nativeId: "amazon:2", title: "Amazon two" }),
+        item({ id: "amazon-3", nativeId: "amazon:3", title: "Amazon three" }),
+        item({ id: "amazon-4", nativeId: "amazon:4", title: "Amazon four" }),
+        item({ id: "myer", nativeId: "myer", title: "Myer deal" }),
+      ],
+      STORES,
+      5,
+    );
+    expect(ranked).toHaveLength(5);
+    expect(ranked.map((deal) => deal.id).slice(0, 3)).toEqual([
+      "amazon-1",
+      "myer",
+      "amazon-2",
+    ]);
+  });
+
+  it("ranks a confirmed-current signal above a newer unknown-date signal", () => {
+    const ranked = rankTopDeals(
+      [
+        item({
+          id: "unknown",
+          nativeId: "unknown",
+          title: "Amazon unknown date",
+          expiryDate: null,
+          lastCheckedAt: "2026-06-21T00:00:00Z",
+          postedAt: "2026-06-21T00:00:00Z",
+        }),
+        item({
+          id: "current",
+          nativeId: "current",
+          title: "Amazon current offer",
+          expiryDate: "2026-06-30",
+          lastCheckedAt: "2026-06-20T00:00:00Z",
+          postedAt: "2026-06-20T00:00:00Z",
+        }),
+      ],
+      STORES,
+      2,
+    );
+    expect(ranked.map((deal) => deal.id)).toEqual(["current", "unknown"]);
   });
 
   it("shapes a safe DTO (host derived, fields mapped)", () => {
@@ -391,7 +492,7 @@ describe("topDealsRanking — rankTopDeals", () => {
           categories: ["electronics"],
         }),
       ],
-      STORES
+      STORES,
     );
     expect(deal).toMatchObject({
       id: "x",
@@ -411,7 +512,7 @@ describe("topDealsRanking — rankTopDeals", () => {
 
   it("returns [] when limit is 0", () => {
     const many = Array.from({ length: 3 }, (_, i) =>
-      item({ id: `i${i}`, nativeId: `ozb:${i}` })
+      item({ id: `i${i}`, nativeId: `ozb:${i}` }),
     );
     expect(rankTopDeals(many, STORES, 0)).toHaveLength(0);
   });
@@ -419,10 +520,18 @@ describe("topDealsRanking — rankTopDeals", () => {
   it("falls back to fetchedAt for recency when postedAt is null", () => {
     const ranked = rankTopDeals(
       [
-        item({ id: "older", postedAt: null, fetchedAt: "2026-06-01T00:00:00Z" }),
-        item({ id: "newer", postedAt: null, fetchedAt: "2026-06-20T00:00:00Z" }),
+        item({
+          id: "older",
+          postedAt: null,
+          fetchedAt: "2026-06-01T00:00:00Z",
+        }),
+        item({
+          id: "newer",
+          postedAt: null,
+          fetchedAt: "2026-06-20T00:00:00Z",
+        }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("newer");
     expect(ranked[1].id).toBe("older");
@@ -432,9 +541,12 @@ describe("topDealsRanking — rankTopDeals", () => {
     const ranked = rankTopDeals(
       [
         item({ id: "booze", title: "Premium whisky 12-pack mystery box" }),
-        item({ id: "card", title: "NAB credit card sign-up bonus 100k points" }),
+        item({
+          id: "card",
+          title: "NAB credit card sign-up bonus 100k points",
+        }),
       ],
-      STORES
+      STORES,
     );
     expect(ranked[0].id).toBe("card");
     expect(ranked[1].id).toBe("booze");
@@ -443,11 +555,14 @@ describe("topDealsRanking — rankTopDeals", () => {
   it("ranks a ShopBack/TopCashback or dining-delivery deal above a gaming pre-order", () => {
     const ranked = rankTopDeals(
       [
-        item({ id: "preorder", title: "[Pre Order, PS5] Some Game (Download Code)" }),
+        item({
+          id: "preorder",
+          title: "[Pre Order, PS5] Some Game (Download Code)",
+        }),
         item({ id: "cashback", title: "TopCashback: 20% new customer bonus" }),
         item({ id: "delivery", title: "$10 Ding Dong Deals - Uber Eats" }),
       ],
-      STORES
+      STORES,
     );
     const ids = ranked.map((d) => d.id);
     expect(ids.indexOf("cashback")).toBeLessThan(ids.indexOf("preorder"));
@@ -457,10 +572,14 @@ describe("topDealsRanking — rankTopDeals", () => {
   it("does not crash when both postedAt and fetchedAt are unparseable", () => {
     const ranked = rankTopDeals(
       [
-        item({ id: "bad-dates", postedAt: "not-a-date", fetchedAt: "also-bad" }),
+        item({
+          id: "bad-dates",
+          postedAt: "not-a-date",
+          fetchedAt: "also-bad",
+        }),
         item({ id: "good-dates", postedAt: "2026-06-20T00:00:00Z" }),
       ],
-      STORES
+      STORES,
     );
     // bad-dates gets recencyMs=0 and falls behind good-dates — but doesn't throw
     expect(ranked[0].id).toBe("good-dates");

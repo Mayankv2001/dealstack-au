@@ -1,4 +1,6 @@
 import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
+import { isPubliclyFresh, publicFreshness } from "@/lib/freshness";
+import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import { daysSince } from "./score";
 import {
   PAGE_SIZE,
@@ -38,8 +40,10 @@ function matchesFilters(
   if (params.view === "expiring" && !isExpiringSoonAU(deal.expiryDate, now)) {
     return false;
   }
-  if (params.view === "top" && deal.trust !== "verified") return false;
-  if (params.view === "top" && deal.kind === "gift-card" && !deal.expiryDate) {
+  if (
+    (params.view === "top" || params.trust === "verified") &&
+    !isStrictlyVerifiedDeal(deal, now)
+  ) {
     return false;
   }
   if (params.merchant && deal.merchantId !== params.merchant) return false;
@@ -62,6 +66,22 @@ function matchesFilters(
     if (params.added === "week" && age > 7) return false;
   }
   return true;
+}
+
+/**
+ * Strict public eligibility for the “Best verified” promise. A source-confirmed
+ * record is not enough: DealStack verification, current dates, recent checking
+ * and a meaningful evidence destination are all required.
+ */
+export function isStrictlyVerifiedDeal(deal: PublicDeal, now: Date): boolean {
+  return (
+    deal.trust === "verified" &&
+    deal.dealStackVerified === true &&
+    deal.dateStatus === "confirmed-current" &&
+    !isPastExpiry(deal.expiryDate, todayAU(now)) &&
+    isPubliclyFresh(deal.lastCheckedAt, now) &&
+    safePublicSourceUrl(deal.sourceUrl ?? "") !== null
+  );
 }
 
 /** Live = not past expiry and not marked expired. The public default. */
@@ -179,6 +199,7 @@ const RECOMMENDED_TRUST_RANK: Record<PublicDeal["trust"], number> = {
 export function sortItems(
   items: DealListItem[],
   sort: DealsParams["sort"],
+  now: Date = new Date(),
 ): DealListItem[] {
   const sorted = [...items];
   switch (sort) {
@@ -219,12 +240,50 @@ export function sortItems(
       );
       break;
     default:
+      // Recommended precedence is deliberately lexicographic rather than one
+      // blended score: verification outcome → confirmed current date → public
+      // freshness → trust → saving relevance → existing quality/heat score →
+      // recency. A newly ingested unknown-date row cannot leapfrog a comparable
+      // confirmed-current offer.
       sorted.sort((a, b) => {
+        const verified =
+          Number(itemScore(b).dealStackVerified) -
+          Number(itemScore(a).dealStackVerified);
+        if (verified !== 0) return verified;
+
+        const current =
+          Number(itemScore(b).dateStatus === "confirmed-current") -
+          Number(itemScore(a).dateStatus === "confirmed-current");
+        if (current !== 0) return current;
+
+        const freshnessRank = (deal: PublicDeal): number => {
+          const state = publicFreshness(deal.lastCheckedAt, now).state;
+          if (state === "checked-today") return 3;
+          if (state === "checked-this-week") return 2;
+          if (state === "needs-recheck") return 1;
+          return 0;
+        };
+        const freshness =
+          freshnessRank(itemScore(b)) - freshnessRank(itemScore(a));
+        if (freshness !== 0) return freshness;
+
         const trust =
           RECOMMENDED_TRUST_RANK[itemScore(b).trust] -
           RECOMMENDED_TRUST_RANK[itemScore(a).trust];
         if (trust !== 0) return trust;
-        return itemScore(b).score - itemScore(a).score;
+
+        const saving =
+          (itemScore(b).savingPercent ?? -1) -
+          (itemScore(a).savingPercent ?? -1);
+        if (saving !== 0) return saving;
+
+        const score = itemScore(b).score - itemScore(a).score;
+        if (score !== 0) return score;
+
+        return (
+          timeOf(itemScore(b).postedAt ?? itemScore(b).lastCheckedAt) -
+          timeOf(itemScore(a).postedAt ?? itemScore(a).lastCheckedAt)
+        );
       });
   }
   return sorted;
@@ -244,7 +303,7 @@ export function queryDeals(
     ),
   );
   const effectiveSort = params.view === "recent" ? "checked" : params.sort;
-  const items = sortItems(groupDeals(matched), effectiveSort);
+  const items = sortItems(groupDeals(matched), effectiveSort, now);
 
   const total = items.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));

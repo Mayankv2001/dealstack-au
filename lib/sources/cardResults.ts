@@ -29,16 +29,20 @@ export type CardOfferSourceInput = Pick<
 
 /** Human headline for a card offer, by bonus shape. */
 export function cardOfferHeadline(o: CardOfferSourceInput): string {
-  if (o.bonusPoints) return `${o.bonusPoints.toLocaleString("en-AU")} bonus points`;
+  if (o.bonusPoints)
+    return `${o.bonusPoints.toLocaleString("en-AU")} bonus points`;
   if (o.cashbackAmount) return `$${o.cashbackAmount} cashback`;
-  if (o.statementCreditAmount) return `$${o.statementCreditAmount} statement credit`;
+  if (o.statementCreditAmount)
+    return `$${o.statementCreditAmount} statement credit`;
   return "Card offer";
 }
 
-export function cardOfferToSourceResult(o: CardOfferSourceInput): DealSourceResult {
+export function cardOfferToSourceResult(
+  o: CardOfferSourceInput,
+): DealSourceResult {
   return {
     id: `card:${o.id}`,
-    source: "manual", // admin-verified entry → "DealStack verified"
+    source: "manual", // internal DealStack record; confidence carries outcome
     kind: "card",
     title: `${o.provider} ${o.cardName} — ${cardOfferHeadline(o)}`,
     merchant: null,

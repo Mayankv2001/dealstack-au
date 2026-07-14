@@ -9,9 +9,18 @@ import type { Citation } from "@/lib/sources/types";
 describe("summariseCitations", () => {
   it("collapses many OzBargain citations to a single visible source", () => {
     const citations: Citation[] = [
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900002" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900003" },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900001",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900002",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900003",
+      },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ];
     const summary = summariseCitations(citations);
@@ -24,9 +33,18 @@ describe("summariseCitations", () => {
 
   it("dedupes identical source + URL pairs (URL normalised)", () => {
     const citations: Citation[] = [
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001/" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001?ref=x" },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900001",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900001/",
+      },
+      {
+        source: "ozbargain",
+        sourceUrl: "https://www.ozbargain.com.au/node/900001?ref=x",
+      },
     ];
     const summary = summariseCitations(citations);
     expect(summary.total).toBe(1);
@@ -61,8 +79,8 @@ describe("summariseCitations", () => {
     expect(summary.publisherFamilyCount).toBe(2);
     expect(
       summary.providers.filter(
-        (provider) => provider.publisherFamily === "freepoints-network"
-      )
+        (provider) => provider.publisherFamily === "freepoints-network",
+      ),
     ).toHaveLength(2);
   });
 
@@ -75,11 +93,13 @@ describe("summariseCitations", () => {
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ];
     const summary = summariseCitations(citations);
-    expect(summary.visibleProviders.length).toBeLessThanOrEqual(MAX_VISIBLE_SOURCES);
-    expect(summary.hiddenProviderCount).toBe(
-      summary.providers.length - summary.visibleProviders.length
+    expect(summary.visibleProviders.length).toBeLessThanOrEqual(
+      MAX_VISIBLE_SOURCES,
     );
-    // Strongest trust first — "manual" (DealStack, weight 1) leads.
+    expect(summary.hiddenProviderCount).toBe(
+      summary.providers.length - summary.visibleProviders.length,
+    );
+    // Internal DealStack records remain neutral non-link evidence entries.
     expect(summary.visibleProviders[0].source).toBe("manual");
   });
 
@@ -104,12 +124,31 @@ describe("summariseCitations", () => {
     ];
     const label = providerSummaryLabel(summariseCitations(citations));
     expect(label).toMatch(/\+2$/);
-    expect(label.startsWith("DealStack verified")).toBe(true);
+    expect(label.startsWith("DealStack record")).toBe(true);
+  });
+
+  it("never treats the DealStack homepage as verification evidence", () => {
+    const summary = summariseCitations([{ source: "manual", sourceUrl: "/" }]);
+    expect(summary.providers[0].displayName).toBe("DealStack record");
+    expect(summary.all[0].href).toBeNull();
+    expect(summary.linkCount).toBe(0);
+    expect(summary.publisherFamilyCount).toBe(0);
+  });
+
+  it("keeps meaningful external evidence on an internal record linkable", () => {
+    const summary = summariseCitations([
+      { source: "manual", sourceUrl: "https://www.myer.com.au/terms" },
+    ]);
+    expect(summary.all[0].href).toBe("https://www.myer.com.au/terms");
+    expect(summary.linkCount).toBe(1);
+    // DealStack is still not miscounted as an independent publisher family.
+    expect(summary.publisherFamilyCount).toBe(0);
   });
 
   it("returns an empty summary when there are no citations", () => {
     const summary = summariseCitations([]);
     expect(summary.total).toBe(0);
+    expect(summary.linkCount).toBe(0);
     expect(summary.providers).toHaveLength(0);
     expect(summary.publisherFamilyCount).toBe(0);
   });

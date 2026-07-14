@@ -154,10 +154,13 @@ describe("StackRecommendationCard — cash stack", () => {
     );
     // Four OzBargain records collapse into a single badge that carries the count.
     expect(html).toContain("OzBargain ×4");
-    // The summary distinguishes six links from three independent publishers.
+    // The internal DealStack record is shown neutrally, not counted as a link
+    // or independent publisher family.
     expect(html).toContain(
-      "6 source links across 3 independent publisher families",
+      "5 source links across 2 independent publisher families",
     );
+    expect(html).toContain("DealStack record");
+    expect(html).not.toContain("DealStack verified");
   });
 
   it("keeps every citation reachable in the disclosure", () => {
@@ -228,6 +231,10 @@ describe("StackRecommendationCard — cash stack", () => {
       <StackRecommendationCard recommendation={rec} stores={stores} />,
     );
     expect(html).toContain("Choose one");
+    expect(html).toContain("Available but not included");
+    expect(html).toContain(
+      "Not included — Use instead of the gift card, not together.",
+    );
   });
 
   it("explains uncertain gift-card acquisition and redemption separately", () => {
@@ -302,10 +309,14 @@ describe("StackRecommendationCard — trust, conditions and freshness", () => {
 
   it("shows one freshness row with the oldest layer check", () => {
     const html = renderToStaticMarkup(
-      <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
+      <StackRecommendationCard
+        recommendation={cashRec()}
+        stores={stores}
+        now={new Date("2026-06-15T00:00:00+10:00")}
+      />,
     );
-    expect(html).toContain("Layers checked 12 Jun 2026");
-    expect(html).toContain("No known expiry");
+    expect(html).toContain("Checked this week · checked 12 Jun 2026");
+    expect(html).toContain("Date unknown");
   });
 
   it("collapses multiple warnings into one lead condition plus a disclosure", () => {
@@ -369,5 +380,92 @@ describe("StackRecommendationCard — trust, conditions and freshness", () => {
     );
     expect(html).toContain("You save $77.00");
     expect(html).not.toContain("including unverified layers");
+    expect(html).toContain("Best verified plan");
+    expect(html).not.toContain("DealStack verified");
+  });
+
+  it("never uses an internal DealStack record or homepage as verification evidence", () => {
+    const rec = cashRec({
+      components: [cashRec().components[0]],
+      verifiedSaving: 0,
+      confidence: "needs-verification",
+      citations: [{ source: "manual", sourceUrl: "/" }],
+    });
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={rec} stores={stores} />,
+    );
+    expect(html).toContain("0 of 1 verified");
+    expect(html).toContain("DealStack record");
+    expect(html).toContain("No public evidence links");
+    expect(html).not.toContain("DealStack verified");
+    expect(html).not.toContain('href="/">DealStack record');
+  });
+
+  it("separates included, excluded and reward layers without duplication", () => {
+    const rec = cashRec({
+      components: [
+        {
+          ...cashRec().components[0],
+          label: "10% promo code",
+        },
+        {
+          layer: "cashback",
+          label: "6% ShopBack cashback",
+          valuePercent: 6,
+          valueDollars: 27,
+          optional: true,
+          citation: {
+            source: "manual",
+            sourceUrl: "https://www.shopback.com.au",
+          },
+          confidence: "confirmed",
+          note: "Gift-card payment compatibility is not confirmed.",
+        },
+        {
+          layer: "gift-card",
+          label: "5% gift-card saving",
+          valuePercent: 5,
+          valueDollars: 25,
+          optional: true,
+          citation: { source: "manual", sourceUrl: "/" },
+          confidence: "needs-verification",
+        },
+        {
+          layer: "points",
+          label: "2 points per $1",
+          pointsEarned: 900,
+          valueDollars: 4.5,
+          optional: false,
+          citation: {
+            source: "freepoints",
+            sourceUrl: "https://www.freepoints.com.au",
+          },
+          confidence: "confirmed",
+        },
+      ],
+      pointsEarned: 900,
+      pointsValueDollars: 4.5,
+    });
+    const html = renderToStaticMarkup(
+      <StackRecommendationCard recommendation={rec} stores={stores} />,
+    );
+
+    expect(html).toContain("Included in recommended plan");
+    expect(html).toContain("Available but not included");
+    expect(html).toContain("Points and later value");
+    expect(html).toContain("Offer type: Discount code · 10% · $50.00");
+    expect(html).toContain(
+      "Not included — Gift-card payment compatibility is not confirmed.",
+    );
+    expect(html).toContain(
+      "Not included — DealStack does not have enough compatibility evidence.",
+    );
+    expect(html).toContain(
+      "Shown separately as estimated rewards value and not deducted from cash paid.",
+    );
+    expect(occurrences(html, "10% promo code")).toBe(1);
+    expect(occurrences(html, "Offer type: Cashback")).toBe(1);
+    expect(occurrences(html, "5% gift-card saving")).toBe(1);
+    expect(occurrences(html, "2 points per $1")).toBe(1);
   });
 });

@@ -85,7 +85,7 @@ function promotedSignal(row: TopDealCandidateRow): TopDealSignalRow | null {
  */
 export function topDealCandidateToRankable(
   row: TopDealCandidateRow,
-  today: string
+  today: string,
 ): RankableFeedItem | null {
   const signal = promotedSignal(row);
   const sourceUrl = signal ? safeHttpsUrl(signal.source_url) : null;
@@ -109,13 +109,16 @@ export function topDealCandidateToRankable(
     link: sourceUrl,
     postedAt: signal.posted_at,
     fetchedAt: row.fetched_at,
+    lastCheckedAt: signal.last_checked_at,
+    expiryDate: signal.expiry_date,
     categories: signal.tags ?? [],
   };
 }
 
 /**
  * Top 5 admin-imported OzBargain signals for the homepage, ranked by
- * tracked-store match, then useful keywords, then recency. Returns [] when
+ * current-date state, check recency, tracked-store relevance, merchant
+ * diversity and post recency. Returns [] when
  * Supabase is not configured, in static mode, or on any read error.
  */
 export async function getTopDeals(limit = TOP_LIMIT): Promise<TopDeal[]> {
@@ -138,7 +141,7 @@ export async function getTopDeals(limit = TOP_LIMIT): Promise<TopDeal[]> {
     const { data, error } = await db
       .from("feed_items")
       .select(
-        "id, source_native_id, fetched_at, review_state, hidden_from_homepage, signal:ozbargain_signals!inner(id, source_native_id, title, summary, source_url, posted_at, expiry_date, tags, is_sample, status, last_checked_at)"
+        "id, source_native_id, fetched_at, review_state, hidden_from_homepage, signal:ozbargain_signals!inner(id, source_native_id, title, summary, source_url, posted_at, expiry_date, tags, is_sample, status, last_checked_at)",
       )
       .in("review_state", [...PUBLIC_REVIEW_STATES])
       .eq("hidden_from_homepage", false)
@@ -167,7 +170,7 @@ export async function getTopDeals(limit = TOP_LIMIT): Promise<TopDeal[]> {
     console.warn(
       `[repos] topDeals: read failed, hiding section. ${
         err instanceof Error ? err.message : String(err)
-      }`
+      }`,
     );
     return [];
   }

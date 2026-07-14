@@ -26,6 +26,8 @@ export interface CitationProvider {
   publisherFamily: string;
   /** Distinct records this source contributed (deduped by normalised URL). */
   count: number;
+  /** Meaningful public evidence links contributed by this provider. */
+  evidenceLinkCount: number;
   /** A single safe, linkable URL when the source has exactly one; else null. */
   href: string | null;
 }
@@ -42,6 +44,8 @@ export interface CitationEntry {
 export interface CitationSummary {
   /** Distinct source+URL citations checked for this stack. */
   total: number;
+  /** Linkable public evidence destinations (internal record entries excluded). */
+  linkCount: number;
   /** Every distinct source provider, strongest trust first. */
   providers: CitationProvider[];
   /** Independent editorial families represented by the provider links. */
@@ -82,7 +86,7 @@ function normaliseUrlKey(url: string): string {
  */
 export function summariseCitations(
   citations: Citation[],
-  visibleLimit: number = MAX_VISIBLE_SOURCES
+  visibleLimit: number = MAX_VISIBLE_SOURCES,
 ): CitationSummary {
   // 1 ── Dedupe by source + normalised URL (traceability preserved). ─────────
   const seen = new Set<string>();
@@ -91,10 +95,15 @@ export function summariseCitations(
     const key = `${c.source}|${normaliseUrlKey(c.sourceUrl)}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    const candidateHref = safePublicHref(c.sourceUrl);
+    const href =
+      c.source === "manual" && candidateHref?.startsWith("/")
+        ? null
+        : candidateHref;
     distinct.push({
       source: c.source,
       displayName: SOURCE_META[c.source]?.displayName ?? c.source,
-      href: safePublicHref(c.sourceUrl),
+      href,
       sourceUrl: c.sourceUrl,
     });
   }
@@ -114,10 +123,10 @@ export function summariseCitations(
       publisherFamily:
         SOURCE_META[source]?.publisherFamily ?? `source:${source}`,
       count: entries.length,
+      evidenceLinkCount: entries.filter((entry) => entry.href !== null).length,
       // Link only when the source contributed exactly one distinct, safe URL —
       // otherwise the badge would imply a single canonical destination it lacks.
-      href:
-        entries.length === 1 && entries[0].href ? entries[0].href : null,
+      href: entries.length === 1 && entries[0].href ? entries[0].href : null,
     }))
     .sort((a, b) => {
       const trust =
@@ -132,12 +141,23 @@ export function summariseCitations(
 
   return {
     total: distinct.length,
+    linkCount: distinct.filter((entry) => entry.href !== null).length,
     providers,
     publisherFamilyCount: new Set(
-      providers.map((provider) => provider.publisherFamily)
+      distinct
+        .filter((entry) => entry.href !== null)
+        .map(
+          (entry) =>
+            SOURCE_META[entry.source]?.publisherFamily ??
+            `source:${entry.source}`,
+        )
+        .filter((family) => family !== "dealstack"),
     ).size,
     visibleProviders,
-    hiddenProviderCount: Math.max(0, providers.length - visibleProviders.length),
+    hiddenProviderCount: Math.max(
+      0,
+      providers.length - visibleProviders.length,
+    ),
     all: distinct,
   };
 }

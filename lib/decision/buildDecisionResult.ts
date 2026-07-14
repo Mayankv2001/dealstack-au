@@ -246,7 +246,13 @@ export function buildDecisionResult(
   const citations = citationsFor([bestCashStack, rewardsStack], filteredOffers);
   const citationSummary = summariseCitations(citations, 0);
   const publisherFamilies = new Set(
-    citationSummary.providers.map((provider) => provider.publisherFamily),
+    citationSummary.providers
+      .filter(
+        (provider) =>
+          provider.evidenceLinkCount > 0 &&
+          provider.publisherFamily !== "dealstack",
+      )
+      .map((provider) => provider.publisherFamily),
   );
   communityPulse.forEach((deal) => publisherFamilies.add(deal.publisherFamily));
   const checkedDates = [
@@ -277,7 +283,7 @@ export function buildDecisionResult(
     warnings,
     freshness: {
       sourceFamilyCount: publisherFamilies.size,
-      sourceLinkCount: citationSummary.total + communityPulse.length,
+      sourceLinkCount: citationSummary.linkCount + communityPulse.length,
       oldestVerificationDate: checkedDates.length
         ? [...checkedDates].sort()[0]
         : null,

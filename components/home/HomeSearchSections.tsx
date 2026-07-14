@@ -56,13 +56,16 @@ export function HomeSearchSections({
   stores,
   recommendations,
   heroStack,
+  nowIso,
   todayFeed,
 }: {
   stores: Store[];
   recommendations: StackRecommendation[];
   heroStack: StackRecommendation | null;
+  nowIso: string;
   todayFeed?: React.ReactNode;
 }) {
+  const now = new Date(nowIso);
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const filteredStores = stores.filter((store) =>
@@ -258,6 +261,7 @@ export function HomeSearchSections({
                   store={store}
                   recommendation={recommendationByStore.get(store.id) ?? null}
                   variant="stack"
+                  now={now}
                 />
               </div>
             ))}

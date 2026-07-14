@@ -1,17 +1,32 @@
 import Link from "next/link";
-import { ArrowRight, Copy, ExternalLink, Layers3, MessageSquare, ThumbsUp } from "lucide-react";
+import {
+  ArrowRight,
+  Copy,
+  ExternalLink,
+  Layers3,
+  MessageSquare,
+  ThumbsUp,
+} from "lucide-react";
 import StoreLogo from "@/components/StoreLogo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Store } from "@/lib/data";
-import { stackableChipLabel, type DealGroup, type PublicDeal } from "@/lib/deals/types";
+import {
+  stackableChipLabel,
+  type DealGroup,
+  type PublicDeal,
+} from "@/lib/deals/types";
 import { formatAUD } from "@/lib/calculateStack";
 import { DealFreshness, relativeTimeLabel } from "./DealFreshness";
 import { DealConditionBadges, DealStatusBadge } from "./DealStatusBadge";
 
 function DealPrice({ deal }: { deal: PublicDeal }) {
   if (!deal.priceText && deal.savingPercent == null) {
-    return <p className="text-sm font-semibold text-muted-foreground">See offer for price</p>;
+    return (
+      <p className="text-sm font-semibold text-muted-foreground">
+        See offer for price
+      </p>
+    );
   }
   return (
     <div className="flex flex-wrap items-baseline gap-2">
@@ -57,36 +72,85 @@ export function DealCard({
       <article className="grid gap-3 py-4 sm:grid-cols-[2.75rem_minmax(0,1fr)_9rem_auto] sm:items-center">
         <StoreLogo
           store={store}
-          text={deal.merchantName?.slice(0, 2).toUpperCase() ?? deal.sourceName.slice(0, 2).toUpperCase()}
+          text={
+            deal.merchantName?.slice(0, 2).toUpperCase() ??
+            deal.sourceName.slice(0, 2).toUpperCase()
+          }
           size="sm"
         />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-muted-foreground">{deal.merchantName ?? deal.sourceName}</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{deal.category}</span>
+            <span className="text-xs font-bold text-muted-foreground">
+              {deal.merchantName ?? deal.sourceName}
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {deal.category}
+            </span>
           </div>
-          <h3 className="mt-1 line-clamp-2 font-semibold leading-snug">{deal.title}</h3>
+          <h3 className="mt-1 line-clamp-2 font-semibold leading-snug">
+            {deal.title}
+          </h3>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-            <DealStatusBadge trust={deal.trust} />
+            <DealStatusBadge
+              trust={deal.trust}
+              dealStackVerified={deal.dealStackVerified}
+            />
             <DealFreshness deal={deal} now={now} />
-            {deal.stackable ? <span className="inline-flex items-center gap-1"><Layers3 aria-hidden className="size-3" /> {stackableChipLabel(deal.kind)}</span> : null}
-            {deal.votes != null ? <span className="inline-flex items-center gap-1"><ThumbsUp aria-hidden className="size-3" /> {deal.votes}</span> : null}
-            {deal.comments != null ? <span className="inline-flex items-center gap-1"><MessageSquare aria-hidden className="size-3" /> {deal.comments}</span> : null}
+            {deal.stackable ? (
+              <span className="inline-flex items-center gap-1">
+                <Layers3 aria-hidden className="size-3" />{" "}
+                {stackableChipLabel(deal.kind)}
+              </span>
+            ) : null}
+            {deal.votes != null ? (
+              <span className="inline-flex items-center gap-1">
+                <ThumbsUp aria-hidden className="size-3" /> {deal.votes}
+              </span>
+            ) : null}
+            {deal.comments != null ? (
+              <span className="inline-flex items-center gap-1">
+                <MessageSquare aria-hidden className="size-3" /> {deal.comments}
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="sm:text-right">
           <DealPrice deal={deal} />
-          {deal.couponCode ? <p className="mt-1 text-[11px] text-muted-foreground">Code <code className="font-semibold text-foreground">{deal.couponCode}</code></p> : null}
+          {deal.couponCode ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Code{" "}
+              <code className="font-semibold text-foreground">
+                {deal.couponCode}
+              </code>
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2 sm:justify-end">
           {href ? (
             external ? (
-              <a href={href} target="_blank" rel="nofollow noopener noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted">View deal <ExternalLink aria-hidden className="size-3" /></a>
+              <a
+                href={href}
+                target="_blank"
+                rel="nofollow noopener noreferrer"
+                className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted"
+              >
+                View deal <ExternalLink aria-hidden className="size-3" />
+              </a>
             ) : (
-              <Link href={href} className="inline-flex h-8 items-center rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted">View deal</Link>
+              <Link
+                href={href}
+                className="inline-flex h-8 items-center rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted"
+              >
+                View deal
+              </Link>
             )
           ) : null}
-          <Link href={planHref} className="inline-flex h-8 items-center rounded-lg bg-emerald-700 px-2.5 text-xs font-semibold text-white hover:bg-emerald-800">Plan</Link>
+          <Link
+            href={planHref}
+            className="inline-flex h-8 items-center rounded-lg bg-emerald-700 px-2.5 text-xs font-semibold text-white hover:bg-emerald-800"
+          >
+            Plan
+          </Link>
         </div>
       </article>
     );
@@ -98,7 +162,10 @@ export function DealCard({
         <div className="flex items-start gap-3">
           <StoreLogo
             store={store}
-            text={deal.merchantName?.slice(0, 2).toUpperCase() ?? deal.sourceName.slice(0, 2).toUpperCase()}
+            text={
+              deal.merchantName?.slice(0, 2).toUpperCase() ??
+              deal.sourceName.slice(0, 2).toUpperCase()
+            }
             size="sm"
           />
           <div className="min-w-0 flex-1">
@@ -109,11 +176,18 @@ export function DealCard({
               {deal.title}
             </h3>
           </div>
-          <DealStatusBadge trust={deal.trust} className="hidden shrink-0 sm:inline-flex" />
+          <DealStatusBadge
+            trust={deal.trust}
+            dealStackVerified={deal.dealStackVerified}
+            className="hidden shrink-0 sm:inline-flex"
+          />
         </div>
 
         <div className="sm:hidden">
-          <DealStatusBadge trust={deal.trust} />
+          <DealStatusBadge
+            trust={deal.trust}
+            dealStackVerified={deal.dealStackVerified}
+          />
         </div>
         <DealPrice deal={deal} />
         {!compact && deal.summary ? (
@@ -125,7 +199,10 @@ export function DealCard({
         {visibleTags.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {visibleTags.map((tag) => (
-              <span key={tag} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <span
+                key={tag}
+                className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              >
                 {tag}
               </span>
             ))}
@@ -140,24 +217,58 @@ export function DealCard({
         {deal.couponCode ? (
           <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <Copy aria-hidden className="size-3.5" />
-            Code <code className="rounded bg-muted px-1.5 py-0.5 font-semibold text-foreground">{deal.couponCode}</code>
+            Code{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-semibold text-foreground">
+              {deal.couponCode}
+            </code>
           </p>
         ) : null}
 
         <DealConditionBadges deal={deal} now={now} />
-        <DealFreshness deal={deal} now={now} className="mt-auto border-t pt-3" />
+        <DealFreshness
+          deal={deal}
+          now={now}
+          className="mt-auto border-t pt-3"
+        />
 
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-            {deal.stackable ? <span className="inline-flex items-center gap-1"><Layers3 aria-hidden className="size-3" /> {stackableChipLabel(deal.kind)}</span> : null}
-            {deal.votes != null ? <span className="inline-flex items-center gap-1"><ThumbsUp aria-hidden className="size-3" /> {deal.votes}</span> : null}
-            {deal.comments != null ? <span className="inline-flex items-center gap-1"><MessageSquare aria-hidden className="size-3" /> {deal.comments}</span> : null}
-            {deal.kind === "community" && deal.capturedAt ? <span>Captured {relativeTimeLabel(deal.capturedAt, now) ?? deal.capturedAt.slice(0, 10)}</span> : null}
+            {deal.stackable ? (
+              <span className="inline-flex items-center gap-1">
+                <Layers3 aria-hidden className="size-3" />{" "}
+                {stackableChipLabel(deal.kind)}
+              </span>
+            ) : null}
+            {deal.votes != null ? (
+              <span className="inline-flex items-center gap-1">
+                <ThumbsUp aria-hidden className="size-3" /> {deal.votes}
+              </span>
+            ) : null}
+            {deal.comments != null ? (
+              <span className="inline-flex items-center gap-1">
+                <MessageSquare aria-hidden className="size-3" /> {deal.comments}
+              </span>
+            ) : null}
+            {deal.kind === "community" && deal.capturedAt ? (
+              <span>
+                Captured{" "}
+                {relativeTimeLabel(deal.capturedAt, now) ??
+                  deal.capturedAt.slice(0, 10)}
+              </span>
+            ) : null}
           </div>
           {href ? (
-            <Button asChild size="sm" variant={deal.detailPath ? "default" : "outline"}>
+            <Button
+              asChild
+              size="sm"
+              variant={deal.detailPath ? "default" : "outline"}
+            >
               {external ? (
-                <a href={href} target="_blank" rel="nofollow noopener noreferrer">
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="nofollow noopener noreferrer"
+                >
                   Go to offer <ExternalLink aria-hidden />
                 </a>
               ) : (
@@ -167,7 +278,9 @@ export function DealCard({
               )}
             </Button>
           ) : (
-            <span className="text-xs text-muted-foreground">Source unavailable</span>
+            <span className="text-xs text-muted-foreground">
+              Source unavailable
+            </span>
           )}
         </div>
       </CardContent>
@@ -180,17 +293,33 @@ export function DealGroupCard({ group, now }: { group: DealGroup; now: Date }) {
     <Card className="h-full gap-0 py-0 shadow-sm">
       <CardContent className="flex h-full flex-col gap-3 p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Compare retailers</p>
-          <h3 className="mt-1 text-lg font-semibold leading-snug">{group.title}</h3>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            Compare retailers
+          </p>
+          <h3 className="mt-1 text-lg font-semibold leading-snug">
+            {group.title}
+          </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {group.fromPrice != null ? `From ${formatAUD(group.fromPrice)} · ` : ""}{group.options.length} active offers
+            {group.fromPrice != null
+              ? `From ${formatAUD(group.fromPrice)} · `
+              : ""}
+            {group.options.length} active offers
           </p>
         </div>
         <div className="divide-y rounded-lg border">
           {group.options.slice(0, 4).map((option) => (
-            <div key={option.id} className="flex items-center justify-between gap-3 px-3 py-2">
-              <span className="min-w-0 truncate text-sm font-medium">{option.merchantName ?? option.sourceName}</span>
-              <span className="shrink-0 text-sm font-semibold">{option.priceValue != null ? formatAUD(option.priceValue) : "See price"}</span>
+            <div
+              key={option.id}
+              className="flex items-center justify-between gap-3 px-3 py-2"
+            >
+              <span className="min-w-0 truncate text-sm font-medium">
+                {option.merchantName ?? option.sourceName}
+              </span>
+              <span className="shrink-0 text-sm font-semibold">
+                {option.priceValue != null
+                  ? formatAUD(option.priceValue)
+                  : "See price"}
+              </span>
             </div>
           ))}
         </div>

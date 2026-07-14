@@ -22,6 +22,7 @@ import { sanitisePublicText } from "@/lib/stack/buildStack";
 import { scoreDeal } from "./score";
 import {
   KIND_LABEL,
+  type DealDateStatus,
   type PublicDeal,
   type PublicDealKind,
   type TrustStatus,
@@ -93,6 +94,15 @@ function trustFromConfidence(
 
 function hasTargetedTag(tags: string[]): boolean {
   return tags.some((tag) => tag.toLowerCase().includes("targeted"));
+}
+
+function dateStatus(
+  expiryDate: string | null | undefined,
+  expired: boolean,
+  explicitlyOngoing = false,
+): DealDateStatus {
+  if (expired) return "expired";
+  return expiryDate || explicitlyOngoing ? "confirmed-current" : "unknown";
 }
 
 interface BuildContext {
@@ -183,6 +193,9 @@ export function fromSignal(
       trust: expired
         ? "expired"
         : trustFromConfidence(signal.confidence, "community"),
+      // A moderated community signal may be source-confirmed, but it is not a
+      // completed DealStack verification outcome.
+      dealStackVerified: false,
       membershipRequired: false,
       activationRequired: false,
       targeted: hasTargetedTag(tags),
@@ -190,6 +203,7 @@ export function fromSignal(
       postedAt: signal.postedAt,
       lastCheckedAt: signal.lastCheckedAt,
       expiryDate: signal.expiryDate ?? null,
+      dateStatus: dateStatus(signal.expiryDate, expired),
       sourceName: "OzBargain",
       publisherFamily: SOURCE_META.ozbargain.publisherFamily,
       capturedAt: signal.lastCheckedAt,
@@ -237,6 +251,13 @@ export function fromGiftCard(
       : offer.pointsOnPurchase
         ? `${offer.pointsOnPurchase.earnNote} via ${offer.source}.`
         : `${offer.brand} cards via ${offer.source}.`;
+  const sourceUrl =
+    (offer.sourceDetailUrl
+      ? safePublicSourceUrl(offer.sourceDetailUrl)
+      : null) ??
+    (offer.citations[0]
+      ? safePublicSourceUrl(offer.citations[0].sourceUrl)
+      : null);
   return finalise(
     {
       id: `gift-card:${offer.id}`,
@@ -253,6 +274,7 @@ export function fromGiftCard(
       savingPercent: offer.discountPercent > 0 ? offer.discountPercent : null,
       couponCode: null,
       trust: trustFromConfidence(offer.confidence, "gift-card"),
+      dealStackVerified: offer.confidence === "confirmed" && sourceUrl !== null,
       membershipRequired: offer.channel === "membership-portal",
       activationRequired: false,
       targeted: false,
@@ -263,16 +285,15 @@ export function fromGiftCard(
       postedAt: offer.startDate,
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
+      dateStatus: dateStatus(
+        offer.expiryDate,
+        offer.confidence === "expired-unknown",
+        offer.isOngoing === true,
+      ),
       sourceName: offer.source,
       publisherFamily: publisherFamilyFor(offer.citations),
       capturedAt: offer.lastCheckedAt,
-      sourceUrl:
-        (offer.sourceDetailUrl
-          ? safePublicSourceUrl(offer.sourceDetailUrl)
-          : null) ??
-        (offer.citations[0]
-          ? safePublicSourceUrl(offer.citations[0].sourceUrl)
-          : null),
+      sourceUrl,
       detailPath: null,
       stackable: true, // a discounted gift card is itself a stack layer
       productGroup: null,
@@ -292,6 +313,9 @@ export function fromCashback(
   const store = ctx.storeById.get(offer.merchantId) ?? null;
   const rate =
     offer.flatAmount != null ? `$${offer.flatAmount}` : `${offer.ratePercent}%`;
+  const sourceUrl = offer.citations[0]
+    ? safePublicSourceUrl(offer.citations[0].sourceUrl)
+    : null;
   return finalise(
     {
       id: `cashback:${offer.id}`,
@@ -308,6 +332,7 @@ export function fromCashback(
       savingPercent: offer.ratePercent > 0 ? offer.ratePercent : null,
       couponCode: null,
       trust: trustFromConfidence(offer.confidence, "cashback"),
+      dealStackVerified: offer.confidence === "confirmed" && sourceUrl !== null,
       membershipRequired: false,
       activationRequired: false,
       targeted: false,
@@ -315,15 +340,17 @@ export function fromCashback(
       postedAt: null,
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
+      dateStatus: dateStatus(
+        offer.expiryDate,
+        offer.confidence === "expired-unknown",
+      ),
       sourceName: offer.provider,
       publisherFamily: publisherFamilyFor(
         offer.citations,
         offer.provider.toLowerCase(),
       ),
       capturedAt: offer.lastCheckedAt,
-      sourceUrl: offer.citations[0]
-        ? safePublicSourceUrl(offer.citations[0].sourceUrl)
-        : null,
+      sourceUrl,
       detailPath: null,
       stackable: ctx.stackableMerchantIds.has(offer.merchantId),
       productGroup: null,
@@ -344,6 +371,9 @@ export function fromPoints(offer: PointsOffer, ctx: BuildContext): PublicDeal {
     ? (ctx.storeById.get(offer.merchantId) ?? null)
     : null;
   const boost = offer.mechanism === "in-store-boost";
+  const sourceUrl = offer.citations[0]
+    ? safePublicSourceUrl(offer.citations[0].sourceUrl)
+    : null;
   return finalise(
     {
       id: `points:${offer.id}`,
@@ -362,6 +392,7 @@ export function fromPoints(offer: PointsOffer, ctx: BuildContext): PublicDeal {
       savingPercent: null,
       couponCode: null,
       trust: trustFromConfidence(offer.confidence, "points"),
+      dealStackVerified: offer.confidence === "confirmed" && sourceUrl !== null,
       membershipRequired: false,
       activationRequired: boost,
       targeted: false,
@@ -369,15 +400,17 @@ export function fromPoints(offer: PointsOffer, ctx: BuildContext): PublicDeal {
       postedAt: null,
       lastCheckedAt: offer.lastCheckedAt,
       expiryDate: offer.expiryDate,
+      dateStatus: dateStatus(
+        offer.expiryDate,
+        offer.confidence === "expired-unknown",
+      ),
       sourceName: offer.program,
       publisherFamily: publisherFamilyFor(
         offer.citations,
         offer.program.toLowerCase(),
       ),
       capturedAt: offer.lastCheckedAt,
-      sourceUrl: offer.citations[0]
-        ? safePublicSourceUrl(offer.citations[0].sourceUrl)
-        : null,
+      sourceUrl,
       detailPath: null,
       stackable:
         offer.merchantId != null &&
@@ -415,6 +448,7 @@ export function fromWeeklyDeal(
       savingPercent: null,
       couponCode: null,
       trust: trustFromConfidence(deal.confidence, "editorial"),
+      dealStackVerified: false,
       membershipRequired: false,
       activationRequired: false,
       targeted: false,
@@ -422,6 +456,10 @@ export function fromWeeklyDeal(
       postedAt: deal.weekOf,
       lastCheckedAt: null,
       expiryDate: deal.expiryDate,
+      dateStatus: dateStatus(
+        deal.expiryDate,
+        deal.confidence === "expired-unknown",
+      ),
       sourceName: "DealStack editorial",
       publisherFamily: "dealstack",
       capturedAt: deal.weekOf,

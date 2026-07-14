@@ -241,6 +241,18 @@ export function layerStatusLabel(
   return { label: "Unverified", tone: "caution" };
 }
 
+/**
+ * Public explanation for an engine-excluded layer. Structured engine output
+ * wins; the fallback deliberately states only that evidence is insufficient.
+ */
+export function excludedLayerReason(component: StackComponent): string {
+  return (
+    component.note?.trim() ||
+    component.compatibilityReason?.trim() ||
+    "DealStack does not have enough compatibility evidence."
+  );
+}
+
 const WARNING_LEVEL_RANK: Record<StackWarningLevel, number> = {
   risk: 0,
   caution: 1,

@@ -139,6 +139,17 @@ test("home → store page shows the stack breakdown", async ({ page }) => {
   await expect(
     page.getByText(/Best compatible stack|Safest available option/).first(),
   ).toBeVisible();
+  await expect(
+    page
+      .getByText(
+        /Checked today|Checked this week|Needs recheck|Not yet checked/,
+      )
+      .first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Included in recommended plan").first(),
+  ).toBeVisible();
+  await expect(page.getByText("DealStack verified")).toHaveCount(0);
 });
 
 test("search: canonical product key compares retailer prices and stacks", async ({
@@ -347,6 +358,17 @@ test("deals: Latest is a first-class shareable view", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("deals: Best verified has an honest empty state", async ({ page }) => {
+  await page.goto(
+    "/deals?view=top&trust=verified&q=definitely-no-verified-offer",
+  );
+  await expect(
+    page.getByRole("heading", {
+      name: "No currently verified offers are available.",
+    }),
+  ).toBeVisible();
+});
+
 test("deals: filters and search are shareable and clearable", async ({
   page,
 }, testInfo) => {
@@ -359,7 +381,9 @@ test("deals: filters and search are shareable and clearable", async ({
   await expect(page).toHaveURL(/trust=verified/);
   await page.getByLabel("Search public deals").fill("nothing-can-match-this");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("No deals match those choices")).toBeVisible();
+  await expect(
+    page.getByText("No currently verified offers are available."),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Clear search and filters" }).click();
   await expect(page).toHaveURL(/\/deals$/);
 });
@@ -570,6 +594,7 @@ test("public routes do not overflow the viewport", async ({ page }) => {
   for (const path of [
     "/",
     "/deals",
+    "/deals?view=top&trust=verified",
     "/cards",
     "/gift-cards",
     "/gift-cards/gc-coles-group-bonus-points",
@@ -580,6 +605,9 @@ test("public routes do not overflow the viewport", async ({ page }) => {
     "/rewards",
     "/rewards/everyday-rewards",
     "/stores",
+    "/stores/myer",
+    "/search",
+    "/search?q=Amazon+AU&spend=500",
     "/search?q=myer",
     "/search?q=macbook-air-m3",
     "/resources",

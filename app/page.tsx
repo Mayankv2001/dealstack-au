@@ -64,6 +64,7 @@ export default async function Home() {
             stores={data.stores}
             recommendations={recommendations}
             heroStack={heroStack}
+            nowIso={now.toISOString()}
             todayFeed={<TopDealsSection deals={topDeals.slice(0, 5)} />}
           />
 

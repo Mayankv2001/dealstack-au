@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  BadgePercent,
-  Clock,
-  CreditCard,
-  FileSearch,
-  Gift,
-  ShieldCheck,
-  Star,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, ArrowRight, FileSearch, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DealStackCalculator from "@/components/DealStackCalculator";
 import { JsonLd } from "@/components/JsonLd";
@@ -21,10 +10,10 @@ import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
 import SiteFooter from "@/components/SiteFooter";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
-import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
+import { SAMPLE_SPEND } from "@/components/StoreCard";
 import { formatAUD } from "@/lib/calculateStack";
-import { formatExpiry } from "@/lib/data";
 import { siteUrl } from "@/lib/env";
+import { publicFreshness } from "@/lib/freshness";
 import { getStores } from "@/lib/repos";
 import { storeSourceResults } from "@/lib/repos/sourceResults";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
@@ -34,7 +23,6 @@ import {
   recommendationPresentation,
 } from "@/lib/stack/present";
 import { buildStoreBreadcrumbJsonLd } from "@/lib/structuredData";
-import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
@@ -79,7 +67,8 @@ export default async function StorePage({
   // Source checks come from the repository layer (Supabase published/approved
   // rows when configured, static sample pipeline otherwise).
   const sourceResults = await storeSourceResults(store.id);
-  const recommendations = buildStackRecommendations(undefined, 500, data);
+  const now = new Date();
+  const recommendations = buildStackRecommendations(undefined, 500, data, now);
   // The hero estimate and how-to steps come from the SAME engine output as the
   // Decision Hub, homepage and calculator — never from naively compounding the
   // store's recorded rates (which ignored gift-card/cashback exclusions).
@@ -87,60 +76,7 @@ export default async function StorePage({
     recommendations.find((rec) => rec.merchantId === store.id) ?? null;
   const steps = buildStackSteps(store.name, recommendation);
   const presentation = recommendationPresentation(recommendation);
-
-  const layers = [
-    {
-      icon: BadgePercent,
-      label: "Discount code",
-      value:
-        store.discountPercent > 0 ? `${store.discountPercent}% off` : "None",
-      detail:
-        store.discountPercent > 0
-          ? `Code: ${store.discountCode}`
-          : store.discountCode,
-      sub: formatExpiry(store.expiryDate),
-      accent: "bg-primary/10 text-primary",
-      active: store.discountPercent > 0,
-      badge: null as string | null,
-    },
-    {
-      icon: CreditCard,
-      label: "Cashback",
-      value:
-        store.cashbackPercent > 0 ? `${store.cashbackPercent}% back` : "None",
-      detail:
-        store.cashbackPercent > 0
-          ? "Track your click-through"
-          : "No tracked cashback for this store",
-      sub: null as string | null,
-      accent: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-      active: store.cashbackPercent > 0,
-      badge: store.cashbackPercent > 0 ? store.cashbackProvider : null,
-    },
-    {
-      icon: Gift,
-      label: "Gift cards",
-      value:
-        store.giftCardDiscountPercent > 0
-          ? `${store.giftCardDiscountPercent}% off`
-          : "None",
-      detail: store.giftCardSource,
-      sub: null as string | null,
-      accent: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-      active: store.giftCardDiscountPercent > 0,
-      badge: null as string | null,
-    },
-    {
-      icon: Star,
-      label: "Points",
-      value: store.pointsProgram !== "—" ? store.pointsProgram : "None",
-      detail: store.pointsRate,
-      sub: null as string | null,
-      accent: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-      active: store.pointsProgram !== "—",
-      badge: null as string | null,
-    },
-  ];
+  const freshness = publicFreshness(recommendation?.checkedAsOf, now);
 
   return (
     <>
@@ -177,10 +113,10 @@ export default async function StorePage({
                       of {presentation.includedLayerCount}
                     </span>
                     <span>
-                      Last full check:{" "}
-                      {formatDateAU(
-                        recommendation?.checkedAsOf?.slice(0, 10) ?? null,
-                      ) ?? "not recorded"}
+                      Freshness: {freshness.label}
+                      {freshness.checkedDate
+                        ? ` · checked ${freshness.checkedDate}`
+                        : ""}
                     </span>
                   </div>
                 </div>
@@ -222,7 +158,7 @@ export default async function StorePage({
             <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
               <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
               Results sourced from OzBargain, Point Hacks, FreePoints, GCDB and
-              DealStack-verified entries.
+              DealStack records.
             </p>
             <Link
               href={`/search?q=${encodeURIComponent(store.name)}&spend=${SAMPLE_SPEND}`}
@@ -249,62 +185,11 @@ export default async function StorePage({
                 <StackRecommendationCard
                   recommendation={recommendation}
                   stores={stores}
+                  now={now}
                 />
               </div>
             </section>
           ) : null}
-
-          {/* Savings layers */}
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {layers.map((layer) => (
-              <Card
-                key={layer.label}
-                className={cn(
-                  "gap-0 py-0 shadow-sm",
-                  !layer.active && "opacity-60",
-                )}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                          layer.accent,
-                        )}
-                      >
-                        <layer.icon className="size-4" />
-                      </span>
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {layer.label}
-                      </span>
-                    </div>
-                    {layer.badge && (
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "shrink-0 px-1.5 py-0 text-[10px]",
-                          providerBadgeClasses[layer.badge],
-                        )}
-                      >
-                        {layer.badge}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-3 font-bold">{layer.value}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {layer.detail}
-                  </p>
-                  {layer.sub && (
-                    <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <Clock className="size-3" />
-                      {layer.sub}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
 
           {/* Source checks (Supabase-backed when configured; static demo pool otherwise — no live fetching) */}
           <section className="mt-6">
@@ -318,6 +203,10 @@ export default async function StorePage({
               {sourceResults.length === 0
                 ? `What OzBargain, Point Hacks, FreePoints and GCDB list for ${store.name}`
                 : `${sourceResults.length} ${sourceResults.length === 1 ? "listing" : "listings"} mentioning ${store.name} across our checked sources`}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              These are informational source listings, not layers included by
+              the recommendation engine unless they appear in the plan above.
             </p>
 
             {sourceResults.length === 0 ? (

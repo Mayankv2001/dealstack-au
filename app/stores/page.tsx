@@ -40,8 +40,9 @@ export default async function StoresIndexPage() {
   // Same engine + data bundle as the homepage and store pages, so the
   // "estimated saving" on these cards can never disagree with them.
   const data = await loadStackData();
+  const now = new Date();
   const stores = data.stores;
-  const recommendations = buildStackRecommendations(undefined, 500, data);
+  const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const recommendationByStore = new Map(
     recommendations.map((rec) => [rec.merchantId, rec]),
   );
@@ -118,6 +119,7 @@ export default async function StoresIndexPage() {
                     key={store.id}
                     store={store}
                     recommendation={recommendationByStore.get(store.id) ?? null}
+                    now={now}
                   />
                 ))}
               </div>

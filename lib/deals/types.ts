@@ -11,11 +11,7 @@
 
 /** Which family of offer a public deal belongs to. */
 export type PublicDealKind =
-  | "community"
-  | "gift-card"
-  | "cashback"
-  | "points"
-  | "editorial";
+  "community" | "gift-card" | "cashback" | "points" | "editorial";
 
 export const KIND_LABEL: Record<PublicDealKind, string> = {
   community: "Community deal",
@@ -46,7 +42,10 @@ export function stackableChipLabel(kind: PublicDealKind): string {
  *                    whose price/terms are the community's, not ours
  *  - expired         confidence === "expired-unknown" or past expiry
  */
-export type TrustStatus = "verified" | "source-checked" | "community" | "expired";
+export type TrustStatus =
+  "verified" | "source-checked" | "community" | "expired";
+
+export type DealDateStatus = "confirmed-current" | "unknown" | "expired";
 
 export interface PublicDeal {
   /** Globally unique across kinds: `${kind}:${entityId}`. */
@@ -71,6 +70,8 @@ export interface PublicDeal {
   savingPercent: number | null;
   couponCode: string | null;
   trust: TrustStatus;
+  /** Completed DealStack verification outcome, distinct from source status. */
+  dealStackVerified: boolean;
   membershipRequired: boolean;
   /** Points boosts that must be activated in-app before shopping. */
   activationRequired: boolean;
@@ -80,6 +81,8 @@ export interface PublicDeal {
   postedAt: string | null;
   lastCheckedAt: string | null;
   expiryDate: string | null;
+  /** Explicit current/unknown state; null expiry alone never implies ongoing. */
+  dateStatus: DealDateStatus;
   /** Human source name: "OzBargain", "RACV", "ShopBack", a program, … */
   sourceName: string;
   /** Independent publisher family used for corroboration de-duplication. */
@@ -115,5 +118,4 @@ export interface DealGroup {
 }
 
 export type DealListItem =
-  | { type: "deal"; deal: PublicDeal }
-  | { type: "group"; group: DealGroup };
+  { type: "deal"; deal: PublicDeal } | { type: "group"; group: DealGroup };
