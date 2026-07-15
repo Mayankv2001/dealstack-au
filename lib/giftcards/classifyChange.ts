@@ -47,6 +47,9 @@ export function classifyOfferChange(
   if (numChanged(before.promoCreditDollars, after.promoCreditDollars)) changed.push("promoCreditDollars");
   if (numChanged(before.feeWaiverDollars, after.feeWaiverDollars)) changed.push("feeWaiverDollars");
   if (numChanged(before.thresholdDollars, after.thresholdDollars)) changed.push("thresholdDollars");
+  if (numChanged(before.effectiveDiscountPercent, after.effectiveDiscountPercent)) {
+    changed.push("effectiveDiscountPercent");
+  }
   if (before.pointsProgram !== after.pointsProgram) changed.push("pointsProgram");
   if (before.promotionType !== after.promotionType) changed.push("promotionType");
   if (before.rewardDestination !== after.rewardDestination) changed.push("rewardDestination");
@@ -57,9 +60,15 @@ export function classifyOfferChange(
   if (before.activationRequired !== after.activationRequired) changed.push("activationRequired");
   if (before.couponRequired !== after.couponRequired) changed.push("couponRequired");
   if (before.isOngoing !== after.isOngoing) changed.push("isOngoing");
+  if (before.sourceMarkedExpired !== after.sourceMarkedExpired) {
+    changed.push("sourceMarkedExpired");
+  }
   if (before.targeted !== after.targeted) changed.push("targeted");
   if (before.sourcePresence !== after.sourcePresence) changed.push("sourcePresence");
   if (numChanged(before.minSpend, after.minSpend)) changed.push("minSpend");
+  if (before.purchaseLimitNote !== after.purchaseLimitNote) {
+    changed.push("purchaseLimitNote");
+  }
   const brandsBefore = [...before.giftCardBrands].sort().join("|");
   const brandsAfter = [...after.giftCardBrands].sort().join("|");
   if (brandsBefore !== brandsAfter) changed.push("giftCardBrands");
@@ -68,13 +77,21 @@ export function classifyOfferChange(
   const material = ["discountPercent", "bonusPercent", "pointsMultiplier", "fixedPoints",
     "fixedDiscountDollars", "promoCreditDollars", "feeWaiverDollars",
     "thresholdDollars", "pointsProgram", "promotionType",
-    "rewardDestination", "sellerName", "sourcePresence"];
+    "rewardDestination", "sellerName", "sourcePresence",
+    "effectiveDiscountPercent", "sourceMarkedExpired", "startsAt"];
   if (changed.some((f) => material.includes(f))) {
     return { kind: "material-offer", requiresReview: true, changedFields: changed };
   }
 
   // Stacking-relevant conditions.
-  const stacking = ["membershipRequired", "activationRequired", "couponRequired", "minSpend", "targeted"];
+  const stacking = [
+    "membershipRequired",
+    "activationRequired",
+    "couponRequired",
+    "minSpend",
+    "purchaseLimitNote",
+    "targeted",
+  ];
   if (changed.some((f) => stacking.includes(f))) {
     return { kind: "stacking-condition", requiresReview: true, changedFields: changed };
   }
@@ -95,14 +112,6 @@ export function classifyOfferChange(
     return extended
       ? { kind: "expiry-extension", requiresReview: true, changedFields: changed }
       : { kind: "material-offer", requiresReview: true, changedFields: changed };
-  }
-
-  if (changed.includes("startsAt")) {
-    return {
-      kind: "factual-non-material",
-      requiresReview: false,
-      changedFields: changed,
-    };
   }
 
   return { kind: "cosmetic", requiresReview: false, changedFields: changed };

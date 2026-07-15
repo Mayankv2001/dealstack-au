@@ -12,6 +12,7 @@ import {
   insertRawItem,
   lastIngestRunStart,
   loadRawItems,
+  persistRejectedRawItem,
   recordSourceState,
   stageCandidate,
   startIngestRun,
@@ -20,13 +21,13 @@ import {
 } from "@/lib/admin/repos/giftCardPipeline";
 import { fetchPointHacksWeeklyPage } from "@/lib/giftcards/fetchEditorialPage";
 import {
-  decideWeeklyAutomatedRetrieval,
   extractPointHacksWeeklyOffer,
   parsePointHacksWeeklyPage,
   POINT_HACKS_WEEKLY_PARSER_VERSION,
   POINT_HACKS_WEEKLY_SOURCE_ID,
   weeklyFactsToSourceItem,
 } from "@/lib/giftcards/pointHacksWeekly";
+import { decideAutomatedRetrieval } from "@/lib/giftcards/sourceRetrievalPermission";
 import { runGuardedIngest } from "@/lib/giftcards/runGuarded";
 import {
   runGiftCardIngest,
@@ -34,6 +35,7 @@ import {
 } from "@/lib/giftcards/runIngest";
 import { decideSchedule } from "@/lib/giftcards/schedule";
 import { reportOperationalError } from "@/lib/observability/report-server-error";
+import { isGiftCardJobRunSchemaUnavailable } from "@/lib/admin/repos/giftCardJobRunErrors";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -65,7 +67,7 @@ export async function GET(request: Request): Promise<Response> {
   const now = new Date();
   try {
     const source = await getGiftCardSource(POINT_HACKS_WEEKLY_SOURCE_ID);
-    const permission = decideWeeklyAutomatedRetrieval(environmentEnabled, {
+    const permission = decideAutomatedRetrieval(environmentEnabled, {
       sourceExists: source != null,
       enabled: source?.enabled ?? false,
       automatedFetchAllowed: source?.automated_fetch_allowed ?? false,
@@ -105,6 +107,7 @@ export async function GET(request: Request): Promise<Response> {
           lastModified: config.lastModified,
         }),
       loadRawItems,
+      persistRejectedRawItem,
       insertRawItem,
       updateRawItem,
       touchRawItem,
@@ -163,6 +166,12 @@ export async function GET(request: Request): Promise<Response> {
       autoPublished: 0,
     });
   } catch (error) {
+    if (isGiftCardJobRunSchemaUnavailable(error)) {
+      return Response.json(
+        { ok: false, ran: false, skipped: "schema-unavailable" },
+        { status: 503 },
+      );
+    }
     await reportOperationalError("gift-card-weekly-ingest", error);
     return Response.json(
       { ok: false, ran: false, error: "weekly gift-card ingest failed" },

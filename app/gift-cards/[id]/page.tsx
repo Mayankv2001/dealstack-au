@@ -261,7 +261,7 @@ export default async function GiftCardDetailPage({
   ].filter((warning) => !compat.warnings.includes(warning));
   const claimSteps = buildClaimSteps(offer);
   const termsRows = buildTermsRows(offer);
-  const productViews = buildProductAcceptance(offer, products, acceptance);
+  const productViews = buildProductAcceptance(offer, products, acceptance, now);
 
   const storeNames: Record<string, string> = Object.fromEntries(
     stores.map((s) => [s.id, s.name]),
@@ -284,11 +284,36 @@ export default async function GiftCardDetailPage({
     (offer.fixedPoints ?? 0) > 0 ||
     offer.pointsOnPurchase != null ||
     offer.promotionType === "points";
+  const issuers = [
+    ...new Set(
+      products
+        .map((product) => product.issuer?.trim())
+        .filter((issuer): issuer is string => Boolean(issuer)),
+    ),
+  ];
+  const corroboratingSources = [
+    ...new Set(
+      offer.citations
+        .map((citation) => citation.source?.trim())
+        .filter(
+          (source): source is string =>
+            Boolean(source) &&
+            source.toLowerCase() !==
+              (offer.sourceName ?? offer.source).toLowerCase(),
+        ),
+    ),
+  ];
 
   const overviewRows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "Buy from", value: seller },
-    { label: "Offer source", value: offer.sourceName ?? offer.source },
-    { label: "Card brand", value: offer.brand },
+    { label: "Discovered via", value: offer.sourceName ?? offer.source },
+    ...(corroboratingSources.length
+      ? [{ label: "Corroborated by", value: corroboratingSources.join(", ") }]
+      : []),
+    { label: "Card family", value: offer.brand },
+    ...(issuers.length
+      ? [{ label: "Issuer", value: issuers.join(", ") }]
+      : []),
     {
       label: "Redeem at",
       value: offerLevelMerchants.length
@@ -327,6 +352,7 @@ export default async function GiftCardDetailPage({
           : "Expiry not recorded — verify at source"),
     },
     { label: "Checked", value: formatDateAU(offer.lastCheckedAt.slice(0, 10)) },
+    { label: "Reviewed by", value: "DealStack" },
   ];
 
   return (
@@ -534,6 +560,7 @@ export default async function GiftCardDetailPage({
                 <GiftCardAcceptance
                   views={productViews}
                   storeNames={storeNames}
+                  nowIso={now.toISOString()}
                 />
               ) : offerLevelMerchants.length === 0 ? (
                 <p className="text-sm text-muted-foreground">

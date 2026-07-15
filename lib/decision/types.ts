@@ -31,7 +31,13 @@ export interface DecisionFreshness {
 
 export interface RetailerGiftCardOption {
   offer: GiftCardOffer;
+  product: GiftCardProduct | null;
+  acceptance: GiftCardAcceptanceRow | null;
   role: "included" | "alternative" | "available";
+  activeApproved: boolean;
+  directApplicability: boolean;
+  excluded: boolean;
+  exclusionReason: string | null;
   compatibilityStatus: GiftCardCompatibilityStatus;
   compatibilityReason: string;
   engineNote: string | null;
@@ -42,6 +48,18 @@ export interface RetailerGiftCardOption {
   bonusCardValue: number | null;
   pointsEarned: number | null;
   estimatedRewardsValue: number | null;
+  futureCreditValue: number | null;
+  redemptionChannels: string[];
+  evidenceLabel: string;
+  evidenceFreshness: "current" | "stale" | "not-checked";
+  maxUsableAmount: number | null;
+  /** Product limit per physical/digital card; never treated as total coverage. */
+  perCardMaximum: number | null;
+  /** Minimum count implied by a recorded per-card maximum. null = unknown. */
+  estimatedCardCount: number | null;
+  denominationRequirement: string | null;
+  purchaseFriction: number;
+  orderedSteps: string[];
 }
 
 export interface RetailerGiftCardPlan {
@@ -50,6 +68,7 @@ export interface RetailerGiftCardPlan {
   productTitle: string | null;
   listedPrice: number | null;
   giftCardOptions: RetailerGiftCardOption[];
+  excludedGiftCardOptions: RetailerGiftCardOption[];
 }
 
 /**

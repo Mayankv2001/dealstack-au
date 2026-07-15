@@ -64,6 +64,23 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Constraint + disabled registry row only. It permits the private source
   // registry to describe HTML, but leaves fetch and publication gates closed.
   "027_point_hacks_weekly_gift_cards.sql",
+  "028_gift_card_acceptance_extensions.sql",
+  "029_gift_card_predictions.sql",
+  // Adds run_kind plus index-only per-source/kind locking and a narrower
+  // reconcile-vs-lifecycle mutation fence. Indexes need no schema-shape entry.
+  "030_gift_card_job_runs.sql",
+  // Forward reconciliation of the fixed_points drift: 023 was applied to
+  // production before the fixed_points file edit, so this migration adds the
+  // column, tightens the accuracy checks, and refreshes the sync trigger + the
+  // approve RPC to their current (with-fixed_points) form. Owns gift_card_offers
+  // .fixed_points and gift_card_offer_candidates.fixed_points in the manifest.
+  "031_gift_card_fixed_points_reconciliation.sql",
+  // Transactional Sydney lifecycle state + activation/archive timestamps.
+  // Also forward-corrects occurrence date/identity constraints and adds RPCs.
+  "032_gift_card_lifecycle_orchestration.sql",
+  // Policy/constraint/trigger/RPC-only approval hardening. No new columns;
+  // coverage keeps the forward security boundary in the migration ledger.
+  "033_gift_card_offer_approval_hardening.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -112,6 +129,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "fixed_points",
       "promo_credit_dollars", "fee_waiver_dollars", "threshold_dollars",
       "is_ongoing", "targeted",
+      "lifecycle_state", "lifecycle_activated_at", "lifecycle_archived_at",
     ],
     {
       promotion_type: "021_gift_card_pipeline.sql",
@@ -144,12 +162,17 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       source_suboffer_key: "023_gift_card_accuracy_model.sql",
       reward_destination: "023_gift_card_accuracy_model.sql",
       fixed_discount_dollars: "023_gift_card_accuracy_model.sql",
-      fixed_points: "023_gift_card_accuracy_model.sql",
+      // Production applied 023 before the fixed_points file edit; 031 is the
+      // forward migration that lands the column in the production lineage.
+      fixed_points: "031_gift_card_fixed_points_reconciliation.sql",
       promo_credit_dollars: "023_gift_card_accuracy_model.sql",
       fee_waiver_dollars: "023_gift_card_accuracy_model.sql",
       threshold_dollars: "023_gift_card_accuracy_model.sql",
       is_ongoing: "023_gift_card_accuracy_model.sql",
       targeted: "023_gift_card_accuracy_model.sql",
+      lifecycle_state: "032_gift_card_lifecycle_orchestration.sql",
+      lifecycle_activated_at: "032_gift_card_lifecycle_orchestration.sql",
+      lifecycle_archived_at: "032_gift_card_lifecycle_orchestration.sql",
     }
   ),
   cashback_offers: table("001_initial_schema.sql", [
@@ -321,14 +344,23 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "id", "name", "base_url", "feed_url", "source_type", "enabled",
     "automated_fetch_allowed", "terms_checked_at", "robots_checked_at", "etag",
     "last_modified", "last_success_at", "last_error_at", "last_error",
-    "created_at", "updated_at",
-  ]),
-  gift_card_ingest_runs: table("021_gift_card_pipeline.sql", [
-    "id", "source_id", "started_at", "completed_at", "status", "fetch_status",
-    "items_seen", "items_new", "items_updated", "items_unchanged",
-    "items_rejected", "parser_version", "snapshot_hash", "error_summary",
-    "created_at",
-  ]),
+    "created_at", "updated_at", "acceptance_evidence_source_type",
+  ], {
+    acceptance_evidence_source_type: "028_gift_card_acceptance_extensions.sql",
+  }),
+  gift_card_ingest_runs: table(
+    "021_gift_card_pipeline.sql",
+    [
+      "id", "source_id", "started_at", "completed_at", "status", "fetch_status",
+      "items_seen", "items_new", "items_updated", "items_unchanged",
+      "items_rejected", "parser_version", "snapshot_hash", "error_summary",
+      "created_at", "run_kind", "lease_expires_at",
+    ],
+    {
+      run_kind: "030_gift_card_job_runs.sql",
+      lease_expires_at: "030_gift_card_job_runs.sql",
+    }
+  ),
   gift_card_raw_items: table(
     "021_gift_card_pipeline.sql",
     [
@@ -349,14 +381,81 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "min_denomination", "max_denomination", "category_restricted",
       "supported_mccs", "unsupported_mccs", "mobile_wallet", "redemption_notes",
       "is_active", "source_evidence", "created_at", "updated_at",
+      "aliases", "official_product_page", "activation_method", "online_available",
+      "in_store_available", "denominations", "activation_delay_note",
+      "split_payment", "expiry_or_fees_note",
     ],
-    { unsupported_mccs: "022_gift_card_offer_detail.sql" }
+    {
+      unsupported_mccs: "022_gift_card_offer_detail.sql",
+      aliases: "028_gift_card_acceptance_extensions.sql",
+      official_product_page: "028_gift_card_acceptance_extensions.sql",
+      activation_method: "028_gift_card_acceptance_extensions.sql",
+      online_available: "028_gift_card_acceptance_extensions.sql",
+      in_store_available: "028_gift_card_acceptance_extensions.sql",
+      denominations: "028_gift_card_acceptance_extensions.sql",
+      activation_delay_note: "028_gift_card_acceptance_extensions.sql",
+      split_payment: "028_gift_card_acceptance_extensions.sql",
+      expiry_or_fees_note: "028_gift_card_acceptance_extensions.sql",
+    }
   ),
-  gift_card_merchant_acceptance: table("021_gift_card_pipeline.sql", [
-    "id", "product_id", "store_id", "merchant_name", "merchant_category", "mcc",
-    "status", "outcome", "is_public", "source_url", "checked_at", "notes",
-    "created_at", "updated_at",
-  ]),
+  gift_card_merchant_acceptance: table(
+    "021_gift_card_pipeline.sql",
+    [
+      "id", "product_id", "store_id", "merchant_name", "merchant_category", "mcc",
+      "status", "outcome", "is_public", "source_url", "checked_at", "notes",
+      "created_at", "updated_at",
+      "accepts_online", "accepts_in_store", "accepts_app", "accepts_phone",
+      "acceptance_status", "evidence_source_type", "evidence_publisher", "evidence_url",
+      "evidence_captured_at", "last_checked_at", "valid_from", "valid_until",
+      "limitations", "region", "participating_location_required", "review_state",
+    ],
+    {
+      accepts_online: "028_gift_card_acceptance_extensions.sql",
+      accepts_in_store: "028_gift_card_acceptance_extensions.sql",
+      accepts_app: "028_gift_card_acceptance_extensions.sql",
+      accepts_phone: "028_gift_card_acceptance_extensions.sql",
+      acceptance_status: "028_gift_card_acceptance_extensions.sql",
+      evidence_source_type: "028_gift_card_acceptance_extensions.sql",
+      evidence_publisher: "028_gift_card_acceptance_extensions.sql",
+      evidence_url: "028_gift_card_acceptance_extensions.sql",
+      evidence_captured_at: "028_gift_card_acceptance_extensions.sql",
+      last_checked_at: "028_gift_card_acceptance_extensions.sql",
+      valid_from: "028_gift_card_acceptance_extensions.sql",
+      valid_until: "028_gift_card_acceptance_extensions.sql",
+      limitations: "028_gift_card_acceptance_extensions.sql",
+      region: "028_gift_card_acceptance_extensions.sql",
+      participating_location_required: "028_gift_card_acceptance_extensions.sql",
+      review_state: "028_gift_card_acceptance_extensions.sql",
+    }
+  ),
+  gift_card_acceptance_candidates: table(
+    "028_gift_card_acceptance_extensions.sql",
+    [
+      "id", "raw_merchant_name", "source_id", "raw_item_id", "proposed_product_id",
+      "resolved_store_id", "proposed_values", "resolution_state", "change_kind",
+      "review_status", "reviewer_email", "reviewed_at", "linked_acceptance_id",
+      "created_at", "updated_at",
+    ]
+  ),
+  gift_card_acceptance_evidence: table(
+    "028_gift_card_acceptance_extensions.sql",
+    [
+      "id", "acceptance_id", "source_id", "evidence_source_type",
+      "evidence_publisher", "evidence_url", "evidence_captured_at",
+      "checked_at", "acceptance_status", "reviewer_email", "created_at",
+    ]
+  ),
+  gift_card_offer_predictions: table(
+    "029_gift_card_predictions.sql",
+    [
+      "id", "source_id", "source_url", "source_last_updated", "predicted_seller",
+      "predicted_families", "predicted_promotion_text", "predicted_promotion_type",
+      "predicted_value", "predicted_discount_percent", "predicted_starts_at",
+      "predicted_ends_at", "source_reference_url", "source_marker", "fingerprint",
+      "status", "linked_offer_id", "comparison_notes", "reviewed_at",
+      "created_at", "updated_at",
+    ]
+  ),
   gift_card_offer_candidates: table(
     "021_gift_card_pipeline.sql",
     [
@@ -380,7 +479,14 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
         "fixed_points",
         "fee_waiver_dollars", "threshold_dollars", "is_ongoing", "targeted",
         "source_present", "source_removed_at",
-      ].map((column) => [column, "023_gift_card_accuracy_model.sql"])
+      ].map((column) => [
+        column,
+        // Production applied 023 before the fixed_points file edit; 031 is the
+        // forward migration that lands the column in the production lineage.
+        column === "fixed_points"
+          ? "031_gift_card_fixed_points_reconciliation.sql"
+          : "023_gift_card_accuracy_model.sql",
+      ])
     )
   ),
   gift_card_knowledge: table("021_gift_card_pipeline.sql", [

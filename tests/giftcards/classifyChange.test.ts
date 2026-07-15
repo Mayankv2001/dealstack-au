@@ -95,11 +95,27 @@ describe("classifyOfferChange", () => {
     expect(c.requiresReview).toBe(true);
   });
 
-  it("treats a start-date-only change as non-material (no re-review)", () => {
+  it("treats a start-date change as material because it changes activation eligibility", () => {
     const c = classifyOfferChange(offer(), offer({ startsAt: "2026-07-10" }));
-    expect(c.kind).toBe("factual-non-material");
-    expect(c.requiresReview).toBe(false);
+    expect(c.kind).toBe("material-offer");
+    expect(c.requiresReview).toBe(true);
     expect(c.changedFields).toEqual(["startsAt"]);
+  });
+
+  it("treats purchase limits and source-expired markers as material", () => {
+    const limit = classifyOfferChange(
+      offer(),
+      offer({ purchaseLimitNote: "Limit 5 per account" }),
+    );
+    expect(limit.kind).toBe("stacking-condition");
+    expect(limit.changedFields).toEqual(["purchaseLimitNote"]);
+
+    const expired = classifyOfferChange(
+      offer(),
+      offer({ sourceMarkedExpired: true }),
+    );
+    expect(expired.kind).toBe("material-offer");
+    expect(expired.changedFields).toEqual(["sourceMarkedExpired"]);
   });
 
   it("treats disappearance from the source as removal", () => {

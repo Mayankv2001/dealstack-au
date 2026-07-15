@@ -7,6 +7,7 @@ import {
 } from "@/lib/giftcards/extractOffer";
 import type { GcdbFeedItem } from "@/lib/giftcards/parseGcdbFeed";
 import type { PublishedOfferSummary } from "@/lib/giftcards/duplicateDetection";
+import type { GiftCardCandidateSplitPart } from "@/lib/giftcards/offerRevision";
 import type {
   IngestMetrics,
   RawItemState,
@@ -20,6 +21,8 @@ import {
   type WeeklyGiftCardFacts,
 } from "@/lib/giftcards/pointHacksWeekly";
 import { contentHashOf } from "@/lib/giftcards/runIngest";
+import { throwGiftCardJobRunRepoError } from "./giftCardJobRunErrors";
+import { acquireGiftCardJobRun } from "./giftCardJobRuns";
 
 /**
  * Gift-card pipeline data access — SERVICE-ROLE ONLY (staging tables carry no
@@ -35,7 +38,6 @@ const pipelineDb = getSupabaseAdmin;
 
 /** A 'running' ingest older than this is treated as crashed, not in-flight. */
 const STALE_RUN_MINUTES = 15;
-const UNIQUE_VIOLATION = "23505";
 
 export interface GiftCardSourceRow {
   id: string;
@@ -71,40 +73,20 @@ export type IngestStartResult =
   | { started: true; runId: string }
   | { started: false; reason: "already-running" };
 
-/** Claim the single 'running' ingest slot (mirrors 016/020 lock semantics). */
+/** Claim this source's migration-030 `ingest` slot. */
 export async function startIngestRun(
   sourceId: string,
   startedAt: Date
 ): Promise<IngestStartResult> {
-  const db = pipelineDb();
-  const staleCutoff = new Date(
-    startedAt.getTime() - STALE_RUN_MINUTES * 60 * 1000
-  ).toISOString();
-  const { error: takeoverError } = await db
-    .from("gift_card_ingest_runs")
-    .update({
-      status: "error",
-      completed_at: startedAt.toISOString(),
-      error_summary: `superseded: run exceeded ${STALE_RUN_MINUTES} minutes`,
-    })
-    .eq("status", "running")
-    .lt("started_at", staleCutoff);
-  if (takeoverError) {
-    throw new Error(`startIngestRun takeover failed: ${takeoverError.message}`);
-  }
-
-  const { data, error } = await db
-    .from("gift_card_ingest_runs")
-    .insert({ source_id: sourceId, started_at: startedAt.toISOString() })
-    .select("id")
-    .single();
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) {
-      return { started: false, reason: "already-running" };
-    }
-    throw new Error(`startIngestRun failed: ${error.message}`);
-  }
-  return { started: true, runId: data.id };
+  const runId = await acquireGiftCardJobRun({
+    sourceId,
+    runKind: "ingest",
+    startedAt,
+    staleAfterMinutes: STALE_RUN_MINUTES,
+  });
+  return runId
+    ? { started: true, runId }
+    : { started: false, reason: "already-running" };
 }
 
 export async function finishIngestRun(
@@ -135,7 +117,7 @@ export async function finishIngestRun(
 
 /**
  * Finalise a run as `error` when the orchestration threw before it could report
- * metrics — this is what releases the one-running lock so the NEXT invocation is
+ * metrics — this is what releases this source/kind slot so the NEXT invocation is
  * not permanently blocked. Only touches a run that is still `running` (a run
  * already finished by finishIngestRun is left as-is). Best-effort: the caller
  * treats a throw here as non-fatal because the 15-minute stale-run takeover in
@@ -166,11 +148,12 @@ export async function lastIngestRunStart(sourceId: string): Promise<Date | null>
     .from("gift_card_ingest_runs")
     .select("started_at, status")
     .eq("source_id", sourceId)
+    .eq("run_kind" as never, "ingest" as never)
     .neq("status", "skipped")
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw new Error(`lastIngestRunStart failed: ${error.message}`);
+  if (error) throwGiftCardJobRunRepoError("lastIngestRunStart failed", error);
   return data ? new Date(data.started_at) : null;
 }
 
@@ -178,6 +161,7 @@ interface RawItemRow {
   id: string;
   external_id: string;
   content_hash: string;
+  processing_status: RawItemState["processingStatus"];
   raw_payload: {
     extraction?: ExtractedOffer;
     extractions?: ExtractedOffer[];
@@ -192,7 +176,7 @@ export async function loadRawItems(
   const db = pipelineDb();
   const { data, error } = await db
     .from("gift_card_raw_items")
-    .select("id, external_id, content_hash, raw_payload")
+    .select("id, external_id, content_hash, processing_status, raw_payload")
     .eq("source_id", sourceId)
     .in("external_id", externalIds);
   if (error) throw new Error(`loadRawItems failed: ${error.message}`);
@@ -234,6 +218,7 @@ export async function loadRawItems(
     id: row.id,
     externalId: row.external_id,
     contentHash: row.content_hash,
+    processingStatus: row.processing_status,
     extraction:
       row.raw_payload?.extraction ?? row.raw_payload?.extractions?.[0] ?? null,
     extractions:
@@ -263,6 +248,7 @@ export async function insertRawItem(
   item: GcdbFeedItem,
   contentHash: string,
   extractions: ExtractedOffer[],
+  parserVersion: number,
   now: Date
 ): Promise<string> {
   const db = pipelineDb();
@@ -276,6 +262,7 @@ export async function insertRawItem(
       published_at: item.publishedAt,
       raw_payload: rawPayload(item, extractions),
       content_hash: contentHash,
+      parser_version: parserVersion,
       first_seen_at: now.toISOString(),
       last_seen_at: now.toISOString(),
       processing_status: "parsed",
@@ -291,6 +278,7 @@ export async function updateRawItem(
   item: GcdbFeedItem,
   contentHash: string,
   extractions: ExtractedOffer[],
+  parserVersion: number,
   now: Date
 ): Promise<void> {
   const db = pipelineDb();
@@ -302,12 +290,96 @@ export async function updateRawItem(
       published_at: item.publishedAt,
       raw_payload: rawPayload(item, extractions),
       content_hash: contentHash,
+      parser_version: parserVersion,
       last_seen_at: now.toISOString(),
       processing_status: "parsed",
       parser_error: null,
     })
     .eq("id", id);
   if (error) throw new Error(`updateRawItem failed: ${error.message}`);
+}
+
+const MAX_PARSER_ERROR_LENGTH = 500;
+
+/**
+ * Retain an attributable, bounded parsed source item whose offer extraction
+ * failed. For an existing row, archive open private candidates first so stale
+ * facts cannot be approved after the source item becomes invalid. Approved
+ * public offers are deliberately untouched.
+ */
+export async function persistRejectedRawItem(
+  sourceId: string,
+  item: GcdbFeedItem,
+  contentHash: string,
+  parserVersion: number,
+  parserError: string,
+  now: Date,
+  existingRawItemId: string | null,
+): Promise<string> {
+  const db = pipelineDb();
+  const boundedError = parserError.trim().slice(0, MAX_PARSER_ERROR_LENGTH) ||
+    "Offer extraction failed.";
+  const rejected = {
+    canonical_url: item.canonicalUrl,
+    title: item.title,
+    published_at: item.publishedAt,
+    raw_payload: rawPayload(item, []),
+    content_hash: contentHash,
+    parser_version: parserVersion,
+    last_seen_at: now.toISOString(),
+    processing_status: "rejected",
+    parser_error: boundedError,
+  };
+
+  if (existingRawItemId) {
+    // Safe ordering: if the following raw-row update fails, the stale private
+    // candidate remains archived rather than reviewable.
+    const archived = await db
+      .from("gift_card_offer_candidates")
+      .update({
+        review_status: "archived",
+        rejection_reason: "superseded by a rejected source extraction",
+      })
+      .eq("raw_item_id", existingRawItemId)
+      .in("review_status", ["new", "changed"]);
+    if (archived.error) {
+      throw new Error(
+        `persistRejectedRawItem archive failed: ${archived.error.message}`,
+      );
+    }
+    const updated = await db
+      .from("gift_card_raw_items")
+      .update(rejected)
+      .eq("id", existingRawItemId)
+      .select("id")
+      .single();
+    if (updated.error) {
+      throw new Error(
+        `persistRejectedRawItem update failed: ${updated.error.message}`,
+      );
+    }
+    return updated.data.id;
+  }
+
+  const inserted = await db
+    .from("gift_card_raw_items")
+    .upsert(
+      {
+        source_id: sourceId,
+        external_id: item.externalId,
+        first_seen_at: now.toISOString(),
+        ...rejected,
+      },
+      { onConflict: "source_id,external_id" },
+    )
+    .select("id")
+    .single();
+  if (inserted.error) {
+    throw new Error(
+      `persistRejectedRawItem insert failed: ${inserted.error.message}`,
+    );
+  }
+  return inserted.data.id;
 }
 
 export async function touchRawItem(id: string, now: Date): Promise<void> {
@@ -383,7 +455,10 @@ export async function stageCandidate(
     extraction_warnings: e.warnings,
     change_kind: staged.changeKind,
     change_diff: staged.changedFields.length
-      ? { changedFields: staged.changedFields }
+      ? ({
+          changedFields: staged.changedFields,
+          ...(staged.fieldDiff ? { fieldDiff: staged.fieldDiff } : {}),
+        } as unknown as Json)
       : null,
     review_status: staged.reviewStatus,
   });
@@ -441,6 +516,7 @@ export async function stageAdminAssistedWeeklyOffer(
       item,
       hash,
       [extraction],
+      POINT_HACKS_WEEKLY_PARSER_VERSION,
       now,
     );
     await stageCandidate(source.id, {
@@ -456,7 +532,14 @@ export async function stageAdminAssistedWeeklyOffer(
     await touchRawItem(existing.id, now);
     return "unchanged";
   }
-  await updateRawItem(existing.id, item, hash, [extraction], now);
+  await updateRawItem(
+    existing.id,
+    item,
+    hash,
+    [extraction],
+    POINT_HACKS_WEEKLY_PARSER_VERSION,
+    now,
+  );
   await stageCandidate(source.id, {
     rawItemId: existing.id,
     extraction,
@@ -576,12 +659,14 @@ export interface AdminGiftCardCandidate {
   reviewStatus: string;
   createdAt: string;
   rawTitle: string;
+  rawPayload: Record<string, unknown> | null;
   sourceUrl: string;
   excerpt: string;
   approvedOfferId: string | null;
 }
 
 export interface GiftCardCandidateApprovalContext {
+  approvedOfferId: string | null;
   sourceName: string;
   sourceUrl: string;
   sourceText: string;
@@ -599,7 +684,7 @@ export async function getGiftCardCandidateApprovalContext(
   const { data, error } = await db
     .from("gift_card_offer_candidates")
     .select(
-      "promotion_type, gift_card_brands, terms_json, source:gift_card_sources(name), raw:gift_card_raw_items(title, canonical_url, raw_payload)"
+      "approved_offer_id, promotion_type, gift_card_brands, terms_json, source:gift_card_sources(name), raw:gift_card_raw_items(title, canonical_url, raw_payload)"
     )
     .eq("id", candidateId)
     .single();
@@ -607,6 +692,7 @@ export async function getGiftCardCandidateApprovalContext(
     throw new Error(`getGiftCardCandidateApprovalContext failed: ${error.message}`);
   }
   const row = data as unknown as {
+    approved_offer_id: string | null;
     promotion_type: string;
     gift_card_brands: string[];
     terms_json: AdminGiftCardCandidate["terms"] | null;
@@ -630,6 +716,7 @@ export async function getGiftCardCandidateApprovalContext(
   const inferredCompound =
     row.promotion_type === "mixed" || hasCompoundMechanics(sourceText);
   return {
+    approvedOfferId: row.approved_offer_id,
     sourceName: source?.name ?? "",
     sourceUrl: raw?.canonical_url ?? "",
     sourceText,
@@ -663,10 +750,10 @@ interface CandidateRow {
   review_status: string;
   created_at: string;
   approved_offer_id: string | null;
-  raw: { title: string; canonical_url: string; raw_payload: { item?: { excerpt?: string } } | null } | Array<{
+  raw: { title: string; canonical_url: string; raw_payload: Record<string, unknown> | null } | Array<{
     title: string;
     canonical_url: string;
-    raw_payload: { item?: { excerpt?: string } } | null;
+    raw_payload: Record<string, unknown> | null;
   }>;
 }
 
@@ -713,8 +800,12 @@ export async function listGiftCardCandidates(
       reviewStatus: row.review_status,
       createdAt: row.created_at,
       rawTitle: raw?.title ?? "",
+      rawPayload: raw?.raw_payload ?? null,
       sourceUrl: raw?.canonical_url ?? "",
-      excerpt: raw?.raw_payload?.item?.excerpt ?? "",
+      excerpt:
+        typeof (raw?.raw_payload?.item as { excerpt?: unknown } | undefined)?.excerpt === "string"
+          ? String((raw?.raw_payload?.item as { excerpt: string }).excerpt)
+          : "",
       approvedOfferId: row.approved_offer_id,
     };
   });
@@ -734,6 +825,34 @@ interface PublishedOfferRow {
   start_date: string | null;
   expiry_date: string | null;
   source_detail_url: string | null;
+  cap_dollars: number | string | null;
+  limit_per_customer: string | null;
+  usage_notes: string[] | null;
+  stack_notes: string[] | null;
+  is_published: boolean;
+}
+
+function mapPublishedOffer(row: PublishedOfferRow): PublishedOfferSummary {
+  return {
+    id: row.id,
+    brand: row.brand,
+    seller: row.purchase_location,
+    promotionType: row.promotion_type,
+    discountPercent: num(row.discount_percent),
+    bonusPercent: num(row.bonus_percent),
+    pointsMultiplier: num(row.points_multiplier),
+    fixedPoints: num(row.fixed_points),
+    pointsProgram: row.points_program,
+    denominationNote: row.denomination_note,
+    startDate: row.start_date,
+    expiryDate: row.expiry_date,
+    sourceDetailUrl: row.source_detail_url,
+    capDollars: num(row.cap_dollars),
+    limitPerCustomer: row.limit_per_customer,
+    usageNotes: row.usage_notes ?? [],
+    stackNotes: row.stack_notes ?? [],
+    isPublished: row.is_published,
+  };
 }
 
 /**
@@ -750,27 +869,120 @@ export async function listPublishedOfferSummaries(): Promise<
   const { data, error } = await db
     .from("gift_card_offers")
     .select(
-      "id, brand, purchase_location, promotion_type, discount_percent, bonus_percent, points_multiplier, fixed_points, points_program, denomination_note, start_date, expiry_date, source_detail_url"
+      "id, brand, purchase_location, promotion_type, discount_percent, bonus_percent, points_multiplier, fixed_points, points_program, denomination_note, start_date, expiry_date, source_detail_url, cap_dollars, limit_per_customer, usage_notes, stack_notes, is_published"
     )
     .eq("is_published", true);
   if (error) {
     throw new Error(`listPublishedOfferSummaries failed: ${error.message}`);
   }
-  return ((data ?? []) as unknown as PublishedOfferRow[]).map((row) => ({
-    id: row.id,
-    brand: row.brand,
-    seller: row.purchase_location,
-    promotionType: row.promotion_type,
-    discountPercent: num(row.discount_percent),
-    bonusPercent: num(row.bonus_percent),
-    pointsMultiplier: num(row.points_multiplier),
-    fixedPoints: num(row.fixed_points),
-    pointsProgram: row.points_program,
-    denominationNote: row.denomination_note,
-    startDate: row.start_date,
-    expiryDate: row.expiry_date,
-    sourceDetailUrl: row.source_detail_url,
+  return ((data ?? []) as unknown as PublishedOfferRow[]).map(mapPublishedOffer);
+}
+
+export async function listGiftCardOfferSummariesById(
+  ids: string[],
+): Promise<PublishedOfferSummary[]> {
+  const wanted = [...new Set(ids.filter(Boolean))];
+  if (!wanted.length) return [];
+  const { data, error } = await pipelineDb()
+    .from("gift_card_offers")
+    .select(
+      "id, brand, purchase_location, promotion_type, discount_percent, bonus_percent, points_multiplier, fixed_points, points_program, denomination_note, start_date, expiry_date, source_detail_url, cap_dollars, limit_per_customer, usage_notes, stack_notes, is_published",
+    )
+    .in("id", wanted);
+  if (error) throw new Error(`list linked gift-card offers failed: ${error.message}`);
+  return ((data ?? []) as unknown as PublishedOfferRow[]).map(mapPublishedOffer);
+}
+
+export async function setGiftCardOfferPublishedForReview(
+  offerId: string,
+  isPublished: boolean,
+): Promise<void> {
+  const { error } = await pipelineDb()
+    .from("gift_card_offers")
+    .update({ is_published: isPublished })
+    .eq("id", offerId);
+  if (error) throw new Error(`set reviewed gift-card offer visibility failed: ${error.message}`);
+}
+
+/** Stage explicit atomic children and archive the merged parent candidate. */
+export async function splitGiftCardCandidateForReview(
+  candidateId: string,
+  parts: GiftCardCandidateSplitPart[],
+  reviewer: string,
+): Promise<string[]> {
+  const db = pipelineDb();
+  const { data, error } = await db
+    .from("gift_card_offer_candidates")
+    .select("*")
+    .eq("id", candidateId)
+    .single();
+  if (error) throw new Error(`load split candidate failed: ${error.message}`);
+  const row = data as unknown as Record<string, unknown>;
+  if (!['new', 'changed'].includes(String(row.review_status))) {
+    throw new Error("Only a pending candidate can be split.");
+  }
+  const baseTerms =
+    row.terms_json && typeof row.terms_json === "object"
+      ? (row.terms_json as Record<string, unknown>)
+      : {};
+  const children = parts.map((part) => ({
+    raw_item_id: row.raw_item_id,
+    source_id: row.source_id,
+    seller_name: row.seller_name,
+    seller_store_id: row.seller_store_id,
+    gift_card_brands: [part.brand],
+    gift_card_product_id: null,
+    promotion_type: part.promotionType,
+    discount_percent: part.discountPercent,
+    bonus_percent: part.bonusPercent,
+    points_multiplier: part.pointsMultiplier,
+    points_program: part.pointsProgram,
+    effective_discount_percent: null,
+    starts_at: row.starts_at,
+    expires_at: row.expires_at,
+    terms_json: {
+      ...baseTerms,
+      subOfferKey: part.subOfferKey,
+      candidateRole: "suboffer",
+      parentIsCompound: true,
+      rewardDestination:
+        part.promotionType === "bonus-value"
+          ? "gift-card-value"
+          : part.promotionType === "points"
+            ? "loyalty-points"
+            : part.promotionType === "promo-credit"
+              ? "seller-credit"
+              : part.promotionType === "fee-waiver"
+                ? "waived-fee"
+                : "checkout-discount",
+      fixedDiscountDollars: part.fixedDiscountDollars,
+      fixedPoints: part.fixedPoints,
+      promoCreditDollars: part.promoCreditDollars,
+      feeWaiverDollars: part.feeWaiverDollars,
+      thresholdDollars: part.thresholdDollars,
+    },
+    compatibility_json: row.compatibility_json ?? {},
+    extraction_confidence: row.extraction_confidence ?? 0,
+    extraction_warnings: [
+      ...((row.extraction_warnings as string[] | null) ?? []),
+      `Atomic sub-offer manually split by ${reviewer}`,
+    ],
+    change_kind: row.approved_offer_id ? "material-offer" : null,
+    change_diff: { splitFromCandidateId: candidateId },
+    review_status: row.approved_offer_id ? "changed" : "new",
   }));
+  const inserted = await db
+    .from("gift_card_offer_candidates")
+    .insert(children as never)
+    .select("id");
+  if (inserted.error) throw new Error(`stage split candidates failed: ${inserted.error.message}`);
+  await setCandidateStatus(
+    candidateId,
+    "archived",
+    reviewer,
+    `Split into ${parts.length} atomic review candidates`,
+  );
+  return ((inserted.data ?? []) as Array<{ id: string }>).map((item) => item.id);
 }
 
 export async function approveGiftCardCandidate(

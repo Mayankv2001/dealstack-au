@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ActionButton } from "@/components/admin/ActionButton";
 import {
-  GiftCardAcceptanceForm,
+  GiftCardProductCatalogueEditForm,
   GiftCardProductForm,
   ProgrammeEditForm,
   ProgrammeForm,
@@ -65,15 +66,28 @@ export default async function GiftCardIntelligencePage() {
           </p>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <GiftCardProductForm />
-          <GiftCardAcceptanceForm products={data.products.map(({ id, brand }) => ({ id, brand }))} />
+          <GiftCardProductForm catalogueAvailable={data.productCatalogueAvailable} />
+          <div className="rounded-lg border p-4">
+            <h3 className="font-semibold">Merchant acceptance evidence</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Acceptance now enters through the private candidate queue. That
+              flow resolves merchant aliases, validates evidence and publishes
+              only through the reviewed approval RPC.
+            </p>
+            <Link
+              href="/admin/gift-cards/acceptance"
+              className="mt-4 inline-flex rounded-md border px-3 py-2 text-sm font-semibold hover:bg-muted"
+            >
+              Open acceptance review queue
+            </Link>
+          </div>
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
           <div className="space-y-2">
             <h3 className="font-semibold">Products</h3>
             {data.products.map((row) => (
               <div key={row.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
-                <div><p className="font-medium">{row.brand}</p><p className="text-xs text-muted-foreground">{row.issuer ?? "Issuer not recorded"} · {row.id}</p></div>
+                <div><p className="font-medium">{row.brand}</p><p className="text-xs text-muted-foreground">{row.issuer ?? "Issuer not recorded"} · {row.id}</p>{data.productCatalogueAvailable ? <details className="mt-2"><summary className="cursor-pointer text-xs font-semibold">Edit catalogue facts</summary><GiftCardProductCatalogueEditForm product={row} /></details> : null}</div>
                 <ActionButton run={toggleGiftCardFactPublished.bind(null, "product", row.id, !row.is_active)} size="xs">{row.is_active ? "Deactivate" : "Activate"}</ActionButton>
               </div>
             ))}
@@ -83,7 +97,11 @@ export default async function GiftCardIntelligencePage() {
             {data.acceptance.map((row) => (
               <div key={row.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
                 <div><p className="font-medium">{row.merchant_name ?? row.merchant_category ?? "Merchant missing"}</p><p className="text-xs text-muted-foreground">{row.product_id} · {row.status} · {row.outcome ?? "outcome missing"}</p></div>
-                <ActionButton run={toggleGiftCardFactPublished.bind(null, "acceptance", row.id, !row.is_public)} size="xs">{row.is_public ? "Unpublish" : "Publish"}</ActionButton>
+                {row.is_public ? (
+                  <ActionButton run={toggleGiftCardFactPublished.bind(null, "acceptance", row.id, false)} size="xs">Unpublish</ActionButton>
+                ) : (
+                  <Link href="/admin/gift-cards/acceptance" className="text-xs font-semibold text-emerald-700 hover:underline">Review queue</Link>
+                )}
               </div>
             ))}
           </div>

@@ -13,6 +13,7 @@ import {
   insertRawItem,
   lastIngestRunStart,
   loadRawItems,
+  persistRejectedRawItem,
   recordSourceState,
   stageCandidate,
   startIngestRun,
@@ -20,6 +21,7 @@ import {
   updateRawItem,
 } from "@/lib/admin/repos/giftCardPipeline";
 import { decideSchedule } from "@/lib/giftcards/schedule";
+import { decideAutomatedRetrieval } from "@/lib/giftcards/sourceRetrievalPermission";
 import {
   EXTRACTOR_VERSION,
   runGiftCardIngest,
@@ -28,6 +30,7 @@ import {
 import { runGuardedIngest } from "@/lib/giftcards/runGuarded";
 import { fetchFeed } from "@/lib/monitor/fetchFeed";
 import { reportOperationalError } from "@/lib/observability/report-server-error";
+import { isGiftCardJobRunSchemaUnavailable } from "@/lib/admin/repos/giftCardJobRunErrors";
 
 /**
  * Gift-card ingest cron — SEPARATE from the OzBargain monitor and driven by
@@ -66,19 +69,38 @@ export async function GET(request: Request): Promise<Response> {
 
   // Master switch — off by default. No DB, no network when disabled.
   if (!gcdbIngestEnabled()) {
-    return Response.json({ ok: true, ran: false, skipped: "disabled" });
+    return Response.json({
+      ok: true,
+      ran: false,
+      skipped: "environment-disabled",
+    });
   }
 
   const now = new Date();
   try {
-    // DB-level gates: the source row must exist, be enabled AND have the
-    // automated-fetch permission recorded. Fail closed on any absence.
+    // DB-level gates: source enablement, explicit fetch permission and both
+    // recorded permission reviews must all pass. `force` never bypasses these.
     const source = await getGiftCardSource(SOURCE_ID);
-    if (!source || !source.enabled || !source.automated_fetch_allowed) {
+    const permission = decideAutomatedRetrieval(true, {
+      sourceExists: source != null,
+      enabled: source?.enabled ?? false,
+      automatedFetchAllowed: source?.automated_fetch_allowed ?? false,
+      termsCheckedAt: source?.terms_checked_at ?? null,
+      robotsCheckedAt: source?.robots_checked_at ?? null,
+    });
+    if (!permission.allowed) {
       return Response.json({
         ok: true,
         ran: false,
-        skipped: "source-disabled",
+        skipped: permission.reason,
+        source: SOURCE_ID,
+      });
+    }
+    if (!source) {
+      return Response.json({
+        ok: true,
+        ran: false,
+        skipped: "source-missing",
         source: SOURCE_ID,
       });
     }
@@ -125,6 +147,7 @@ export async function GET(request: Request): Promise<Response> {
         return { kind: outcome.kind, reason: outcome.reason };
       },
       loadRawItems,
+      persistRejectedRawItem,
       insertRawItem,
       updateRawItem,
       touchRawItem,
@@ -132,7 +155,7 @@ export async function GET(request: Request): Promise<Response> {
       recordSourceState,
     };
 
-    // One-running DB lock + GUARANTEED finalisation: once the lock is claimed,
+    // Source/kind DB lock + GUARANTEED finalisation: once the slot is claimed,
     // any later failure finalises the run as `error` (releasing the lock) and
     // observability is best-effort — see lib/giftcards/runGuarded.ts.
     let runId: string | null = null;
@@ -191,6 +214,12 @@ export async function GET(request: Request): Promise<Response> {
     });
   } catch (error) {
     // Pre-lock failures only (auth/env/source gates, UA) — no run to finalise.
+    if (isGiftCardJobRunSchemaUnavailable(error)) {
+      return Response.json(
+        { ok: false, ran: false, skipped: "schema-unavailable" },
+        { status: 503 },
+      );
+    }
     await reportOperationalError("gift-card-ingest", error);
     return Response.json(
       { ok: false, ran: false, error: "gift-card ingest failed" },

@@ -227,3 +227,23 @@ export const pointHacksWeeklyMaxItems = (): number =>
     20,
     optionalPositiveInt("POINTHACKS_WEEKLY_MAX_ITEMS_PER_RUN", 10),
   );
+
+// ── Gift-card daily reconciliation — SERVER ONLY, DEFAULT OFF ────────────────
+// Compares canonical offers with the latest stored/approved source state and
+// stages review candidates; it never fetches from a closed source and never
+// publishes. Independently gated from every ingest switch. Enabling it only
+// activates the reconcile route's work; it opens no source or fetch gate.
+
+export const giftCardReconcileEnabled = (): boolean =>
+  process.env.GIFT_CARD_RECONCILE_ENABLED === "true";
+
+/** Once-per-day guard for reconciliation (≥ this many hours between real runs). */
+export const giftCardReconcileMinIntervalHours = (): number =>
+  optionalPositiveInt("GIFT_CARD_RECONCILE_MIN_INTERVAL_HOURS", 20);
+
+// ── Gift-card lifecycle activation/archive — SERVER ONLY, DEFAULT OFF ───────
+// This gate controls only reviewed offer visibility/history transitions. It
+// never enables a source adapter, ingestion, candidate approval, or email.
+
+export const giftCardLifecycleEnabled = (): boolean =>
+  process.env.GIFT_CARD_LIFECYCLE_ENABLED === "true";

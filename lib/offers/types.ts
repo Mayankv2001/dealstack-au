@@ -164,6 +164,19 @@ export interface GiftCardProduct {
   unsupportedMccs: number[];
   mobileWallet: "supported" | "unsupported" | "partial" | "unknown";
   redemptionNotes: string | null;
+  // ── Migration 028 (authored, not yet applied) — honest null pre-apply ──
+  /** Alternate product names for alias resolution. Empty = none recorded. */
+  aliases: string[];
+  officialProductPage: string | null;
+  activationMethod: string | null;
+  /** Tri-state: true/false = recorded, null = unknown. */
+  onlineAvailable: boolean | null;
+  inStoreAvailable: boolean | null;
+  /** Known face-value denominations. null = unknown (distinct from []). */
+  denominations: number[] | null;
+  activationDelayNote: string | null;
+  splitPayment: "supported" | "unsupported" | "partial" | "unknown";
+  expiryOrFeesNote: string | null;
 }
 
 /**
@@ -182,7 +195,42 @@ export interface GiftCardAcceptanceRow {
   sourceUrl: string | null;
   checkedAt: string | null;
   notes: string | null;
+  /** Canonical migration-028 acceptance state. Legacy rows are mapped at read time. */
+  acceptanceStatus: GiftCardAcceptanceStatus;
+  evidenceSourceType: GiftCardAcceptanceEvidenceType | null;
+  /** Optional display name used only to attribute official evidence. */
+  evidencePublisher: string | null;
+  evidenceUrl: string | null;
+  evidenceCapturedAt: string | null;
+  lastCheckedAt: string | null;
+  acceptsOnline: boolean | null;
+  acceptsInStore: boolean | null;
+  acceptsApp: boolean | null;
+  acceptsPhone: boolean | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  limitations: string | null;
+  region: string;
+  participatingLocationRequired: boolean | null;
 }
+
+export type GiftCardAcceptanceStatus =
+  | "confirmed-accepted"
+  | "confirmed-not-accepted"
+  | "likely-accepted"
+  | "unofficially-reported"
+  | "requires-verification"
+  | "stale"
+  | "unknown";
+
+export type GiftCardAcceptanceEvidenceType =
+  | "issuer-official"
+  | "merchant-official"
+  | "terms"
+  | "card-network-mcc"
+  | "gcdb"
+  | "specialist"
+  | "community";
 
 export interface CashbackOffer {
   id: string;

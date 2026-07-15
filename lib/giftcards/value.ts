@@ -229,6 +229,8 @@ export interface WorkedExample {
   points: number | null;
   /** Disclosed estimate of those points, in dollars — never cash. */
   rewardValueDollars: number | null;
+  /** Seller credit usable later — never deducted from cash paid. */
+  futureCreditDollars: number | null;
   pointValueCents: number | null;
   /** Face value you can spend (covered face + bonus value). */
   totalSpendingPower: number;
@@ -264,9 +266,32 @@ export function buildWorkedExample(
       offer.pointsProgram,
       offer.pointsValueCents,
     );
-  if (discount <= 0 && bonus <= 0 && !pointsValuation) return null;
+  const thresholdMet =
+    offer.thresholdDollars == null || covered >= offer.thresholdDollars;
+  const fixedDiscount =
+    thresholdMet && (offer.fixedDiscountDollars ?? 0) > 0
+      ? Math.min(covered, offer.fixedDiscountDollars!)
+      : 0;
+  const feeWaiver =
+    thresholdMet && (offer.feeWaiverDollars ?? 0) > 0
+      ? offer.feeWaiverDollars!
+      : 0;
+  const futureCreditDollars =
+    thresholdMet && (offer.promoCreditDollars ?? 0) > 0
+      ? offer.promoCreditDollars!
+      : null;
+  if (
+    discount <= 0 &&
+    bonus <= 0 &&
+    !pointsValuation &&
+    fixedDiscount <= 0 &&
+    feeWaiver <= 0 &&
+    futureCreditDollars == null
+  ) return null;
 
-  const cashPaid = round2(covered * (1 - discount / 100));
+  const cashPaid = round2(
+    Math.max(0, covered * (1 - discount / 100) - fixedDiscount - feeWaiver),
+  );
   const acquisitionSaving = round2(covered - cashPaid);
   const bonusValueDollars = bonus > 0 ? round2(covered * (bonus / 100)) : null;
   const rewardValueDollars = pointsValuation?.valueDollars ?? null;
@@ -280,6 +305,7 @@ export function buildWorkedExample(
     bonusValueDollars,
     points: pointsValuation?.points ?? null,
     rewardValueDollars,
+    futureCreditDollars,
     pointValueCents: pointsValuation?.pointValueCents ?? null,
     totalSpendingPower: round2(covered + (bonusValueDollars ?? 0)),
     effectiveCost: round2(cashPaid - (rewardValueDollars ?? 0)),

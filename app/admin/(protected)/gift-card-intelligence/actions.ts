@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import { checkAdminRateLimit, type AdminActionResult } from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
-import { archiveIntelligenceRecord, insertGiftCardAcceptance, insertGiftCardProduct, insertProgramme, insertProgrammeRate, sealExpiredOfferOccurrence, setGiftCardFactPublished, setIntelligencePublished, setPublicCorrectionStatus, updateProgrammeRateRecord, updateProgrammeRecord } from "@/lib/admin/repos/giftCardIntelligence";
+import { archiveIntelligenceRecord, getGiftCardProductSourceEvidence, insertGiftCardProduct, insertProgramme, insertProgrammeRate, isProductCatalogueSchemaAvailable, sealExpiredOfferOccurrence, setGiftCardFactPublished, setIntelligencePublished, setPublicCorrectionStatus, updateGiftCardProduct, updateProgrammeRateRecord, updateProgrammeRecord } from "@/lib/admin/repos/giftCardIntelligence";
 import { todayAU } from "@/lib/offers/expiry";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
@@ -18,6 +18,93 @@ const numberOrNull = (form: FormData, name: string): number | null => {
   return Number.isFinite(value) ? value : Number.NaN;
 };
 const checked = (form: FormData, name: string) => form.get(name) === "on";
+const PRODUCT_NETWORKS = ["unknown", "visa", "mastercard", "eftpos", "closed-loop"] as const;
+const PRODUCT_FORMATS = ["digital", "physical", "digital-and-physical", "unknown"] as const;
+const PRODUCT_WALLETS = ["supported", "unsupported", "partial", "unknown"] as const;
+const TRI_STATE_VALUES = ["unknown", "yes", "no"] as const;
+const list = (form: FormData, name: string): string[] => [
+  ...new Set(
+    text(form, name)
+      .split(/[\n,]/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+  ),
+];
+
+type ProductCatalogueFields = {
+  aliases: string[];
+  official_product_page: string | null;
+  activation_method: string | null;
+  online_available: boolean | null;
+  in_store_available: boolean | null;
+  denominations: number[] | null;
+  activation_delay_note: string | null;
+  split_payment: "supported" | "unsupported" | "partial" | "unknown";
+  expiry_or_fees_note: string | null;
+  evidenceFields: string[];
+};
+
+function productCatalogueFields(
+  form: FormData
+): ProductCatalogueFields | { error: string } {
+  const aliases = list(form, "aliases");
+  const officialRaw = text(form, "official_product_page");
+  const officialProductPage = officialRaw ? safeHttpsUrl(officialRaw) : null;
+  const activationMethod = text(form, "activation_method") || null;
+  const activationDelayNote = text(form, "activation_delay_note") || null;
+  const expiryOrFeesNote = text(form, "expiry_or_fees_note") || null;
+  const online = text(form, "online_available") || "unknown";
+  const inStore = text(form, "in_store_available") || "unknown";
+  const splitPayment = text(form, "split_payment") || "unknown";
+  const denominationValues = list(form, "denominations");
+  const denominations = denominationValues.length
+    ? denominationValues.map(Number)
+    : null;
+
+  if (officialRaw && !officialProductPage) return { error: "Official product page must be a safe HTTPS URL." };
+  if (!['unknown', 'yes', 'no'].includes(online) || !['unknown', 'yes', 'no'].includes(inStore)) {
+    return { error: "Choose valid online and in-store availability values." };
+  }
+  if (!['supported', 'unsupported', 'partial', 'unknown'].includes(splitPayment)) {
+    return { error: "Choose a valid split-payment value." };
+  }
+  if (denominations?.some((value) => !Number.isFinite(value) || value <= 0)) {
+    return { error: "Denominations must be positive numbers separated by commas." };
+  }
+
+  const evidenceFields = [
+    ...(aliases.length ? ["aliases"] : []),
+    ...(officialProductPage ? ["official_product_page"] : []),
+    ...(activationMethod ? ["activation_method"] : []),
+    ...(online !== "unknown" ? ["online_available"] : []),
+    ...(inStore !== "unknown" ? ["in_store_available"] : []),
+    ...(denominations ? ["denominations"] : []),
+    ...(activationDelayNote ? ["activation_delay_note"] : []),
+    ...(splitPayment !== "unknown" ? ["split_payment"] : []),
+    ...(expiryOrFeesNote ? ["expiry_or_fees_note"] : []),
+  ];
+  return {
+    aliases,
+    official_product_page: officialProductPage,
+    activation_method: activationMethod,
+    online_available: online === "unknown" ? null : online === "yes",
+    in_store_available: inStore === "unknown" ? null : inStore === "yes",
+    denominations: denominations ? [...new Set(denominations)].sort((a, b) => a - b) : null,
+    activation_delay_note: activationDelayNote,
+    split_payment: splitPayment as ProductCatalogueFields["split_payment"],
+    expiry_or_fees_note: expiryOrFeesNote,
+    evidenceFields,
+  };
+}
+
+function productEvidence(sourceUrl: string, fields: string[]) {
+  return [{
+    url: sourceUrl,
+    checkedAt: new Date().toISOString(),
+    status: "reviewed",
+    fields: [...new Set(fields)],
+  }];
+}
 
 async function adminGate() {
   const { email } = await requireAdmin();
@@ -60,17 +147,28 @@ export async function createGiftCardProduct(_state: IntelligenceFormState, form:
   const slug = text(form, "slug").toLowerCase();
   const brand = text(form, "brand");
   const sourceUrl = safeHttpsUrl(text(form, "source_url"));
+  const network = text(form, "card_network") || "unknown";
   const format = text(form, "format");
   const wallet = text(form, "mobile_wallet");
+  const variableLoad = text(form, "variable_load") || "unknown";
   const min = numberOrNull(form, "min_denomination");
   const max = numberOrNull(form, "max_denomination");
+  const catalogue = productCatalogueFields(form);
   if (![id, slug].every((value) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) || !brand) return { error: "Product ID, slug and brand are required; IDs must be lowercase slugs." };
   if (!sourceUrl) return { error: "A safe HTTPS product evidence URL is required." };
-  if (!["digital", "physical", "digital-and-physical", "unknown"].includes(format) || !["supported", "unsupported", "partial", "unknown"].includes(wallet)) return { error: "Choose valid format and wallet values." };
+  if (!PRODUCT_NETWORKS.includes(network as (typeof PRODUCT_NETWORKS)[number])) return { error: "Choose a valid card network." };
+  if (!PRODUCT_FORMATS.includes(format as (typeof PRODUCT_FORMATS)[number]) || !PRODUCT_WALLETS.includes(wallet as (typeof PRODUCT_WALLETS)[number])) return { error: "Choose valid format and wallet values." };
+  if (!TRI_STATE_VALUES.includes(variableLoad as (typeof TRI_STATE_VALUES)[number])) return { error: "Choose a valid variable-load value." };
   if ([min, max].some((value) => value != null && (!Number.isFinite(value) || value < 0)) || (min != null && max != null && min > max)) return { error: "Denomination range is invalid." };
+  if ("error" in catalogue) return catalogue;
+  if (catalogue.evidenceFields.length && !(await isProductCatalogueSchemaAvailable())) {
+    return { error: "Migration 028 is required before catalogue fields can be saved." };
+  }
   try {
-    await insertGiftCardProduct({ id, slug, brand, issuer: text(form, "issuer") || null, card_network: text(form, "card_network") || null, format, variable_load: text(form, "variable_load") === "unknown" ? null : text(form, "variable_load") === "yes", min_denomination: min, max_denomination: max, category_restricted: checked(form, "category_restricted"), mobile_wallet: wallet, redemption_notes: text(form, "redemption_notes") || null, source_evidence: [{ url: sourceUrl, checkedAt: new Date().toISOString(), status: "reviewed" }], is_active: false });
-    await logAudit({ actorEmail: gate.email, action: "create", tableName: "gift_card_products", rowId: id, diff: { brand, slug } });
+    const { evidenceFields: catalogueEvidenceFields, ...catalogueColumns } = catalogue;
+    const evidenceFields = ["id", "brand", "slug", "category_restricted", ...(text(form, "issuer") ? ["issuer"] : []), ...(network !== "unknown" ? ["card_network"] : []), ...(format !== "unknown" ? ["format"] : []), ...(variableLoad !== "unknown" ? ["variable_load"] : []), ...(min != null ? ["min_denomination"] : []), ...(max != null ? ["max_denomination"] : []), ...(wallet !== "unknown" ? ["mobile_wallet"] : []), ...(text(form, "redemption_notes") ? ["redemption_notes"] : []), ...catalogueEvidenceFields];
+    await insertGiftCardProduct({ id, slug, brand, issuer: text(form, "issuer") || null, card_network: network === "unknown" ? "unknown" : network, format, variable_load: variableLoad === "unknown" ? null : variableLoad === "yes", min_denomination: min, max_denomination: max, category_restricted: checked(form, "category_restricted"), mobile_wallet: wallet, redemption_notes: text(form, "redemption_notes") || null, ...(catalogueEvidenceFields.length ? catalogueColumns : {}), source_evidence: productEvidence(sourceUrl, evidenceFields), is_active: false });
+    await logAudit({ actorEmail: gate.email, action: "create", tableName: "gift_card_products", rowId: id, diff: { brand, slug, catalogueFields: catalogueEvidenceFields }, forceExplicit: true });
     refresh();
     return { success: "Product saved inactive for final publication review." };
   } catch (error) {
@@ -78,34 +176,60 @@ export async function createGiftCardProduct(_state: IntelligenceFormState, form:
   }
 }
 
+export async function updateGiftCardProductAction(id: string, _state: IntelligenceFormState, form: FormData): Promise<IntelligenceFormState> {
+  const gate = await adminGate();
+  if (gate.error) return { error: gate.error };
+  const sourceUrl = safeHttpsUrl(text(form, "source_url"));
+  const catalogue = productCatalogueFields(form);
+  if (!sourceUrl) return { error: "A safe HTTPS product evidence URL is required." };
+  if ("error" in catalogue) return catalogue;
+  if (!(await isProductCatalogueSchemaAvailable())) {
+    return { error: "Migration 028 is required before catalogue fields can be updated." };
+  }
+  try {
+    const existingEvidence = await getGiftCardProductSourceEvidence(id);
+    await updateGiftCardProduct(id, {
+      aliases: catalogue.aliases,
+      official_product_page: catalogue.official_product_page,
+      activation_method: catalogue.activation_method,
+      online_available: catalogue.online_available,
+      in_store_available: catalogue.in_store_available,
+      denominations: catalogue.denominations,
+      activation_delay_note: catalogue.activation_delay_note,
+      split_payment: catalogue.split_payment,
+      expiry_or_fees_note: catalogue.expiry_or_fees_note,
+      source_evidence: catalogue.evidenceFields.length
+        ? [...existingEvidence, ...productEvidence(sourceUrl, catalogue.evidenceFields)]
+        : existingEvidence,
+    });
+    await logAudit({ actorEmail: gate.email, action: "update", tableName: "gift_card_products", rowId: id, diff: { catalogueFields: catalogue.evidenceFields }, forceExplicit: true });
+    refresh();
+    revalidatePath("/gift-cards/products");
+    return { success: "Product catalogue facts updated and rechecked." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not update product catalogue facts." };
+  }
+}
+
 export async function createGiftCardAcceptance(_state: IntelligenceFormState, form: FormData): Promise<IntelligenceFormState> {
   const gate = await adminGate();
   if (gate.error) return { error: gate.error };
-  const productId = text(form, "product_id");
-  const merchantName = text(form, "merchant_name");
-  const merchantCategory = text(form, "merchant_category");
-  const sourceUrl = safeHttpsUrl(text(form, "source_url"));
-  const checkedAt = text(form, "checked_at");
-  const status = text(form, "status");
-  const outcome = text(form, "outcome");
-  const mcc = numberOrNull(form, "mcc");
-  if (!productId || (!merchantName && !merchantCategory)) return { error: "Product and merchant name or category are required." };
-  if (!sourceUrl || !/^\d{4}-\d{2}-\d{2}$/.test(checkedAt)) return { error: "Evidence URL and checked date are required." };
-  if (!["verified", "claimed", "community"].includes(status) || !["successful", "unsuccessful"].includes(outcome)) return { error: "Choose a valid evidence status and outcome." };
-  if (mcc != null && (!Number.isInteger(mcc) || mcc < 1 || mcc > 9999)) return { error: "MCC must be a four-digit integer when supplied." };
-  try {
-    await insertGiftCardAcceptance({ product_id: productId, merchant_name: merchantName || null, merchant_category: merchantCategory || null, mcc, status, outcome, source_url: sourceUrl, checked_at: `${checkedAt}T00:00:00Z`, notes: text(form, "notes") || null, is_public: false });
-    await logAudit({ actorEmail: gate.email, action: "create", tableName: "gift_card_merchant_acceptance", diff: { productId, merchantName, merchantCategory, status, outcome } });
-    refresh();
-    return { success: "Acceptance evidence saved privately for final publication review." };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not create acceptance evidence." };
-  }
+  void form;
+  return {
+    error:
+      "Direct acceptance entry is closed. Capture evidence in the acceptance review queue so alias resolution, evidence validation and reviewed RPC approval cannot be bypassed.",
+  };
 }
 
 export async function toggleGiftCardFactPublished(kind: "product" | "acceptance", id: string, published: boolean): Promise<AdminActionResult> {
   const gate = await adminGate();
   if (gate.error) return { error: gate.error };
+  if (kind === "acceptance" && published) {
+    return {
+      error:
+        "Acceptance publication is available only through the reviewed acceptance-candidate RPC.",
+    };
+  }
   try {
     await setGiftCardFactPublished(kind, id, published);
     const tableName = kind === "product" ? "gift_card_products" : "gift_card_merchant_acceptance";

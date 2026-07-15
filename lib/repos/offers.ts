@@ -15,6 +15,7 @@ import type {
 } from "@/lib/offers/types";
 import { filterLive, todayAU } from "@/lib/offers/expiry";
 import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
+import { filterConfirmedCurrentOffers } from "@/lib/giftcards/lifecycle";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import { safeHttpsUrl, safePublicHref } from "@/lib/security/urlPolicy";
 import {
@@ -159,7 +160,16 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
   };
 }
 
-export async function getGiftCardOffers(): Promise<GiftCardOffer[]> {
+interface GiftCardOfferReadDeps {
+  /** Test-only public-repository injection; production callers omit this. */
+  staticMode?: boolean;
+  client?: DbClient | null;
+  now?: Date;
+}
+
+export async function getGiftCardOffers(
+  deps: GiftCardOfferReadDeps = {},
+): Promise<GiftCardOffer[]> {
   // Apply the expiry guard after resolving DB/demo mode so both sources obey it.
   const rows = await fromDbOrDemo(
     "gift_card_offers",
@@ -168,9 +178,14 @@ export async function getGiftCardOffers(): Promise<GiftCardOffer[]> {
       const { data, error } = await db.from("gift_card_offers").select("*");
       if (error) throw error;
       return ((data ?? []) as unknown as GiftCardRow[]).map(mapGiftCard);
-    }
+    },
+    { staticMode: deps.staticMode, client: deps.client },
   );
-  return filterLive(rows);
+  const now = deps.now ?? new Date();
+  // Both DB and explicit demo data pass through the same date-state boundary.
+  // RLS alone cannot hide a reviewed future row, while filterLive alone treats
+  // a missing expiry as current; neither is sufficient by itself.
+  return filterConfirmedCurrentOffers(filterLive(rows, todayAU(now)), now);
 }
 
 // ── Card offers (bank / credit-card sign-up bonuses) ─────────────────────────

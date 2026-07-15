@@ -46,6 +46,11 @@ export interface PublishedOfferSummary {
   startDate: string | null;
   expiryDate: string | null;
   sourceDetailUrl: string | null;
+  capDollars?: number | null;
+  limitPerCustomer?: string | null;
+  usageNotes?: string[];
+  stackNotes?: string[];
+  isPublished?: boolean;
 }
 
 export type DuplicateVerdict =

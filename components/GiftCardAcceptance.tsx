@@ -4,10 +4,10 @@ import { useState } from "react";
 import { ChevronDown, Search, Store as StoreIcon } from "lucide-react";
 import type { GiftCardAcceptanceRow } from "@/lib/offers/types";
 import {
-  ACCEPTANCE_STATUS_LABEL,
-  MCC_DISCLAIMER,
+  canonicalAcceptanceStatus,
   type ProductAcceptanceView,
 } from "@/lib/giftcards/acceptanceModel";
+import { acceptancePublicView } from "@/lib/giftcards/acceptanceViewModel";
 import { formatDateAU } from "@/lib/sources/normalise";
 
 /**
@@ -29,16 +29,25 @@ function merchantLabel(
   );
 }
 
-function StatusPill({ status }: { status: GiftCardAcceptanceRow["status"] }) {
+function StatusPill({
+  row,
+  label,
+}: {
+  row: GiftCardAcceptanceRow;
+  label: string;
+}) {
+  const status = canonicalAcceptanceStatus(row);
   const className =
-    status === "verified"
+    status === "confirmed-accepted"
       ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-      : status === "claimed"
+      : status === "likely-accepted"
         ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
+        : status === "confirmed-not-accepted"
+          ? "bg-destructive/10 text-destructive"
         : "bg-muted text-muted-foreground";
   return (
     <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${className}`}>
-      {ACCEPTANCE_STATUS_LABEL[status]}
+      {label}
     </span>
   );
 }
@@ -57,10 +66,12 @@ function ProductPanel({
   view,
   storeNames,
   defaultOpen,
+  now,
 }: {
   view: ProductAcceptanceView;
   storeNames: Record<string, string>;
   defaultOpen: boolean;
+  now: Date;
 }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
@@ -150,30 +161,54 @@ function ProductPanel({
         {view.merchants.length > 0 ? (
           filtered.length > 0 ? (
             <ul className="divide-y">
-              {filtered.map((row) => (
-                <li
-                  key={row.id}
-                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5 text-sm"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-medium">
-                      {merchantLabel(row, storeNames)}
+              {filtered.map((row) => {
+                const publicView = acceptancePublicView(row, now);
+                return (
+                  <li
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5 text-sm"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-medium">
+                        {merchantLabel(row, storeNames)}
+                      </span>
+                      <StatusPill row={row} label={publicView.statusLabel} />
                     </span>
-                    <StatusPill status={row.status} />
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {[
-                      row.merchantCategory,
-                      row.mcc != null ? `MCC ${row.mcc}` : null,
-                      row.checkedAt
-                        ? `checked ${formatDateAU(row.checkedAt.slice(0, 10))}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </li>
-              ))}
+                    <span className="text-xs text-muted-foreground">
+                      {[
+                        row.merchantCategory,
+                        row.mcc != null ? `MCC ${row.mcc}` : null,
+                        (row.lastCheckedAt ?? row.checkedAt)
+                          ? `checked ${formatDateAU((row.lastCheckedAt ?? row.checkedAt)!.slice(0, 10))}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                    <div className="basis-full text-xs text-muted-foreground">
+                      <span>{publicView.evidenceLabel}</span>
+                      <span className={publicView.freshnessLabel.startsWith("Stale") ? "ml-2 font-semibold text-amber-700 dark:text-amber-400" : "ml-2"}>
+                        {publicView.freshnessLabel}
+                      </span>
+                      <span className="ml-2">{publicView.channelsLabel}</span>
+                      {publicView.limitationsLabel ? (
+                        <span className="ml-2">{publicView.limitationsLabel}</span>
+                      ) : null}
+                      <span className="ml-2">{publicView.checkedLabel}</span>
+                      {publicView.evidenceUrl ? (
+                        <a
+                          href={publicView.evidenceUrl}
+                          target="_blank"
+                          rel="nofollow noopener noreferrer"
+                          className="ml-2 font-semibold text-emerald-700 hover:underline"
+                        >
+                          Evidence
+                        </a>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -219,7 +254,12 @@ function ProductPanel({
         )}
 
         <p className="text-xs leading-relaxed text-muted-foreground">
-          {MCC_DISCLAIMER}
+          {view.merchants.some((row) => row.mcc != null)
+            ? acceptancePublicView(
+                view.merchants.find((row) => row.mcc != null)!,
+                now,
+              ).mccDisclaimer
+            : "Acceptance evidence can change. Verify before purchase."}
           {view.lastCheckedAt
             ? ` Acceptance evidence last checked ${formatDateAU(view.lastCheckedAt.slice(0, 10))}.`
             : ""}
@@ -232,9 +272,11 @@ function ProductPanel({
 export default function GiftCardAcceptance({
   views,
   storeNames,
+  nowIso,
 }: {
   views: ProductAcceptanceView[];
   storeNames: Record<string, string>;
+  nowIso: string;
 }) {
   if (views.length === 0) return null;
   return (
@@ -245,6 +287,7 @@ export default function GiftCardAcceptance({
           view={view}
           storeNames={storeNames}
           defaultOpen={index === 0}
+          now={new Date(nowIso)}
         />
       ))}
     </div>

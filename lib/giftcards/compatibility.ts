@@ -1,4 +1,9 @@
-import type { CashbackOffer, GiftCardOffer } from "@/lib/offers/types";
+import type {
+  CashbackOffer,
+  GiftCardAcceptanceRow,
+  GiftCardOffer,
+  GiftCardProduct,
+} from "@/lib/offers/types";
 import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import {
   expirySoonWarning,
@@ -7,6 +12,11 @@ import {
   staleDataWarning,
 } from "@/lib/stack/compatibility";
 import { offerEffectiveSaving } from "./publicQuery";
+import {
+  canonicalAcceptanceStatus,
+  deriveAcceptanceFreshness,
+  isPositiveAcceptance,
+} from "./acceptanceModel";
 
 /**
  * Structured gift-card compatibility — a single verdict + human-readable reason
@@ -46,6 +56,58 @@ export interface GiftCardCompatibilityContext {
   cashback?: CashbackOffer | null;
   /** True when the target store also has a discount code being applied. */
   hasDiscountCode?: boolean;
+  acceptance?: GiftCardAcceptanceRow | null;
+  product?: GiftCardProduct | null;
+  redemptionChannel?: "online" | "in-store" | "app" | "phone" | null;
+  purchaseAmount?: number | null;
+  /** Target transaction MCC, only when recorded from reviewed evidence. */
+  redemptionMcc?: number | null;
+}
+
+export const GIFT_CARD_EXCLUSION_REASONS = {
+  expired: (date: string) => `The gift-card offer expired on ${date}.`,
+  upcoming: (date: string) =>
+    `The gift-card offer starts on ${date} and is not current yet.`,
+  notAccepted: (store: string) =>
+    `Published evidence says this gift card is not accepted at ${store}.`,
+  staleAcceptance:
+    "Merchant acceptance evidence is stale and must be rechecked before a new plan can recommend it.",
+  inactiveAcceptance:
+    "Merchant acceptance evidence is outside its reviewed validity window and cannot support a current plan.",
+  missingAcceptance:
+    "No current published merchant-acceptance evidence links this gift card to the retailer.",
+  onlineUnsupported:
+    "Published evidence says this gift card is not accepted online at this retailer.",
+  inStoreUnsupported:
+    "Published evidence says this gift card is not accepted in store at this retailer.",
+  appUnsupported:
+    "Published evidence says this gift card is not accepted in the retailer app.",
+  phoneUnsupported:
+    "Published evidence says this gift card is not accepted for phone orders.",
+  cashbackConflict:
+    "The cashback terms exclude gift-card payment, so both layers cannot be used on the same order.",
+  splitPaymentUnsupported:
+    "The remaining balance would require split payment, which this card does not support.",
+  minimumSpendNotMet: (amount: number) =>
+    `The $${amount} minimum gift-card purchase is not met by this plan.`,
+  unsupportedMcc: (mcc: number) =>
+    `The reviewed product record excludes MCC ${mcc} from redemption.`,
+  valueUnknown: "No promotion value could be established for this offer.",
+} as const;
+
+export type GiftCardExclusionReasonCode = keyof typeof GIFT_CARD_EXCLUSION_REASONS;
+
+function channelAcceptance(
+  row: GiftCardAcceptanceRow,
+  channel: GiftCardCompatibilityContext["redemptionChannel"],
+): boolean | null {
+  switch (channel) {
+    case "online": return row.acceptsOnline;
+    case "in-store": return row.acceptsInStore;
+    case "app": return row.acceptsApp;
+    case "phone": return row.acceptsPhone;
+    default: return null;
+  }
 }
 
 const STATUS_LABEL: Record<GiftCardCompatibilityStatus, string> = {
@@ -142,16 +204,98 @@ export function evaluateGiftCardCompatibility(
   if (isPastExpiry(offer.expiryDate, today)) {
     return {
       status: "incompatible",
-      reason: `This offer expired on ${offer.expiryDate} and can no longer be stacked.`,
+      reason: GIFT_CARD_EXCLUSION_REASONS.expired(offer.expiryDate!),
       warnings,
     };
   }
-  if (context.storeId && !offer.acceptedAtMerchantIds.includes(context.storeId)) {
+  const acceptance = context.acceptance ?? null;
+  if (
+    acceptance &&
+    canonicalAcceptanceStatus(acceptance) === "confirmed-not-accepted"
+  ) {
     return {
       status: "incompatible",
-      reason: `${offer.brand} gift cards are not accepted at ${
-        context.storeName ?? "that retailer"
-      }.`,
+      reason: GIFT_CARD_EXCLUSION_REASONS.notAccepted(
+        context.storeName ?? "that retailer",
+      ),
+      warnings,
+    };
+  }
+  if (
+    context.purchaseAmount != null &&
+    offer.minSpend != null &&
+    context.purchaseAmount < offer.minSpend
+  ) {
+    return {
+      status: "incompatible",
+      reason: GIFT_CARD_EXCLUSION_REASONS.minimumSpendNotMet(offer.minSpend),
+      warnings,
+    };
+  }
+  if (
+    context.redemptionMcc != null &&
+    context.product?.unsupportedMccs.includes(context.redemptionMcc)
+  ) {
+    return {
+      status: "incompatible",
+      reason: GIFT_CARD_EXCLUSION_REASONS.unsupportedMcc(
+        context.redemptionMcc,
+      ),
+      warnings,
+    };
+  }
+  if (acceptance && deriveAcceptanceFreshness(acceptance, now) === "stale") {
+    return {
+      status: "requires-verification",
+      reason: GIFT_CARD_EXCLUSION_REASONS.staleAcceptance,
+      warnings,
+    };
+  }
+  const channelValue = acceptance
+    ? channelAcceptance(acceptance, context.redemptionChannel)
+    : null;
+  if (channelValue === false) {
+    const reasons = {
+      online: GIFT_CARD_EXCLUSION_REASONS.onlineUnsupported,
+      "in-store": GIFT_CARD_EXCLUSION_REASONS.inStoreUnsupported,
+      app: GIFT_CARD_EXCLUSION_REASONS.appUnsupported,
+      phone: GIFT_CARD_EXCLUSION_REASONS.phoneUnsupported,
+    };
+    return {
+      status: "incompatible",
+      reason: reasons[context.redemptionChannel!],
+      warnings,
+    };
+  }
+  if (context.cashback?.excludesGiftCardPayment) {
+    return {
+      status: "incompatible",
+      reason: GIFT_CARD_EXCLUSION_REASONS.cashbackConflict,
+      warnings,
+    };
+  }
+  if (
+    context.product?.splitPayment === "unsupported" &&
+    context.purchaseAmount != null &&
+    context.product.maxDenomination != null &&
+    context.purchaseAmount > context.product.maxDenomination
+  ) {
+    return {
+      status: "incompatible",
+      reason: GIFT_CARD_EXCLUSION_REASONS.splitPaymentUnsupported,
+      warnings,
+    };
+  }
+  if (
+    context.storeId &&
+    !acceptance &&
+    !offer.acceptedAtMerchantIds.includes(context.storeId)
+  ) {
+    return {
+      status: "incompatible",
+      reason: GIFT_CARD_EXCLUSION_REASONS.notAccepted(
+        context.storeName ?? "that retailer",
+      ),
       warnings,
     };
   }
@@ -172,7 +316,7 @@ export function evaluateGiftCardCompatibility(
   if (!hasValue) {
     return {
       status: "insufficient-evidence",
-      reason: "No promotion value could be established for this offer.",
+      reason: GIFT_CARD_EXCLUSION_REASONS.valueUnknown,
       warnings,
     };
   }
@@ -207,6 +351,17 @@ export function evaluateGiftCardCompatibility(
     };
   }
 
+  // Acceptance proves only that the instrument may be redeemed. It cannot
+  // prove every stack layer or checkout condition, so it never yields the
+  // strongest compatibility verdict by itself.
+  if (acceptance && isPositiveAcceptance(acceptance)) {
+    return {
+      status: "likely-compatible",
+      reason: `Current acceptance evidence covers redemption${where}; payment and stacking conditions still need checking.`,
+      warnings,
+    };
+  }
+
   // 4. Confirmed, but with soft caveats → likely compatible.
   if (warnings.length > 0) {
     return {
@@ -216,10 +371,12 @@ export function evaluateGiftCardCompatibility(
     };
   }
 
-  // 5. Confirmed and clean → compatible.
+  // Offer-level merchant lists are still acceptance evidence, not proof that
+  // discount codes, cashback, CLOs or points all combine. Without separate
+  // structured compatibility evidence they can reach only likely-compatible.
   return {
-    status: "compatible",
-    reason: `Confirmed and ready to stack${where}.`,
+    status: "likely-compatible",
+    reason: `Recorded acceptance covers redemption${where}; payment and stacking conditions still need checking.`,
     warnings,
   };
 }

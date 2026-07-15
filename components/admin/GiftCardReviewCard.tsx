@@ -6,6 +6,7 @@ import type { AdminGiftCardCandidate } from "@/lib/admin/repos/giftCardPipeline"
 import {
   DUPLICATE_VERDICT_LABEL,
   type DuplicateMatch,
+  type PublishedOfferSummary,
 } from "@/lib/giftcards/duplicateDetection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +15,12 @@ import {
   approveCandidate,
   attachDuplicateEvidence,
   archiveCandidate,
+  markCandidateSourceUnavailable,
+  markCandidateWithdrawn,
   markHistoricalCandidate,
   rejectCandidate,
+  setLinkedOfferPublished,
+  splitCandidateRevision,
   type ReviewActionState,
 } from "@/app/admin/(protected)/gift-cards/review/actions";
 
@@ -109,10 +114,12 @@ export function GiftCardReviewCard({
   candidate,
   stores,
   duplicates = [],
+  publishedOffer = null,
 }: {
   candidate: AdminGiftCardCandidate;
   stores: { id: string; name: string }[];
   duplicates?: DuplicateMatch[];
+  publishedOffer?: PublishedOfferSummary | null;
 }) {
   const [approveState, approve, approving] = useActionState<
     ReviewActionState,
@@ -130,6 +137,29 @@ export function GiftCardReviewCard({
     ReviewActionState,
     FormData
   >(() => markHistoricalCandidate(candidate.id), {});
+  const [splitState, splitRevision, splitting] = useActionState<
+    ReviewActionState,
+    FormData
+  >(splitCandidateRevision.bind(null, candidate.id), {});
+  const [, sourceUnavailable, markingSourceUnavailable] = useActionState<
+    ReviewActionState,
+    FormData
+  >(() => markCandidateSourceUnavailable(candidate.id), {});
+  const [, markWithdrawn, markingWithdrawn] = useActionState<
+    ReviewActionState,
+    FormData
+  >(() => markCandidateWithdrawn(candidate.id), {});
+  const [, toggleLinkedOffer, togglingLinkedOffer] = useActionState<
+    ReviewActionState,
+    FormData
+  >(
+    () =>
+      setLinkedOfferPublished(
+        candidate.id,
+        publishedOffer?.isPublished !== true,
+      ),
+    {},
+  );
   const changed = candidate.reviewStatus === "changed";
   const hasExactDuplicate = duplicates.some(
     (match) => match.verdict === "exact-duplicate"
@@ -220,6 +250,18 @@ export function GiftCardReviewCard({
           </dl>
         ) : null}
 
+        <details className="rounded-lg border bg-muted/20 p-3 text-xs">
+          <summary className="cursor-pointer font-semibold">
+            Stored raw snapshot
+          </summary>
+          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words">
+            {JSON.stringify(candidate.rawPayload ?? { title: candidate.rawTitle, excerpt: candidate.excerpt }, null, 2)}
+          </pre>
+          <p className="mt-2 text-muted-foreground">
+            Candidate staged {new Date(candidate.createdAt).toLocaleString("en-AU")}.
+          </p>
+        </details>
+
         {changed && candidate.changedFields.length > 0 ? (
           <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-800 dark:text-amber-300">
             Changed fields since the last extraction:{" "}
@@ -228,6 +270,38 @@ export function GiftCardReviewCard({
               ? ` — review against the approved offer ${candidate.approvedOfferId}.`
               : ""}
           </p>
+        ) : null}
+
+        {changed && publishedOffer ? (
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[36rem] text-left text-xs">
+              <thead className="bg-muted/50"><tr><th className="p-2">Field</th><th className="p-2">Published</th><th className="p-2">Candidate</th></tr></thead>
+              <tbody>
+                {[
+                  ["seller", publishedOffer.seller, candidate.sellerName],
+                  ["cards", publishedOffer.brand, candidate.giftCardBrands.join(", ")],
+                  ["mechanic", publishedOffer.promotionType, candidate.promotionType],
+                  ["discount", publishedOffer.discountPercent, candidate.discountPercent],
+                  ["bonus", publishedOffer.bonusPercent, candidate.bonusPercent],
+                  ["points multiplier", publishedOffer.pointsMultiplier, candidate.pointsMultiplier],
+                  ["fixed points", publishedOffer.fixedPoints, candidate.fixedPoints],
+                  ["points programme", publishedOffer.pointsProgram, candidate.pointsProgram],
+                  ["start date", publishedOffer.startDate, candidate.startsAt],
+                  ["expiry date", publishedOffer.expiryDate, candidate.expiresAt],
+                  ["denominations", publishedOffer.denominationNote, candidate.terms.weeklyFacts?.variableLoadRange ? `$${candidate.terms.weeklyFacts.variableLoadRange.min}–$${candidate.terms.weeklyFacts.variableLoadRange.max}` : candidate.terms.weeklyFacts?.denominations.join(", ") ?? null],
+                  ["purchase limit", publishedOffer.limitPerCustomer, candidate.terms.purchaseLimitNote],
+                  ["face-value cap", publishedOffer.capDollars, null],
+                  ["exclusions", publishedOffer.usageNotes?.join("; "), weekly ? [...weekly.excludedDenominations.map((value) => `$${value}`), ...weekly.excludedCardVariants].join("; ") : null],
+                  ["stack conditions", publishedOffer.stackNotes?.join("; "), null],
+                  ["evidence", publishedOffer.sourceDetailUrl, candidate.sourceUrl],
+                ].map(([field, before, after]) => (
+                  <tr key={String(field)} className={String(before ?? "") !== String(after ?? "") ? "border-t bg-amber-500/[0.05]" : "border-t"}>
+                    <th className="p-2 font-medium">{field}</th><td className="p-2 text-muted-foreground">{String(before ?? "Not recorded")}</td><td className="p-2">{String(after ?? "Not recorded")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : null}
 
         {compoundSummary || sourceRemoved ? (
@@ -435,7 +509,12 @@ export function GiftCardReviewCard({
               name="included_product_ids"
               placeholder="e.g. tcn-shop, tcn-love"
             />
-            <Field label="Offer id (blank = derived)" name="offer_id" />
+            <Field
+              label={candidate.approvedOfferId ? "Linked offer id" : "Offer id (blank = derived)"}
+              name="offer_id"
+              defaultValue={candidate.approvedOfferId ?? ""}
+              readOnly={Boolean(candidate.approvedOfferId)}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <Check label="Membership required" name="membership_required" defaultChecked={candidate.terms.membershipRequired} />
@@ -493,7 +572,41 @@ export function GiftCardReviewCard({
               Mark historical
             </Button>
           </form>
+          <form action={sourceUnavailable}>
+            <Button type="submit" size="sm" variant="ghost" disabled={markingSourceUnavailable}>
+              Source unavailable
+            </Button>
+          </form>
+          {publishedOffer ? (
+            <>
+              <form action={markWithdrawn}>
+                <Button type="submit" size="sm" variant="destructive" disabled={markingWithdrawn}>
+                  Mark withdrawn
+                </Button>
+              </form>
+              <form action={toggleLinkedOffer}>
+                <Button type="submit" size="sm" variant="outline" disabled={togglingLinkedOffer}>
+                  {publishedOffer.isPublished === false ? "Restore linked offer" : "Archive linked offer"}
+                </Button>
+              </form>
+            </>
+          ) : null}
         </div>
+        <form action={splitRevision} className="space-y-2 rounded-lg border p-3">
+          <label className="grid gap-1 text-xs font-medium">
+            Atomic sub-offer definitions (reviewed JSON)
+            <textarea
+              name="split_definitions"
+              rows={5}
+              placeholder={'[{"subOfferKey":"apple-credit","brand":"Apple","promotionType":"promo-credit","promoCreditDollars":10,"thresholdDollars":100},{"subOfferKey":"uber-discount","brand":"Uber","promotionType":"discount","discountPercent":10}]'}
+              className="rounded-md border bg-background p-2 font-mono text-xs"
+            />
+          </label>
+          <Button type="submit" size="sm" variant="outline" disabled={splitting}>
+            {splitting ? "Splitting…" : "Split merged revision"}
+          </Button>
+          {splitState.error ? <p role="alert" className="text-xs text-destructive">{splitState.error}</p> : null}
+        </form>
         {rejectState?.error ? (
           <p role="alert" className="text-xs text-destructive">
             {rejectState.error}

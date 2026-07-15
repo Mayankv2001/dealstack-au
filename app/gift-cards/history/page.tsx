@@ -5,12 +5,18 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import { Card, CardContent } from "@/components/ui/card";
-import { getGiftCardOfferOccurrences } from "@/lib/repos";
+import {
+  getAllGiftCardAcceptance,
+  getAllGiftCardProducts,
+  getGiftCardOfferOccurrences,
+} from "@/lib/repos";
 import { formatDateAU } from "@/lib/sources/normalise";
 import {
   summariseOfferHistory,
   type OfferOccurrence,
 } from "@/lib/giftcards/history";
+import { savedPlanHistoryWarnings } from "@/lib/giftcards/historyViewModel";
+import { acceptancePublicView } from "@/lib/giftcards/acceptanceViewModel";
 
 export const metadata: Metadata = {
   title: "Gift-card offer history | DealStack AU",
@@ -59,8 +65,40 @@ function historyUnit(promotionType: string): string {
   return "%";
 }
 
-export default async function GiftCardHistoryPage() {
-  const occurrences = await getGiftCardOfferOccurrences();
+type Params = {
+  offer?: string | string[];
+  acceptance?: string | string[];
+  planCreatedAt?: string | string[];
+};
+
+const first = (value: string | string[] | undefined): string | null =>
+  (Array.isArray(value) ? value[0] : value)?.trim() || null;
+
+export default async function GiftCardHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<Params>;
+}) {
+  const params = await searchParams;
+  const [occurrences, acceptance, products] = await Promise.all([
+    getGiftCardOfferOccurrences(),
+    getAllGiftCardAcceptance(),
+    getAllGiftCardProducts(),
+  ]);
+  const now = new Date();
+  const productById = new Map(products.map((product) => [product.id, product]));
+  const historicalAcceptance = acceptance.filter(
+    (row) => acceptancePublicView(row, now).historical,
+  );
+  const planWarnings = savedPlanHistoryWarnings(
+    {
+      offerId: first(params.offer),
+      acceptanceId: first(params.acceptance),
+      planCreatedAt: first(params.planCreatedAt),
+    },
+    occurrences,
+    acceptance,
+  );
   const historyRows: OfferOccurrence[] = occurrences.map((occurrence) => ({
     id: occurrence.id,
     sellerKey: occurrence.sellerKey,
@@ -104,6 +142,16 @@ export default async function GiftCardHistoryPage() {
           History compares only the same seller, product and mechanic.
           Discounts, bonus value and points are never blended.
         </p>
+        {planWarnings.length > 0 ? (
+          <ul
+            role="status"
+            className="mt-5 space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200"
+          >
+            {planWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
         {occurrences.length === 0 ? (
           <Card className="mt-7">
             <CardContent className="p-8 text-center">
@@ -196,6 +244,55 @@ export default async function GiftCardHistoryPage() {
             ))}
           </div>
         )}
+        <section className="mt-8" aria-labelledby="acceptance-history">
+          <h2 id="acceptance-history" className="text-xl font-semibold">
+            Merchant acceptance history
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            Relationships that were reviewed as no longer accepted remain
+            visible here with their original evidence. They are excluded from
+            current purchase plans.
+          </p>
+          {historicalAcceptance.length > 0 ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {historicalAcceptance.map((row) => {
+                const view = acceptancePublicView(row, now);
+                const evidenceUrl = view.evidenceUrl;
+                return (
+                  <article key={row.id} className="rounded-xl border bg-card p-4">
+                    <h3 className="font-semibold">
+                      {productById.get(row.productId)?.brand ?? row.productId}
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {row.merchantName ?? row.merchantCategory ?? row.storeId ?? "Merchant not named"}
+                    </p>
+                    <p className="mt-3 text-sm font-medium">{view.statusLabel}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {view.evidenceLabel} · {view.checkedLabel}
+                      {row.validUntil ? ` · valid until ${formatDateAU(row.validUntil)}` : ""}
+                    </p>
+                    {evidenceUrl ? (
+                      <a
+                        href={evidenceUrl}
+                        target="_blank"
+                        rel="nofollow noopener noreferrer"
+                        className="mt-3 inline-flex text-xs font-semibold text-emerald-700 hover:underline"
+                      >
+                        Acceptance evidence
+                      </a>
+                    ) : (
+                      <p className="mt-3 text-xs text-amber-700">Evidence link unavailable</p>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-4 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+              No reviewed merchant-acceptance removals are recorded yet.
+            </p>
+          )}
+        </section>
         <section className="mt-8 rounded-2xl border bg-card p-5">
           <h2 className="font-semibold">Prediction threshold</h2>
           <p className="mt-2 text-sm text-muted-foreground">

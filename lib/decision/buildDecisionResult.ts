@@ -7,8 +7,22 @@ import type {
 } from "@/lib/offers/types";
 import { REWARDS_PROGRAMMES } from "@/lib/rewards/programmes";
 import { isConfirmedCurrentGiftCardOffer } from "@/lib/giftcards/publicQuery";
-import { evaluateGiftCardCompatibility } from "@/lib/giftcards/compatibility";
+import {
+  evaluateGiftCardCompatibility,
+  GIFT_CARD_EXCLUSION_REASONS,
+} from "@/lib/giftcards/compatibility";
+import {
+  ACCEPTANCE_EVIDENCE_RANK,
+  ACCEPTANCE_STATUS_RANK,
+  acceptanceEvidenceLabel,
+  canonicalAcceptanceStatus,
+  deriveAcceptanceFreshness,
+  isCurrentlyAccepted,
+  isPositiveAcceptance,
+} from "@/lib/giftcards/acceptanceModel";
+import { resolveMerchantAlias } from "@/lib/giftcards/resolveMerchantAlias";
 import { buildWorkedExample } from "@/lib/giftcards/value";
+import { giftCardDateState } from "@/lib/giftcards/dateState";
 import type { Citation } from "@/lib/sources/types";
 import { summariseCitations } from "@/lib/stack/citationSummary";
 import type {
@@ -18,6 +32,7 @@ import type {
 import type {
   DecisionResult,
   DecisionTarget,
+  RetailerGiftCardOption,
   RetailerGiftCardPlan,
 } from "./types";
 
@@ -91,10 +106,82 @@ function citationsFor(
   ];
 }
 
+const COMPATIBILITY_RANK = {
+  incompatible: 0,
+  "insufficient-evidence": 1,
+  "requires-verification": 2,
+  "likely-compatible": 3,
+  compatible: 4,
+} as const;
+
+/** Exact TASK-11 ordering with a stable offer-id tie-breaker. */
+export function compareRetailerGiftCardOptions(
+  a: RetailerGiftCardOption,
+  b: RetailerGiftCardOption,
+): number {
+  const evidence = (option: RetailerGiftCardOption) =>
+    option.acceptance?.evidenceSourceType
+      ? ACCEPTANCE_EVIDENCE_RANK[option.acceptance.evidenceSourceType]
+      : 0;
+  const status = (option: RetailerGiftCardOption) =>
+    option.acceptance
+      ? ACCEPTANCE_STATUS_RANK[canonicalAcceptanceStatus(option.acceptance)]
+      : 0;
+  const freshness = (option: RetailerGiftCardOption) =>
+    option.evidenceFreshness === "current"
+      ? 2
+      : option.evidenceFreshness === "not-checked"
+        ? 1
+        : 0;
+  const limits = (option: RetailerGiftCardOption) =>
+    (option.offer.capDollars != null ? 1 : 0) +
+    (option.offer.usesPerCustomer != null ? 1 : 0);
+  return (
+    Number(b.activeApproved) - Number(a.activeApproved) ||
+    evidence(b) - evidence(a) ||
+    status(b) - status(a) ||
+    freshness(b) - freshness(a) ||
+    Number(b.directApplicability) - Number(a.directApplicability) ||
+    COMPATIBILITY_RANK[b.compatibilityStatus] -
+      COMPATIBILITY_RANK[a.compatibilityStatus] ||
+    b.immediateCashSaving - a.immediateCashSaving ||
+    ((b.estimatedRewardsValue ?? 0) + (b.futureCreditValue ?? 0)) -
+      ((a.estimatedRewardsValue ?? 0) + (a.futureCreditValue ?? 0)) ||
+    a.purchaseFriction - b.purchaseFriction ||
+    limits(a) - limits(b) ||
+    a.offer.id.localeCompare(b.offer.id, "en-AU")
+  );
+}
+
+function acceptanceChannels(row: GiftCardAcceptanceRow | null): string[] {
+  if (!row) return [];
+  return [
+    row.acceptsOnline === true ? "Online" : null,
+    row.acceptsInStore === true ? "In store" : null,
+    row.acceptsApp === true ? "App" : null,
+    row.acceptsPhone === true ? "Phone" : null,
+  ].filter((value): value is string => value != null);
+}
+
+function bestAcceptance(
+  rows: GiftCardAcceptanceRow[],
+  now: Date,
+): GiftCardAcceptanceRow | null {
+  return [...rows].sort((a, b) => {
+    const current =
+      Number(isCurrentlyAccepted(b, now)) - Number(isCurrentlyAccepted(a, now));
+    const evidence =
+      (b.evidenceSourceType ? ACCEPTANCE_EVIDENCE_RANK[b.evidenceSourceType] : 0) -
+      (a.evidenceSourceType ? ACCEPTANCE_EVIDENCE_RANK[a.evidenceSourceType] : 0);
+    return current || evidence || a.id.localeCompare(b.id, "en-AU");
+  })[0] ?? null;
+}
+
 function retailerGiftCardPlans(
   selectedStoreId: string | null,
   spend: number,
   inputs: DecisionInputs,
+  now: Date,
 ): RetailerGiftCardPlan[] {
   const contexts: Array<{
     key: string;
@@ -160,18 +247,45 @@ function retailerGiftCardPlans(
           .filter((component) => component.sourceOfferId)
           .map((component) => [component.sourceOfferId!, component]),
       );
-      const giftCardOptions = inputs.giftCardOffers
-        .filter(
-          (offer) =>
-            isConfirmedCurrentGiftCardOffer(offer) &&
-            offer.acceptedAtMerchantIds.includes(context.merchantId),
-        )
+      const productById = new Map(inputs.products.map((product) => [product.id, product]));
+      const merchantAcceptance = inputs.acceptance.filter(
+        (row) =>
+          row.storeId === context.merchantId ||
+          normalise(row.merchantName ?? "") === normalise(context.merchantName),
+      );
+      const relevantProductIds = new Set(
+        merchantAcceptance.filter(isPositiveAcceptance).map((row) => row.productId),
+      );
+      const allOptions = inputs.giftCardOffers
+        .filter((offer) => {
+          const ids = [offer.productId, ...(offer.includedProductIds ?? [])].filter(
+            (id): id is string => Boolean(id),
+          );
+          return (
+            offer.acceptedAtMerchantIds.includes(context.merchantId) ||
+            ids.some((id) => relevantProductIds.has(id))
+          );
+        })
         .flatMap((offer) => {
+          const offerProductIds = [
+            offer.productId,
+            ...(offer.includedProductIds ?? []),
+          ].filter((id): id is string => Boolean(id));
+          const acceptance = bestAcceptance(
+            merchantAcceptance.filter((row) => offerProductIds.includes(row.productId)),
+            now,
+          );
+          const product =
+            offerProductIds.map((id) => productById.get(id)).find(Boolean) ?? null;
+          const activeApproved = isConfirmedCurrentGiftCardOffer(offer, now);
           const compatibility = evaluateGiftCardCompatibility(offer, {
+            now,
             storeId: context.merchantId,
             storeName: context.merchantName,
+            acceptance,
+            product,
+            purchaseAmount: faceValue,
           });
-          if (compatibility.status === "incompatible") return [];
           const worked = buildWorkedExample(
             {
               promotionType: offer.promotionType ?? "discount",
@@ -192,13 +306,47 @@ function retailerGiftCardPlans(
           );
           if (!worked) return [];
           const component = componentByOffer.get(offer.id);
+          const freshness = acceptance
+            ? deriveAcceptanceFreshness(acceptance, now)
+            : "not-checked";
+          const stale = freshness === "stale";
+          const inactiveAcceptance =
+            acceptance != null && !isCurrentlyAccepted(acceptance, now);
+          const excluded =
+            !activeApproved ||
+            inactiveAcceptance ||
+            compatibility.status === "incompatible";
+          const dateState = giftCardDateState(offer, now);
+          const exclusionReason = !activeApproved
+            ? dateState === "expired" && offer.expiryDate
+              ? GIFT_CARD_EXCLUSION_REASONS.expired(offer.expiryDate)
+              : dateState === "future" && offer.startDate
+                ? GIFT_CARD_EXCLUSION_REASONS.upcoming(offer.startDate)
+                : "The offer is not confirmed as currently active."
+            : stale
+              ? GIFT_CARD_EXCLUSION_REASONS.staleAcceptance
+              : inactiveAcceptance
+                ? GIFT_CARD_EXCLUSION_REASONS.inactiveAcceptance
+              : compatibility.status === "incompatible"
+                ? compatibility.reason
+                : null;
+          const purchaseFriction =
+            Number(Boolean(offer.membershipRequired)) +
+            Number(Boolean(offer.activationRequired)) +
+            Number(Boolean(offer.couponRequired));
           return [{
             offer,
+            product,
+            acceptance,
             role: component
               ? component.optional
                 ? ("alternative" as const)
                 : ("included" as const)
               : ("available" as const),
+            activeApproved,
+            directApplicability: acceptance?.storeId === context.merchantId,
+            excluded,
+            exclusionReason,
             compatibilityStatus:
               component?.compatibilityStatus ?? compatibility.status,
             compatibilityReason:
@@ -216,22 +364,48 @@ function retailerGiftCardPlans(
             bonusCardValue: worked.bonusValueDollars,
             pointsEarned: worked.points,
             estimatedRewardsValue: worked.rewardValueDollars,
+            futureCreditValue: worked.futureCreditDollars,
+            redemptionChannels: acceptanceChannels(acceptance),
+            evidenceLabel: acceptance
+              ? acceptanceEvidenceLabel(acceptance)
+              : "Acceptance requires verification",
+            evidenceFreshness: freshness,
+            maxUsableAmount: offer.capDollars ?? null,
+            perCardMaximum: product?.maxDenomination ?? null,
+            estimatedCardCount:
+              product?.maxDenomination && product.maxDenomination > 0
+                ? Math.ceil(worked.coveredFaceValue / product.maxDenomination)
+                : null,
+            denominationRequirement:
+              offer.denominationNote ??
+              (product?.denominations?.length
+                ? `Known denominations: ${product.denominations
+                    .map((value) => `$${value}`)
+                    .join(", ")}`
+                : product?.variableLoad &&
+                    product.minDenomination != null &&
+                    product.maxDenomination != null
+                  ? `Variable load $${product.minDenomination}–$${product.maxDenomination} per card`
+                  : null),
+            purchaseFriction,
+            orderedSteps: [
+              ...(offer.membershipRequired ? ["Confirm membership eligibility"] : []),
+              ...(offer.activationRequired ? ["Activate the offer"] : []),
+              product?.maxDenomination && worked.coveredFaceValue > product.maxDenomination
+                ? `Buy at least ${Math.ceil(worked.coveredFaceValue / product.maxDenomination)} gift cards from the reviewed seller`
+                : "Buy the gift card from the reviewed seller",
+              `Redeem it at ${context.merchantName}`,
+            ],
           }];
         })
-        .sort((a, b) => {
-          const role = { included: 0, alternative: 1, available: 2 } as const;
-          return (
-            role[a.role] - role[b.role] ||
-            b.immediateCashSaving - a.immediateCashSaving ||
-            (b.estimatedRewardsValue ?? 0) - (a.estimatedRewardsValue ?? 0)
-          );
-        });
+        .sort(compareRetailerGiftCardOptions);
       return {
         merchantId: context.merchantId,
         merchantName: context.merchantName,
         productTitle: context.productTitle,
         listedPrice: context.listedPrice,
-        giftCardOptions,
+        giftCardOptions: allOptions.filter((option) => !option.excluded),
+        excludedGiftCardOptions: allOptions.filter((option) => option.excluded),
       };
     },
   );
@@ -241,6 +415,7 @@ export function buildDecisionResult(
   query: string,
   spend: number,
   inputs: DecisionInputs,
+  now: Date = new Date(),
 ): DecisionResult {
   const q = query.trim();
   const { bundle, products, acceptance } = inputs;
@@ -298,16 +473,29 @@ export function buildDecisionResult(
     ...offerBrandTargets,
   ]);
   const allTargets = [...storeTargets, ...giftCardTargets, ...programmeTargets];
+  const merchantResolution = q ? resolveMerchantAlias(q, bundle.stores) : null;
+  const resolvedStore = merchantResolution?.storeId
+    ? bundle.stores.find((store) => store.id === merchantResolution.storeId) ?? null
+    : null;
   const selectedTarget = q
-    ? (exactTarget(allTargets, q) ??
+    ? (resolvedStore
+      ? {
+          kind: "store" as const,
+          id: resolvedStore.id,
+          name: resolvedStore.name,
+          description: resolvedStore.category,
+        }
+      : exactTarget(allTargets, q) ??
       (allTargets.length === 1 ? allTargets[0] : null))
     : null;
   const ambiguous =
-    q.length > 0 && allTargets.length > 1 && selectedTarget === null;
+    q.length > 0 &&
+    (merchantResolution?.state === "ambiguous" ||
+      (allTargets.length > 1 && selectedTarget === null));
 
   const selectedStoreId =
     selectedTarget?.kind === "store" ? selectedTarget.id : null;
-  const candidateStacks = !q
+  const candidateStacks = !q || ambiguous
     ? []
     : selectedStoreId
       ? bundle.stackRecommendations.filter(
@@ -337,9 +525,23 @@ export function buildDecisionResult(
   const selectedProgramme =
     selectedTarget?.kind === "programme" ? selectedTarget.name : null;
   const filteredOffers = inputs.giftCardOffers.filter((offer) => {
-    if (!q || !isConfirmedCurrentGiftCardOffer(offer)) return false;
-    if (selectedStoreId)
-      return offer.acceptedAtMerchantIds.includes(selectedStoreId);
+    if (!q || !isConfirmedCurrentGiftCardOffer(offer, now)) return false;
+    if (selectedStoreId) {
+      const currentProductIds = new Set(
+        acceptance
+          .filter(
+            (row) =>
+              row.storeId === selectedStoreId && isCurrentlyAccepted(row, now),
+          )
+          .map((row) => row.productId),
+      );
+      return (
+        offer.acceptedAtMerchantIds.includes(selectedStoreId) ||
+        [offer.productId, ...(offer.includedProductIds ?? [])].some(
+          (id) => id != null && currentProductIds.has(id),
+        )
+      );
+    }
     if (selectedProductIds.size > 0) {
       return [offer.productId, ...(offer.includedProductIds ?? [])].some(
         (id) => id != null && selectedProductIds.has(id),
@@ -353,14 +555,13 @@ export function buildDecisionResult(
     }
     return !q || matches(offerSearchText(offer), q);
   });
-  const retailerPlans = retailerGiftCardPlans(
-    selectedStoreId,
-    safeSpend,
-    inputs,
-  );
+  const retailerPlans = ambiguous
+    ? []
+    : retailerGiftCardPlans(selectedStoreId, safeSpend, inputs, now);
   const productById = new Map(products.map((product) => [product.id, product]));
   const acceptedCards = acceptance.flatMap((row) => {
     if (!q) return [];
+    if (!isCurrentlyAccepted(row, now)) return [];
     const product = productById.get(row.productId);
     if (!product) return [];
     if (selectedStoreId && row.storeId !== selectedStoreId) return [];

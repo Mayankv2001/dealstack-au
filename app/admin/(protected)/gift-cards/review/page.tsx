@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/admin/auth";
 import {
   listGiftCardCandidates,
   listPublishedOfferSummaries,
+  listGiftCardOfferSummariesById,
   getGiftCardSource,
 } from "@/lib/admin/repos/giftCardPipeline";
 import { listStores } from "@/lib/admin/repos/stores";
@@ -33,6 +34,11 @@ export default async function GiftCardReviewPage() {
     listPublishedOfferSummaries(),
     getGiftCardSource(POINT_HACKS_WEEKLY_SOURCE_ID),
   ]);
+  const linkedOffers = await listGiftCardOfferSummariesById(
+    candidates.flatMap((candidate) =>
+      candidate.approvedOfferId ? [candidate.approvedOfferId] : [],
+    ),
+  );
   const storeOptions = stores.map((s) => ({ id: s.id, name: s.name }));
   const today = new Date().toISOString().slice(0, 10);
   const duplicatesByCandidate = new Map(
@@ -119,6 +125,11 @@ export default async function GiftCardReviewPage() {
               candidate={candidate}
               stores={storeOptions}
               duplicates={duplicatesByCandidate.get(candidate.id) ?? []}
+              publishedOffer={
+                candidate.approvedOfferId
+                  ? linkedOffers.find((offer) => offer.id === candidate.approvedOfferId) ?? null
+                  : null
+              }
             />
           ))}
         </div>

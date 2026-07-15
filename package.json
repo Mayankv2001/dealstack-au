@@ -13,6 +13,7 @@
     "seed": "node scripts/require-node.cjs 22 && tsx scripts/seed.ts",
     "seed:feed-items": "node scripts/require-node.cjs 20 && tsx scripts/seed-feed-items.ts",
     "seed:offer-changes": "node scripts/require-node.cjs 20 && tsx scripts/seed-offer-changes.ts",
+    "seed:gift-card-products": "node scripts/require-node.cjs 20 && tsx scripts/seed-gift-card-products.ts",
     "monitor:fixtures": "node scripts/require-node.cjs 20 && tsx scripts/monitor-fixtures.ts",
     "monitor:feeds": "node scripts/require-node.cjs 20 && tsx scripts/monitor-feeds.ts",
     "cleanup:old-deals": "node scripts/require-node.cjs 20 && tsx scripts/cleanup-old-deals.ts",

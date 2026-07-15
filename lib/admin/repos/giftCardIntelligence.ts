@@ -66,6 +66,15 @@ export interface IntelligenceProductRow {
   slug: string;
   issuer: string | null;
   is_active: boolean;
+  aliases?: string[];
+  official_product_page?: string | null;
+  activation_method?: string | null;
+  online_available?: boolean | null;
+  in_store_available?: boolean | null;
+  denominations?: number[] | null;
+  activation_delay_note?: string | null;
+  split_payment?: string;
+  expiry_or_fees_note?: string | null;
 }
 
 export interface IntelligenceAcceptanceRow {
@@ -90,6 +99,7 @@ export interface IntelligenceRateHistoryRow {
 
 export interface GiftCardIntelligenceAdminData {
   schemaAvailable: boolean;
+  productCatalogueAvailable: boolean;
   programmes: IntelligenceProgrammeRow[];
   rates: IntelligenceRateRow[];
   corrections: PublicCorrectionRow[];
@@ -108,16 +118,29 @@ async function optionalRows<T>(name: string): Promise<{ available: boolean; rows
   return { available: true, rows: (data ?? []) as unknown as T[] };
 }
 
+export async function isProductCatalogueSchemaAvailable(): Promise<boolean> {
+  const { error } = await getSupabaseAdmin()
+    .from("gift_card_products")
+    .select("aliases")
+    .limit(1);
+  if (!error) return true;
+  if (error.code === "42703" || error.code === "PGRST204" || error.code === "PGRST205") {
+    return false;
+  }
+  throw new Error(`check gift-card product catalogue schema failed: ${error.message}`);
+}
+
 export async function getGiftCardIntelligenceAdminData(today: string): Promise<GiftCardIntelligenceAdminData> {
-  const [programmes, rates, rateHistory, corrections, offers, occurrences, products, acceptance] = await Promise.all([
+  const [programmes, rates, rateHistory, corrections, offers, occurrences, products, acceptance, catalogueAvailable] = await Promise.all([
     optionalRows<IntelligenceProgrammeRow>("gift_card_programmes"),
     optionalRows<IntelligenceRateRow>("gift_card_programme_rates"),
     optionalRows<IntelligenceRateHistoryRow>("gift_card_programme_rate_history"),
     optionalRows<PublicCorrectionRow>("public_correction_reports"),
     getSupabaseAdmin().from("gift_card_offers").select("id, brand, purchase_location, promotion_type, expiry_date").lt("expiry_date", today).order("expiry_date", { ascending: false }),
     optionalRows<{ source_offer_id: string | null }>("gift_card_offer_occurrences"),
-    getSupabaseAdmin().from("gift_card_products").select("id, brand, slug, issuer, is_active").order("brand"),
+    getSupabaseAdmin().from("gift_card_products").select("*").order("brand"),
     getSupabaseAdmin().from("gift_card_merchant_acceptance").select("id, product_id, merchant_name, merchant_category, status, outcome, checked_at, is_public").order("created_at", { ascending: false }).limit(500),
+    isProductCatalogueSchemaAvailable(),
   ]);
   if (offers.error) throw new Error(`list history candidates failed: ${offers.error.message}`);
   if (products.error) throw new Error(`list products failed: ${products.error.message}`);
@@ -126,6 +149,7 @@ export async function getGiftCardIntelligenceAdminData(today: string): Promise<G
   const historyCandidates = (offers.data ?? []).filter((row) => row.expiry_date && !sealed.has(row.id)).map((row) => ({ id: row.id, brand: row.brand, seller: row.purchase_location, promotionType: row.promotion_type, expiryDate: row.expiry_date! }));
   return {
     schemaAvailable: programmes.available && rates.available && rateHistory.available && corrections.available && occurrences.available,
+    productCatalogueAvailable: catalogueAvailable,
     programmes: programmes.rows,
     rates: rates.rows,
     rateHistory: rateHistory.rows,
@@ -139,6 +163,24 @@ export async function getGiftCardIntelligenceAdminData(today: string): Promise<G
 export async function insertGiftCardProduct(input: Record<string, unknown>): Promise<void> {
   const { error } = await getSupabaseAdmin().from("gift_card_products").insert(input as never);
   if (error) throw new Error(error.message);
+}
+
+export async function updateGiftCardProduct(id: string, input: Record<string, unknown>): Promise<void> {
+  const { error } = await getSupabaseAdmin()
+    .from("gift_card_products")
+    .update(input as never)
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getGiftCardProductSourceEvidence(id: string): Promise<unknown[]> {
+  const { data, error } = await getSupabaseAdmin()
+    .from("gift_card_products")
+    .select("source_evidence")
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(error.message);
+  return Array.isArray(data.source_evidence) ? data.source_evidence : [];
 }
 
 export async function insertGiftCardAcceptance(input: Record<string, unknown>): Promise<void> {

@@ -24,6 +24,13 @@ const SYDNEY_HOUR_FMT = new Intl.DateTimeFormat("en-AU", {
   hour12: false,
 });
 
+const SYDNEY_DATE_FMT = new Intl.DateTimeFormat("en-AU", {
+  timeZone: "Australia/Sydney",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 /** Current hour of day (0–23) in Australia/Sydney, whatever DST is doing. */
 export function sydneyHour(now: Date): number {
   return Number(SYDNEY_HOUR_FMT.format(now));
@@ -31,6 +38,14 @@ export function sydneyHour(now: Date): number {
 
 export function isSydneyRunHour(now: Date): boolean {
   return sydneyHour(now) === SYDNEY_RUN_HOUR;
+}
+
+/** YYYY-MM-DD for the Sydney calendar day at an arbitrary UTC instant. */
+export function sydneyLocalDate(now: Date): string {
+  const parts = Object.fromEntries(
+    SYDNEY_DATE_FMT.formatToParts(now).map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 export type ScheduleDecision =
@@ -57,4 +72,36 @@ export function decideSchedule(
     }
   }
   return { run: true };
+}
+
+export type DailyLifecycleScheduleDecision =
+  | { run: true; localDate: string }
+  | {
+      run: false;
+      localDate: string;
+      reason: "outside-run-hour" | "already-ran-local-day";
+    };
+
+/**
+ * Daily lifecycle gate. Unlike the legacy ingest guard above, this compares
+ * Sydney calendar dates rather than elapsed hours, so 23/25-hour DST days do
+ * not create a missed or duplicate run. `force` bypasses only the 07:00 hour;
+ * it never bypasses the same-local-day idempotency guard.
+ */
+export function decideDailyLifecycleSchedule(
+  now: Date,
+  lastSuccessfulRunStartedAt: Date | null,
+  options: { force?: boolean } = {},
+): DailyLifecycleScheduleDecision {
+  const localDate = sydneyLocalDate(now);
+  if (!options.force && !isSydneyRunHour(now)) {
+    return { run: false, localDate, reason: "outside-run-hour" };
+  }
+  if (
+    lastSuccessfulRunStartedAt &&
+    sydneyLocalDate(lastSuccessfulRunStartedAt) >= localDate
+  ) {
+    return { run: false, localDate, reason: "already-ran-local-day" };
+  }
+  return { run: true, localDate };
 }

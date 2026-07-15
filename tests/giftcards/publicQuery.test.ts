@@ -125,6 +125,16 @@ describe("queryGiftCardOffers — filtering", () => {
     expect(result.map((o) => o.id)).toEqual(["live"]);
   });
 
+  it("keeps future-dated offers out of current results", () => {
+    const offers = [
+      gc({ id: "current", startDate: "2026-07-12", expiryDate: "2026-07-20" }),
+      gc({ id: "future", startDate: "2026-07-13", expiryDate: "2026-07-20" }),
+    ];
+    expect(
+      queryGiftCardOffers(offers, GC_DEFAULTS, NOW).map((offer) => offer.id),
+    ).toEqual(["current"]);
+  });
+
   it("filters by promotion tab", () => {
     const offers = [
       gc({ id: "disc", discountPercent: 10, promotionType: "discount" }),

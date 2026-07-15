@@ -92,5 +92,5 @@ export async function loadDecisionResult(
     giftCardOffers: stackData.giftCardOffers,
     productComparisons,
     productMatches,
-  });
+  }, now);
 }

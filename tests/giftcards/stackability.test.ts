@@ -17,6 +17,21 @@ const acceptanceRow = (
   sourceUrl: null,
   checkedAt: "2026-07-10T00:00:00Z",
   notes: null,
+  acceptanceStatus: "confirmed-accepted",
+  evidenceSourceType: "issuer-official",
+  evidencePublisher: "The Card Network",
+  evidenceUrl: "https://example.test/evidence",
+  evidenceCapturedAt: "2026-07-10T00:00:00Z",
+  lastCheckedAt: "2026-07-10T00:00:00Z",
+  acceptsOnline: true,
+  acceptsInStore: true,
+  acceptsApp: null,
+  acceptsPhone: null,
+  validFrom: null,
+  validUntil: null,
+  limitations: null,
+  region: "AU",
+  participatingLocationRequired: null,
   ...overrides,
 });
 
@@ -173,7 +188,7 @@ describe("redemption stage", () => {
       now: NOW,
       acceptance: [acceptanceRow({ outcome: "unsuccessful" })],
     });
-    expect(redemption.status).toBe("requires-verification");
+    expect(redemption.status).toBe("incompatible");
   });
 });
 

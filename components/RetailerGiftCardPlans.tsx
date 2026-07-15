@@ -8,7 +8,7 @@ import type { RetailerGiftCardPlan } from "@/lib/decision/types";
 const ROLE_LABEL = {
   included: "Included in best plan",
   alternative: "Choose instead",
-  available: "Available option",
+  available: "Evaluated — not in best stack",
 } as const;
 
 function mechanicLabel(
@@ -48,6 +48,9 @@ function outcome(option: RetailerGiftCardPlan["giftCardOptions"][number]): strin
   }
   if (option.bonusCardValue != null) {
     return `${formatAUD(option.bonusCardValue)} extra card value`;
+  }
+  if (option.futureCreditValue != null) {
+    return `${formatAUD(option.futureCreditValue)} future credit — cash paid is unchanged`;
   }
   return "Reviewed gift-card acquisition offer";
 }
@@ -128,6 +131,37 @@ export default function RetailerGiftCardPlans({
                           : ""}
                         .
                       </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {option.evidenceLabel} ·{" "}
+                        {option.evidenceFreshness === "current"
+                          ? "current evidence"
+                          : option.evidenceFreshness === "stale"
+                            ? "stale evidence"
+                            : "check date not recorded"}
+                        {option.redemptionChannels.length
+                          ? ` · ${option.redemptionChannels.join(", ")}`
+                          : " · redemption channel not recorded"}
+                      </p>
+                      {option.estimatedCardCount != null ||
+                      option.denominationRequirement ||
+                      option.maxUsableAmount != null ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {[
+                            option.estimatedCardCount != null
+                              ? `At least ${option.estimatedCardCount} card${option.estimatedCardCount === 1 ? "" : "s"}`
+                              : null,
+                            option.perCardMaximum != null
+                              ? `${formatAUD(option.perCardMaximum)} maximum per card`
+                              : null,
+                            option.maxUsableAmount != null
+                              ? `${formatAUD(option.maxUsableAmount)} promotional value cap`
+                              : null,
+                            option.denominationRequirement,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      ) : null}
                       {option.engineNote ? (
                         <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
                           {option.engineNote}
@@ -152,6 +186,18 @@ export default function RetailerGiftCardPlans({
                       >
                         Check offer conditions
                       </Link>
+                      <details className="mt-2 text-xs">
+                        <summary className="cursor-pointer font-semibold">
+                          Purchase steps
+                        </summary>
+                        <ol className="mt-2 space-y-1 pl-5 text-muted-foreground">
+                          {option.orderedSteps.map((step) => (
+                            <li key={step} className="list-decimal">
+                              {step}
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
                     </article>
                   ))}
                 </div>
@@ -166,6 +212,23 @@ export default function RetailerGiftCardPlans({
                   </p>
                 </div>
               )}
+              {plan.excludedGiftCardOptions.length > 0 ? (
+                <details className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3">
+                  <summary className="cursor-pointer text-sm font-semibold">
+                    Options not recommended ({plan.excludedGiftCardOptions.length})
+                  </summary>
+                  <ul className="mt-2 space-y-2 text-xs text-muted-foreground">
+                    {plan.excludedGiftCardOptions.map((option) => (
+                      <li key={option.offer.id}>
+                        <span className="font-semibold text-foreground">
+                          {option.offer.brand}:
+                        </span>{" "}
+                        {option.exclusionReason ?? option.compatibilityReason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </CardContent>
           </Card>
         ))}

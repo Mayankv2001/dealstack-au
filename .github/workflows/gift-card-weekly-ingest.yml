@@ -1,0 +1,63 @@
+# Gift-card WEEKLY (Point Hacks) ingest trigger — 7:00 AM Australia/Sydney.
+#
+# Like gift-card-ingest.yml, GitHub cron cannot express "7am Sydney" across DST,
+# so this fires DAILY at BOTH UTC equivalents (20:00 UTC during AEDT, 21:00 UTC
+# during AEST) and lets the endpoint decide: it runs only when it is really the
+# 7 o'clock Sydney hour AND the last real run started ≥ the interval guard ago,
+# under the one-running DB lock. Off-hour and duplicate calls return a safe
+# machine-readable skip, so the schedule is idempotent by construction.
+#
+# The endpoint is multi-gated (CRON_SECRET bearer, POINTHACKS_WEEKLY_INGEST_ENABLED
+# env flag, gift_card_sources.enabled AND .automated_fetch_allowed AND completed
+# terms/robots review). With any gate closed this workflow reaches a safe no-op
+# and exits green with "skipped". Only HTTP status + machine-readable summary
+# keys are logged (public repo).
+#
+# Human setup (once): the CRON_SECRET repository Actions secret (shared with the
+# other cron workflows) must exist; enablement happens in Vercel env + the DB
+# source row (after a recorded permission review), never here.
+
+name: Gift-card weekly ingest (7am Sydney)
+
+on:
+  schedule:
+    - cron: "0 20 * * *" # 7:00 AEDT (UTC+11)
+    - cron: "0 21 * * *" # 7:00 AEST (UTC+10)
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: gift-card-weekly-ingest
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call the weekly ingest endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is missing — this trigger is blind."
+            exit 2
+          fi
+          status=$(curl -sS -o response.json -w "%{http_code}" \
+            --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://dealstack-au.vercel.app/api/cron/gift-card-weekly-ingest")
+          echo "HTTP $status"
+          python3 - <<'PY'
+          import json
+          with open("response.json") as f:
+              data = json.load(f)
+          keys = ["ok", "ran", "skipped", "status", "itemsSeen", "source",
+                  "newCandidates", "changedCandidates", "errorCount"]
+          print({k: data.get(k) for k in keys if k in data})
+          PY
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::gift-card weekly ingest endpoint returned HTTP $status"
+            exit 1
+          fi

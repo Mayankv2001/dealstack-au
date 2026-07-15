@@ -31,6 +31,8 @@ export interface RawItemState {
   id: string;
   externalId: string;
   contentHash: string;
+  /** Rejected rows must be re-parsed even when their factual hash is stable. */
+  processingStatus: "new" | "parsed" | "rejected" | "superseded";
   /** Extraction snapshot from the stored payload, for change classification. */
   extraction: ExtractedOffer | null;
   /** Version-2 compound snapshot; old rows fall back to `extraction`. */
@@ -51,6 +53,8 @@ export interface StagedCandidate {
   extraction: ExtractedOffer;
   changeKind: ChangeKind | null;
   changedFields: string[];
+  /** Optional structured before/after evidence for reconciliation review. */
+  fieldDiff?: Array<{ field: string; before: unknown; after: unknown }>;
   reviewStatus: "new" | "changed";
 }
 
@@ -84,9 +88,23 @@ export interface RunIngestDeps {
   /** Existing raw-item state for the fetched external ids. */
   loadRawItems(sourceId: string, externalIds: string[]): Promise<RawItemState[]>;
   /** Insert a new raw item; returns its id. */
-  insertRawItem(sourceId: string, item: GcdbFeedItem, contentHash: string, extractions: ExtractedOffer[], now: Date): Promise<string>;
+  insertRawItem(sourceId: string, item: GcdbFeedItem, contentHash: string, extractions: ExtractedOffer[], parserVersion: number, now: Date): Promise<string>;
   /** Update a changed raw item in place (content, hash, extraction, last_seen). */
-  updateRawItem(id: string, item: GcdbFeedItem, contentHash: string, extractions: ExtractedOffer[], now: Date): Promise<void>;
+  updateRawItem(id: string, item: GcdbFeedItem, contentHash: string, extractions: ExtractedOffer[], parserVersion: number, now: Date): Promise<void>;
+  /**
+   * Retain a bounded source item whose extraction failed. Existing open review
+   * candidates for the same raw row are superseded; approved offers are never
+   * touched. The adapter must be idempotent on (source_id, external_id).
+   */
+  persistRejectedRawItem(
+    sourceId: string,
+    item: GcdbFeedItem,
+    contentHash: string,
+    parserVersion: number,
+    parserError: string,
+    now: Date,
+    existingRawItemId: string | null,
+  ): Promise<string>;
   /** Bump last_seen on an unchanged item. */
   touchRawItem(id: string, now: Date): Promise<void>;
   /** Stage a review candidate (supersedes any open one for the item). */
@@ -144,6 +162,7 @@ export async function runGiftCardIngest(
     errors,
   };
   const now = deps.now();
+  const parserVersion = deps.parserVersion ?? GCDB_PARSER_VERSION;
 
   const fetched = await deps.fetchFeed(source);
   if (fetched.kind === "not-modified") {
@@ -164,117 +183,191 @@ export async function runGiftCardIngest(
   }
 
   metrics.snapshotHash = createHash("sha256").update(fetched.body).digest("hex");
-  const items = (
-    deps.parseBody?.(fetched.body) ?? parseGcdbFeed(fetched.body)
-  ).slice(0, Math.max(1, config.maxItems));
+  let parsedItems: GcdbFeedItem[];
+  try {
+    parsedItems = deps.parseBody?.(fetched.body) ?? parseGcdbFeed(fetched.body);
+  } catch (error) {
+    const message = `Source parse failed: ${error instanceof Error ? error.message : String(error)}`;
+    metrics.status = "error";
+    metrics.fetchStatus = "parse-error";
+    errors.push(message);
+    await deps.recordSourceState(
+      source.id,
+      {
+        etag: source.etag,
+        lastModified: source.lastModified,
+        ok: false,
+        error: message,
+      },
+      now,
+    );
+    return metrics;
+  }
+  if (parsedItems.length === 0) {
+    const message = fetched.body.trim()
+      ? "Source parse failed: non-empty response contained no parseable items."
+      : "Source parse failed: upstream returned an empty response body.";
+    metrics.status = "error";
+    metrics.fetchStatus = "parse-error";
+    errors.push(message);
+    await deps.recordSourceState(
+      source.id,
+      {
+        etag: source.etag,
+        lastModified: source.lastModified,
+        ok: false,
+        error: message,
+      },
+      now,
+    );
+    return metrics;
+  }
+  const items = parsedItems.slice(0, Math.max(1, config.maxItems));
   metrics.itemsSeen = items.length;
 
   const existing = await deps.loadRawItems(source.id, items.map((i) => i.externalId));
   const byExternalId = new Map(existing.map((row) => [row.externalId, row]));
 
   for (const item of items) {
+    const before = byExternalId.get(item.externalId);
+    const hash = contentHashOf(item, parserVersion);
+    let extractions: ExtractedOffer[];
     try {
-      const extractions = deps.extractItem?.(item) ?? extractOffers(item);
+      extractions = deps.extractItem?.(item) ?? extractOffers(item);
       if (extractions.length === 0) {
         throw new Error("No review candidates were extracted from the source item.");
       }
-      const hash = contentHashOf(item, deps.parserVersion);
-      const before = byExternalId.get(item.externalId);
-
-      if (!before) {
-        const rawItemId = await deps.insertRawItem(source.id, item, hash, extractions, now);
-        for (const extraction of extractions) {
-          await deps.stageCandidate(source.id, {
-            rawItemId,
-            extraction,
-            changeKind: null,
-            changedFields: [],
-            reviewStatus: "new",
-          });
-        }
-        metrics.itemsNew++;
-        metrics.candidatesNew += extractions.length;
-        continue;
-      }
-
-      if (before.contentHash === hash) {
-        await deps.touchRawItem(before.id, now);
-        metrics.itemsUnchanged++;
-        continue;
-      }
-
-      // Changed content: update the raw item, classify, and re-stage.
-      await deps.updateRawItem(before.id, item, hash, extractions, now);
-      metrics.itemsUpdated++;
-      const priorExtractions =
-        before.extractions ?? (before.extraction ? [before.extraction] : []);
-      const priorByKey = new Map(
-        priorExtractions.map((extraction) => [extraction.subOfferKey ?? "primary", extraction])
-      );
-      const links = new Map(
-        (before.candidateLinks ?? [
-          {
-            subOfferKey: "primary",
-            openCandidateId: before.openCandidateId,
-            approvedOfferId: before.approvedOfferId,
-          },
-        ]).map((link) => [link.subOfferKey, link])
-      );
-
-      for (const extraction of extractions) {
-        const previous = priorByKey.get(extraction.subOfferKey) ?? null;
-        const link = links.get(extraction.subOfferKey);
-        const change = previous ? classifyOfferChange(previous, extraction) : null;
-        const linkedToApproved = link?.approvedOfferId != null;
-        const needsCandidate =
-          link?.openCandidateId != null ||
-          !linkedToApproved ||
-          (change?.requiresReview ?? true);
-        if (!needsCandidate) continue;
-        await deps.stageCandidate(source.id, {
-          rawItemId: before.id,
-          extraction,
-          changeKind: change?.kind ?? null,
-          changedFields: change?.changedFields ?? [],
-          reviewStatus: linkedToApproved ? "changed" : "new",
-        });
-        if (linkedToApproved) metrics.candidatesChanged++;
-        else metrics.candidatesNew++;
-      }
-
-      // A child is "removed" only because the parent was fetched and its key
-      // disappeared. Falling out of the RSS window never reaches this branch.
-      const currentKeys = new Set(extractions.map((extraction) => extraction.subOfferKey));
-      for (const previous of priorExtractions) {
-        if (currentKeys.has(previous.subOfferKey)) continue;
-        const link = links.get(previous.subOfferKey);
-        if (!link?.openCandidateId && !link?.approvedOfferId) continue;
-        await deps.stageCandidate(source.id, {
-          rawItemId: before.id,
-          extraction: {
-            ...previous,
-            sourcePresence: "removed",
-            warnings: [...previous.warnings, "Sub-offer removed from the fetched source item — review the linked offer."],
-          },
-          changeKind: "source-removed",
-          changedFields: ["source"],
-          reviewStatus: link.approvedOfferId ? "changed" : "new",
-        });
-        if (link.approvedOfferId) metrics.candidatesChanged++;
-        else metrics.candidatesNew++;
-      }
     } catch (error) {
-      metrics.itemsRejected++;
-      errors.push(
-        `${item.externalId}: ${error instanceof Error ? error.message : String(error)}`
+      const parserError = error instanceof Error ? error.message : String(error);
+      // Persistence is part of the safety boundary: if attribution cannot be
+      // retained, throw so runGuarded records a failed run rather than claiming
+      // a partial success with a silently dropped source item.
+      await deps.persistRejectedRawItem(
+        source.id,
+        item,
+        hash,
+        parserVersion,
+        parserError,
+        now,
+        before?.id ?? null,
       );
+      metrics.itemsRejected++;
+      errors.push(`${item.externalId}: ${parserError}`);
+      continue;
+    }
+
+    if (!before) {
+      const rawItemId = await deps.insertRawItem(
+        source.id,
+        item,
+        hash,
+        extractions,
+        parserVersion,
+        now,
+      );
+      for (const extraction of extractions) {
+        await deps.stageCandidate(source.id, {
+          rawItemId,
+          extraction,
+          changeKind: null,
+          changedFields: [],
+          reviewStatus: "new",
+        });
+      }
+      metrics.itemsNew++;
+      metrics.candidatesNew += extractions.length;
+      continue;
+    }
+
+    if (before.contentHash === hash && before.processingStatus === "parsed") {
+      await deps.touchRawItem(before.id, now);
+      metrics.itemsUnchanged++;
+      continue;
+    }
+
+    // Changed content, or a corrected retry of a rejected row: return the raw
+    // item to parsed and stage fresh private review without touching public data.
+    await deps.updateRawItem(
+      before.id,
+      item,
+      hash,
+      extractions,
+      parserVersion,
+      now,
+    );
+    metrics.itemsUpdated++;
+    const priorExtractions =
+      before.extractions ?? (before.extraction ? [before.extraction] : []);
+    const priorByKey = new Map(
+      priorExtractions.map((extraction) => [extraction.subOfferKey ?? "primary", extraction])
+    );
+    const links = new Map(
+      (before.candidateLinks ?? [
+        {
+          subOfferKey: "primary",
+          openCandidateId: before.openCandidateId,
+          approvedOfferId: before.approvedOfferId,
+        },
+      ]).map((link) => [link.subOfferKey, link])
+    );
+
+    for (const extraction of extractions) {
+      const previous = priorByKey.get(extraction.subOfferKey) ?? null;
+      const link = links.get(extraction.subOfferKey);
+      const change = previous ? classifyOfferChange(previous, extraction) : null;
+      const linkedToApproved = link?.approvedOfferId != null;
+      const needsCandidate =
+        link?.openCandidateId != null ||
+        !linkedToApproved ||
+        (change?.requiresReview ?? true);
+      if (!needsCandidate) continue;
+      await deps.stageCandidate(source.id, {
+        rawItemId: before.id,
+        extraction,
+        changeKind: change?.kind ?? null,
+        changedFields: change?.changedFields ?? [],
+        reviewStatus: linkedToApproved ? "changed" : "new",
+      });
+      if (linkedToApproved) metrics.candidatesChanged++;
+      else metrics.candidatesNew++;
+    }
+
+    // A child is "removed" only because the parent was fetched and its key
+    // disappeared. Falling out of the RSS window never reaches this branch.
+    const currentKeys = new Set(extractions.map((extraction) => extraction.subOfferKey));
+    for (const previous of priorExtractions) {
+      if (currentKeys.has(previous.subOfferKey)) continue;
+      const link = links.get(previous.subOfferKey);
+      if (!link?.openCandidateId && !link?.approvedOfferId) continue;
+      await deps.stageCandidate(source.id, {
+        rawItemId: before.id,
+        extraction: {
+          ...previous,
+          sourcePresence: "removed",
+          warnings: [...previous.warnings, "Sub-offer removed from the fetched source item — review the linked offer."],
+        },
+        changeKind: "source-removed",
+        changedFields: ["source"],
+        reviewStatus: link.approvedOfferId ? "changed" : "new",
+      });
+      if (link.approvedOfferId) metrics.candidatesChanged++;
+      else metrics.candidatesNew++;
     }
   }
 
   if (errors.length > 0) metrics.status = "partial";
   await deps.recordSourceState(
     source.id,
-    { etag: fetched.etag, lastModified: fetched.lastModified, ok: true },
+    errors.length > 0
+      ? {
+          // Preserve the prior conditional state so a partial parse receives
+          // the full changed response again on its next idempotent retry.
+          etag: source.etag,
+          lastModified: source.lastModified,
+          ok: false,
+          error: errors.join("; ").slice(0, 500),
+        }
+      : { etag: fetched.etag, lastModified: fetched.lastModified, ok: true },
     now
   );
   return metrics;

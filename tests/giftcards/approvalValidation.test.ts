@@ -251,16 +251,27 @@ describe("atomic promotion mechanics", () => {
     ).toMatch(/threshold/i);
   });
 
-  it("allows a fee waiver only with the waived-fee destination", () => {
+  it("allows a fee waiver only with a positive value and waived-fee destination", () => {
     expect(
       errorOf(
         base({
           promotionType: "fee-waiver",
           discountPercent: "",
+          feeWaiverDollars: "5",
           rewardDestination: "waived-fee",
         })
       )
     ).toBeNull();
+    expect(
+      errorOf(
+        base({
+          promotionType: "fee-waiver",
+          discountPercent: "",
+          feeWaiverDollars: "",
+          rewardDestination: "waived-fee",
+        })
+      )
+    ).toMatch(/fee amount/i);
   });
 });
 

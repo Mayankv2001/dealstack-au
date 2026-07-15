@@ -35,6 +35,7 @@ interface StoreRow {
   gift_card_source: string;
   points_program: string;
   points_rate: string;
+  aliases: string[] | null;
 }
 
 function mapStore(r: StoreRow): Store {
@@ -56,6 +57,7 @@ function mapStore(r: StoreRow): Store {
     giftCardSource: r.gift_card_source,
     pointsProgram: r.points_program,
     pointsRate: r.points_rate,
+    aliases: r.aliases ?? [],
   };
 }
 

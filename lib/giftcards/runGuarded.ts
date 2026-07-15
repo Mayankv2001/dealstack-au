@@ -3,7 +3,7 @@ import type { IngestMetrics } from "./runIngest";
 /**
  * Guarded ingest orchestration — the safety envelope around a claimed run.
  *
- * Once the one-running lock is acquired, EVERY later outcome must finalise the
+ * Once the caller's source/kind slot is acquired, EVERY later outcome must finalise the
  * run: success/partial/error metrics via `finish`, or — if the ingest throws
  * before it can report metrics — an `error` finalisation via `fail`, which is
  * what releases the lock so the next invocation is not permanently blocked.
@@ -17,7 +17,7 @@ import type { IngestMetrics } from "./runIngest";
  */
 
 export interface GuardedIngestDeps {
-  /** Claim the single one-running lock (mirrors startIngestRun). */
+  /** Claim the caller's source/kind running slot. */
   acquire(): Promise<
     { started: true; runId: string } | { started: false; reason: string }
   >;

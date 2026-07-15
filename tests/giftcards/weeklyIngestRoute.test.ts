@@ -25,6 +25,7 @@ vi.mock("@/lib/admin/repos/giftCardPipeline", () => ({
   failIngestRun: vi.fn(),
   finishIngestRun: vi.fn(),
   loadRawItems: vi.fn(),
+  persistRejectedRawItem: vi.fn(),
   insertRawItem: vi.fn(),
   updateRawItem: vi.fn(),
   touchRawItem: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock("@/lib/observability/report-server-error", () => ({
 }));
 
 import { GET } from "@/app/api/cron/gift-card-weekly-ingest/route";
+import { GiftCardJobRunSchemaUnavailableError } from "@/lib/admin/repos/giftCardJobRunErrors";
 
 const SECRET = "weekly-secret";
 const request = (token = SECRET) =>
@@ -85,6 +87,31 @@ describe("weekly gift-card ingest permission gates", () => {
     });
     const response = await GET(request());
     expect(await response.json()).toMatchObject({ ran: false, skipped: reason });
+    expect(mocks.startRun).not.toHaveBeenCalled();
+    expect(mocks.fetchPage).not.toHaveBeenCalled();
+  });
+
+  it("returns a controlled 503 without an incident when migration 030 is absent", async () => {
+    mocks.getSource.mockResolvedValue({
+      id: "pointhacks_weekly_gift_cards",
+      feed_url: "https://www.pointhacks.com.au/weekly-gift-card-offers/",
+      enabled: true,
+      automated_fetch_allowed: true,
+      terms_checked_at: "2026-07-01",
+      robots_checked_at: "2026-07-01",
+      etag: null,
+      last_modified: null,
+    });
+    mocks.lastStart.mockRejectedValue(new GiftCardJobRunSchemaUnavailableError());
+
+    const response = await GET(request());
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      ran: false,
+      skipped: "schema-unavailable",
+    });
+    expect(mocks.report).not.toHaveBeenCalled();
     expect(mocks.startRun).not.toHaveBeenCalled();
     expect(mocks.fetchPage).not.toHaveBeenCalled();
   });

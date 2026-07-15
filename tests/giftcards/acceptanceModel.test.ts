@@ -25,6 +25,15 @@ const product = (overrides: Partial<GiftCardProduct> = {}): GiftCardProduct => (
   unsupportedMccs: [5411],
   mobileWallet: "partial",
   redemptionNotes: null,
+  aliases: [],
+  officialProductPage: null,
+  activationMethod: null,
+  onlineAvailable: null,
+  inStoreAvailable: null,
+  denominations: null,
+  activationDelayNote: null,
+  splitPayment: "unknown",
+  expiryOrFeesNote: null,
   ...overrides,
 });
 
@@ -42,6 +51,21 @@ const row = (
   sourceUrl: null,
   checkedAt: "2026-07-10T00:00:00Z",
   notes: null,
+  acceptanceStatus: "confirmed-accepted",
+  evidenceSourceType: "issuer-official",
+  evidencePublisher: "The Card Network",
+  evidenceUrl: "https://example.test/evidence",
+  evidenceCapturedAt: "2026-07-10T00:00:00Z",
+  lastCheckedAt: "2026-07-10T00:00:00Z",
+  acceptsOnline: true,
+  acceptsInStore: true,
+  acceptsApp: null,
+  acceptsPhone: null,
+  validFrom: null,
+  validUntil: null,
+  limitations: null,
+  region: "AU",
+  participatingLocationRequired: null,
   ...overrides,
 });
 
@@ -75,6 +99,20 @@ describe("buildProductAcceptance", () => {
       "Myer",
     ]);
     expect(views[0].rejectedMerchants.map((m) => m.merchantName)).toEqual(["Coles"]);
+    expect(views[0].historicalMerchants).toEqual([]);
+  });
+
+  it("keeps a closed relationship off the current detail view", () => {
+    const views = buildProductAcceptance(makeOffer(), [product()], [
+      row({
+        merchantName: "Former merchant",
+        outcome: "unsuccessful",
+        acceptanceStatus: "confirmed-not-accepted",
+        validUntil: "2026-07-01",
+      }),
+    ]);
+    expect(views[0].rejectedMerchants).toEqual([]);
+    expect(views[0].historicalMerchants).toHaveLength(1);
   });
 
   it("exposes supported AND unsupported MCCs from the product record", () => {
@@ -94,8 +132,8 @@ describe("buildProductAcceptance", () => {
       makeOffer(),
       [product()],
       [
-        row({ merchantCategory: "Electronics", checkedAt: "2026-07-01T00:00:00Z" }),
-        row({ merchantName: "Myer", merchantCategory: "Department stores", checkedAt: "2026-07-11T00:00:00Z" }),
+        row({ merchantCategory: "Electronics", checkedAt: "2026-07-01T00:00:00Z", lastCheckedAt: "2026-07-01T00:00:00Z" }),
+        row({ merchantName: "Myer", merchantCategory: "Department stores", checkedAt: "2026-07-11T00:00:00Z", lastCheckedAt: "2026-07-11T00:00:00Z" }),
       ]
     );
     expect(views[0].categories).toEqual(["Department stores", "Electronics"]);

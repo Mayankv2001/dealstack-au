@@ -8,6 +8,12 @@ import { giftCardCashbackConflictWarning } from "@/lib/stack/compatibility";
 import type { GiftCardCompatibilityStatus } from "./compatibility";
 import { offerEffectiveSaving } from "./publicQuery";
 import { valueFixedPointsOffer, valuePointsOffer } from "./value";
+import {
+  canonicalAcceptanceStatus,
+  deriveAcceptanceFreshness,
+  isPositiveAcceptance,
+} from "./acceptanceModel";
+import { GIFT_CARD_EXCLUSION_REASONS } from "./compatibility";
 
 /**
  * Two-stage stackability analysis for the offer detail page:
@@ -356,7 +362,8 @@ function analyseAcquisition(
 
 function analyseRedemption(
   offer: GiftCardOffer,
-  context: StackabilityContext
+  context: StackabilityContext,
+  now: Date,
 ): StageAnalysis {
   const facts: StackabilityFact[] = [];
   const warnings: string[] = [];
@@ -373,7 +380,17 @@ function analyseRedemption(
     namedAcceptance.map((name) => name.toLowerCase().replace(/[^a-z0-9]+/g, ""))
   ).size;
   const verifiedRows = acceptance.filter(
-    (row) => row.status === "verified" && row.outcome !== "unsuccessful"
+    (row) =>
+      canonicalAcceptanceStatus(row) === "confirmed-accepted" &&
+      deriveAcceptanceFreshness(row, now) === "current",
+  );
+  const rejectedRow = acceptance.find(
+    (row) => canonicalAcceptanceStatus(row) === "confirmed-not-accepted",
+  );
+  const currentPositiveRows = acceptance.filter(
+    (row) =>
+      isPositiveAcceptance(row) &&
+      deriveAcceptanceFreshness(row, now) === "current",
   );
   if (namedAcceptance.length > 0 || acceptance.length > 0) {
     const parts: string[] = [];
@@ -436,6 +453,26 @@ function analyseRedemption(
   });
 
   // Verdict ladder.
+  if (rejectedRow) {
+    return {
+      stage: "redemption",
+      status: "incompatible",
+      reason: GIFT_CARD_EXCLUSION_REASONS.notAccepted(
+        context.storeName ?? "that retailer",
+      ),
+      warnings,
+      facts,
+    };
+  }
+  if (acceptance.length > 0 && currentPositiveRows.length === 0) {
+    return {
+      stage: "redemption",
+      status: "requires-verification",
+      reason: GIFT_CARD_EXCLUSION_REASONS.staleAcceptance,
+      warnings,
+      facts,
+    };
+  }
   if (
     context.storeId &&
     offer.acceptedAtMerchantIds.length > 0 &&
@@ -468,19 +505,12 @@ function analyseRedemption(
       facts,
     };
   }
-  if (warnings.length > 0) {
-    return {
-      stage: "redemption",
-      status: "likely-compatible",
-      reason: "Verified acceptance exists, with redemption caveats worth checking.",
-      warnings,
-      facts,
-    };
-  }
+  // Acceptance proves redemption at the merchant, not cashback, code, CLO or
+  // loyalty eligibility. It therefore never produces `compatible` alone.
   return {
     stage: "redemption",
-    status: "compatible",
-    reason: "Verified acceptance with no recorded redemption caveats.",
+    status: "likely-compatible",
+    reason: "Verified acceptance exists; payment and stacking conditions still need checking.",
     warnings,
     facts,
   };
@@ -493,6 +523,6 @@ export function analyseGiftCardStackability(
   const now = context.now ?? new Date();
   return {
     acquisition: analyseAcquisition(offer, now, context),
-    redemption: analyseRedemption(offer, context),
+    redemption: analyseRedemption(offer, context, now),
   };
 }

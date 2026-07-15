@@ -10,6 +10,11 @@ import {
   bonusEffectiveDiscountPercent,
   effectiveDiscountPercent,
 } from "./value";
+export {
+  decideAutomatedRetrieval as decideWeeklyAutomatedRetrieval,
+  type AutomatedRetrievalDecision as WeeklyRetrievalDecision,
+  type SourceRetrievalPermission as WeeklySourcePermission,
+} from "./sourceRetrievalPermission";
 
 export const POINT_HACKS_WEEKLY_SOURCE_ID =
   "pointhacks_weekly_gift_cards";
@@ -56,44 +61,6 @@ export interface WeeklyGiftCardFacts {
   retailerCatalogueUrl: string | null;
   discoverySourceUrl: string;
   sourcePublishedAt: string | null;
-}
-
-export interface WeeklySourcePermission {
-  sourceExists: boolean;
-  enabled: boolean;
-  automatedFetchAllowed: boolean;
-  termsCheckedAt: string | null;
-  robotsCheckedAt: string | null;
-}
-
-export type WeeklyRetrievalDecision =
-  | { allowed: true }
-  | {
-      allowed: false;
-      reason:
-        | "environment-disabled"
-        | "source-missing"
-        | "source-disabled"
-        | "fetch-not-permitted"
-        | "permission-review-incomplete";
-    };
-
-export function decideWeeklyAutomatedRetrieval(
-  environmentEnabled: boolean,
-  permission: WeeklySourcePermission,
-): WeeklyRetrievalDecision {
-  if (!environmentEnabled)
-    return { allowed: false, reason: "environment-disabled" };
-  if (!permission.sourceExists)
-    return { allowed: false, reason: "source-missing" };
-  if (!permission.enabled)
-    return { allowed: false, reason: "source-disabled" };
-  if (!permission.automatedFetchAllowed)
-    return { allowed: false, reason: "fetch-not-permitted" };
-  if (!permission.termsCheckedAt || !permission.robotsCheckedAt) {
-    return { allowed: false, reason: "permission-review-incomplete" };
-  }
-  return { allowed: true };
 }
 
 const MONTHS: Record<string, number> = {

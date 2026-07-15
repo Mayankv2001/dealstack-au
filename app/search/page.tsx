@@ -29,6 +29,10 @@ import { loadDecisionResult } from "@/lib/decision/loadDecisionResult";
 import type { DecisionTarget } from "@/lib/decision/types";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { recommendationPresentation } from "@/lib/stack/present";
+import {
+  acceptanceEvidenceLabel,
+  canonicalAcceptanceStatus,
+} from "@/lib/giftcards/acceptanceModel";
 
 type RawSearchParams = {
   q?: string | string[];
@@ -465,25 +469,21 @@ export default async function SearchPage({
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                         <span
                           className={
-                            acceptance.outcome === "unsuccessful"
+                            canonicalAcceptanceStatus(acceptance) === "confirmed-not-accepted"
                               ? "rounded-full bg-red-500/10 px-2 py-1 font-semibold text-red-700"
-                              : acceptance.status === "verified"
+                              : canonicalAcceptanceStatus(acceptance) === "confirmed-accepted"
                                 ? "rounded-full bg-emerald-500/10 px-2 py-1 font-semibold text-emerald-700"
                                 : "rounded-full bg-muted px-2 py-1 font-semibold text-muted-foreground"
                           }
                         >
-                          {acceptance.outcome === "unsuccessful"
+                          {canonicalAcceptanceStatus(acceptance) === "confirmed-not-accepted"
                             ? "Known unsuccessful"
-                            : acceptance.status === "verified"
-                              ? "Verified by DealStack"
-                              : acceptance.status === "claimed"
-                                ? "Claimed by issuer"
-                                : "Community reported"}
+                            : acceptanceEvidenceLabel(acceptance)}
                         </span>
-                        {acceptance.checkedAt ? (
+                        {(acceptance.lastCheckedAt ?? acceptance.checkedAt) ? (
                           <span className="text-muted-foreground">
                             Checked{" "}
-                            {formatDateAU(acceptance.checkedAt.slice(0, 10))}
+                            {formatDateAU((acceptance.lastCheckedAt ?? acceptance.checkedAt)!.slice(0, 10))}
                           </span>
                         ) : null}
                       </div>

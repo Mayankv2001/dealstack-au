@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { COVERED_MIGRATIONS, EXPECTED_SCHEMA } from "../../scripts/schema-manifest";
 
 const migration = (name: string) =>
   readFileSync(new URL(`../../supabase/migrations/${name}`, import.meta.url), "utf8");
@@ -176,6 +177,231 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("'html', false, false, null, null");
     expect(sql).not.toMatch(/is_published\s*=\s*true/i);
     expect(sql).not.toMatch(/automated_fetch_allowed[^;]*true/i);
+  });
+
+  it("keeps acceptance review publication resolved, transactional and evidence-safe", () => {
+    const sql = migration("028_gift_card_acceptance_extensions.sql");
+    expect(sql).toContain("gift_card_acceptance_candidates");
+    expect(sql).toContain("jsonb_typeof(proposed_values) = 'object'");
+    expect(sql).toContain("Only resolved acceptance candidates may be approved.");
+    expect(sql).toContain("An acceptance update target must be prelinked to the candidate.");
+    expect(sql).toContain("Weaker or older reviewed evidence cannot overwrite a public acceptance row.");
+    expect(sql).toContain("gift_card_acceptance_evidence");
+    expect(sql).toContain("Gift-card acceptance evidence is append-only.");
+    expect(sql).toContain("is_public = true and review_state = 'approved'");
+    expect(sql).toContain("A safe HTTPS evidence URL is required.");
+    expect(sql).toContain("A store, merchant, category or MCC identity is required.");
+    expect(sql).toContain("acceptance_evidence_source_type");
+    expect(sql).toContain("approve_gift_card_acceptance_removal");
+    expect(sql).toContain("Removal status must be confirmed-not-accepted or requires-verification.");
+    expect(sql).toContain("for update");
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+    expect(sql).toContain("idx_gc_acceptance_dedupe_store");
+    expect(sql).toContain("idx_gc_acceptance_dedupe_unresolved");
+  });
+
+  it("keeps predictions isolated and re-closes their source gates on a re-run", () => {
+    const sql = migration("029_gift_card_predictions.sql");
+    expect(sql).toContain("gift_card_offer_predictions");
+    expect(sql).toContain("enable row level security");
+    expect(sql).not.toMatch(/create policy[\s\S]+gift_card_offer_predictions/i);
+    expect(sql).toContain("enabled = false");
+    expect(sql).toContain("automated_fetch_allowed = false");
+    expect(sql).not.toMatch(/on conflict[\s\S]*terms_checked_at\s*=\s*null/i);
+    expect(sql).not.toMatch(/on conflict[\s\S]*robots_checked_at\s*=\s*null/i);
+    expect(sql).toContain("trg_gc_predictions_updated_at");
+    expect(sql).toContain("https://gcdb.com.au/predictions/");
+    expect(sql).not.toContain("/resources/gift-card-offer-predictions/");
+    expect(sql).toContain("fingerprint            text generated always as");
+    expect(sql).toContain(") stored not null");
+    expect(sql).toContain("unique (source_id, fingerprint)");
+    expect(sql).toContain("normalise_gift_card_prediction_identity_text");
+    expect(sql).toContain("gift_card_prediction_fingerprint");
+    expect(sql).toContain("trg_gc_predictions_immutable_facts");
+    expect(sql).toContain("Original gift-card prediction facts are immutable.");
+    expect(sql).toContain("source_marker");
+    expect(sql).toContain("predicted_promotion_text");
+    expect(sql).toContain("on delete restrict");
+    expect(sql).not.toMatch(/insert\s+into\s+public\.gift_card_offers/i);
+  });
+
+  it("scopes running jobs by source/kind and fences offer-truth mutators", () => {
+    const sql = migration("030_gift_card_job_runs.sql");
+    expect(sql).toContain("run_kind text not null default 'ingest'");
+    expect(sql).toContain("idx_gc_job_runs_one_running_per_kind");
+    expect(sql).toMatch(/unique index[\s\S]*on public\.gift_card_ingest_runs \(source_id, run_kind\)[\s\S]*where status = 'running'/i);
+    expect(sql).toContain("idx_gc_job_runs_mutation_fence");
+    expect(sql).toMatch(/run_kind in \('reconcile', 'activate-archive'\)/i);
+    expect(sql).toContain("drop index if exists public.idx_gc_ingest_runs_one_running");
+    expect(sql).toContain("idx_gc_ingest_runs_kind");
+    expect(sql).toMatch(/idx_gc_ingest_runs_kind[\s\S]*\(source_id, run_kind, started_at desc\)/i);
+    expect(sql).toContain("lease_expires_at timestamptz");
+    expect(sql).toContain("create or replace function public.acquire_gift_card_job_run");
+    expect(sql).toContain("pg_catalog.pg_advisory_xact_lock(216030)");
+    expect(sql).toMatch(/lease_expires_at <= p_started_at[\s\S]*source_id = p_source_id and run_kind = p_run_kind/i);
+    expect(sql).toMatch(/p_run_kind in \('reconcile', 'activate-archive'\)[\s\S]*run_kind in \('reconcile', 'activate-archive'\)/i);
+    expect(sql).toContain("when unique_violation then");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+  });
+
+  it("runs Sydney lifecycle transitions transactionally and service-role only", () => {
+    const sql = migration("032_gift_card_lifecycle_orchestration.sql");
+    expect(sql).toContain("lifecycle_state");
+    expect(sql).toContain("approved-future");
+    expect(sql).toContain("apply_gift_card_offer_lifecycle");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("set search_path = ''");
+    expect(sql).toContain("candidate.review_status = 'approved'");
+    expect(sql).toContain("candidate.approved_offer_id = offer.id");
+    expect(sql).toContain("enforce_gift_card_offer_approval_lineage");
+    expect(sql).toContain("deferrable initially deferred");
+    expect(sql).toContain("Pipeline-linked gift-card offers without approved lineage block migration 032");
+    expect(sql).toContain("Approved pipeline lineage cannot be removed");
+    expect(sql).toContain("for update of offer");
+    expect(sql).toContain("insert into public.gift_card_offer_occurrences");
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("on conflict do nothing");
+    expect(sql).toContain("pg_advisory_xact_lock");
+    expect(sql.match(/exception when others/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(sql).toContain("'step', 'activate'");
+    expect(sql).toContain("'step', 'archive'");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+    expect(sql).not.toMatch(/delete\s+from\s+public\.gift_card/i);
+  });
+
+  it("hardens reviewed gift-card approval identity and public visibility forward-only", () => {
+    const sql = migration("033_gift_card_offer_approval_hardening.sql");
+
+    expect(sql).toContain("requires\n-- 031 (fixed_points convergence) and 032");
+    expect(sql).toContain("gift_card_offers_reviewed_lifecycle_check");
+    expect(sql).toMatch(/gift_card_offers_reviewed_lifecycle_check[\s\S]*not valid/i);
+    expect(sql).toContain("gift_card_offers_fee_waiver_value_check");
+    expect(sql).toContain('drop policy if exists "public read published gift_card_offers"');
+    expect(sql).toContain('create policy "public read current confirmed gift_card_offers"');
+    expect(sql).toContain("confidence = 'confirmed'");
+    expect(sql).toContain("lifecycle_state = 'active'");
+    expect(sql).toContain("Australia/Sydney");
+
+    expect(sql).toContain("guard_gift_card_offer_publication_lineage");
+    expect(sql).toContain("A new public or approved-future gift-card offer requires reviewed candidate lineage");
+    expect(sql).toContain("source_candidate_id is null");
+    expect(sql).toContain("old.source_candidate_id is null");
+
+    expect(sql).toContain("create or replace function public.approve_gift_card_candidate");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("set search_path = ''");
+    expect(sql).toContain("for update");
+    expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
+    expect(sql).toContain("candidate.approved_offer_id <> v_offer_id");
+    expect(sql).toContain("existing_offer.source_id is distinct from candidate.source_id");
+    expect(sql).toContain("existing_offer.source_raw_item_id is distinct from candidate.raw_item_id");
+    expect(sql).toContain("existing_offer.source_suboffer_key is distinct from candidate.suboffer_key");
+    expect(sql).toContain("The selected offer ID belongs to unrelated source lineage");
+
+    expect(sql).toContain("candidate.review_status = 'approved'");
+    expect(sql).toContain("return v_offer_id");
+    expect(sql).toContain("Publication requires confirmed reviewed evidence");
+    expect(sql).toContain("raw_item.processing_status is distinct from 'parsed'");
+    expect(sql).toContain("Only a successfully parsed source item may be approved");
+    expect(sql).toContain("An expired candidate cannot be approved");
+    expect(sql).toContain("then 'approved-future'");
+    expect(sql).toContain("else 'active'");
+    expect(sql).toContain("is_published = true");
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("'lifecycleState', v_lifecycle_state");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+    expect(sql).not.toMatch(/delete\s+from\s+public\./i);
+
+    expect(COVERED_MIGRATIONS).toContain(
+      "033_gift_card_offer_approval_hardening.sql",
+    );
+  });
+
+  it("forward-corrects occurrence identity and Sydney date semantics", () => {
+    const sql = migration("032_gift_card_lifecycle_orchestration.sql");
+    expect(sql).toContain("gift_card_offer_occurrences_end_date_sydney_check");
+    expect(sql).toContain("pg_catalog.pg_get_constraintdef");
+    expect(sql).toContain("like '%END_DATE < CURRENT_DATE%'");
+    expect(sql).toContain("pg_catalog.timezone('Australia/Sydney', pg_catalog.now())::date");
+    expect(sql).toContain("drop policy if exists \"public read sealed gift card occurrences\"");
+    expect(sql).toContain("idx_gc_occurrence_business_identity");
+    expect(sql).toContain("coalesce(start_date, '-infinity'::date)");
+    expect(sql).toContain("Duplicate gift-card occurrence identities must be reviewed");
+    expect(sql).toContain("do not delete immutable occurrence evidence automatically");
+  });
+
+  it("reconciles the fixed_points drift as an additive, idempotent forward migration", () => {
+    const sql = migration("031_gift_card_fixed_points_reconciliation.sql");
+    // Adds the column to BOTH tables, idempotently.
+    expect(sql).toContain(
+      "alter table public.gift_card_offer_candidates\n  add column if not exists fixed_points numeric;"
+    );
+    expect(sql).toContain(
+      "alter table public.gift_card_offers\n  add column if not exists fixed_points numeric;"
+    );
+    // No invented data / backfill of point values: the only write of
+    // fixed_points is the reviewed approve RPC upsert (excluded.fixed_points),
+    // never a bulk UPDATE … SET fixed_points = <value> over existing rows.
+    expect(sql).not.toMatch(/update\s+public\.gift_card_offers\s+set\s+fixed_points\s*=/i);
+    expect(sql).not.toMatch(/update\s+public\.gift_card_offer_candidates\s+set\s+fixed_points\s*=/i);
+    // fixed_points cannot be negative (value-check rule on both tables).
+    expect(
+      sql.match(/\(fixed_points is null or fixed_points > 0\)/g)?.length ?? 0
+    ).toBeGreaterThanOrEqual(2);
+    // Value-check constraints are dropped-if-exists before re-add → retry-safe.
+    expect(sql).toContain(
+      "drop constraint if exists gift_card_candidates_accuracy_values_check"
+    );
+    expect(sql).toContain(
+      "drop constraint if exists gift_card_offers_accuracy_values_check"
+    );
+    // The public accuracy check stays NOT VALID (legacy rows not retro-validated)
+    // and its points branch now accepts a fixed-points-only offer.
+    expect(sql).toContain("drop constraint if exists gift_card_offers_public_accuracy_check");
+    expect(sql).toMatch(/gift_card_offers_public_accuracy_check[\s\S]*not valid/i);
+    expect(sql).toContain(
+      "(coalesce(points_multiplier, 0) > 0 or coalesce(fixed_points, 0) > 0)"
+    );
+    // RPC is refreshed with fixed_points, transactional + hardened.
+    expect(sql).toContain("create or replace function public.approve_gift_card_candidate");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("set search_path = ''");
+    expect(sql).toContain("for update");
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("fixed_points = excluded.fixed_points");
+    expect(sql).toContain(
+      "Points require exactly one of multiplier or fixed points, plus a programme"
+    );
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+    // The sync trigger fingerprints fixed_points so change detection sees it.
+    expect(sql).toContain("create or replace function public.sync_gift_card_candidate_accuracy");
+    expect(sql).toContain(
+      "new.fixed_points := coalesce((new.terms_json->>'fixedPoints')::numeric, new.fixed_points);"
+    );
+    expect(sql).toContain("'fixedPoints', new.fixed_points,");
+    // It must NOT rewrite 023 as the repair mechanism.
+    expect(sql).not.toMatch(/re-?run 023/i);
+  });
+
+  it("guards against the fixed_points drift recurring silently in the manifest", () => {
+    // The manifest must attribute fixed_points to the production-lineage
+    // migration (031), and 031 must be covered. If someone reverts either, this
+    // fails — the drift can no longer slip back in unnoticed.
+    expect(COVERED_MIGRATIONS).toContain(
+      "031_gift_card_fixed_points_reconciliation.sql"
+    );
+    expect(EXPECTED_SCHEMA.gift_card_offers.columns.fixed_points).toBe(
+      "031_gift_card_fixed_points_reconciliation.sql"
+    );
+    expect(EXPECTED_SCHEMA.gift_card_offer_candidates.columns.fixed_points).toBe(
+      "031_gift_card_fixed_points_reconciliation.sql"
+    );
   });
 
 });

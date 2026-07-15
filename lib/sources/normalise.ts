@@ -14,7 +14,7 @@ export function normaliseText(text: string): string {
  * Aliases (normalised form) → Store.id from lib/data.ts.
  * Store names and ids themselves are added automatically below.
  */
-const MERCHANT_ALIASES: Record<string, string[]> = {
+export const MERCHANT_ALIASES: Readonly<Record<string, readonly string[]>> = {
   "jb-hifi": ["jb hifi", "jb hi fi", "jbhifi", "jb"],
   "chemist-warehouse": ["chemist warehouse", "cw", "chemist"],
   woolworths: ["woolies", "woolworths", "wish"],
@@ -38,6 +38,14 @@ const aliasLookup: [alias: string, storeId: string][] = (() => {
   }
   return [...entries.entries()].sort((a, b) => b[0].length - a[0].length);
 })();
+
+/** Reviewed static alias entries for exact resolvers; returned as a copy. */
+export function merchantAliasEntries(): Array<[
+  alias: string,
+  storeId: string,
+]> {
+  return aliasLookup.map(([alias, storeId]) => [alias, storeId]);
+}
 
 /** Exact match of a merchant name/alias → Store.id */
 export function matchMerchantId(name: string): string | null {

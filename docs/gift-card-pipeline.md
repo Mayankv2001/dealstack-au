@@ -108,6 +108,15 @@ guards the candidate state, upserts the (public-gated) `gift_card_offers` row
 from the **admin-reviewed** values, links the candidate, and writes the audit
 row. It never reads the raw payload directly.
 
+The forward-only `033_gift_card_offer_approval_hardening.sql` design makes the
+canonical identity part of that boundary: a changed candidate can update only
+its linked offer, while a new candidate cannot claim an ID owned by unrelated
+source/raw-item/sub-offer lineage. Publication requires confirmed evidence and
+a current Sydney date window. A reviewed future offer remains private in
+`approved-future` until the 032 lifecycle RPC activates it; expired candidates
+are rejected. Exact retries return the existing link without another write.
+Public RLS independently requires confirmed, active, in-window state.
+
 ---
 
 ## Public valuation disclosure

@@ -19,6 +19,7 @@ import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
 import SiteFooter from "@/components/SiteFooter";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
+import RetailerGiftCardPlans from "@/components/RetailerGiftCardPlans";
 import { SAMPLE_SPEND } from "@/components/StoreCard";
 import { formatAUD } from "@/lib/calculateStack";
 import { siteUrl } from "@/lib/env";
@@ -34,6 +35,7 @@ import {
 } from "@/lib/stack/present";
 import { buildStoreBreadcrumbJsonLd } from "@/lib/structuredData";
 import { cn } from "@/lib/utils";
+import { loadDecisionResult } from "@/lib/decision/loadDecisionResult";
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
 // the home, search and /deals routes. getStores() falls back to static data when
@@ -171,6 +173,7 @@ export default async function StorePage({
   // rows when configured, static sample pipeline otherwise).
   const sourceResults = await storeSourceResults(store.id);
   const now = new Date();
+  const decision = await loadDecisionResult(store.name, SAMPLE_SPEND, now);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   // The hero estimate and how-to steps come from the SAME engine output as the
   // Decision Hub, homepage and calculator — never from naively compounding the
@@ -282,6 +285,11 @@ export default async function StorePage({
           </div>
 
           <StoreLayerOverview recommendation={recommendation} />
+
+          <RetailerGiftCardPlans
+            plans={decision.retailerGiftCardPlans}
+            spend={SAMPLE_SPEND}
+          />
 
           {recommendation ? (
             <section className="mt-6" aria-labelledby="store-plan-breakdown">

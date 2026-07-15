@@ -9,6 +9,7 @@ import {
   makeGiftCardAcceptance,
   makeGiftCardProduct,
   makeStore,
+  TEST_NOW,
 } from "../stack/factories";
 
 const stack: StackRecommendation = {
@@ -90,7 +91,7 @@ describe("DecisionResult", () => {
       products: [makeGiftCardProduct()],
       acceptance: [makeGiftCardAcceptance()],
       giftCardOffers: [makeGiftCard()],
-    });
+    }, TEST_NOW);
     expect(result.selectedTarget).toBeNull();
     expect(result.bestCashStack).toBeNull();
     expect(result.rewardsStack).toBeNull();
@@ -114,7 +115,7 @@ describe("DecisionResult", () => {
           ],
         }),
       ],
-    });
+    }, TEST_NOW);
     expect(result.selectedTarget).toMatchObject({ kind: "store", id: "myer" });
     expect(result.bestCashStack?.effectivePrice).toBe(475);
     expect(result.currentGiftCardOffers).toHaveLength(1);

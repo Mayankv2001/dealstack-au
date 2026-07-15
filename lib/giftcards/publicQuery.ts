@@ -1,6 +1,7 @@
 import type { GiftCardOffer } from "@/lib/offers/types";
 import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import { effectiveDiscountPercent } from "./value";
+import { isConfirmedCurrent } from "./lifecycle";
 
 /**
  * Pure query layer for the public /gift-cards page: tab/filter/sort over the
@@ -150,9 +151,26 @@ export function isMultiRetailer(offer: GiftCardOffer): boolean {
   );
 }
 
-/** Missing expiry is current only when a reviewer explicitly marked it ongoing. */
-export function isConfirmedCurrentGiftCardOffer(offer: GiftCardOffer): boolean {
-  return Boolean(offer.expiryDate) || offer.isOngoing === true;
+/**
+ * A reviewed offer is current only while its Sydney date window is open.
+ * Future and expired rows never qualify merely because an expiry exists;
+ * missing dates qualify only when explicitly reviewed as ongoing.
+ */
+export function isConfirmedCurrentGiftCardOffer(
+  offer: GiftCardOffer,
+  now: Date = new Date(),
+): boolean {
+  if (!offer.expiryDate && offer.isOngoing !== true) return false;
+  return isConfirmedCurrent(
+    {
+      id: offer.id,
+      startDate: offer.startDate,
+      expiryDate: offer.expiryDate,
+      isOngoing: offer.isOngoing,
+      isActive: true,
+    },
+    now,
+  );
 }
 
 function searchText(offer: GiftCardOffer): string {
@@ -215,7 +233,7 @@ export function queryGiftCardOffers(
     if (isPastExpiry(offer.expiryDate, today)) return false;
     if (
       params.confirmedCurrentOnly &&
-      !isConfirmedCurrentGiftCardOffer(offer)
+      !isConfirmedCurrentGiftCardOffer(offer, now)
     ) {
       return false;
     }
@@ -298,7 +316,7 @@ export function queryGiftCardOffers(
       // demoted by membership walls. Mirrors the deals Recommended philosophy.
       const score = (offer: GiftCardOffer) => {
         let s = (offerEffectiveSaving(offer) ?? 0) * 2;
-        if (!isConfirmedCurrentGiftCardOffer(offer)) s -= 100;
+        if (!isConfirmedCurrentGiftCardOffer(offer, now)) s -= 100;
         if (offer.confidence === "confirmed") s += 6;
         if (isExpiringSoonAU(offer.expiryDate, now)) s += 3;
         if (offer.membershipRequired === true) s -= 2;

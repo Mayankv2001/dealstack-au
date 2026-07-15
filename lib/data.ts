@@ -20,6 +20,8 @@ export interface Store {
   id: string;
   name: string;
   category: string;
+  /** Reviewed merchant aliases used for exact, non-fuzzy search resolution. */
+  aliases?: string[];
   /** Text/initials placeholder shown instead of an image logo */
   logo: string;
   /**

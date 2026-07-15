@@ -9,17 +9,22 @@ import {
   getGiftCardCandidateApprovalContext,
   listGiftCardCandidates,
   listPublishedOfferSummaries,
+  setGiftCardOfferPublishedForReview,
+  splitGiftCardCandidateForReview,
   setCandidateStatus,
   stageAdminAssistedWeeklyOffer,
   recordWeeklySourceRestriction,
 } from "@/lib/admin/repos/giftCardPipeline";
 import { logAudit } from "@/lib/admin/repos/audit";
+import { getGiftCardPublishFacts } from "@/lib/admin/repos/giftCards";
 import { validateGiftCardApproval } from "@/lib/giftcards/approvalValidation";
 import { findDuplicateOffers } from "@/lib/giftcards/duplicateDetection";
 import {
   parseWeeklyAdminSubmission,
   POINT_HACKS_WEEKLY_SOURCE_ID,
 } from "@/lib/giftcards/pointHacksWeekly";
+import { parseOfferSplitDefinitions } from "@/lib/giftcards/offerRevision";
+import { giftCardPublishError } from "@/lib/giftcards/publishReadiness";
 
 /** Returned to the review forms. Empty object means success. */
 export type ReviewActionState = { error?: string };
@@ -285,8 +290,19 @@ export async function approveCandidate(
   if (!validation.ok) return { error: validation.error };
   const v = validation.values;
 
+  const requestedOfferId = text(formData, "offer_id").trim();
+  if (
+    context.approvedOfferId &&
+    requestedOfferId &&
+    requestedOfferId !== context.approvedOfferId
+  ) {
+    return {
+      error: `This revision is linked to ${context.approvedOfferId}; it cannot overwrite or create a different offer.`,
+    };
+  }
   const offerId =
-    text(formData, "offer_id").trim() ||
+    context.approvedOfferId ||
+    requestedOfferId ||
     `gc-${slugify(`${v.brand}-${v.seller || v.promotionType}`)}`;
 
   // Duplicate/overlap guard: block re-publishing the same source page as a new
@@ -294,6 +310,14 @@ export async function approveCandidate(
   // overlapping matches are surfaced on the review card but do not block.
   try {
     const published = await listPublishedOfferSummaries();
+    if (
+      !context.approvedOfferId &&
+      published.some((existing) => existing.id === offerId)
+    ) {
+      return {
+        error: `Offer ID ${offerId} already belongs to an existing offer. A new candidate cannot claim or overwrite it.`,
+      };
+    }
     const today = new Date().toISOString().slice(0, 10);
     const exactDuplicates = findDuplicateOffers(
       {
@@ -356,7 +380,10 @@ export async function approveCandidate(
         ? [{ source: "manual" as const, sourceUrl: v.termsUrl }]
         : []),
     ],
-    confidence: "needs-verification",
+    // Reaching this point means an authenticated, rate-limited reviewer has
+    // verified every mandatory fact. The SQL approval boundary independently
+    // requires this exact value before it can expose the canonical offer.
+    confidence: "confirmed",
     promotion_type: v.promotionType,
     bonus_percent: v.bonusPercent,
     points_multiplier: v.pointsMultiplier,
@@ -460,4 +487,117 @@ export async function reopenCandidate(
   });
   revalidatePath("/admin/gift-cards/review");
   return {};
+}
+
+async function pendingCandidate(candidateId: string) {
+  return (await listGiftCardCandidates(1000)).find(
+    (candidate) => candidate.id === candidateId,
+  ) ?? null;
+}
+
+export async function markCandidateSourceUnavailable(
+  candidateId: string,
+): Promise<ReviewActionState> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  const candidate = await pendingCandidate(candidateId);
+  if (!candidate) return { error: "The pending revision was not found." };
+  await setCandidateStatus(
+    candidateId,
+    "archived",
+    email,
+    "Source unavailable; no withdrawal inferred",
+  );
+  await logAudit({
+    actorEmail: email,
+    action: "mark-gift-card-source-unavailable",
+    tableName: "gift_card_offer_candidates",
+    rowId: candidateId,
+    diff: { approvedOfferId: candidate.approvedOfferId, publicOfferChanged: false },
+  });
+  revalidatePath("/admin/gift-cards/review");
+  return {};
+}
+
+export async function markCandidateWithdrawn(
+  candidateId: string,
+): Promise<ReviewActionState> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  const candidate = await pendingCandidate(candidateId);
+  if (!candidate?.approvedOfferId) {
+    return { error: "A withdrawn revision must link an existing published offer." };
+  }
+  await setGiftCardOfferPublishedForReview(candidate.approvedOfferId, false);
+  await setCandidateStatus(candidateId, "archived", email, "Source explicitly withdrawn");
+  await logAudit({
+    actorEmail: email,
+    action: "withdraw-gift-card-offer-from-revision",
+    tableName: "gift_card_offers",
+    rowId: candidate.approvedOfferId,
+    diff: { candidateId, isPublished: false },
+  });
+  revalidatePath("/gift-cards");
+  revalidatePath("/admin/gift-cards/review");
+  return {};
+}
+
+export async function setLinkedOfferPublished(
+  candidateId: string,
+  isPublished: boolean,
+): Promise<ReviewActionState> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  const candidate = await pendingCandidate(candidateId);
+  if (!candidate?.approvedOfferId) return { error: "No linked offer was found." };
+  if (isPublished) {
+    const facts = await getGiftCardPublishFacts(candidate.approvedOfferId);
+    if (!facts) return { error: "The linked offer was not found." };
+    const publishError = giftCardPublishError(facts);
+    if (publishError) return { error: publishError };
+  }
+  await setGiftCardOfferPublishedForReview(candidate.approvedOfferId, isPublished);
+  await logAudit({
+    actorEmail: email,
+    action: isPublished ? "restore-gift-card-offer-from-revision" : "archive-gift-card-offer-from-revision",
+    tableName: "gift_card_offers",
+    rowId: candidate.approvedOfferId,
+    diff: { candidateId, isPublished },
+  });
+  revalidatePath("/gift-cards");
+  revalidatePath("/admin/gift-cards/review");
+  return {};
+}
+
+export async function splitCandidateRevision(
+  candidateId: string,
+  _state: ReviewActionState,
+  formData: FormData,
+): Promise<ReviewActionState> {
+  const { email } = await requireAdmin();
+  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
+  if (!rateLimit.success) return { error: rateLimit.error };
+  const parsed = parseOfferSplitDefinitions(text(formData, "split_definitions"));
+  if (!parsed.ok) return { error: parsed.error };
+  try {
+    const childIds = await splitGiftCardCandidateForReview(
+      candidateId,
+      parsed.parts,
+      email,
+    );
+    await logAudit({
+      actorEmail: email,
+      action: "split-gift-card-revision-candidate",
+      tableName: "gift_card_offer_candidates",
+      rowId: candidateId,
+      diff: { childIds, subOfferKeys: parsed.parts.map((part) => part.subOfferKey) },
+    });
+    revalidatePath("/admin/gift-cards/review");
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not split the revision." };
+  }
 }

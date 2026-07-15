@@ -253,6 +253,9 @@ export function validateGiftCardApproval(
   if (promotionType === "promo-credit" && (!promoCreditDollars || !thresholdDollars)) {
     return err("A promo-credit offer needs both a credit amount and qualifying threshold.");
   }
+  if (promotionType === "fee-waiver" && (!feeWaiverDollars || feeWaiverDollars <= 0)) {
+    return err("A fee-waiver offer needs the positive fee amount being waived.");
+  }
   if (promotionType === "membership") {
     if (!discountPercent || discountPercent <= 0) {
       return err("A membership rate needs a percentage value.");

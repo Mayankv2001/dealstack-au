@@ -4,6 +4,7 @@ import {
   compatibilityStatusLabel,
   evaluateGiftCardCompatibility,
 } from "@/lib/giftcards/compatibility";
+import { makeGiftCardAcceptance, makeGiftCardProduct } from "../stack/factories";
 
 /**
  * Structured compatibility verdicts. Confirms every branch of the 5-status
@@ -35,11 +36,11 @@ function gc(overrides: Partial<GiftCardOffer> = {}): GiftCardOffer {
 }
 
 describe("evaluateGiftCardCompatibility — verdicts", () => {
-  it("compatible: confirmed, accepted, no caveats", () => {
+  it("keeps offer-level acceptance at likely-compatible", () => {
     const r = evaluateGiftCardCompatibility(gc(), { now: NOW });
-    expect(r.status).toBe("compatible");
+    expect(r.status).toBe("likely-compatible");
     expect(r.warnings).toEqual([]);
-    expect(r.reason).toMatch(/ready to stack/i);
+    expect(r.reason).toMatch(/stacking conditions still need checking/i);
   });
 
   it("likely-compatible: confirmed but a spend cap applies", () => {
@@ -136,5 +137,71 @@ describe("evaluateGiftCardCompatibility — shared caveats", () => {
     expect(compatibilityStatusLabel("requires-verification")).toBe(
       "Verify stacking"
     );
+  });
+});
+
+describe("acceptance-derived compatibility boundaries", () => {
+  it("never promotes a legacy offer merchant list alone to fully compatible", () => {
+    const result = evaluateGiftCardCompatibility(gc(), {
+      now: NOW,
+      storeId: "coles",
+      storeName: "Coles",
+    });
+    expect(result.status).toBe("likely-compatible");
+  });
+
+  it("never promotes acceptance alone to fully compatible", () => {
+    const result = evaluateGiftCardCompatibility(gc({ acceptedAtMerchantIds: ["jbhifi"] }), {
+      now: NOW,
+      storeId: "jbhifi",
+      storeName: "JB Hi-Fi",
+      acceptance: makeGiftCardAcceptance({ storeId: "jbhifi", lastCheckedAt: "2026-07-10T00:00:00Z" }),
+    });
+    expect(result.status).toBe("likely-compatible");
+    expect(result.reason).toContain("stacking conditions still need checking");
+  });
+
+  it("uses explicit online rejection but not an unknown channel", () => {
+    const base = { now: NOW, storeId: "jbhifi", storeName: "JB Hi-Fi", redemptionChannel: "online" as const };
+    const rejected = evaluateGiftCardCompatibility(gc({ acceptedAtMerchantIds: ["jbhifi"] }), {
+      ...base,
+      acceptance: makeGiftCardAcceptance({ storeId: "jbhifi", acceptsOnline: false, lastCheckedAt: "2026-07-10T00:00:00Z" }),
+    });
+    expect(rejected.status).toBe("incompatible");
+    expect(rejected.reason).toContain("not accepted online");
+    const unknown = evaluateGiftCardCompatibility(gc({ acceptedAtMerchantIds: ["jbhifi"] }), {
+      ...base,
+      acceptance: makeGiftCardAcceptance({ storeId: "jbhifi", acceptsOnline: null, lastCheckedAt: "2026-07-10T00:00:00Z" }),
+    });
+    expect(unknown.status).not.toBe("incompatible");
+  });
+
+  it("blocks an evidenced split-payment limit", () => {
+    const result = evaluateGiftCardCompatibility(gc({ acceptedAtMerchantIds: ["jbhifi"] }), {
+      now: NOW,
+      storeId: "jbhifi",
+      acceptance: makeGiftCardAcceptance({ storeId: "jbhifi", lastCheckedAt: "2026-07-10T00:00:00Z" }),
+      product: makeGiftCardProduct({ splitPayment: "unsupported", maxDenomination: 100 }),
+      purchaseAmount: 500,
+    });
+    expect(result.status).toBe("incompatible");
+    expect(result.reason).toContain("split payment");
+  });
+
+  it("blocks an evidenced minimum spend and unsupported MCC", () => {
+    const belowMinimum = evaluateGiftCardCompatibility(gc({ minSpend: 100 }), {
+      now: NOW,
+      purchaseAmount: 50,
+    });
+    expect(belowMinimum).toMatchObject({ status: "incompatible" });
+    expect(belowMinimum.reason).toContain("$100 minimum");
+
+    const unsupportedMcc = evaluateGiftCardCompatibility(gc(), {
+      now: NOW,
+      redemptionMcc: 5411,
+      product: makeGiftCardProduct({ unsupportedMccs: [5411] }),
+    });
+    expect(unsupportedMcc).toMatchObject({ status: "incompatible" });
+    expect(unsupportedMcc.reason).toContain("MCC 5411");
   });
 });

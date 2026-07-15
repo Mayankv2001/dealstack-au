@@ -2,7 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import RetailerGiftCardPlans from "@/components/RetailerGiftCardPlans";
 import type { RetailerGiftCardPlan } from "@/lib/decision/types";
-import { makeGiftCard } from "../stack/factories";
+import {
+  makeGiftCard,
+  makeGiftCardAcceptance,
+  makeGiftCardProduct,
+} from "../stack/factories";
 
 describe("retailer gift-card payment options", () => {
   it("shows a retailer-specific points option without reducing the cash price", () => {
@@ -24,7 +28,13 @@ describe("retailer gift-card payment options", () => {
               pointsMultiplier: 20,
               pointsProgram: "Everyday Rewards",
             }),
+            product: makeGiftCardProduct({ brand: "Ultimate" }),
+            acceptance: makeGiftCardAcceptance({ storeId: "jb-hifi" }),
             role: "included",
+            activeApproved: true,
+            directApplicability: true,
+            excluded: false,
+            exclusionReason: null,
             compatibilityStatus: "likely-compatible",
             compatibilityReason: "Compatible at JB Hi-Fi, with current terms to check.",
             engineNote: "Estimated points value only; the cash price is unchanged.",
@@ -35,8 +45,19 @@ describe("retailer gift-card payment options", () => {
             bonusCardValue: null,
             pointsEarned: 36_000,
             estimatedRewardsValue: 180,
+            futureCreditValue: null,
+            redemptionChannels: ["Online", "In store"],
+            evidenceLabel: "Officially listed by Test issuer",
+            evidenceFreshness: "current",
+            maxUsableAmount: 500,
+            perCardMaximum: 500,
+            estimatedCardCount: 4,
+            denominationRequirement: null,
+            purchaseFriction: 0,
+            orderedSteps: ["Buy the gift card", "Redeem it at JB Hi-Fi"],
           },
         ],
+        excludedGiftCardOptions: [],
       },
     ];
     const html = renderToStaticMarkup(
@@ -51,6 +72,8 @@ describe("retailer gift-card payment options", () => {
     expect(html).toContain("about $180.00 rewards value");
     expect(html).toContain("Included in best plan");
     expect(html).toContain("cash price is unchanged");
+    expect(html).toContain("At least 4 cards");
+    expect(html).toContain("$500.00 maximum per card");
     expect(html).not.toContain("$1,620");
   });
 
@@ -65,6 +88,7 @@ describe("retailer gift-card payment options", () => {
             productTitle: "Apple MacBook Air M3",
             listedPrice: 1750,
             giftCardOptions: [],
+            excludedGiftCardOptions: [],
           },
         ]}
       />,

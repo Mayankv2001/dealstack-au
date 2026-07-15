@@ -24,6 +24,12 @@ export interface AuditEvent {
   rowId?: string | null;
   /** Small, human-readable summary — NOT the full row. */
   diff?: Record<string, unknown> | null;
+  /**
+   * Write an explicit audit row even when an authenticated admin actor is
+   * present. Use only for tables that are not covered by migration 011's
+   * transactional audit trigger.
+   */
+  forceExplicit?: boolean;
 }
 
 /** A row as the audit page sees it. */
@@ -67,8 +73,9 @@ function mapAudit(r: AuditRow): AuditEntry {
 export async function logAudit(event: AuditEvent): Promise<void> {
   // Admin mutations are audited transactionally by migration 011. Keep this
   // explicit path for scripts/cron calls, which intentionally have no request
-  // actor context and therefore do not activate the trigger.
-  if (getAdminAuditActor()) return;
+  // actor context and therefore do not activate the trigger. Later tables may
+  // opt in explicitly until a reviewed migration attaches that trigger.
+  if (getAdminAuditActor() && !event.forceExplicit) return;
   try {
     const db = getSupabaseAdmin();
     const { error } = await db.from("audit_log").insert({

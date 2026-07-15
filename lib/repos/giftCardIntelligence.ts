@@ -37,6 +37,7 @@ export interface GiftCardProgramme {
 
 export interface PublicGiftCardOccurrence {
   id: string;
+  sourceOfferId: string | null;
   sellerKey: string;
   sellerName: string;
   productKey: string;
@@ -89,6 +90,7 @@ interface RateRow {
 
 interface OccurrenceRow {
   id: string;
+  source_offer_id: string | null;
   seller_key: string;
   seller_name: string;
   product_key: string;
@@ -210,6 +212,7 @@ export async function getGiftCardOfferOccurrences(): Promise<PublicGiftCardOccur
     if (!sourceUrl) return [];
     return [{
       id: row.id,
+      sourceOfferId: row.source_offer_id,
       sellerKey: row.seller_key,
       sellerName: row.seller_name,
       productKey: row.product_key,

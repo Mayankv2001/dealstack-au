@@ -40,6 +40,15 @@ interface Recorder {
   inserts: Array<{ externalId: string }>;
   updates: string[];
   touches: string[];
+  rejections: Array<{
+    sourceId: string;
+    externalId: string;
+    contentHash: string;
+    parserVersion: number;
+    parserError: string;
+    seenAt: Date;
+    existingRawItemId: string | null;
+  }>;
   staged: StagedCandidate[];
   sourceState: Array<{ ok: boolean; error?: string }>;
 }
@@ -52,6 +61,7 @@ function makeDeps(
     inserts: [],
     updates: [],
     touches: [],
+    rejections: [],
     staged: [],
     sourceState: [],
   };
@@ -67,6 +77,26 @@ function makeDeps(
     },
     updateRawItem: async (id) => {
       rec.updates.push(id);
+    },
+    persistRejectedRawItem: async (
+      sourceId,
+      item,
+      contentHash,
+      parserVersion,
+      parserError,
+      seenAt,
+      existingRawItemId,
+    ) => {
+      rec.rejections.push({
+        sourceId,
+        externalId: item.externalId,
+        contentHash,
+        parserVersion,
+        parserError,
+        seenAt,
+        existingRawItemId,
+      });
+      return existingRawItemId ?? `raw-${item.externalId}`;
     },
     touchRawItem: async (id) => {
       rec.touches.push(id);
@@ -130,6 +160,7 @@ describe("runGiftCardIngest — unchanged item", () => {
       id: "raw-100",
       externalId: "100",
       contentHash: contentHashOf(parsed),
+      processingStatus: "parsed",
       extraction: extractOffer(parsed),
       openCandidateId: null,
       approvedOfferId: "gc-coles",
@@ -156,6 +187,7 @@ describe("runGiftCardIngest — material change to an APPROVED offer", () => {
       id: "raw-100",
       externalId: "100",
       contentHash: "stale-hash",
+      processingStatus: "parsed",
       extraction: extractOffer(beforeParsed),
       openCandidateId: null,
       approvedOfferId: "gc-coles",
@@ -186,6 +218,7 @@ describe("runGiftCardIngest — cosmetic change to an APPROVED offer", () => {
       id: "raw-100",
       externalId: "100",
       contentHash: "stale-hash",
+      processingStatus: "parsed",
       extraction: extractOffer(beforeParsed),
       openCandidateId: null,
       approvedOfferId: "gc-coles",
@@ -247,6 +280,7 @@ describe("runGiftCardIngest — compound sub-offers", () => {
       id: "raw-12680",
       externalId: "12680",
       contentHash: "old-version-hash",
+      processingStatus: "parsed",
       extraction: prior[0],
       extractions: prior,
       openCandidateId: null,
@@ -275,5 +309,142 @@ describe("runGiftCardIngest — compound sub-offers", () => {
       sourcePresence: "removed",
     });
     expect(removed?.reviewStatus).toBe("changed");
+  });
+});
+
+describe("runGiftCardIngest — rejection retention", () => {
+  it("reports a non-empty response with zero parseable items as a parse error", async () => {
+    const { deps, rec } = makeDeps(okFetch("<html>not the approved feed shape</html>"));
+    deps.parseBody = () => [];
+
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics).toMatchObject({
+      status: "error",
+      fetchStatus: "parse-error",
+      itemsSeen: 0,
+      itemsRejected: 0,
+    });
+    expect(metrics.errors).toEqual([
+      "Source parse failed: non-empty response contained no parseable items.",
+    ]);
+    expect(rec.sourceState).toEqual([
+      {
+        ok: false,
+        error: "Source parse failed: non-empty response contained no parseable items.",
+      },
+    ]);
+    expect(rec.staged).toHaveLength(0);
+  });
+
+  it("turns a thrown source parser error into metrics instead of dropping the run context", async () => {
+    const { deps, rec } = makeDeps(okFetch("structured source response"));
+    deps.parseBody = () => {
+      throw new Error("unexpected source layout");
+    };
+
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics.status).toBe("error");
+    expect(metrics.fetchStatus).toBe("parse-error");
+    expect(metrics.errors).toEqual([
+      "Source parse failed: unexpected source layout",
+    ]);
+    expect(rec.sourceState).toEqual([
+      { ok: false, error: "Source parse failed: unexpected source layout" },
+    ]);
+  });
+
+  it("retains an attributable rejected item and stages no candidate", async () => {
+    const body = feed(offerItem("999", "Offer missing an extractable mechanic"));
+    const { deps, rec } = makeDeps(okFetch(body));
+    deps.extractItem = () => [];
+
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics).toMatchObject({
+      status: "partial",
+      fetchStatus: "ok",
+      itemsSeen: 1,
+      itemsRejected: 1,
+      candidatesNew: 0,
+    });
+    expect(rec.inserts).toHaveLength(0);
+    expect(rec.staged).toHaveLength(0);
+    expect(rec.rejections).toEqual([
+      expect.objectContaining({
+        sourceId: "gcdb",
+        externalId: "999",
+        parserVersion: 2,
+        parserError: "No review candidates were extracted from the source item.",
+        seenAt: NOW,
+        existingRawItemId: null,
+      }),
+    ]);
+    expect(rec.rejections[0].contentHash).toMatch(/^[a-f0-9]{64}$/);
+    // A partial parse retains the previous validators so the corrected parser
+    // receives the full response on its next retry rather than a 304.
+    expect(rec.sourceState).toEqual([
+      {
+        ok: false,
+        error: "999: No review candidates were extracted from the source item.",
+      },
+    ]);
+  });
+
+  it("keeps valid siblings private while retaining one invalid sibling", async () => {
+    const body = feed(
+      `${offerItem("100", "10% off Coles Group gift cards")}${offerItem(
+        "101",
+        "Unrecognised offer mechanic",
+      )}`,
+    );
+    const { deps, rec } = makeDeps(okFetch(body));
+    deps.extractItem = (item) =>
+      item.externalId === "101" ? [] : extractOffers(item);
+
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics).toMatchObject({
+      status: "partial",
+      itemsSeen: 2,
+      itemsNew: 1,
+      itemsRejected: 1,
+      candidatesNew: 1,
+    });
+    expect(rec.inserts).toEqual([{ externalId: "100" }]);
+    expect(rec.rejections.map((item) => item.externalId)).toEqual(["101"]);
+    expect(rec.staged).toHaveLength(1);
+  });
+
+  it("recovers a stable-hash rejected row to parsed and stages fresh review", async () => {
+    const body = feed(offerItem("100", "10% off Coles Group gift cards"));
+    const item = parseGcdbFeed(body)[0];
+    const existing: RawItemState = {
+      id: "raw-100",
+      externalId: "100",
+      contentHash: contentHashOf(item),
+      processingStatus: "rejected",
+      extraction: null,
+      extractions: [],
+      openCandidateId: null,
+      approvedOfferId: null,
+    };
+    const { deps, rec } = makeDeps(okFetch(body), [existing]);
+
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics).toMatchObject({
+      status: "ok",
+      itemsUpdated: 1,
+      itemsUnchanged: 0,
+      candidatesNew: 1,
+    });
+    expect(rec.updates).toEqual(["raw-100"]);
+    expect(rec.touches).toHaveLength(0);
+    expect(rec.staged[0]).toMatchObject({
+      rawItemId: "raw-100",
+      reviewStatus: "new",
+    });
   });
 });
