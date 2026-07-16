@@ -17,6 +17,7 @@ Read-only production probes (2026-07-15) confirmed the exact shape of the drift:
 |---|---|---|---|
 | `gift_card_offers` 023 columns | 13 | 12 present | **`fixed_points` missing** |
 | `gift_card_offer_candidates` 023 columns | 13 | 12 present | **`fixed_points` missing** |
+| `gift_card_offer_occurrences` 025 columns | includes `fixed_points` | column absent | **032 history sealing would fail without reconciliation** |
 | `approve_gift_card_candidate` | maps `fixed_points` | no `fixed_points` | RPC behind |
 | `gift_card_candidates_accuracy_values_check` | has `fixed_points > 0` | absent | check behind |
 | `gift_card_offers_accuracy_values_check` | has `fixed_points > 0` | absent | check behind |
@@ -71,16 +72,19 @@ gift-card domain and the weekly ingestion — not viable. **Option A selected.**
 
 ## 4. What 031 does (all additive / idempotent)
 
-1. `add column if not exists fixed_points numeric` on both tables (no backfill;
+1. `add column if not exists fixed_points numeric` on offers, candidates and
+   occurrence history (no backfill;
    existing rows stay `NULL` — no invented point values).
-2. Re-adds the two accuracy value checks with `(fixed_points is null or
+2. Replaces production 025's generated-name occurrence mechanic check with a
+   stable fixed-points-aware check. Existing occurrence rows remain valid.
+3. Re-adds the two accuracy value checks with `(fixed_points is null or
    fixed_points > 0)`. Re-validation passes because the column is newly all-NULL.
-3. Re-adds `gift_card_offers_public_accuracy_check` **NOT VALID** so legacy
+4. Re-adds `gift_card_offers_public_accuracy_check` **NOT VALID** so legacy
    published rows are not retro-validated, with a points branch that accepts a
    fixed-points-only offer under the one-of-multiplier-or-fixed-points rule.
-4. `create or replace` the `sync_gift_card_candidate_accuracy` trigger function
+5. `create or replace` the `sync_gift_card_candidate_accuracy` trigger function
    (adds the `fixed_points` sync + fingerprint key).
-5. `create or replace` `approve_gift_card_candidate` with `fixed_points` in the
+6. `create or replace` `approve_gift_card_candidate` with `fixed_points` in the
    points validation, INSERT column/VALUES lists, and ON CONFLICT update — every
    existing guard, field mapping, `SECURITY DEFINER`, `set search_path = ''`,
    full object qualification, and `service_role`-only grant preserved.
@@ -91,7 +95,7 @@ exists`; functions use `create or replace`; the column uses `if not exists`.
 ## 5. Schema-manifest representation of the corrected end state
 
 - `031_gift_card_fixed_points_reconciliation.sql` added to `COVERED_MIGRATIONS`.
-- `fixed_points` ownership re-attributed **023 → 031** on both tables, because
+- `fixed_points` ownership re-attributed **023/025 → 031** on all three tables, because
   031 is the migration whose application creates the column in the authoritative
   (production) lineage. This keeps `npm run verify:schema` honest: until 031 is
   applied it reports the drift; after 031 it passes.

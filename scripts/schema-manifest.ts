@@ -512,13 +512,17 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "id", "programme_rate_id", "change_kind", "changed_fields",
     "old_snapshot", "new_snapshot", "checked_at", "actor_email", "created_at",
   ]),
-  gift_card_offer_occurrences: table("025_public_gift_card_offer_history.sql", [
-    "id", "source_offer_id", "seller_key", "seller_name", "product_key",
-    "product_name", "promotion_type", "discount_percent", "fixed_dollars",
-    "bonus_percent", "points_multiplier", "fixed_points", "points_programme",
-    "threshold_dollars", "start_date", "end_date", "source_url",
-    "verified_at", "sealed_at", "created_at",
-  ]),
+  gift_card_offer_occurrences: table(
+    "025_public_gift_card_offer_history.sql",
+    [
+      "id", "source_offer_id", "seller_key", "seller_name", "product_key",
+      "product_name", "promotion_type", "discount_percent", "fixed_dollars",
+      "bonus_percent", "points_multiplier", "fixed_points", "points_programme",
+      "threshold_dollars", "start_date", "end_date", "source_url",
+      "verified_at", "sealed_at", "created_at",
+    ],
+    { fixed_points: "031_gift_card_fixed_points_reconciliation.sql" }
+  ),
   public_correction_reports: table("026_public_correction_reports.sql", [
     "id", "entity_type", "entity_id", "reported_label", "reason", "details",
     "request_fingerprint", "status", "reviewed_by", "reviewed_at", "created_at",

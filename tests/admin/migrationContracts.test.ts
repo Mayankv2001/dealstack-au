@@ -337,13 +337,18 @@ describe("production safety migration contracts", () => {
 
   it("reconciles the fixed_points drift as an additive, idempotent forward migration", () => {
     const sql = migration("031_gift_card_fixed_points_reconciliation.sql");
-    // Adds the column to BOTH tables, idempotently.
+    // Adds the column to all three production-drifted tables, idempotently.
     expect(sql).toContain(
       "alter table public.gift_card_offer_candidates\n  add column if not exists fixed_points numeric;"
     );
     expect(sql).toContain(
       "alter table public.gift_card_offers\n  add column if not exists fixed_points numeric;"
     );
+    expect(sql).toContain(
+      "alter table public.gift_card_offer_occurrences\n  add column if not exists fixed_points numeric;"
+    );
+    expect(sql).toContain("gift_card_offer_occurrences_mechanic_check");
+    expect(sql).toContain("pg_catalog.pg_get_constraintdef");
     // No invented data / backfill of point values: the only write of
     // fixed_points is the reviewed approve RPC upsert (excluded.fixed_points),
     // never a bulk UPDATE … SET fixed_points = <value> over existing rows.
@@ -400,6 +405,9 @@ describe("production safety migration contracts", () => {
       "031_gift_card_fixed_points_reconciliation.sql"
     );
     expect(EXPECTED_SCHEMA.gift_card_offer_candidates.columns.fixed_points).toBe(
+      "031_gift_card_fixed_points_reconciliation.sql"
+    );
+    expect(EXPECTED_SCHEMA.gift_card_offer_occurrences.columns.fixed_points).toBe(
       "031_gift_card_fixed_points_reconciliation.sql"
     );
   });

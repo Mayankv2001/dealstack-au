@@ -11,6 +11,8 @@
 -- applied. Read-only production probes (2026-07-15) confirmed the exact drift:
 --   * gift_card_offers.fixed_points            — MISSING (all 12 other 023 cols present)
 --   * gift_card_offer_candidates.fixed_points  — MISSING (all 12 other 023 cols present)
+--   * gift_card_offer_occurrences.fixed_points — MISSING (025 was applied
+--                                                before its local file edit)
 --   * approve_gift_card_candidate              — no fixed_points mapping
 --   * gift_card_candidates_accuracy_values_check / _offers_accuracy_values_check
 --                                              — no `fixed_points > 0` clause
@@ -27,7 +29,7 @@
 -- the current 023 file.
 --
 -- SAFETY
---   * Additive: adds one nullable numeric column per table; no data backfill,
+--   * Additive: adds one nullable numeric column to each affected table; no data backfill,
 --     no invented point values, existing rows keep fixed_points = NULL.
 --   * Value-check constraints are dropped-if-exists then re-added so a re-run is
 --     idempotent; re-validation passes because every existing row has
@@ -51,6 +53,7 @@
 -- production dumps in docs/gift-card-migration-031-fixed-points.md, then:
 --   alter table public.gift_card_offers          drop column if exists fixed_points;
 --   alter table public.gift_card_offer_candidates drop column if exists fixed_points;
+--   alter table public.gift_card_offer_occurrences drop column if exists fixed_points;
 -- (Dropping the column cascades to the re-added check clauses referencing it.)
 
 -- ── 1. Columns ───────────────────────────────────────────────────────────────
@@ -59,6 +62,64 @@ alter table public.gift_card_offer_candidates
 
 alter table public.gift_card_offers
   add column if not exists fixed_points numeric;
+
+alter table public.gift_card_offer_occurrences
+  add column if not exists fixed_points numeric;
+
+-- Production's applied 025 mechanic check predates fixed_points. Drop the
+-- generated-name CASE constraint by its definition, then install one stable
+-- named constraint. On a clean replay this also replaces 025's equivalent
+-- anonymous check, keeping both lineages identical and retry-safe.
+do $$
+declare
+  constraint_row record;
+begin
+  for constraint_row in
+    select constraint_def.oid, constraint_def.conname
+    from pg_catalog.pg_constraint constraint_def
+    where constraint_def.conrelid =
+      'public.gift_card_offer_occurrences'::pg_catalog.regclass
+      and constraint_def.contype = 'c'
+      and pg_catalog.pg_get_constraintdef(constraint_def.oid) ilike
+        '%promotion_type%'
+      and pg_catalog.pg_get_constraintdef(constraint_def.oid) ilike
+        '%points_multiplier%'
+  loop
+    execute pg_catalog.format(
+      'alter table public.gift_card_offer_occurrences drop constraint %I',
+      constraint_row.conname
+    );
+  end loop;
+end;
+$$;
+
+alter table public.gift_card_offer_occurrences
+  drop constraint if exists gift_card_offer_occurrences_fixed_points_check;
+alter table public.gift_card_offer_occurrences
+  add constraint gift_card_offer_occurrences_fixed_points_check
+  check (fixed_points is null or fixed_points > 0);
+
+alter table public.gift_card_offer_occurrences
+  drop constraint if exists gift_card_offer_occurrences_mechanic_check;
+alter table public.gift_card_offer_occurrences
+  add constraint gift_card_offer_occurrences_mechanic_check check (
+    case promotion_type
+      when 'discount' then discount_percent > 0
+      when 'fixed-dollar-discount' then fixed_dollars > 0 and threshold_dollars > 0
+      when 'bonus-value' then bonus_percent > 0
+      when 'points' then
+        (coalesce(points_multiplier, 0) > 0 or coalesce(fixed_points, 0) > 0)
+        and not (
+          coalesce(points_multiplier, 0) > 0
+          and coalesce(fixed_points, 0) > 0
+        )
+        and nullif(pg_catalog.btrim(points_programme), '') is not null
+      when 'promo-credit' then fixed_dollars > 0 and threshold_dollars > 0
+      when 'fee-waiver' then fixed_dollars is null or fixed_dollars >= 0
+      when 'membership' then discount_percent > 0
+      else false
+    end
+  );
 
 -- ── 2. Accuracy value checks — add the `fixed_points > 0` rule ────────────────
 alter table public.gift_card_offer_candidates
