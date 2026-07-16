@@ -184,6 +184,16 @@ alter table public.gift_card_offers
 -- Preserve the meaning of existing visibility. Future rows are converted to a
 -- private approved-future state; current rows remain active. Unpublished legacy
 -- rows remain archived and are never inferred to be approved.
+--
+-- Migration 031 deliberately keeps the reviewed public-accuracy constraint
+-- NOT VALID because production contains legacy published rows awaiting review.
+-- PostgreSQL still checks a NOT VALID constraint on UPDATE, so a lifecycle-only
+-- backfill would otherwise fail on those pre-existing facts. Drop and restore
+-- the identical NOT VALID boundary around only these two controlled updates;
+-- no offer fact or visibility is broadened.
+alter table public.gift_card_offers
+  drop constraint if exists gift_card_offers_public_accuracy_check;
+
 update public.gift_card_offers
 set lifecycle_state = case
   when is_published and start_date is not null
@@ -198,6 +208,46 @@ update public.gift_card_offers
 set is_published = false
 where lifecycle_state = 'approved-future'
   and is_published = true;
+
+alter table public.gift_card_offers
+  add constraint gift_card_offers_public_accuracy_check check (
+    not is_published or (
+      nullif(pg_catalog.btrim(brand), '') is not null
+      and nullif(
+        pg_catalog.btrim(coalesce(seller_name, purchase_location)), ''
+      ) is not null
+      and source_detail_url ~ '^https://'
+      and promotion_type <> 'mixed'
+      and (
+        (expiry_date is not null and not is_ongoing)
+        or (expiry_date is null and is_ongoing)
+      )
+      and case promotion_type
+        when 'discount' then discount_percent > 0 and discount_percent < 100
+          and reward_destination = 'checkout-discount'
+        when 'fixed-dollar-discount' then fixed_discount_dollars > 0
+          and threshold_dollars > 0 and reward_destination = 'checkout-discount'
+        when 'bonus-value' then bonus_percent > 0
+          and reward_destination = 'gift-card-value'
+        when 'points' then (
+          coalesce(points_multiplier, 0) > 0
+          or coalesce(fixed_points, 0) > 0
+        )
+          and not (
+            coalesce(points_multiplier, 0) > 0
+            and coalesce(fixed_points, 0) > 0
+          )
+          and nullif(pg_catalog.btrim(points_program), '') is not null
+          and reward_destination = 'loyalty-points'
+        when 'promo-credit' then promo_credit_dollars > 0
+          and threshold_dollars > 0 and reward_destination = 'seller-credit'
+        when 'fee-waiver' then reward_destination = 'waived-fee'
+        when 'membership' then discount_percent > 0 and membership_required
+          and reward_destination = 'checkout-discount'
+        else false
+      end
+    )
+  ) not valid;
 
 alter table public.gift_card_offers
   alter column lifecycle_state set default 'archived',

@@ -275,6 +275,8 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("to service_role");
     expect(sql).toContain("from public, anon, authenticated");
     expect(sql).not.toMatch(/delete\s+from\s+public\.gift_card/i);
+    expect(sql).toContain("drop constraint if exists gift_card_offers_public_accuracy_check");
+    expect(sql).toMatch(/gift_card_offers_public_accuracy_check[\s\S]*not valid/i);
   });
 
   it("hardens reviewed gift-card approval identity and public visibility forward-only", () => {

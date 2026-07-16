@@ -114,7 +114,10 @@ the production SQL Editor, then repair only that version to `applied`:
 5. 031 — forward fixed-points convergence, including occurrence history.
 6. 032 — Sydney lifecycle and forward correction of the applied programme
    calendar policies; requires 030 and 031. Migration 028's unapplied removal
-   RPC is also Sydney-correct before its apply.
+   RPC is also Sydney-correct before its apply. Its lifecycle-only backfill
+   temporarily restores the same public-accuracy constraint as `NOT VALID`, so
+   legacy reviewed rows do not block classification and remain subject to the
+   existing approval boundary on their next factual update.
 
 After each file:
 
