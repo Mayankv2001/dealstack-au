@@ -327,12 +327,24 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("gift_card_offer_occurrences_end_date_sydney_check");
     expect(sql).toContain("pg_catalog.pg_get_constraintdef");
     expect(sql).toContain("like '%END_DATE < CURRENT_DATE%'");
-    expect(sql).toContain("pg_catalog.timezone('Australia/Sydney', pg_catalog.now())::date");
+    expect(sql).toContain("pg_catalog.timezone('Australia/Sydney', sealed_at)::date");
+    expect(sql).toContain("gift_card_programmes_public_shape_check");
+    expect(sql).toContain("gift_card_programme_rates_public_shape_check");
+    expect(sql).toContain('drop policy if exists "public read current gift_card_programmes"');
+    expect(sql).toContain('drop policy if exists "public read current gift_card_programme_rates"');
+    expect(sql.match(/Australia\/Sydney/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
     expect(sql).toContain("drop policy if exists \"public read sealed gift card occurrences\"");
     expect(sql).toContain("idx_gc_occurrence_business_identity");
     expect(sql).toContain("coalesce(start_date, '-infinity'::date)");
     expect(sql).toContain("Duplicate gift-card occurrence identities must be reviewed");
     expect(sql).toContain("do not delete immutable occurrence evidence automatically");
+  });
+
+  it("uses Sydney dates for reviewed acceptance removals", () => {
+    const sql = migration("028_gift_card_acceptance_extensions.sql");
+    expect(sql).not.toMatch(/p_valid_until date default current_date/i);
+    expect(sql).not.toMatch(/coalesce\(p_valid_until, current_date\)/i);
+    expect(sql).toContain("pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'");
   });
 
   it("reconciles the fixed_points drift as an additive, idempotent forward migration", () => {

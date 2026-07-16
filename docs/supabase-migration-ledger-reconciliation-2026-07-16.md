@@ -111,7 +111,9 @@ the production SQL Editor, then repair only that version to `applied`:
 3. 029 — private predictions; requires 027.
 4. 030 — job-run kinds and lock acquisition.
 5. 031 — forward fixed-points convergence, including occurrence history.
-6. 032 — Sydney lifecycle; requires 030 and 031.
+6. 032 — Sydney lifecycle and forward correction of the applied programme
+   calendar policies; requires 030 and 031. Migration 028's unapplied removal
+   RPC is also Sydney-correct before its apply.
 
 After each file:
 
@@ -133,4 +135,3 @@ offers.
 - Reverting timestamp history without also canonicalising the verified local
   001–026 history in the same controlled maintenance window.
 - Applying 032 before the corrected 031.
-

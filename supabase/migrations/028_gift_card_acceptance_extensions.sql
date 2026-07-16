@@ -530,7 +530,9 @@ create or replace function public.approve_gift_card_acceptance_removal(
   p_candidate_id uuid,
   p_reviewer text,
   p_final_status text default 'confirmed-not-accepted',
-  p_valid_until date default current_date
+  p_valid_until date default (
+    pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
+  )::date
 )
 returns uuid
 language plpgsql
@@ -568,7 +570,10 @@ begin
   set acceptance_status = p_final_status,
       outcome = case when p_final_status = 'confirmed-not-accepted'
         then 'unsuccessful' else outcome end,
-      valid_until = coalesce(p_valid_until, current_date),
+      valid_until = coalesce(
+        p_valid_until,
+        (pg_catalog.statement_timestamp() at time zone 'Australia/Sydney')::date
+      ),
       review_state = 'approved',
       updated_at = now()
   where id = candidate.linked_acceptance_id
@@ -591,7 +596,10 @@ begin
     jsonb_build_object(
       'acceptanceId', v_acceptance_id,
       'acceptanceStatus', p_final_status,
-      'validUntil', coalesce(p_valid_until, current_date)
+      'validUntil', coalesce(
+        p_valid_until,
+        (pg_catalog.statement_timestamp() at time zone 'Australia/Sydney')::date
+      )
     )
   );
   return v_acceptance_id;

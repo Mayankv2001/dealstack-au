@@ -43,7 +43,7 @@ alter table public.gift_card_offer_occurrences
 alter table public.gift_card_offer_occurrences
   add constraint gift_card_offer_occurrences_end_date_sydney_check
   check (
-    end_date < pg_catalog.timezone('Australia/Sydney', pg_catalog.now())::date
+    end_date < pg_catalog.timezone('Australia/Sydney', sealed_at)::date
   );
 
 drop policy if exists "public read sealed gift card occurrences"
@@ -53,6 +53,101 @@ create policy "public read sealed gift card occurrences"
   using (
     sealed_at is not null
     and end_date < pg_catalog.timezone('Australia/Sydney', pg_catalog.now())::date
+  );
+
+-- Migration 024 embedded session-UTC current_date in both row constraints and
+-- public policies. Temporal visibility belongs in Sydney-aware RLS, not in a
+-- CHECK that silently becomes false as time passes. Replace only the two
+-- generated public-shape checks, retaining every mechanic constraint.
+do $$
+declare
+  constraint_row record;
+begin
+  for constraint_row in
+    select constraint_def.conrelid, constraint_def.conname
+    from pg_catalog.pg_constraint constraint_def
+    where constraint_def.conrelid in (
+        'public.gift_card_programmes'::pg_catalog.regclass,
+        'public.gift_card_programme_rates'::pg_catalog.regclass
+      )
+      and constraint_def.contype = 'c'
+      and pg_catalog.pg_get_constraintdef(constraint_def.oid) ilike
+        '%review_by_date%current_date%'
+  loop
+    execute pg_catalog.format(
+      'alter table %s drop constraint %I',
+      constraint_row.conrelid::pg_catalog.regclass,
+      constraint_row.conname
+    );
+  end loop;
+end;
+$$;
+
+alter table public.gift_card_programmes
+  drop constraint if exists gift_card_programmes_public_shape_check;
+alter table public.gift_card_programmes
+  add constraint gift_card_programmes_public_shape_check check (
+    not is_published or (confidence = 'confirmed' and is_ongoing)
+  );
+
+alter table public.gift_card_programme_rates
+  drop constraint if exists gift_card_programme_rates_public_shape_check;
+alter table public.gift_card_programme_rates
+  add constraint gift_card_programme_rates_public_shape_check check (
+    not is_published or (
+      is_active
+      and confidence = 'confirmed'
+      and case promotion_type
+        when 'discount' then discount_percent > 0 and discount_percent < 100
+        when 'fixed-dollar-discount' then
+          fixed_discount_dollars > 0 and threshold_dollars > 0
+        when 'bonus-value' then bonus_percent > 0
+        when 'fee-waiver' then true
+        else false
+      end
+    )
+  );
+
+drop policy if exists "public read current gift_card_programmes"
+  on public.gift_card_programmes;
+create policy "public read current gift_card_programmes"
+  on public.gift_card_programmes for select to anon, authenticated
+  using (
+    is_published = true
+    and confidence = 'confirmed'
+    and is_ongoing = true
+    and review_by_date >= (
+      pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
+    )::date
+  );
+
+drop policy if exists "public read current gift_card_programme_rates"
+  on public.gift_card_programme_rates;
+create policy "public read current gift_card_programme_rates"
+  on public.gift_card_programme_rates for select to anon, authenticated
+  using (
+    is_published = true
+    and is_active = true
+    and confidence = 'confirmed'
+    and review_by_date >= (
+      pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
+    )::date
+    and (
+      is_ongoing = true
+      or valid_to >= (
+        pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
+      )::date
+    )
+    and exists (
+      select 1
+      from public.gift_card_programmes programme
+      where programme.id = gift_card_programme_rates.programme_id
+        and programme.is_published = true
+        and programme.confidence = 'confirmed'
+        and programme.review_by_date >= (
+          pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
+        )::date
+    )
   );
 
 -- Migration 025's nullable start_date in a UNIQUE constraint permits duplicate
