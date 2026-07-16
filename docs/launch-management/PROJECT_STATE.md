@@ -1,16 +1,19 @@
 # PROJECT_STATE.md
 
-> **2026-07-11 pipeline completion update:** the automated pipeline expansion is
-> implemented in the current change set: lifecycle retention, card detection
-> assistance, unified `/admin/review`, hardened health checks and system audit
-> coverage. Migrations 018 and 019 were applied and schema-verified in production
-> on 2026-07-11. Remaining work is deployment, the first authenticated run, and a
-> two-run observation window. The exact rollout order is in
-> `docs/automated-deal-pipeline-status.md`.
+> **2026-07-17 gift-card platform update:** since 2026-07-11 the project shipped
+> the full gift-card intelligence platform (migrations 021–026 applied to prod;
+> 027–033 written, reviewed and **awaiting the gated production apply** — see
+> `docs/supabase-migration-ledger-reconciliation-2026-07-16.md`), the OzBargain
+> expiry recheck, the automated daily deal pipeline, the rebuilt public deals
+> discovery + purchase planning experience, the redesign usability/trust audit,
+> the Point Hacks weekly ingest configuration (default off), and the homepage
+> gift-card marquee. An email-alert subscription system was implemented
+> (`fb5a14d`) and then deliberately deferred/reverted (`15facc1`) — it is NOT in
+> the codebase.
 
 > Single source of truth for DealStack AU. Maintained so a second Claude account can continue the work safely without losing context.
 >
-> **Last updated:** 2026-07-11 (multi-retailer comparison) · **Branch:** `main`
+> **Last updated:** 2026-07-17 (migration-031 reconciliation + state refresh) · **Branch:** `main`
 
 ---
 
@@ -29,9 +32,11 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 - **Card-offer production state:** All 5 rows were checked against current issuer pages on 2026-07-10. Amex Qantas Ultimate is confirmed, has a fixed 2026-07-28 expiry, and is published. NAB, Westpac and ANZ were corrected and confirmed but remain unpublished because the issuer pages provide no fixed expiry; the obsolete CommBank Low Fee Gold promotion remains unpublished. Five `direct-card-offer-verification` audit entries record the user-authorised update.
 - **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
 - **Recent trust/ops sequence:** public source-result guard (`fbd570a`), final AU expiry unification (`14db2d6`), strict public-content smoke (`e29c1c9`), and audited feed-source emergency stop (`f65c951`) are shipped on `main` after the card readiness gate (`2f2db1d`).
-- **Current ranked backlog:** empty — the schema-drift watchdog (`483bd86`) closed the last code task; what remains is human ops/config. See §6.
+- **Gift-card platform (2026-07-12 → 2026-07-17):** full pipeline live behind admin review — GCDB + Point Hacks weekly sources (both default-off, quadruple-gated), accuracy model, programmes/rates tables, offer detail fields, occurrence history, predictions, job runs, lifecycle orchestration and approval hardening. Migrations 021–026 are applied to prod; **027–033 are written and reviewed but NOT applied** (see §5). 13 gift-card offers published; public surfaces: `/gift-cards`, `/gift-cards/[id]`, homepage marquee.
+- **Public UX (2026-07-13 → 2026-07-15):** rebuilt deals discovery, redesigned purchase planning experience, redesign usability/trust audit fixes (`2ae5c83`), DealCard list view, gift-card offer marquee.
+- **Current ranked backlog:** the gated prod-migration runbook is the sole engineering item; the rest is human ops/config. See §5–§6.
 - **Prod hygiene: CLEAN as of 2026-07-11.** The two expired-published gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish`) were unpublished via `npm run cleanup:old-deals -- --write` (user-authorised, 2 audited `auto-unpublish-expired` rows); re-run dry-run reports 0 candidates.
-- **Build/lint/tests:** Full Node 20 gate green on 2026-07-11: lint, production build, 190 stack tests, 206 monitor tests, 141 admin tests, 23 Playwright tests (1 expected skip), and `git diff --check`. Node 22 production schema probe: 18 tables / all 14 migrations declared columns OK.
+- **Build/lint/tests:** Node 20 gate green on 2026-07-17: lint, production build, 263 admin tests (39 files). Full-suite counts last verified 2026-07-14 during the redesign audit (vitest 1030/1030, e2e 59/59). `npm run verify:schema` intentionally reports the fixed_points drift until migration 031 is applied to prod.
 
 ## 3. Repository / File Structure
 
@@ -84,20 +89,39 @@ Verified from git history and memory. Commit hashes in parentheses.
 
 ## 5. Current Task
 
-None — multi-retailer comparison implementation complete. Product grouping is an editorial admin action, not an automated backlog process. Next action = §6.
+None in code — the gift-card platform work through migration 031's drift
+reconciliation is committed (`6e85115`). The single open engineering item is
+**operational**: execute the production migration-ledger reconciliation and the
+one-at-a-time apply of migrations 027–032 per
+`docs/supabase-migration-ledger-reconciliation-2026-07-16.md`. That runbook is
+approval-gated on proven backup protection (as of 2026-07-17 the project has
+WALG only — PITR false, zero listed backups) and on an explicit user go-ahead
+naming the prod actions. Migration 033 stays gated even after that, pending a
+review of existing public offers.
 
 ## 6. Next 3 Tasks
 
-> **Launch management now lives in [`docs/launch-management/`](docs/launch-management/LAUNCH-BACKLOG.md)** (backlog, task files, worker prompts, assignments, launch decision) — created 2026-07-10 at `1fae4ed`. The ops items below are mirrored there as OPS-1..7 with owners and verification steps; three small READY code/docs tasks (TASK-001..003) were added from a fresh audit. Treat that directory as the launch source of truth.
+> **Launch management now lives in [`docs/launch-management/`](docs/launch-management/LAUNCH-BACKLOG.md)** (backlog, task files, worker prompts, assignments, launch decision) — created 2026-07-10 at `1fae4ed`. Treat that directory as the launch source of truth.
 
-1. Configure the external monitor health alert described in `docs/ozbargain-monitoring.md` (the `/api/health` endpoint is live; an uptime service needs to poll it).
-2. Create the two GitHub Actions secrets for the schema-drift watchdog (checklist §3) and run its first manual dispatch to green.
-3. Complete the human production-data checks below.
+1. **Clear the prod-migration backup gate, then run the reconciliation runbook**
+   (`docs/supabase-migration-ledger-reconciliation-2026-07-16.md`): verify a
+   recovery point (enable PITR/backups or take a verified logical dump), repair
+   the migration history to canonical 001–026, then apply 027–032 one at a time
+   with per-step verification. Requires an explicit user instruction naming the
+   prod actions — generic "finish everything" does not pass the permission
+   classifier (confirmed 2026-07-17).
+2. **Add the missing GitHub Actions `CRON_SECRET` secret** (monitor-health job is
+   red by design without it; the Vercel value is sensitive and cannot be pulled
+   back — regenerate or copy from the original source). Then triage the
+   data-health 503 on the real overdue reviews it will surface.
+3. **Flip `OZB_OFFER_DETECT_ENABLED` live** after the ≥2-day precision review in
+   `docs/ozbargain-monitoring.md`; and configure the external monitor health
+   alert (an uptime service polling `/api/health`).
 
-**Also open — two ops steps only a human can perform** (verifying real-world data / making a production judgement call):
-
-1. **Flip `OZB_OFFER_DETECT_ENABLED` live.** Run the precision review in `docs/ozbargain-monitoring.md` (§ Offer-change detection: go-live runbook) on ≥2 different days via `/admin/offer-changes` → Preview, then set the env var in Vercel and redeploy. `/admin/monitor`'s new detection card shows the result. Zero candidates on preview is a healthy, expected outcome — not a blocker.
-2. ~~Clear the two expired-published gift cards.~~ **DONE 2026-07-11** — unpublished via the audited CLI write; dry-run now reports 0 candidates.
+**Also pending (dated):** re-verify the four unpublished card offers against
+issuer pages by **2026-08-09**; review the 24 GCDB candidates + 15 `new`
+candidates in `/admin/gift-cards/review`. `git stash@{0}` is a verified-stale
+duplicate of already-committed work — safe to `git stash drop`, never apply.
 
 > New implementation work belongs in `docs/launch-management/`; completed
 > root-level plans were removed on 2026-07-10.
@@ -150,7 +174,7 @@ npm run cleanup:old-deals
 
 - **`tests/stack/buildStack.test.ts` — stale-fixture failure (RESOLVED).** The stack engine now takes an injectable `now` clock (`buildStackRecommendations(input, spend, data, now)`, default `new Date()`); the stack tests pass a fixed `TEST_NOW` (see `tests/stack/factories.ts`), so time-based expiry/stale warnings no longer drift as the real clock advances.
 - **Preview server (Node/Turbopack):** `preview_start` running `next dev` needs a zsh `-c` PATH-prefix to Node 20 or Turbopack workers panic. After a panicked run, `rm -rf .next/dev` — the cache stays poisoned otherwise.
-- **Prod migration drift:** Some migrations were applied by hand and are untracked. Migration 005 (`hidden_from_homepage`) was found NOT applied to prod on 2026-07-08. **Verify prod schema via `information_schema.columns`, not just table existence.**
+- **Prod migration drift:** historically hand-applied and untracked (005 found missing 2026-07-08; 025 applied pre-`fixed_points`). Fully mapped 2026-07-16 — remote ledger rows exist for 20 migrations under timestamp aliases; the repair + apply plan is `docs/supabase-migration-ledger-reconciliation-2026-07-16.md` (approval-gated). **Verify prod schema via `information_schema.columns`, not just table existence.**
 - **Seed signals unique-key divergence (RESOLVED):** full seed now skips and reports rows whose `source_native_id` belongs to a different production id, then continues to later tables.
 - **Card offers (RESOLVED 2026-07-10):** all 5 DB rows were checked against issuer sources and stripped of illustrative copy. Amex Qantas Ultimate is the sole published row because it has a fixed expiry; corrected NAB, Westpac and ANZ rows have no issuer-stated fixed expiry and remain unpublished; the obsolete CommBank promotion remains unpublished. `/cards`, `/search` and store source cards enforce the same trust contract.
 - **Two published-but-expired gift cards (RESOLVED 2026-07-11):** `gc-tcn-jbhifi` and `gc-woolworths-wish` unpublished via the audited cleanup CLI (`auto-unpublish-expired` audit rows); re-run dry-run reports 0 candidates. The public read-guard had already hidden them from actionable listings throughout.
@@ -161,7 +185,25 @@ npm run cleanup:old-deals
 Most recent commits (newest first):
 
 ```
-5f00a76  Record TASK-003 implementation in launch backlog/assignments                      <- HEAD at review
+6e85115  fix(giftcards): extend migration 031 to occurrence-history fixed_points drift     <- HEAD 2026-07-17
+802087c  feat(giftcards): add Point Hacks weekly gift-card ingest configuration
+9ddee5a  Add comprehensive tests for gift card reconciliation and related functionalities
+811542f  Add gift-card offer marquee to the homepage
+21e25a8  feat: redesign purchase planning experience
+84ac591  feat(giftcards): enhance weekly offers and ingestion features
+2ae5c83  fix: complete redesign usability and trust audit
+15facc1  revert: defer email alert infrastructure
+fb5a14d  feat: implement email alert subscription system with double opt-in
+2097a83  IT-03: harden gift-card pipeline validation and rollout
+bc8c707  feat(giftcards): add ongoing gift card programmes and rates tables
+05d6d00  feat(giftcards): add detailed offer fields and acceptance model
+b541521  chore: regenerate DB types after applying migration 021 to prod
+341cef3  Rebuild public deals discovery experience
+4ec0fdf  Schedule OzBargain expiry recheck
+3d28718  Add RSS-based OzBargain expiry recheck
+c86db33  Add automated daily deal review pipeline
+e5e7a38  Add multi-retailer product comparisons
+5f00a76  Record TASK-003 implementation in launch backlog/assignments                      <- HEAD at 2026-07-11 review
 6845117  Fix /deals disclaimer: curated cached data, not "examples" (TASK-003)
 1eca5c2  Approve TASK-001: manager review record, backlog/assignments/state updates
 37854b0  Add migration 008: pin set_updated_at search_path (TASK-001)

@@ -10,7 +10,8 @@
 > already consume. The only path into that table is the reviewed approve RPC.
 
 Migration: `supabase/migrations/021_gift_card_pipeline.sql`
-(written, **not yet applied to production** — awaits admin review).
+(**applied to production 2026-07-12** via the Supabase MCP after admin review;
+types regenerated the same day, commit `b541521`).
 
 ---
 

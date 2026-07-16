@@ -16,6 +16,13 @@ Do not repair history or apply DDL until the Dashboard or CLI shows a usable
 backup timestamp or PITR is enabled. Record the verified recovery point and
 time before the first write.
 
+**Gate re-check 2026-07-17:** `supabase backups list` still reports WALG true,
+PITR false, zero backups (`"backups":[]`). The stop condition remains in force —
+no history repair or DDL was run. Options to clear it: enable PITR / plan-level
+backups in the Supabase Dashboard, or take and verify a full logical dump
+(`supabase db dump --linked` schema + `--data-only`) and record it here as the
+recovery point before the first write.
+
 ## Authoritative remote history mapping
 
 `supabase migration fetch --linked` was run in an isolated `/tmp` project. It
