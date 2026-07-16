@@ -219,6 +219,10 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("unique (source_id, fingerprint)");
     expect(sql).toContain("normalise_gift_card_prediction_identity_text");
     expect(sql).toContain("gift_card_prediction_fingerprint");
+    expect(sql).not.toContain("coalesce(starts_at::text, '')");
+    expect(sql).not.toContain("coalesce(ends_at::text, '')");
+    expect(sql).toContain("pg_catalog.date_part('year', starts_at)");
+    expect(sql).toContain("pg_catalog.date_part('month', ends_at)");
     expect(sql).toContain("trg_gc_predictions_immutable_facts");
     expect(sql).toContain("Original gift-card prediction facts are immutable.");
     expect(sql).toContain("source_marker");

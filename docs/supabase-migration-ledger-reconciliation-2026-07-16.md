@@ -108,7 +108,8 @@ the production SQL Editor, then repair only that version to `applied`:
 
 1. 027 — disabled Point Hacks HTML source support.
 2. 028 — acceptance extensions.
-3. 029 — private predictions; requires 027.
+3. 029 — private predictions with DateStyle-independent ISO identity;
+   requires 027.
 4. 030 — job-run kinds and lock acquisition.
 5. 031 — forward fixed-points convergence, including occurrence history.
 6. 032 — Sydney lifecycle and forward correction of the applied programme

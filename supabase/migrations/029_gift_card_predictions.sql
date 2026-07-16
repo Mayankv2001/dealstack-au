@@ -81,9 +81,17 @@ as $$
       where normalised.family <> ''
     ), '')
     || pg_catalog.chr(31)
-    || coalesce(starts_at::text, '')
+    || case when starts_at is null then '' else
+      pg_catalog.lpad(pg_catalog.date_part('year', starts_at)::integer::text, 4, '0')
+      || '-' || pg_catalog.lpad(pg_catalog.date_part('month', starts_at)::integer::text, 2, '0')
+      || '-' || pg_catalog.lpad(pg_catalog.date_part('day', starts_at)::integer::text, 2, '0')
+    end
     || pg_catalog.chr(31)
-    || coalesce(ends_at::text, '')
+    || case when ends_at is null then '' else
+      pg_catalog.lpad(pg_catalog.date_part('year', ends_at)::integer::text, 4, '0')
+      || '-' || pg_catalog.lpad(pg_catalog.date_part('month', ends_at)::integer::text, 2, '0')
+      || '-' || pg_catalog.lpad(pg_catalog.date_part('day', ends_at)::integer::text, 2, '0')
+    end
   );
 $$;
 
