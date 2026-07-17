@@ -89,27 +89,19 @@ Verified from git history and memory. Commit hashes in parentheses.
 
 ## 5. Current Task
 
-None in code — the gift-card platform work through migration 031's drift
-reconciliation is committed (`6e85115`). The single open engineering item is
-**operational**: execute the production migration-ledger reconciliation and the
-one-at-a-time apply of migrations 027–032 per
-`docs/supabase-migration-ledger-reconciliation-2026-07-16.md`. That runbook is
-approval-gated on proven backup protection (as of 2026-07-17 the project has
-WALG only — PITR false, zero listed backups) and on an explicit user go-ahead
-naming the prod actions. Migration 033 stays gated even after that, pending a
-review of existing public offers.
+The production migration ledger is canonical through 032. Migrations 027–032
+were applied one at a time on 2026-07-17 after a verified logical backup; schema
+verification and linked lint are green. Migration 033 remains gated pending a
+review of existing public offers. Product, acceptance and programme tables are
+truthfully empty until separately reviewed data is approved.
 
 ## 6. Next 3 Tasks
 
 > **Launch management now lives in [`docs/launch-management/`](docs/launch-management/LAUNCH-BACKLOG.md)** (backlog, task files, worker prompts, assignments, launch decision) — created 2026-07-10 at `1fae4ed`. Treat that directory as the launch source of truth.
 
-1. **Clear the prod-migration backup gate, then run the reconciliation runbook**
-   (`docs/supabase-migration-ledger-reconciliation-2026-07-16.md`): verify a
-   recovery point (enable PITR/backups or take a verified logical dump), repair
-   the migration history to canonical 001–026, then apply 027–032 one at a time
-   with per-step verification. Requires an explicit user instruction naming the
-   prod actions — generic "finish everything" does not pass the permission
-   classifier (confirmed 2026-07-17).
+1. **Review the 10 active legacy gift-card offers before migration 033.** Attach
+   approved lineage/evidence, correct mechanics and dates, or archive unsupported
+   rows. Do not apply 033 until its expected visibility changes are reviewed.
 2. **Add the missing GitHub Actions `CRON_SECRET` secret** (monitor-health job is
    red by design without it; the Vercel value is sensitive and cannot be pulled
    back — regenerate or copy from the original source). Then triage the

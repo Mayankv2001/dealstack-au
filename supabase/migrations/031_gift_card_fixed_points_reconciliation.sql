@@ -1,6 +1,6 @@
 -- DealStack AU — reconcile the gift-card fixed_points drift (additive, forward-only)
 --
--- NOT APPLIED TO PRODUCTION. Requires explicit user schema review + approval.
+-- APPLIED TO PRODUCTION 2026-07-17 as ledger version 031.
 --
 -- WHY THIS MIGRATION EXISTS
 -- Migration 023 was applied to production in its pre-2026-07-14 form. The 023

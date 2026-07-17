@@ -1,8 +1,8 @@
 # Migration 031 — fixed_points drift reconciliation
 
-> Authored 2026-07-15 as a drift-reconciliation **design + review**. No migration
-> was applied; nothing was committed, pushed, deployed, or enabled. Production
-> was inspected **read-only** (project `numgsivlrglflsnqehac`).
+> Authored 2026-07-15 as a drift-reconciliation design and **applied to
+> production 2026-07-17** as ledger version 031 after a verified logical backup.
+> No point values were backfilled and no source or job gate was enabled.
 
 ## 1. What drifted, and the evidence
 
@@ -28,7 +28,7 @@ All other 023 objects (`reward_destination`, `is_ongoing`, `source_present`,
 etc.) are present in production. So this is a single, well-scoped column drift —
 not an unapplied 023. Production also has 024/025/026 applied
 (`gift_card_programmes`, `gift_card_offer_occurrences`, `public_correction_reports`
-and their functions all exist); 027–030 are **not** applied.
+and their functions all existed); 027–030 were **not** applied at that probe.
 
 ## 2. Decision gate — is `fixed_points` intentional? → **Option A (yes)**
 
@@ -108,11 +108,11 @@ exists`; functions use `create or replace`; the column uses `if not exists`.
 
 ## 6. Migration 027 readiness (verified read-only)
 
-`027_point_hacks_weekly_gift_cards.sql` is **ready for a later approved apply**:
+`027_point_hacks_weekly_gift_cards.sql` was applied immediately before 028–031:
 
 - Production `gift_card_sources_source_type_check` is currently
   `CHECK (source_type = ANY (ARRAY['rss','atom','api']))` — `html` absent, so
-  027 is genuinely unapplied.
+  027 was genuinely unapplied before the 2026-07-17 apply.
 - Every existing source row uses `source_type = 'rss'`; expanding the constraint
   to include `html` invalidates **no** existing row (verified).
 - The old constraint is correctly identified and replaced (`drop constraint if
@@ -144,7 +144,7 @@ active mismatch soonest with no added risk:
 
 Each apply is user-approved; after each, run `npm run types:gen` +
 `npm run verify:schema` (Node 20). The operator order above deliberately closes
-the recorded 031 drift before activating the still-unapplied 027–030 designs;
+the recorded 031 drift before any later source/job enablement;
 032 and 033 then install lifecycle and approval boundaries against that
 converged schema. Confirm the remote migration ledger before every apply.
 

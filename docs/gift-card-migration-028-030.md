@@ -1,14 +1,14 @@
-# Gift-card automation — migrations 028–030 design (authored, NOT applied)
+# Gift-card automation — migrations 028–030 design and apply record
 
-> Authored in TASK-02 (Wave 0). **None of these are applied to production.**
-> Apply only after 021–027 and after explicit user schema review. Every change
+> Authored in TASK-02 (Wave 0) and **applied to production 2026-07-17** as
+> ledger versions 028, 029 and 030 after a verified logical backup and
+> one-at-a-time transactional review. Every change
 > is additive at the data-model level. Migration 028 deliberately tightens the
 > existing acceptance read policy so post-028 public rows must also be marked
 > `review_state='approved'`; legacy rows remain stored but fail closed until
 > reviewed.
-> `scripts/schema-manifest.ts` intentionally describes this planned schema so
-> rollout verification can check it after apply; generated database types remain
-> the currently applied schema until a real apply and regeneration.
+> `scripts/schema-manifest.ts` describes the applied schema; generated database
+> types were refreshed after migration 032.
 
 ## Apply order and prerequisites
 
@@ -108,9 +108,8 @@ enter `gift_card_offers`.
 - No confidence column (plan §7: only if GCDB states one).
 - Registers `gcdb_predictions` in `gift_card_sources` (`source_type='html'`,
   canonical URL `https://gcdb.com.au/predictions/`, both gates `false`, null
-  stamps) — **disabled**. Re-applying the seed closes both gates and clears
-  permission-review stamps rather than preserving a previously enabled
-  configuration.
+  stamps) — **disabled**. Re-applying the seed closes both gates while
+  preserving any later human permission-review timestamps.
 - A private `updated_at` trigger preserves modification time for prediction
   review/reconciliation updates.
 

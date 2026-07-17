@@ -1,10 +1,10 @@
 # Supabase production migration-ledger reconciliation — 2026-07-16
 
-> Read-only investigation and operator runbook. No migration or history repair
-> was executed while preparing this document. Project:
+> Investigation, operator runbook and completed apply record. Ledger repair and
+> migrations 027–032 completed 2026-07-17. Migration 033 remains pending. Project:
 > `numgsivlrglflsnqehac`.
 
-## Stop condition: backup protection is not currently proven
+## Recovery point and completed gate
 
 `supabase backups list --project-ref numgsivlrglflsnqehac` reported:
 
@@ -12,16 +12,21 @@
 |---|---:|---:|---:|---:|
 | Oceania (Sydney) | true | false | 0 | 0 |
 
-Do not repair history or apply DDL until the Dashboard or CLI shows a usable
-backup timestamp or PITR is enabled. Record the verified recovery point and
-time before the first write.
+Supabase physical backups remained unavailable, so the explicitly approved
+logical-backup path was used before the first write. The checksum-verified,
+restore-readable archive is stored at:
 
-**Gate re-check 2026-07-17:** `supabase backups list` still reports WALG true,
-PITR false, zero backups (`"backups":[]`). The stop condition remains in force —
-no history repair or DDL was run. Options to clear it: enable PITR / plan-level
-backups in the Supabase Dashboard, or take and verify a full logical dump
-(`supabase db dump --linked` schema + `--data-only`) and record it here as the
-recovery point before the first write.
+`/Users/mayank/Downloads/dealstack-au-production-backups/20260716T141946Z`
+
+A checksum-verified post-032 archive is stored at:
+
+`/Users/mayank/Downloads/dealstack-au-production-backups/20260717T055943Z-post-032`
+
+**Gate result 2026-07-17:** `supabase backups list` still reported WALG true,
+PITR false and zero physical backups. A restricted-permission PostgreSQL custom
+archive containing `public` plus `supabase_migrations`, schema SQL, archive
+manifest, historical SQL files and SHA-256 checksums cleared the approved
+logical-backup gate.
 
 ## Authoritative remote history mapping
 
@@ -70,12 +75,11 @@ The 2026-07-16 read-only probe established:
 
 Migration 031 now performs that forward convergence without backfilling values.
 
-## History repair — approval-gated, do not run yet
+## History repair — completed 2026-07-17
 
-Only after backup protection is verified, review the fetched remote SQL and the
-schema probe, then replace the timestamp aliases with the repository's canonical
-versions. `migration repair` changes only history; it does not execute or undo
-DDL.
+After the backup verified, the timestamp aliases below were marked reverted and
+canonical versions 001–026 marked applied. `migration list` confirmed the exact
+expected pairing before any DDL.
 
 ```bash
 supabase migration repair --status reverted \
@@ -101,10 +105,10 @@ Expected: 001–026 appear in both columns and only 027–033 are pending. Stop 
 the result differs. Do not run a non-dry-run `db push`: it has no target-version
 flag and would apply every pending migration.
 
-## One-at-a-time apply sequence
+## One-at-a-time apply sequence — completed
 
-After the history and backup gates pass, apply exactly one reviewed SQL file in
-the production SQL Editor, then repair only that version to `applied`:
+Each reviewed SQL file was applied with `ON_ERROR_STOP` and a single database
+transaction, then only that version was repaired to `applied`:
 
 1. 027 — disabled Point Hacks HTML source support.
 2. 028 — acceptance extensions.
@@ -131,6 +135,20 @@ supabase db lint --linked --level error --fail-on error
 Run the migration-specific tests and app checks before continuing. Stop after
 032. Migration 033 remains approval-gated pending review of existing public
 offers.
+
+### Apply result
+
+- 027–031 applied once and verified cleanly.
+- The first 032 attempt hit a legacy `NOT VALID` public-accuracy constraint;
+  the surrounding single transaction rolled back completely and 032 was not
+  recorded.
+- 032 was corrected to restore the same constraint as `NOT VALID` around only
+  the lifecycle classification backfill, retested, and applied successfully.
+- Backfill result: 10 published rows classified `active`, 5 already-unpublished
+  rows classified `archived`, zero visibility inconsistencies.
+- `verify:schema`: 35/35 tables match. Linked database lint: zero errors.
+- Final dry run lists only `033_gift_card_offer_approval_hardening.sql`.
+- All source and job gates remain disabled.
 
 ## Commands that remain prohibited
 

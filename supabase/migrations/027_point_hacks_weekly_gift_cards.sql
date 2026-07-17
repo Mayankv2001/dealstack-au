@@ -1,6 +1,6 @@
 -- DealStack AU — Point Hacks weekly supermarket gift-card source
 --
--- NOT APPLIED TO PRODUCTION. Requires an explicit source-permission review.
+-- APPLIED TO PRODUCTION 2026-07-17 as ledger version 027. Source gates remain closed.
 -- This migration adds no public data and enables no ingestion. It only lets the
 -- existing private gift-card source registry describe an HTML editorial source,
 -- then registers Point Hacks with both outbound-request gates closed.

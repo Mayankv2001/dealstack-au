@@ -1,6 +1,6 @@
 -- DealStack AU — gift-card acceptance model extensions (additive)
 --
--- NOT APPLIED TO PRODUCTION. Requires explicit user schema review + approval.
+-- APPLIED TO PRODUCTION 2026-07-17 as ledger version 028.
 -- Apply only AFTER 021–027. This migration adds NO public data, enables NO
 -- ingestion, and opens NO gate. It extends the existing (021) product +
 -- merchant-acceptance model with reviewed-evidence structure, adds a

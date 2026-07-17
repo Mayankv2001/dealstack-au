@@ -147,7 +147,8 @@ npm run migration:rollout -- --migration 023_example.sql --phase dry-run
 The tool refuses a dirty tree by default, captures a read-only before hash,
 requires an interactive migration-specific approval phrase, and performs the
 post-apply schema probe/type regeneration/manifest tests. It deliberately does
-not run bulk `supabase db push`, because the remote migration ledger is partial.
+not run bulk `supabase db push`. The remote ledger was canonicalised through
+032 on 2026-07-17, and 033 remains separately gated.
 
 1. Apply migration `021` to production (review first) and regenerate
    `lib/supabase/database.types.ts` via `npm run types:gen`. Until then the

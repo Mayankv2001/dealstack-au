@@ -1,6 +1,6 @@
 -- DealStack AU — transactional gift-card offer lifecycle orchestration
 --
--- NOT APPLIED TO PRODUCTION. Requires explicit schema/data approval.
+-- APPLIED TO PRODUCTION 2026-07-17 as ledger version 032. Lifecycle remains disabled.
 -- Apply after 023 (canonical approval lineage), 025 (immutable occurrences),
 -- 030 (run_kind registry), and the forward 031 fixed-points reconciliation.
 -- This migration never approves a candidate and never fetches a source.

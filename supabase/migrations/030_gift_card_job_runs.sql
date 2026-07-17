@@ -1,6 +1,6 @@
 -- DealStack AU — generalise gift_card_ingest_runs into a job-run registry
 --
--- NOT APPLIED TO PRODUCTION. Requires explicit user schema review + approval.
+-- APPLIED TO PRODUCTION 2026-07-17 as ledger version 030. Job gates remain closed.
 -- Apply only AFTER 021–029. Existing rows default to run_kind='ingest'.
 --
 -- Lock model:

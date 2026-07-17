@@ -1,6 +1,6 @@
 -- DealStack AU — GCDB gift-card offer predictions (additive, strictly isolated)
 --
--- NOT APPLIED TO PRODUCTION. Requires explicit user schema review + approval.
+-- APPLIED TO PRODUCTION 2026-07-17 as ledger version 029. Source gates remain closed.
 -- Apply only AFTER 021–028. Predictions are an editorial forecast record type,
 -- NEVER a live offer. This table:
 --   * has RLS enabled with NO policies (service-role only, admin surface),
