@@ -6,7 +6,6 @@ const FEED: MonitorFeed = {
   id: "feed-1",
   label: "Test feed",
   feedUrl: "https://example.com/feed.xml",
-  sourceType: "ozbargain",
   etag: null,
   lastModified: null,
   failureCount: 0,
@@ -34,7 +33,7 @@ const okOutcome = (): FetchFeedOutcome => ({
 
 function makePersistence() {
   return {
-    upsertFeedItems: vi.fn(async () => ({ inserted: 2, updated: 0, skipped: 0 })),
+    upsertFeedItems: vi.fn(async () => 2),
     recordPollState: vi.fn(async () => {}),
     insertFetchLog: vi.fn(async () => {}),
   };
@@ -69,9 +68,6 @@ describe("runMonitor — dry run", () => {
     );
 
     expect(fetchFeed).toHaveBeenCalledTimes(1);
-    expect(fetchFeed).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceType: "ozbargain" })
-    );
     expect(summary.results[0].status).toBe("ok");
     expect(summary.results[0].itemsSeen).toBe(2);
     expect(summary.results[0].itemsNew).toBe(2); // unique candidates
@@ -127,63 +123,6 @@ describe("runMonitor — live run", () => {
         { config: baseConfig, selectFeeds: async () => [FEED] }
       )
     ).rejects.toThrow(/persistence is required/);
-  });
-});
-
-describe("runMonitor — malformed feed body", () => {
-  // Passes the fetcher's body sniff (starts with <?xml … <rss) but crashes the
-  // XML parser: truncated mid-CDATA, as a proxy/CDN cut-off would produce.
-  const TRUNCATED_RSS = `<?xml version="1.0"?><rss version="2.0"><channel>
-  <item><title><![CDATA[Deal cut off mid-descr`;
-
-  it("degrades a parse crash to an error result with backoff and a log row", async () => {
-    const fetchFeed = vi.fn(async () => ({ ...okOutcome(), body: TRUNCATED_RSS }));
-    const persistence = makePersistence();
-    const summary = await runMonitor(
-      { dryRun: false },
-      {
-        config: baseConfig,
-        selectFeeds: async () => [FEED],
-        fetchFeed,
-        persistence,
-      }
-    );
-
-    expect(summary.results[0].status).toBe("error");
-    expect(summary.results[0].error).toMatch(/parse failed/);
-    // Nothing staged, but the failure IS accounted: failure count increments
-    // (so auto-disable can eventually fire) and the run is logged.
-    expect(persistence.upsertFeedItems).not.toHaveBeenCalled();
-    expect(persistence.recordPollState).toHaveBeenCalledWith(
-      "feed-1",
-      expect.objectContaining({ lastStatus: "error", failureCount: 1 })
-    );
-    expect(persistence.insertFetchLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        httpStatus: 200,
-        itemsSeen: 0,
-        itemsNew: 0,
-        error: expect.stringMatching(/parse failed/),
-      })
-    );
-  });
-
-  it("reports the parse failure without writing on a dry run", async () => {
-    const fetchFeed = vi.fn(async () => ({ ...okOutcome(), body: TRUNCATED_RSS }));
-    const persistence = makePersistence();
-    const summary = await runMonitor(
-      { dryRun: true },
-      {
-        config: baseConfig,
-        selectFeeds: async () => [FEED],
-        fetchFeed,
-        persistence,
-      }
-    );
-
-    expect(summary.results[0].status).toBe("error");
-    expect(persistence.recordPollState).not.toHaveBeenCalled();
-    expect(persistence.insertFetchLog).not.toHaveBeenCalled();
   });
 });
 

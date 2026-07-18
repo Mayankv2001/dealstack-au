@@ -1,12 +1,11 @@
 import { createHash } from "node:crypto";
 import type { ParsedFeedItem } from "./parseFeed";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Pure mapper: ParsedFeedItem → an object shaped for a `feed_items` insert.
  *
  * OFFLINE ONLY — no network, no DB. It strips HTML, normalises dates, and
- * derives a stable `source_native_id` and a `content_hash`. The fetcher
+ * derives a stable `source_native_id` and a `content_hash`. The future fetcher
  * adds the insert-time fields (`feed_source_id`, `fetched_at`, `review_state`);
  * those are not this module's concern.
  */
@@ -21,11 +20,6 @@ export interface FeedItemInsert {
   /** ISO 8601 timestamp, or null when the feed date was absent/unparseable. */
   posted_at: string | null;
   content_hash: string;
-  thumbnail_url: string | null;
-  /** Source-declared expiry (OzBargain `ozb:meta expiry`), ISO 8601 or null. */
-  declared_expires_at: string | null;
-  /** Feed carried an explicit expired marker (`ozb:title-msg type="expired"`). */
-  source_marked_expired: boolean;
 }
 
 const SUMMARY_MAX = 500;
@@ -69,25 +63,6 @@ function toIso(raw: string | null): string | null {
   return Number.isNaN(ms) ? null : new Date(ms).toISOString();
 }
 
-/** ISO date or date-time (optional seconds/fraction, Z or ±hh[:]mm offset). */
-const ISO_DATE_OR_DATETIME =
-  /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?([Zz]|[+-]\d{2}:?\d{2})?)?$/;
-
-/**
- * STRICT declared-expiry normalisation. Unlike posted_at (which must stay
- * lenient for RFC-822 pubDates), this value can trigger archival once passed,
- * so anything that is not an unambiguous ISO date/date-time is rejected —
- * Date.parse alone would happily accept garbage like "2026" or an RFC-822
- * string. Rejected values are stored as null and never archive.
- */
-function declaredExpiryToIso(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const value = raw.trim();
-  if (!ISO_DATE_OR_DATETIME.test(value)) return null;
-  const ms = Date.parse(value);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 function capped(text: string): string {
   if (text.length <= SUMMARY_MAX) return text;
   return `${text.slice(0, SUMMARY_MAX - 1).trimEnd()}…`;
@@ -102,24 +77,12 @@ export function mapFeedItem(item: ParsedFeedItem): FeedItemInsert {
   const link = item.link?.trim() ?? "";
   const categories = item.categories;
   const postedAt = toIso(item.published);
-  const declaredExpiresAt = declaredExpiryToIso(item.declaredExpiry);
-  const sourceMarkedExpired = item.sourceMarkedExpired === true;
 
-  // The U+0001 separator (kept from the original raw byte, now written as an
-  // escape) makes the field concatenation unambiguous. The two source-state
-  // fields are appended ONLY when present, so every pre-existing row's hash
-  // stays unchanged, while a deal flipping to expired (or an edited declared
-  // expiry) registers as an UPDATE on re-fetch.
-  const hashBasis = [
-    rawTitle,
-    rawSummary,
-    link,
-    categories.join("|"),
-    postedAt ?? "",
-  ];
-  if (declaredExpiresAt) hashBasis.push(`declared-expiry:${declaredExpiresAt}`);
-  if (sourceMarkedExpired) hashBasis.push("source-expired");
-  const contentHash = sha256(hashBasis.join("\u0001"));
+  const contentHash = sha256(
+    [rawTitle, rawSummary, link, categories.join("|"), postedAt ?? ""].join(
+      ""
+    )
+  );
 
   return {
     source_native_id: makeSourceNativeId(item),
@@ -129,9 +92,6 @@ export function mapFeedItem(item: ParsedFeedItem): FeedItemInsert {
     categories,
     posted_at: postedAt,
     content_hash: contentHash,
-    thumbnail_url: item.thumbnailUrl ? safeHttpsUrl(item.thumbnailUrl) : null,
-    declared_expires_at: declaredExpiresAt,
-    source_marked_expired: sourceMarkedExpired,
   };
 }
 

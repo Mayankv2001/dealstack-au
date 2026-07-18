@@ -1,23 +1,23 @@
 import Link from "next/link";
+import { Layers, Percent } from "lucide-react";
 
-/** A compact, code-native mark: the bars are the saving layers in a stack. */
 export function Logo() {
   return (
-    <Link
-      href="/"
-      className="group flex shrink-0 items-center gap-2.5"
-      aria-label="DealStack AU home"
-    >
-      <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-700 shadow-sm transition-transform group-hover:-translate-y-0.5">
-        <span aria-hidden className="flex flex-col items-start gap-[3px]">
-          <span className="block h-[3px] w-[17px] rounded-full bg-white" />
-          <span className="block h-[3px] w-[14px] rounded-full bg-white/85" />
-          <span className="block h-[3px] w-[11px] rounded-full bg-white/70" />
+    <Link href="/" className="flex items-center gap-2.5">
+      <span className="relative flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-md">
+        <Layers className="size-[18px]" />
+        <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-background">
+          <Percent className="size-2.5" />
         </span>
       </span>
-      <span className="text-lg font-black tracking-[-0.04em] sm:text-xl">
-        DealStack{" "}
-        <span className="text-emerald-700 dark:text-emerald-300">AU</span>
+      <span className="flex flex-col leading-none">
+        <span className="text-base font-bold tracking-tight">
+          DealStack{" "}
+          <span className="text-emerald-600 dark:text-emerald-400">AU</span>
+        </span>
+        <span className="mt-0.5 text-[10px] font-semibold tracking-widest text-muted-foreground">
+          STACK EVERY SAVING
+        </span>
       </span>
     </Link>
   );

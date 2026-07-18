@@ -1,9 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import type { PublicTable } from "@/lib/supabase/server";
 import { cronSecret } from "@/lib/env";
 import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
-import { isApprovedForFetch } from "@/lib/monitor/offerChanges";
-import { summarizeFetchHealth } from "@/lib/monitor/health";
 
 /**
  * Monitor health/status — SERVICE-ROLE ONLY, READ-ONLY.
@@ -28,33 +25,7 @@ export interface MonitorFetchLogEntry {
   httpStatus: number | null;
   itemsSeen: number;
   itemsNew: number;
-  itemsUpdated: number;
-  itemsSkipped: number;
   error: string | null;
-}
-
-export interface DailyPipelineRunEntry {
-  id: string;
-  startedAt: string;
-  finishedAt: string | null;
-  status: string;
-  expiredArchived: number;
-  invalidArchived: number;
-  staleArchived: number;
-  cardOffersArchived: number;
-  feedItemsRetired: number;
-  feedItemsPurged: number;
-  detectionScanned: number;
-  detectionDetected: number;
-  detectionInserted: number;
-  validationChecked: number;
-  validationUnknown: number;
-  feedsProcessed: number;
-  itemsFetched: number;
-  itemsNew: number;
-  itemsUpdated: number;
-  itemsSkipped: number;
-  errors: string[];
 }
 
 /** A feed source whose last run errored or was blocked. */
@@ -78,33 +49,12 @@ export interface MonitorFeedItemSummary {
   fetchedAt: string;
 }
 
-/** One expiry-recheck run, summarised for the monitor page. */
-export interface RecheckRunEntry {
-  id: string;
-  startedAt: string;
-  finishedAt: string | null;
-  status: string;
-  dryRun: boolean;
-  scanned: number;
-  active: number;
-  expired: number;
-  deleted: number;
-  unknown: number;
-  fetchFailed: number;
-  wouldArchive: number;
-  actuallyArchived: number;
-  skipped: number;
-  errors: string[];
-}
-
 /** Counts of staged feed_items by triage state. */
 export interface FeedItemStateCounts {
   new: number;
   imported: number;
   ignored: number;
   duplicate: number;
-  rejected: number;
-  archived: number;
 }
 
 export interface MonitorStatus {
@@ -124,9 +74,6 @@ export interface MonitorStatus {
   /** Staged feed_items broken down by triage state. */
   feedItemCounts: FeedItemStateCounts;
   recentFetchLog: MonitorFetchLogEntry[];
-  recentPipelineRuns: DailyPipelineRunEntry[];
-  /** Recent expiry-recheck runs (separate cron from ingestion). */
-  recentRecheckRuns: RecheckRunEntry[];
   /** Most recent run that completed without an error (ok / not-modified). */
   lastSuccessLog: MonitorFetchLogEntry | null;
   /** Most recent run that recorded an error (blocked / error). */
@@ -140,128 +87,9 @@ export interface MonitorStatus {
 
 type AdminDb = ReturnType<typeof getSupabaseAdmin>;
 
-export interface MonitorHealthSnapshot {
-  envEnabled: boolean;
-  complianceApproved: boolean;
-  fetchableEnabledFeedCount: number;
-  lastSuccessAt: string | null;
-  pipelineExpected: boolean;
-  latestPipelineAt: string | null;
-  latestPipelineStatus: string | null;
-  runningPipelineStartedAt: string | null;
-  consecutiveParserFailures: number;
-  autoDisabledFeedCount: number;
-  fetchAnomaly: "zero-collapse" | "spike" | null;
-  duplicateRunCount: number;
-}
-
-/** Minimal read-only snapshot for the externally polled health route. */
-export async function getMonitorHealthSnapshot(): Promise<MonitorHealthSnapshot> {
-  const envEnabled = process.env.OZB_MONITOR_ENABLED === "true";
-  const db = getSupabaseAdmin();
-  const [approval, sources, lastSuccess, latestPipeline, runningPipeline, logs, runs] =
-    await Promise.all([
-    db
-      .from("compliance_reviews")
-      .select("id", { count: "exact", head: true })
-      .eq("approved_for_monitoring", true),
-    db.from("feed_sources").select("source_type, is_enabled, last_status"),
-    db
-      .from("feed_fetch_log")
-      .select("started_at")
-      .is("error", null)
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    db
-      .from("daily_pipeline_runs")
-      .select("started_at, status")
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    db
-      .from("daily_pipeline_runs")
-      .select("started_at")
-      .eq("status", "running")
-      .order("started_at", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    db
-      .from("feed_fetch_log")
-      .select("feed_source_id, error, items_seen")
-      .order("started_at", { ascending: false })
-      .limit(50),
-    db
-      .from("daily_pipeline_runs")
-      .select("started_at")
-      .order("started_at", { ascending: false })
-      .limit(10),
-  ]);
-  if (approval.error) throw new Error(`health compliance read failed: ${approval.error.message}`);
-  if (sources.error) throw new Error(`health sources read failed: ${sources.error.message}`);
-  if (lastSuccess.error) throw new Error(`health success read failed: ${lastSuccess.error.message}`);
-  if (latestPipeline.error) throw new Error(`health pipeline read failed: ${latestPipeline.error.message}`);
-  if (runningPipeline.error) throw new Error(`health running read failed: ${runningPipeline.error.message}`);
-  if (logs.error) throw new Error(`health fetch logs failed: ${logs.error.message}`);
-  if (runs.error) throw new Error(`health run history failed: ${runs.error.message}`);
-
-  const sourceRows = (sources.data ?? []) as unknown as {
-    source_type: string;
-    is_enabled: boolean;
-    last_status: string | null;
-  }[];
-  const success = lastSuccess.data as unknown as { started_at: string } | null;
-  const pipeline = latestPipeline.data as unknown as {
-    started_at: string;
-    status: string;
-  } | null;
-  const running = runningPipeline.data as unknown as { started_at: string } | null;
-  const fetchRows = (logs.data ?? []) as unknown as {
-    feed_source_id: string;
-    error: string | null;
-    items_seen: number | null;
-  }[];
-  const { consecutiveParserFailures, fetchAnomaly } = summarizeFetchHealth(
-    fetchRows.map((row) => ({
-      feedSourceId: row.feed_source_id,
-      error: row.error,
-      itemsSeen: row.items_seen,
-    }))
-  );
-  const runStarts = ((runs.data ?? []) as unknown as { started_at: string }[])
-    .map((row) => Date.parse(row.started_at))
-    .filter(Number.isFinite);
-  let duplicateRunCount = 0;
-  for (let index = 1; index < runStarts.length; index++) {
-    if (runStarts[index - 1] - runStarts[index] < 5 * 60 * 1000) {
-      duplicateRunCount++;
-    }
-  }
-  return {
-    envEnabled,
-    complianceApproved: (approval.count ?? 0) > 0,
-    fetchableEnabledFeedCount: sourceRows.filter(
-      (row) => row.is_enabled && isApprovedForFetch(row.source_type)
-    ).length,
-    lastSuccessAt: success?.started_at ?? null,
-    pipelineExpected: true,
-    latestPipelineAt: pipeline?.started_at ?? null,
-    latestPipelineStatus: pipeline?.status ?? null,
-    runningPipelineStartedAt: running?.started_at ?? null,
-    consecutiveParserFailures,
-    autoDisabledFeedCount: sourceRows.filter(
-      (row) =>
-        !row.is_enabled &&
-        (row.last_status === "blocked" || row.last_status === "error")
-    ).length,
-    fetchAnomaly,
-    duplicateRunCount,
-  };
-}
-
 async function countRows(
   db: AdminDb,
-  table: PublicTable,
+  table: string,
   filter?: { column: string; value: string | boolean }
 ): Promise<number> {
   let query = db.from(table).select("*", { count: "exact", head: true });
@@ -278,102 +106,8 @@ interface FetchLogRow {
   http_status: number | null;
   items_seen: number | string | null;
   items_new: number | string | null;
-  items_updated: number | string | null;
-  items_skipped: number | string | null;
   error: string | null;
   source: { label: string } | { label: string }[] | null;
-}
-
-interface PipelineRunRow {
-  id: string;
-  started_at: string;
-  finished_at: string | null;
-  status: string;
-  expired_archived: number;
-  invalid_archived: number;
-  stale_archived: number;
-  card_offers_archived: number;
-  feed_items_retired: number;
-  feed_items_purged: number;
-  detection_scanned: number;
-  detection_detected: number;
-  detection_inserted: number;
-  validation_checked: number;
-  validation_unknown: number;
-  feeds_processed: number;
-  items_fetched: number;
-  items_new: number;
-  items_updated: number;
-  items_skipped: number;
-  errors: unknown;
-}
-
-function mapPipelineRun(row: PipelineRunRow): DailyPipelineRunEntry {
-  return {
-    id: row.id,
-    startedAt: row.started_at,
-    finishedAt: row.finished_at,
-    status: row.status,
-    expiredArchived: row.expired_archived,
-    invalidArchived: row.invalid_archived,
-    staleArchived: row.stale_archived,
-    cardOffersArchived: row.card_offers_archived,
-    feedItemsRetired: row.feed_items_retired,
-    feedItemsPurged: row.feed_items_purged,
-    detectionScanned: row.detection_scanned,
-    detectionDetected: row.detection_detected,
-    detectionInserted: row.detection_inserted,
-    validationChecked: row.validation_checked,
-    validationUnknown: row.validation_unknown,
-    feedsProcessed: row.feeds_processed,
-    itemsFetched: row.items_fetched,
-    itemsNew: row.items_new,
-    itemsUpdated: row.items_updated,
-    itemsSkipped: row.items_skipped,
-    errors: Array.isArray(row.errors)
-      ? row.errors.filter((item): item is string => typeof item === "string")
-      : [],
-  };
-}
-
-interface RecheckRunRow {
-  id: string;
-  started_at: string;
-  finished_at: string | null;
-  status: string;
-  dry_run: boolean;
-  scanned: number;
-  active: number;
-  expired: number;
-  deleted: number;
-  unknown: number;
-  fetch_failed: number;
-  would_archive: number;
-  actually_archived: number;
-  skipped: number;
-  errors: unknown;
-}
-
-function mapRecheckRun(row: RecheckRunRow): RecheckRunEntry {
-  return {
-    id: row.id,
-    startedAt: row.started_at,
-    finishedAt: row.finished_at,
-    status: row.status,
-    dryRun: row.dry_run,
-    scanned: row.scanned,
-    active: row.active,
-    expired: row.expired,
-    deleted: row.deleted,
-    unknown: row.unknown,
-    fetchFailed: row.fetch_failed,
-    wouldArchive: row.would_archive,
-    actuallyArchived: row.actually_archived,
-    skipped: row.skipped,
-    errors: Array.isArray(row.errors)
-      ? row.errors.filter((item): item is string => typeof item === "string")
-      : [],
-  };
 }
 
 function mapFetchLog(r: FetchLogRow): MonitorFetchLogEntry {
@@ -386,8 +120,6 @@ function mapFetchLog(r: FetchLogRow): MonitorFetchLogEntry {
     httpStatus: r.http_status,
     itemsSeen: r.items_seen == null ? 0 : Number(r.items_seen),
     itemsNew: r.items_new == null ? 0 : Number(r.items_new),
-    itemsUpdated: r.items_updated == null ? 0 : Number(r.items_updated),
-    itemsSkipped: r.items_skipped == null ? 0 : Number(r.items_skipped),
     error: r.error,
   };
 }
@@ -423,7 +155,7 @@ function mapFeedItemSummary(r: FeedItemSummaryRow): MonitorFeedItemSummary {
   };
 }
 
-/** Read-only aggregate snapshot of the (planned) monitor's safety/health. */
+/** Read-only aggregate snapshot of the monitor's safety and health. */
 export async function getMonitorStatus(): Promise<MonitorStatus> {
   const db = getSupabaseAdmin();
 
@@ -439,15 +171,11 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     importedCount,
     ignoredCount,
     duplicateCount,
-    rejectedCount,
-    archivedCount,
-    pipelineRunData,
     fetchLogData,
     lastSuccessData,
     lastProblemData,
     latestItemsData,
     problemData,
-    recheckRunData,
   ] = await Promise.all([
     countRows(db, "compliance_reviews", {
       column: "approved_for_monitoring",
@@ -460,13 +188,6 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
     countRows(db, "feed_items", { column: "review_state", value: "imported" }),
     countRows(db, "feed_items", { column: "review_state", value: "ignored" }),
     countRows(db, "feed_items", { column: "review_state", value: "duplicate" }),
-    countRows(db, "feed_items", { column: "review_state", value: "rejected" }),
-    countRows(db, "feed_items", { column: "review_state", value: "archived" }),
-    db
-      .from("daily_pipeline_runs")
-      .select("*")
-      .order("started_at", { ascending: false })
-      .limit(5),
     db
       .from("feed_fetch_log")
       .select("*, source:feed_sources(label)")
@@ -499,18 +220,10 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
       .from("feed_sources")
       .select("id, label, last_status, failure_count, is_enabled")
       .in("last_status", ["error", "blocked"]),
-    db
-      .from("ozb_recheck_runs")
-      .select("*")
-      .order("started_at", { ascending: false })
-      .limit(5),
   ]);
 
   if (fetchLogData.error) {
     throw new Error(`recent fetch log failed: ${fetchLogData.error.message}`);
-  }
-  if (pipelineRunData.error) {
-    throw new Error(`recent pipeline runs failed: ${pipelineRunData.error.message}`);
   }
   if (lastSuccessData.error) {
     throw new Error(`last success log failed: ${lastSuccessData.error.message}`);
@@ -524,19 +237,10 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
   if (problemData.error) {
     throw new Error(`problem sources failed: ${problemData.error.message}`);
   }
-  if (recheckRunData.error) {
-    throw new Error(`recent recheck runs failed: ${recheckRunData.error.message}`);
-  }
 
   const recentFetchLog = (
     (fetchLogData.data ?? []) as unknown as FetchLogRow[]
   ).map(mapFetchLog);
-  const recentPipelineRuns = (
-    (pipelineRunData.data ?? []) as unknown as PipelineRunRow[]
-  ).map(mapPipelineRun);
-  const recentRecheckRuns = (
-    (recheckRunData.data ?? []) as unknown as RecheckRunRow[]
-  ).map(mapRecheckRun);
 
   const lastSuccessLog = lastSuccessData.data
     ? mapFetchLog(lastSuccessData.data as unknown as FetchLogRow)
@@ -575,12 +279,8 @@ export async function getMonitorStatus(): Promise<MonitorStatus> {
       imported: importedCount,
       ignored: ignoredCount,
       duplicate: duplicateCount,
-      rejected: rejectedCount,
-      archived: archivedCount,
     },
     recentFetchLog,
-    recentPipelineRuns,
-    recentRecheckRuns,
     lastSuccessLog,
     lastProblemLog,
     latestFeedItems,

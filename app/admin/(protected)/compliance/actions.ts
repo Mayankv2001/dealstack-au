@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import { checkAdminRateLimit } from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   insertComplianceReview,
@@ -18,8 +17,8 @@ import {
  * enough — the email must be in the admins allowlist). The service-role writes
  * live in the admin repo; nothing here is reachable from the public site.
  *
- * Record-keeping only — there is NO fetcher or cron, and nothing here makes an
- * external request. The reviewer email is taken from the signed-in admin, and
+ * Record-keeping only — nothing here makes an external request. The reviewer
+ * email is taken from the signed-in admin, and
  * reviewed_at is stamped when a review is saved as approved.
  */
 
@@ -74,9 +73,6 @@ export async function createReview(
 ): Promise<ComplianceReviewFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseReviewForm(formData, email);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -101,9 +97,6 @@ export async function updateReview(
   formData: FormData
 ): Promise<ComplianceReviewFormState> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
 
   const parsed = parseReviewForm(formData, email);
   if (!parsed.ok) return { error: parsed.error };

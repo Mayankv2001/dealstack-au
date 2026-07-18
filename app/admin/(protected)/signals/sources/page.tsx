@@ -3,13 +3,11 @@ import Link from "next/link";
 import { AlertTriangle, Info } from "lucide-react";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
-  isApprovedForFetch,
   listFeedSources,
   type AdminFeedSource,
 } from "@/lib/admin/repos/feedSources";
 import { isMonitoringApproved } from "@/lib/admin/repos/compliance";
 import { FEED_ENABLE_WARNING } from "@/components/admin/FeedSourceForm";
-import { ActionButton } from "@/components/admin/ActionButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,15 +29,6 @@ const KIND_LABELS: Record<AdminFeedSource["kind"], string> = {
   front: "Front page",
   store: "Store",
   category: "Category",
-};
-
-const SOURCE_TYPE_LABELS: Record<AdminFeedSource["sourceType"], string> = {
-  ozbargain: "OzBargain",
-  pointhacks: "Point Hacks",
-  freepoints: "FreePoints",
-  gcdb: "GCDB",
-  "provider-feed": "Provider feed",
-  "manual-url": "Manual URL",
 };
 
 // Deterministic AU-local timestamp (server-only render).
@@ -67,11 +56,6 @@ export default async function FeedSourcesListPage() {
 
   const enabledCount = sources.filter((s) => s.isEnabled).length;
   const enabledWithoutApproval = !complianceApproved && enabledCount > 0;
-  // Enabled feeds whose source type the monitor's safe-source gate skips — they
-  // will never be fetched, which silently starves ingestion.
-  const enabledUnfetchable = sources.filter(
-    (s) => s.isEnabled && !isApprovedForFetch(s.sourceType)
-  );
 
   return (
     <div className="space-y-6">
@@ -79,7 +63,8 @@ export default async function FeedSourcesListPage() {
         <div className="space-y-1">
           <h1 className="font-heading text-2xl font-semibold">Feed sources</h1>
           <p className="text-sm text-muted-foreground">
-            The allowlist for the planned OzBargain monitor. Registration only.
+            Approved feed allowlist for the gated OzBargain monitor. Enabling a
+            source stages items for review; it never publishes them.
           </p>
         </div>
         <Button asChild>
@@ -99,22 +84,6 @@ export default async function FeedSourcesListPage() {
             Disable {enabledCount === 1 ? "it" : "them"} until an approved review
             is on file — do not run the monitor against{" "}
             {enabledCount === 1 ? "it" : "them"}.
-          </p>
-        </div>
-      ) : null}
-
-      {/* Amber warning: enabled feeds whose source type is never fetched. */}
-      {enabledUnfetchable.length > 0 ? (
-        <div className="flex items-start gap-2.5 rounded-lg border-2 border-amber-500 bg-amber-500/15 px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
-          <p>
-            <span className="font-semibold text-amber-700 dark:text-amber-400">
-              {enabledUnfetchable.length} enabled feed
-              {enabledUnfetchable.length === 1 ? " has" : "s have"} a source
-              type the monitor will never fetch (only{" "}
-              <code className="text-xs">ozbargain</code> is fetch-approved).
-            </span>{" "}
-            Edit the feed and set its source type, or disable it.
           </p>
         </div>
       ) : null}
@@ -147,7 +116,6 @@ export default async function FeedSourcesListPage() {
             <TableRow>
               <TableHead className="min-w-56">Feed source</TableHead>
               <TableHead>Kind</TableHead>
-              <TableHead>Source type</TableHead>
               <TableHead>Store</TableHead>
               <TableHead>Enabled</TableHead>
               <TableHead className="min-w-44">Monitor state</TableHead>
@@ -168,18 +136,6 @@ export default async function FeedSourcesListPage() {
                 </TableCell>
                 <TableCell className="align-top">
                   {KIND_LABELS[source.kind]}
-                </TableCell>
-                <TableCell className="align-top">
-                  {SOURCE_TYPE_LABELS[source.sourceType]}
-                  {source.isEnabled &&
-                  !isApprovedForFetch(source.sourceType) ? (
-                    <Badge
-                      variant="outline"
-                      className="mt-1 block w-fit border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                    >
-                      Not fetchable
-                    </Badge>
-                  ) : null}
                 </TableCell>
                 <TableCell className="align-top">
                   {source.storeName ?? (
@@ -227,14 +183,18 @@ export default async function FeedSourcesListPage() {
                         Edit
                       </Link>
                     </Button>
-                    {/* Bound server action flips the flag; ActionButton surfaces
-                        a returned { error } (e.g. rate limit) without a 500. */}
-                    <ActionButton
-                      run={setEnabled.bind(null, source.id, !source.isEnabled)}
-                      variant="outline"
+                    {/* POST form so the bound server action flips the flag. */}
+                    <form
+                      action={setEnabled.bind(
+                        null,
+                        source.id,
+                        !source.isEnabled
+                      )}
                     >
-                      {source.isEnabled ? "Disable" : "Enable"}
-                    </ActionButton>
+                      <Button type="submit" variant="outline" size="sm">
+                        {source.isEnabled ? "Disable" : "Enable"}
+                      </Button>
+                    </form>
                   </div>
                 </TableCell>
               </TableRow>

@@ -3,10 +3,6 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import {
-  checkAdminRateLimit,
-  type AdminActionResult,
-} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CASHBACK_PROVIDERS,
@@ -18,7 +14,6 @@ import {
   type CashbackProvider,
 } from "@/lib/admin/repos/cashback";
 import type { Citation, Confidence } from "@/lib/sources/types";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Cashback admin server actions.
@@ -94,11 +89,10 @@ function parseCashbackForm(formData: FormData): ParseResult {
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   const citations: Citation[] = [];
   if (sourceUrl !== "") {
-    const safeSourceUrl = safeHttpsUrl(sourceUrl);
-    if (!safeSourceUrl) {
-      return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
+    if (!URL.canParse(sourceUrl)) {
+      return { ok: false, error: "Source URL must be a valid URL (including https://)." };
     }
-    citations.push({ source: "manual", sourceUrl: safeSourceUrl });
+    citations.push({ source: "manual", sourceUrl });
   }
 
   return {
@@ -134,9 +128,6 @@ export async function createCashbackOffer(
 ): Promise<CashbackFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseCashbackForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -164,9 +155,6 @@ export async function updateCashbackOffer(
 ): Promise<CashbackFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseCashbackForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -191,12 +179,8 @@ export async function updateCashbackOffer(
 export async function setPublished(
   id: string,
   isPublished: boolean
-): Promise<AdminActionResult> {
+): Promise<void> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   await setCashbackPublished(id, isPublished);
   await logAudit({
     actorEmail: email,
@@ -206,5 +190,4 @@ export async function setPublished(
     diff: { isPublished },
   });
   revalidateCashback();
-  return { ok: true };
 }

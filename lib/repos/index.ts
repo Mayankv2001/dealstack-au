@@ -1,32 +1,20 @@
 /**
  * Repository barrel.
  *
- * Each getter reads from Supabase when configured. Static data is available
- * only when Supabase env vars are missing or DATA_SOURCE=static; configured
- * empty/error reads stay empty so demo values cannot masquerade as live data.
+ * Each getter reads from Supabase when configured. Static samples are used only
+ * for explicit DATA_SOURCE=static demo mode or an unconfigured local
+ * development environment. Production errors and legitimate empty reads stay
+ * empty so stale samples cannot reappear as current deals.
  *
  * These are server/data-layer functions — do not import into client components.
- * Public server components pass their serializable results into client islands.
+ * Public pages consume these repositories directly.
  */
 
 export { getStores } from "./stores";
 export {
-  getCardOffers,
-  getPublicCardOffer,
-  getCardOfferHistory,
   getGiftCardOffers,
   getCashbackOffers,
   getPointsOffers,
   getOzBargainSignals,
 } from "./offers";
 export { getWeeklyDeals } from "./weeklyDeals";
-export {
-  getGiftCardProducts,
-  getGiftCardAcceptance,
-  getAllGiftCardProducts,
-  getAllGiftCardAcceptance,
-} from "./giftCardProducts";
-export {
-  getGiftCardProgrammes,
-  getGiftCardOfferOccurrences,
-} from "./giftCardIntelligence";

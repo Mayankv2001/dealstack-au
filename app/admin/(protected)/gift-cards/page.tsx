@@ -79,14 +79,9 @@ export default async function GiftCardListPage() {
             published.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline">
-            <Link href="/admin/gift-cards/review">Review queue</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/admin/gift-cards/new">New offer</Link>
-          </Button>
-        </div>
+        <Button asChild>
+          <Link href="/admin/gift-cards/new">New offer</Link>
+        </Button>
       </header>
 
       {offers.length === 0 ? (

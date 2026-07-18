@@ -3,144 +3,48 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
-  ArrowRight,
   BadgePercent,
-  CircleDollarSign,
+  Clock,
+  CreditCard,
   FileSearch,
   Gift,
   ShieldCheck,
   Star,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import DealStackCalculator from "@/components/DealStackCalculator";
-import { JsonLd } from "@/components/JsonLd";
-import SiteHeader from "@/components/SiteHeader";
+import Logo from "@/components/Logo";
 import SourceResultCard from "@/components/SourceResultCard";
 import StoreLogo from "@/components/StoreLogo";
-import SiteFooter from "@/components/SiteFooter";
-import StackRecommendationCard from "@/components/StackRecommendationCard";
-import RetailerGiftCardPlans from "@/components/RetailerGiftCardPlans";
-import { SAMPLE_SPEND } from "@/components/StoreCard";
-import { formatAUD } from "@/lib/calculateStack";
-import { siteUrl } from "@/lib/env";
-import { publicFreshness } from "@/lib/freshness";
+import { providerBadgeClasses, SAMPLE_SPEND } from "@/components/StoreCard";
+import { calculateStack, formatAUD } from "@/lib/calculateStack";
+import { formatExpiry, stores as staticStores, type Store } from "@/lib/data";
 import { getStores } from "@/lib/repos";
-import type { StackLayer, StackRecommendation } from "@/lib/offers/types";
 import { storeSourceResults } from "@/lib/repos/sourceResults";
-import { buildStackRecommendations } from "@/lib/stack/buildStack";
-import { loadStackData } from "@/lib/stack/loadStack";
-import {
-  buildStackSteps,
-  recommendationPresentation,
-} from "@/lib/stack/present";
-import { buildStoreBreadcrumbJsonLd } from "@/lib/structuredData";
 import { cn } from "@/lib/utils";
-import { loadDecisionResult } from "@/lib/decision/loadDecisionResult";
 
 // ISR: serve cached HTML and refresh stores from the DB periodically, matching
 // the home, search and /deals routes. getStores() falls back to static data when
 // Supabase is unconfigured or unavailable, so every store page still renders.
 export const revalidate = 300;
 
-const LAYER_SECTIONS: ReadonlyArray<{
-  layer: StackLayer;
-  title: string;
-  empty: string;
-  icon: typeof BadgePercent;
-}> = [
-  {
-    layer: "discount",
-    title: "Promo codes",
-    empty: "No reviewed current code",
-    icon: BadgePercent,
-  },
-  {
-    layer: "gift-card",
-    title: "Gift cards",
-    empty: "No compatible card saving recorded",
-    icon: Gift,
-  },
-  {
-    layer: "cashback",
-    title: "Cashback",
-    empty: "No reviewed current rate",
-    icon: CircleDollarSign,
-  },
-  {
-    layer: "points",
-    title: "Points",
-    empty: "No reviewed points opportunity",
-    icon: Star,
-  },
-];
-
-function StoreLayerOverview({
-  recommendation,
-}: {
-  recommendation: StackRecommendation | null;
-}) {
-  return (
-    <section className="mt-7" aria-labelledby="current-opportunities">
-      <p className="eyebrow">Current opportunities</p>
-      <h2 id="current-opportunities" className="mt-2 text-xl font-black tracking-tight sm:text-2xl">
-        Scan this store by saving layer
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        These are the exact layers considered by the purchase-planning engine.
-        A recorded offer is not automatically compatible with every other one.
-      </p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {LAYER_SECTIONS.map(({ layer, title, empty, icon: Icon }) => {
-          const component = recommendation?.components.find(
-            (candidate) => candidate.layer === layer,
-          );
-          return (
-            <article key={layer} className="rounded-xl border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-700">
-                  <Icon aria-hidden className="size-4" />
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                  {component
-                    ? component.optional
-                      ? "Check before use"
-                      : "Included in plan"
-                    : "Not recorded"}
-                </span>
-              </div>
-              <h3 className="mt-3 text-sm font-black">{title}</h3>
-              {component ? (
-                <>
-                  <p className="mt-1 line-clamp-2 text-sm leading-snug">
-                    {component.label}
-                  </p>
-                  <p className="mt-3 text-xs font-semibold text-emerald-700">
-                    {layer === "points"
-                      ? `Estimated later value ${formatAUD(component.valueDollars ?? 0)}`
-                      : layer === "cashback"
-                        ? `Expected later ${formatAUD(component.valueDollars ?? 0)}`
-                        : `Immediate value ${formatAUD(component.valueDollars ?? 0)}`}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {empty}
-                </p>
-              )}
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-// Pre-render one page per trusted store. In live-data mode getStores() fails
-// closed to an empty list when the database is unavailable; dynamicParams keeps
-// valid store slugs routable once the database recovers.
+// Pre-render one page per store. Pull the store list from the repository layer
+// when possible; if that throws at build time, fall back to the static `stores`
+// so the build never breaks.
 export async function generateStaticParams() {
-  const stores = await getStores();
-  return stores.map((store) => ({ slug: store.id }));
+  try {
+    const stores = await getStores();
+    return stores.map((store) => ({ slug: store.id }));
+  } catch {
+    return staticStores.map((store) => ({ slug: store.id }));
+  }
 }
 
 export async function generateMetadata({
@@ -158,272 +62,332 @@ export async function generateMetadata({
   };
 }
 
+function buildSteps(store: Store) {
+  const steps: { title: string; description: string }[] = [];
+  if (store.cashbackPercent > 0) {
+    steps.push({
+      title: `Start at ${store.cashbackProvider}`,
+      description: `Open the ${store.cashbackProvider} app or site and click through to ${store.name} so your ${store.cashbackPercent}% cashback tracks.`,
+    });
+  }
+  if (store.giftCardDiscountPercent > 0) {
+    steps.push({
+      title: "Buy discounted gift cards",
+      description: `Grab ${store.name} gift cards at ${store.giftCardDiscountPercent}% off via ${store.giftCardSource} — buy enough to cover your expected checkout total.`,
+    });
+  }
+  if (store.discountPercent > 0) {
+    steps.push({
+      title: "Apply the discount code",
+      description: `Enter ${store.discountCode} at checkout for ${store.discountPercent}% off.`,
+    });
+  } else {
+    steps.push({
+      title: "Check current promotions",
+      description: `${store.name} has ${store.discountCode.toLowerCase()} — watch for sale events instead.`,
+    });
+  }
+  if (store.pointsProgram !== "—") {
+    steps.push({
+      title: `Scan ${store.pointsProgram}`,
+      description: `Add your ${store.pointsProgram} membership at checkout to earn ${store.pointsRate.toLowerCase()} on top of everything else.`,
+    });
+  }
+  steps.push({
+    title: "Pay with your gift cards",
+    description:
+      store.giftCardDiscountPercent > 0
+        ? "Pay the discounted total with the gift cards you bought below face value."
+        : "Pay as usual — then wait for your cashback to confirm.",
+  });
+  return steps;
+}
+
 export default async function StorePage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const data = await loadStackData();
-  const stores = data.stores;
+  const stores = await getStores();
   const store = stores.find((s) => s.id === slug);
   if (!store) notFound();
 
+  const stack = calculateStack({
+    originalPrice: SAMPLE_SPEND,
+    discountPercent: store.discountPercent,
+    cashbackPercent: store.cashbackPercent,
+    giftCardDiscountPercent: store.giftCardDiscountPercent,
+  });
+  const steps = buildSteps(store);
   // Source checks come from the repository layer (Supabase published/approved
   // rows when configured, static sample pipeline otherwise).
   const sourceResults = await storeSourceResults(store.id);
-  const now = new Date();
-  const decision = await loadDecisionResult(store.name, SAMPLE_SPEND, now);
-  const recommendations = buildStackRecommendations(undefined, 500, data, now);
-  // The hero estimate and how-to steps come from the SAME engine output as the
-  // Decision Hub, homepage and calculator — never from naively compounding the
-  // store's recorded rates (which ignored gift-card/cashback exclusions).
-  const recommendation =
-    recommendations.find((rec) => rec.merchantId === store.id) ?? null;
-  const steps = buildStackSteps(store.name, recommendation);
-  const presentation = recommendationPresentation(recommendation);
-  const freshness = publicFreshness(recommendation?.checkedAsOf, now);
+
+  const layers = [
+    {
+      icon: BadgePercent,
+      label: "Discount code",
+      value:
+        store.discountPercent > 0 ? `${store.discountPercent}% off` : "None",
+      detail:
+        store.discountPercent > 0
+          ? `Code: ${store.discountCode}`
+          : store.discountCode,
+      sub: formatExpiry(store.expiryDate),
+      accent: "bg-primary/10 text-primary",
+      active: store.discountPercent > 0,
+      badge: null as string | null,
+    },
+    {
+      icon: CreditCard,
+      label: "Cashback",
+      value:
+        store.cashbackPercent > 0 ? `${store.cashbackPercent}% back` : "None",
+      detail:
+        store.cashbackPercent > 0
+          ? "Track your click-through"
+          : "No tracked cashback for this store",
+      sub: null as string | null,
+      accent: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+      active: store.cashbackPercent > 0,
+      badge: store.cashbackPercent > 0 ? store.cashbackProvider : null,
+    },
+    {
+      icon: Gift,
+      label: "Gift cards",
+      value:
+        store.giftCardDiscountPercent > 0
+          ? `${store.giftCardDiscountPercent}% off`
+          : "None",
+      detail: store.giftCardSource,
+      sub: null as string | null,
+      accent: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+      active: store.giftCardDiscountPercent > 0,
+      badge: null as string | null,
+    },
+    {
+      icon: Star,
+      label: "Points",
+      value: store.pointsProgram !== "—" ? store.pointsProgram : "None",
+      detail: store.pointsRate,
+      sub: null as string | null,
+      accent: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      active: store.pointsProgram !== "—",
+      badge: null as string | null,
+    },
+  ];
 
   return (
-    <>
-      {/* Breadcrumb JSON-LD (Home → store). Only rendered for a real store —
-          this is after the notFound() guard — so it never describes a 404. */}
-      <JsonLd data={buildStoreBreadcrumbJsonLd(siteUrl(), store)} />
-      <div className="min-h-screen bg-emerald-500/[0.04]">
-        <SiteHeader />
-
-        <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-          <Link
-            href="/stores"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-3.5" />
-            Back to stores
-          </Link>
-
-          {/* Store hero: identity + best stack estimate in one panel */}
-          <div className="mt-3 rounded-xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <StoreLogo store={store} size="lg" />
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                    {store.name}
-                  </h1>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    {store.category}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-muted-foreground">
-                    <span>
-                      Verified layers shown: {presentation.verifiedLayerCount}{" "}
-                      of {presentation.includedLayerCount}
-                    </span>
-                    <span>
-                      Freshness: {freshness.label}
-                      {freshness.checkedDate
-                        ? ` · checked ${freshness.checkedDate}`
-                        : ""}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-xl border border-emerald-500/25 bg-background px-4 py-3 shadow-sm sm:min-w-56 sm:text-right">
-                <p className="text-xs text-muted-foreground">
-                  {presentation.planLabel}
-                </p>
-                {recommendation && recommendation.totalSaving > 0 ? (
-                  <>
-                    <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                      ~{recommendation.effectiveDiscountPercent}% off
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      e.g. pay{" "}
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                        {formatAUD(recommendation.effectivePrice)}
-                      </span>{" "}
-                      effective on a {formatAUD(SAMPLE_SPEND)} purchase —
-                      compatible layers only
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-2xl font-bold tracking-tight">
-                      {recommendation?.kind === "points-only"
-                        ? "Points only"
-                        : presentation.recommendationLabel}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {recommendation?.kind === "points-only"
-                        ? "Rewards are shown separately; the cash price is unchanged."
-                        : "The rates below are individual layers, not a combined saving."}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-            <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
-              <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              Results sourced from OzBargain, Point Hacks, FreePoints, GCDB and
-              DealStack records.
-            </p>
-            <Link
-              href={`/search?q=${encodeURIComponent(store.name)}&spend=${SAMPLE_SPEND}`}
-              className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white hover:bg-emerald-800"
-            >
-              Plan a {store.name} purchase{" "}
-              <ArrowRight aria-hidden className="size-4" />
-            </Link>
-            {store.id === "coles" || store.id === "woolworths" ? (
-              <Link
-                href={`/gift-cards/weekly?view=${store.id}`}
-                className="mt-2 inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold hover:bg-muted"
-              >
-                View this week’s {store.name} gift-card offers
-                <ArrowRight aria-hidden className="size-3.5" />
-              </Link>
-            ) : null}
+    <div className="min-h-screen bg-emerald-500/[0.04]">
+      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Logo />
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/deals">Weekly Deals</Link>
+            </Button>
+            <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+              <Link href="/resources">Resources</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="bg-background">
+              <Link href="/search">All stores</Link>
+            </Button>
           </div>
+        </div>
+      </header>
 
-          <StoreLayerOverview recommendation={recommendation} />
+      <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" />
+          Back to stores
+        </Link>
 
-          <RetailerGiftCardPlans
-            plans={decision.retailerGiftCardPlans}
-            spend={SAMPLE_SPEND}
-          />
-
-          {recommendation ? (
-            <section className="mt-6" aria-labelledby="store-plan-breakdown">
-              <h2
-                id="store-plan-breakdown"
-                className="text-lg font-bold tracking-tight sm:text-xl"
-              >
-                Recommended plan and excluded layers
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Included layers and available alternatives come from the same
-                engine result used by the planner and calculator.
-              </p>
-              <div className="mt-3 max-w-3xl">
-                <StackRecommendationCard
-                  recommendation={recommendation}
-                  stores={stores}
-                  now={now}
-                />
+        {/* Store hero: identity + best stack estimate in one panel */}
+        <div className="mt-3 rounded-2xl border bg-gradient-to-br from-emerald-500/10 via-background to-background p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <StoreLogo store={store} size="lg" />
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                  {store.name}
+                </h1>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {store.category}
+                </p>
               </div>
-            </section>
-          ) : null}
-
-          {/* Source checks (Supabase-backed when configured; static demo pool otherwise — no live fetching) */}
-          <section className="mt-6">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="size-5 text-emerald-600 dark:text-emerald-400" />
-              <h2 className="text-lg font-bold tracking-tight sm:text-xl">
-                Source checks for this store
-              </h2>
             </div>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {sourceResults.length === 0
-                ? `What OzBargain, Point Hacks, FreePoints and GCDB list for ${store.name}`
-                : `${sourceResults.length} ${sourceResults.length === 1 ? "listing" : "listings"} mentioning ${store.name} across our checked sources`}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              These are informational source listings, not layers included by
-              the recommendation engine unless they appear in the plan above.
-            </p>
+            <div className="rounded-xl border border-emerald-500/25 bg-background px-4 py-3 shadow-sm sm:min-w-56 sm:text-right">
+              <p className="text-xs text-muted-foreground">
+                Best stack estimate
+              </p>
+              <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                ~{stack.totalSavingPercent}% off
+              </p>
+              <p className="text-xs text-muted-foreground">
+                e.g. pay{" "}
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                  {formatAUD(stack.finalEffectivePrice)}
+                </span>{" "}
+                effective on a {formatAUD(SAMPLE_SPEND)} purchase
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
+            <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            We checked example/static results from OzBargain, Point Hacks,
+            FreePoints, GCDB and DealStack manual entries.
+          </p>
+        </div>
 
-            {sourceResults.length === 0 ? (
-              <Card className="mt-3 shadow-sm">
-                <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
-                  <FileSearch className="size-8 text-muted-foreground" />
-                  <p className="font-medium">
-                    No source listings for {store.name} right now
-                  </p>
-                  <p className="max-w-sm text-sm text-muted-foreground">
-                    The deal stack estimates above are based on our curated data
-                    — check back as sources update.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {sourceResults.map((result) => (
-                  <SourceResultCard key={result.id} result={result} />
-                ))}
-              </div>
-            )}
-
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Deal listings are sourced from community feeds and manual
-              curation. Rates and availability change frequently — always verify
-              directly with the retailer or provider before purchasing.
-            </p>
-          </section>
-
-          {/* Stacking instructions */}
-          <Card className="mt-6 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">
-                {presentation.planLabel} for {store.name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ol className="space-y-4">
-                {steps.map((step, i) => (
-                  <li key={`${i}-${step.title}`} className="flex gap-3">
+        {/* Savings layers */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {layers.map((layer) => (
+            <Card
+              key={layer.label}
+              className={cn(
+                "gap-0 py-0 shadow-sm",
+                !layer.active && "opacity-60"
+              )}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
                     <span
                       className={cn(
-                        "flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold",
-                        step.chooseOne
-                          ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+                        layer.accent
                       )}
                     >
-                      {step.chooseOne ? "!" : i + 1}
+                      <layer.icon className="size-4" />
                     </span>
-                    <div>
-                      <p className="text-sm font-semibold leading-6">
-                        {step.title}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {step.description}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </CardContent>
-          </Card>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {layer.label}
+                    </span>
+                  </div>
+                  {layer.badge && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "shrink-0 px-1.5 py-0 text-[10px]",
+                        providerBadgeClasses[layer.badge]
+                      )}
+                    >
+                      {layer.badge}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-3 font-bold">{layer.value}</p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {layer.detail}
+                </p>
+                {layer.sub && (
+                  <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Clock className="size-3" />
+                    {layer.sub}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
-          {/* Calculator */}
-          <section className="mt-6 flex flex-col items-center">
-            <div className="mb-4 text-center">
-              <h2 className="text-xl font-bold tracking-tight">
-                Run your own numbers
-              </h2>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Pick {store.name} below to prefill its rates, then enter your
-                purchase price.
-              </p>
-            </div>
-            <DealStackCalculator
-              recommendations={recommendations}
-              initialStoreId={store.id}
-            />
-          </section>
-
-          {/* Disclaimer */}
-          <p className="mt-6 border-t pt-5 text-xs leading-relaxed text-muted-foreground">
-            <strong>Disclaimer:</strong> The discount code, cashback rate, gift
-            card discount, points rate and expiry date shown for {store.name}{" "}
-            are manually curated and served from a cache — offers change or
-            expire without notice, so they may be out of date. Always verify
-            current offers directly with {store.name} and providers such as
-            ShopBack and TopCashback before purchasing. DealStack AU is not
-            affiliated with any retailer or rewards program listed.
+        {/* Source checks (static/mock pipeline — no live fetching) */}
+        <section className="mt-6">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-5 text-emerald-600 dark:text-emerald-400" />
+            <h2 className="text-lg font-bold tracking-tight sm:text-xl">
+              Source checks for this store
+            </h2>
+          </div>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {sourceResults.length === 0
+              ? `What OzBargain, Point Hacks, FreePoints and GCDB list for ${store.name}`
+              : `${sourceResults.length} ${sourceResults.length === 1 ? "listing" : "listings"} mentioning ${store.name} across our checked sources`}
           </p>
-        </main>
-        <SiteFooter />
-      </div>
-    </>
+
+          {sourceResults.length === 0 ? (
+            <Card className="mt-3 shadow-sm">
+              <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
+                <FileSearch className="size-8 text-muted-foreground" />
+                <p className="font-medium">
+                  No source listings for {store.name} right now
+                </p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  The example rates above still apply — check back as sources
+                  are updated.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {sourceResults.map((result) => (
+                <SourceResultCard key={result.id} result={result} />
+              ))}
+            </div>
+          )}
+
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            These are example/static source checks for the MVP. Offers change
+            quickly. Always verify on the original source or provider website.
+          </p>
+        </section>
+
+        {/* Stacking instructions */}
+        <Card className="mt-6 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">
+              How to stack at {store.name}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-4">
+              {steps.map((step, i) => (
+                <li key={step.title} className="flex gap-3">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold leading-6">
+                      {step.title}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {step.description}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+
+        {/* Calculator */}
+        <section className="mt-6 flex flex-col items-center">
+          <div className="mb-4 text-center">
+            <h2 className="text-xl font-bold tracking-tight">
+              Run your own numbers
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Pick {store.name} below to prefill its rates, then enter your
+              purchase price.
+            </p>
+          </div>
+          <DealStackCalculator />
+        </section>
+
+        {/* Disclaimer */}
+        <p className="mt-6 border-t pt-5 text-xs leading-relaxed text-muted-foreground">
+          <strong>Disclaimer:</strong> The discount code, cashback rate, gift
+          card discount, points rate and expiry date shown for {store.name} are
+          illustrative sample data only and change frequently. Always verify
+          current offers directly with {store.name} and providers such as
+          ShopBack and TopCashback before purchasing. DealStack AU is not
+          affiliated with any retailer or rewards program listed.
+        </p>
+      </main>
+    </div>
   );
 }

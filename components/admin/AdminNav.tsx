@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 /**
  * Admin navigation (client island) — grouped links with active-state
  * highlighting. Grouping keeps the now-long nav scannable; the active link is
- * resolved by longest matching path prefix.
+ * resolved by longest matching path prefix so e.g. /admin/signals/queue
+ * highlights "Feed Queue" rather than "Signals".
  */
 
 interface NavLink {
@@ -19,25 +20,17 @@ interface NavLink {
 const GROUPS: NavLink[][] = [
   [{ href: "/admin/dashboard", label: "Dashboard" }],
   [
-    { href: "/admin/stores", label: "Stores" },
     { href: "/admin/cashback", label: "Cashback" },
     { href: "/admin/gift-cards", label: "Gift Cards" },
-    { href: "/admin/gift-cards/acceptance", label: "GC acceptance" },
-    { href: "/admin/gift-cards/predictions", label: "GC predictions" },
-    { href: "/admin/gift-card-intelligence", label: "GC intelligence" },
     { href: "/admin/points", label: "Points" },
-    { href: "/admin/card-offers", label: "Card Offers" },
-    { href: "/admin/card-reports", label: "Corrections" },
     { href: "/admin/weekly-deals", label: "Weekly Deals" },
   ],
   [
     { href: "/admin/signals", label: "Signals" },
-    { href: "/admin/review", label: "Review" },
+    { href: "/admin/signals/queue", label: "Feed Queue" },
     { href: "/admin/signals/sources", label: "Feed Sources" },
-    { href: "/admin/offer-changes", label: "Offer Changes" },
     { href: "/admin/compliance", label: "Compliance" },
     { href: "/admin/monitor", label: "Monitor" },
-    { href: "/admin/cleanup", label: "Cleanup" },
   ],
   [{ href: "/admin/audit", label: "Audit" }],
 ];

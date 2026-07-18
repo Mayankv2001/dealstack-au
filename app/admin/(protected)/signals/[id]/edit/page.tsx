@@ -50,7 +50,6 @@ export default async function EditSignalPage({
           sourceUrl: signal.sourceUrl,
           merchantUrl: signal.merchantUrl ?? "",
           productUrl: signal.productUrl ?? "",
-          productGroup: signal.productGroup ?? "",
           postedAt: signal.postedAt,
           expiryDate: signal.expiryDate ?? "",
           tags: signal.tags ?? [],

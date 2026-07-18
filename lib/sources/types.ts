@@ -1,8 +1,16 @@
 export type SourceId =
-  "ozbargain" | "pointhacks" | "freepoints" | "gcdb" | "manual";
+  | "ozbargain"
+  | "pointhacks"
+  | "freepoints"
+  | "gcdb"
+  | "manual";
 
 export type DealKind =
-  "discount-code" | "cashback" | "gift-card" | "points" | "guide" | "card";
+  | "discount-code"
+  | "cashback"
+  | "gift-card"
+  | "points"
+  | "guide";
 
 export type Confidence = "confirmed" | "needs-verification" | "expired-unknown";
 
@@ -56,12 +64,6 @@ export interface RankedDealResult extends DealSourceResult {
 export interface SourceMeta {
   displayName: string;
   homepage: string;
-  /**
-   * Editorial ownership/corroboration family. Two branded sites operated by
-   * the same publisher remain separate links, but count as one independent
-   * source family when DealStack explains corroboration.
-   */
-  publisherFamily: string;
   /** 0..1 ranking trust factor */
   trustWeight: number;
 }
@@ -70,31 +72,26 @@ export const SOURCE_META: Record<SourceId, SourceMeta> = {
   ozbargain: {
     displayName: "OzBargain",
     homepage: "https://www.ozbargain.com.au",
-    publisherFamily: "ozbargain",
     trustWeight: 0.85,
   },
   pointhacks: {
     displayName: "Point Hacks",
     homepage: "https://www.pointhacks.com.au",
-    publisherFamily: "pointhacks",
     trustWeight: 0.8,
   },
   freepoints: {
     displayName: "FreePoints",
     homepage: "https://www.freepoints.com.au",
-    publisherFamily: "freepoints-network",
     trustWeight: 0.75,
   },
   gcdb: {
     displayName: "GCDB",
     homepage: "https://www.gcdb.com.au",
-    publisherFamily: "freepoints-network",
     trustWeight: 0.8,
   },
   manual: {
-    displayName: "DealStack record",
+    displayName: "DealStack verified",
     homepage: "/",
-    publisherFamily: "dealstack",
     trustWeight: 1,
   },
 };

@@ -29,14 +29,6 @@ export function hasSupabaseEnv(): boolean {
   );
 }
 
-/**
- * Public site origin for absolute URLs (metadata, sitemap, robots). Falls back
- * to localhost so local/dev builds never throw; set NEXT_PUBLIC_SITE_URL in
- * production.
- */
-export const siteUrl = (): string =>
-  process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-
 export const supabaseUrl = (): string =>
   requireEnv("NEXT_PUBLIC_SUPABASE_URL");
 
@@ -56,17 +48,6 @@ export const supabaseServiceRoleKey = (): string =>
  */
 export const cronSecret = (): string | null => {
   const value = process.env.CRON_SECRET;
-  return value && value.trim() !== "" ? value : null;
-};
-
-/**
- * Optional ops webhook (e.g. Slack incoming webhook) that server-error reports
- * are POSTed to — see lib/observability/report-server-error.ts. Unset means
- * errors go to the function logs only. SERVER ONLY — never expose the URL and
- * never prefix with NEXT_PUBLIC_.
- */
-export const alertWebhookUrl = (): string | null => {
-  const value = process.env.ALERT_WEBHOOK_URL;
   return value && value.trim() !== "" ? value : null;
 };
 
@@ -106,144 +87,10 @@ export const ozbMonitorEnabled = (): boolean =>
 export const ozbMonitorUserAgent = (): string =>
   requireEnv("OZB_MONITOR_USER_AGENT");
 
-/** Hard cap on feeds touched per daily run (default 10). */
+/** Hard cap on feeds touched per run (default 1). */
 export const ozbMonitorMaxFeedsPerRun = (): number =>
-  optionalPositiveInt("OZB_MONITOR_MAX_FEEDS_PER_RUN", 10);
+  optionalPositiveInt("OZB_MONITOR_MAX_FEEDS_PER_RUN", 1);
 
 /** Floor on per-feed polling interval, in hours (default 12). */
 export const ozbMonitorMinIntervalHours = (): number =>
   optionalPositiveNumber("OZB_MONITOR_MIN_INTERVAL_HOURS", 12);
-
-/**
- * Offer-change DETECTION switch. Independent of, and additional to, the monitor
- * kill switch: this gates the post-run step that scans already-staged feed items
- * and stages `offer_change_candidates` for admin review. Defaults to FALSE — true
- * only when the value is exactly "true". Off means zero detection code runs and
- * the monitor behaves byte-identically to before. Never auto-applies anything.
- */
-export const ozbOfferDetectEnabled = (): boolean =>
-  process.env.OZB_OFFER_DETECT_ENABLED === "true";
-
-/**
- * Card-offer DETECTION switch — INDEPENDENT of, and additional to,
- * OZB_OFFER_DETECT_ENABLED. Gates only the card_offer-typed detections within
- * that same step (lib/monitor/detectOffers.ts's detectCardOffer); the
- * existing cashback/gift_card/points detectors run exactly as before either
- * way. Defaults to FALSE — true only when the value is exactly "true".
- */
-export const cardDetectEnabled = (): boolean =>
-  process.env.CARD_DETECT_ENABLED === "true";
-
-/** Maximum age of a successful live-signal validation before archival. */
-export const signalValidationDays = (): number =>
-  optionalPositiveInt("SIGNAL_VALIDATION_DAYS", 45);
-
-// ── OzBargain expiry recheck (SERVER/SCRIPT ONLY) ────────────────────────────
-// A SEPARATE, independently-gated job from the ingestion monitor. It revalidates
-// PENDING review items against their OzBargain source post and archives the ones
-// whose source is confirmed gone. Disabled by default — stays off until an
-// operator flips it after production review. It still makes outbound HEAD
-// requests to OzBargain, so the cron route also requires compliance approval and
-// OZB_MONITOR_USER_AGENT before it does any network work.
-
-/**
- * Expiry-recheck master switch. Defaults to FALSE — true only when the value is
- * exactly "true". Off means the recheck cron route does zero DB or network work.
- */
-export const ozbExpiryRecheckEnabled = (): boolean =>
-  process.env.OZB_EXPIRY_RECHECK_ENABLED === "true";
-
-/**
- * Preview switch — DEFAULTS TO TRUE. In dry-run the recheck classifies and
- * records run metrics (including would-archive counts) but writes NOTHING: no
- * feed_items change, no archival, no audit. Real archival happens only when this
- * is explicitly set to "false" AFTER a preview run has been reviewed. A missing
- * or malformed value stays safe (true).
- */
-export const ozbExpiryRecheckDryRun = (): boolean =>
-  process.env.OZB_EXPIRY_RECHECK_DRY_RUN !== "false";
-
-/** Items probed per recheck run — bounded to 25–50, default 40. */
-export const ozbExpiryRecheckBatchSize = (): number => {
-  const value = optionalPositiveInt("OZB_EXPIRY_RECHECK_BATCH_SIZE", 40);
-  return Math.min(50, Math.max(25, value));
-};
-
-/** Floor on how often a single item may be re-probed, in hours (default 20). */
-export const ozbExpiryRecheckMinIntervalHours = (): number =>
-  optionalPositiveNumber("OZB_EXPIRY_RECHECK_MIN_INTERVAL_HOURS", 20);
-
-// ── Gift-card ingest (GCDB) — SERVER/SCRIPT ONLY ─────────────────────────────
-// A separate, independently-gated pipeline from the OzBargain monitor. Both
-// the env master switch AND the gift_card_sources DB row must be enabled
-// before any outbound request; absent configuration fails closed.
-
-/** Gift-card ingest master switch. True only when exactly "true". */
-export const gcdbIngestEnabled = (): boolean =>
-  process.env.GCDB_INGEST_ENABLED === "true";
-
-/** Feed URL override; the DB source row is the default. Empty → fail closed. */
-export const gcdbRssUrl = (): string | null =>
-  process.env.GCDB_RSS_URL?.trim() || null;
-
-/**
- * Identifying User-Agent for GCDB requests. REQUIRED when the ingest is
- * enabled — never a spoofed browser string.
- */
-export const gcdbUserAgent = (): string => {
-  const value = process.env.GCDB_REQUEST_USER_AGENT?.trim();
-  if (!value) {
-    throw new Error(
-      "GCDB_REQUEST_USER_AGENT is required when GCDB_INGEST_ENABLED=true."
-    );
-  }
-  return value;
-};
-
-/** Hard cap on feed items processed per ingest run. */
-export const gcdbMaxItemsPerRun = (): number =>
-  optionalPositiveInt("GCDB_MAX_ITEMS_PER_RUN", 40);
-
-// ── Point Hacks weekly gift-card page — SERVER ONLY ─────────────────────────
-// This is independently gated from GCDB. The flag defaults off and a matching
-// source row must also be enabled, fetch-permitted, and carry completed terms
-// and robots reviews before any request is attempted.
-
-export const pointHacksWeeklyIngestEnabled = (): boolean =>
-  process.env.POINTHACKS_WEEKLY_INGEST_ENABLED === "true";
-
-export const pointHacksWeeklyUserAgent = (): string => {
-  const value = process.env.POINTHACKS_WEEKLY_REQUEST_USER_AGENT?.trim();
-  if (!value) {
-    throw new Error(
-      "POINTHACKS_WEEKLY_REQUEST_USER_AGENT is required when Point Hacks weekly ingestion is enabled.",
-    );
-  }
-  return value;
-};
-
-export const pointHacksWeeklyMaxItems = (): number =>
-  Math.min(
-    20,
-    optionalPositiveInt("POINTHACKS_WEEKLY_MAX_ITEMS_PER_RUN", 10),
-  );
-
-// ── Gift-card daily reconciliation — SERVER ONLY, DEFAULT OFF ────────────────
-// Compares canonical offers with the latest stored/approved source state and
-// stages review candidates; it never fetches from a closed source and never
-// publishes. Independently gated from every ingest switch. Enabling it only
-// activates the reconcile route's work; it opens no source or fetch gate.
-
-export const giftCardReconcileEnabled = (): boolean =>
-  process.env.GIFT_CARD_RECONCILE_ENABLED === "true";
-
-/** Once-per-day guard for reconciliation (≥ this many hours between real runs). */
-export const giftCardReconcileMinIntervalHours = (): number =>
-  optionalPositiveInt("GIFT_CARD_RECONCILE_MIN_INTERVAL_HOURS", 20);
-
-// ── Gift-card lifecycle activation/archive — SERVER ONLY, DEFAULT OFF ───────
-// This gate controls only reviewed offer visibility/history transitions. It
-// never enables a source adapter, ingestion, candidate approval, or email.
-
-export const giftCardLifecycleEnabled = (): boolean =>
-  process.env.GIFT_CARD_LIFECYCLE_ENABLED === "true";

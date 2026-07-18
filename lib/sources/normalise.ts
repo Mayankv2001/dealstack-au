@@ -1,5 +1,4 @@
 import { stores } from "@/lib/data";
-import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { Confidence, DealSourceResult } from "./types";
 
 /** Lowercase, collapse all non-alphanumerics to single spaces */
@@ -14,7 +13,7 @@ export function normaliseText(text: string): string {
  * Aliases (normalised form) → Store.id from lib/data.ts.
  * Store names and ids themselves are added automatically below.
  */
-export const MERCHANT_ALIASES: Readonly<Record<string, readonly string[]>> = {
+const MERCHANT_ALIASES: Record<string, string[]> = {
   "jb-hifi": ["jb hifi", "jb hi fi", "jbhifi", "jb"],
   "chemist-warehouse": ["chemist warehouse", "cw", "chemist"],
   woolworths: ["woolies", "woolworths", "wish"],
@@ -23,7 +22,6 @@ export const MERCHANT_ALIASES: Readonly<Record<string, readonly string[]>> = {
   myer: ["myer"],
   coles: ["coles", "coles group"],
   kogan: ["kogan"],
-  costco: ["costco", "costco wholesale", "costco au"],
 };
 
 /** alias (normalised) → store id, longest aliases first for substring matching */
@@ -38,14 +36,6 @@ const aliasLookup: [alias: string, storeId: string][] = (() => {
   }
   return [...entries.entries()].sort((a, b) => b[0].length - a[0].length);
 })();
-
-/** Reviewed static alias entries for exact resolvers; returned as a copy. */
-export function merchantAliasEntries(): Array<[
-  alias: string,
-  storeId: string,
-]> {
-  return aliasLookup.map(([alias, storeId]) => [alias, storeId]);
-}
 
 /** Exact match of a merchant name/alias → Store.id */
 export function matchMerchantId(name: string): string | null {
@@ -74,9 +64,9 @@ export function findMerchantIdInText(text: string): string | null {
 }
 
 export function isExpired(result: DealSourceResult, now: Date): boolean {
-  // Inclusive of the stated day, by AU-local calendar date (Australia/Sydney,
-  // DST-correct) — same convention as the public read guard in lib/offers/expiry.
-  return isPastExpiry(result.expiryDate, todayAU(now));
+  if (!result.expiryDate) return false;
+  // Expiry is inclusive of the stated day (AU offers usually end at midnight)
+  return new Date(`${result.expiryDate}T23:59:59+10:00`).getTime() < now.getTime();
 }
 
 /**

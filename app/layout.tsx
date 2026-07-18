@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
 import { Geist, Geist_Mono } from "next/font/google";
-import { siteUrl } from "@/lib/env";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,27 +12,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Site-wide defaults; routes that export their own metadata override these.
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl()),
-  title: "DealStack AU — Plan a purchase and combine savings",
-  description:
-    "An Australian purchase-planning tool that keeps checkout savings, later cashback and points separate while checking compatibility.",
-  openGraph: {
-    siteName: "DealStack AU",
-    locale: "en_AU",
-    type: "website",
+  title: {
+    default: "DealStack AU — Stack smarter, save more",
+    template: "%s | DealStack AU",
   },
+  description:
+    "Curated Australian deal stacks combining gift cards, cashback, loyalty points and verified promotion signals.",
+  applicationName: "DealStack AU",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Nonce-based CSP requires request-time rendering so Next can attach the
-  // proxy-generated nonce to framework scripts.
-  await connection();
   return (
     <html
       lang="en"

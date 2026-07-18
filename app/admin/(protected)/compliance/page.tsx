@@ -94,8 +94,8 @@ export default async function CompliancePage({
           Compliance review
         </h1>
         <p className="text-sm text-muted-foreground">
-          Record the OzBargain pre-flight review. This is the gate for the
-          planned monitor — registration only, no fetching.
+          Record the OzBargain pre-flight review. The monitor checks this
+          approval before every scheduled or manual live run.
         </p>
       </header>
 

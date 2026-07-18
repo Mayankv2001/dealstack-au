@@ -3,8 +3,6 @@ export interface StackInput {
   discountPercent: number;
   cashbackPercent: number;
   giftCardDiscountPercent: number;
-  /** When true, only the stronger of gift-card saving and cashback is used. */
-  cashbackExcludesGiftCardPayment?: boolean;
 }
 
 export interface StackResult {
@@ -14,15 +12,12 @@ export interface StackResult {
   checkoutPrice: number;
   /** Saved by paying with gift cards bought below face value */
   giftCardSaving: number;
-  /** Cash outlay needed to fund the checkout after any gift-card discount. */
-  cashPaidForCheckout: number;
   /** Cashback earned on the checkout amount */
   estimatedCashback: number;
   /** Real out-of-pocket cost after every layer of the stack */
   finalEffectivePrice: number;
   totalSaving: number;
   totalSavingPercent: number;
-  excludedLayer: "gift-card" | "cashback" | null;
 }
 
 const round = (value: number) => Math.round(value * 100) / 100;
@@ -48,25 +43,10 @@ export function calculateStack(input: StackInput): StackResult {
   const discountSaving = originalPrice * (discountPercent / 100);
   const checkoutPrice = originalPrice - discountSaving;
 
-  let giftCardSaving = checkoutPrice * (giftCardDiscountPercent / 100);
-  let estimatedCashback = checkoutPrice * (cashbackPercent / 100);
-  let excludedLayer: StackResult["excludedLayer"] = null;
-  if (
-    input.cashbackExcludesGiftCardPayment &&
-    giftCardSaving > 0 &&
-    estimatedCashback > 0
-  ) {
-    if (giftCardSaving >= estimatedCashback) {
-      estimatedCashback = 0;
-      excludedLayer = "cashback";
-    } else {
-      giftCardSaving = 0;
-      excludedLayer = "gift-card";
-    }
-  }
+  const giftCardSaving = checkoutPrice * (giftCardDiscountPercent / 100);
+  const estimatedCashback = checkoutPrice * (cashbackPercent / 100);
 
-  const cashPaidForCheckout = checkoutPrice - giftCardSaving;
-  const finalEffectivePrice = cashPaidForCheckout - estimatedCashback;
+  const finalEffectivePrice = checkoutPrice - giftCardSaving - estimatedCashback;
   const totalSaving = originalPrice - finalEffectivePrice;
   const totalSavingPercent =
     originalPrice > 0 ? (totalSaving / originalPrice) * 100 : 0;
@@ -76,12 +56,10 @@ export function calculateStack(input: StackInput): StackResult {
     discountSaving: round(discountSaving),
     checkoutPrice: round(checkoutPrice),
     giftCardSaving: round(giftCardSaving),
-    cashPaidForCheckout: round(cashPaidForCheckout),
     estimatedCashback: round(estimatedCashback),
     finalEffectivePrice: round(finalEffectivePrice),
     totalSaving: round(totalSaving),
     totalSavingPercent: round(totalSavingPercent),
-    excludedLayer,
   };
 }
 

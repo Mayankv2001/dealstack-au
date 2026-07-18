@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   capReachedWarning,
-  cashbackCapReachedWarning,
   cashbackConflictsWithGiftCard,
+  eligibleSpendCapWarning,
   expirySoonWarning,
   giftCardCashbackConflictWarning,
   isGiftCardAcceptedAtMerchant,
@@ -12,8 +12,7 @@ import {
 } from "../../lib/stack/compatibility";
 import { makeCashback, makeGiftCard } from "./factories";
 
-// Fixed clock so the time-based rules are deterministic (matches the engine's
-// SAMPLE_NOW of mid-June 2026).
+// Fixed clock so the time-based rules are deterministic.
 const NOW = new Date("2026-06-13T12:00:00+10:00");
 
 describe("worstConfidence", () => {
@@ -72,19 +71,6 @@ describe("expirySoonWarning", () => {
   it("ignores an already-passed expiry (handled elsewhere)", () => {
     expect(expirySoonWarning("2026-06-10", NOW, "X")).toBeNull();
   });
-
-  it("AEDT regression pin: no warning for an offer already expired in AU time", () => {
-    // Old code: end-of-day at +10:00 (13:59:59Z) > now (13:30Z) → warned on an
-    // expired offer. Calendar compare: 2026-01-16 (AEDT today) > 2026-01-15 → null.
-    expect(expirySoonWarning("2026-01-15", new Date("2026-01-15T13:30:00Z"), "X")).toBeNull();
-  });
-
-  it("warns across the full 7-calendar-day window (unified with public cards)", () => {
-    // NOW is 2026-06-13 AU time; 2026-06-20 is exactly 7 calendar days out.
-    // The old ms-window said null here while the public card already showed
-    // "expiring soon" via isExpiringSoonAU — this pin locks the unification.
-    expect(expirySoonWarning("2026-06-20", NOW, "X")).not.toBeNull();
-  });
 });
 
 describe("staleDataWarning", () => {
@@ -98,9 +84,7 @@ describe("staleDataWarning", () => {
     const w = staleDataWarning("2026-05-01T00:00:00+10:00", NOW, "The offer");
     expect(w?.code).toBe("stale-data");
     expect(w?.level).toBe("info");
-    // Human-readable AU date, never a raw ISO string.
-    expect(w?.message).toContain("1 May 2026");
-    expect(w?.message).not.toContain("2026-05-01");
+    expect(w?.message).toContain("2026-05-01");
   });
 
   it("returns null for missing or unparseable dates", () => {
@@ -167,18 +151,11 @@ describe("capReachedWarning", () => {
   });
 });
 
-describe("cashbackCapReachedWarning", () => {
-  it("returns null for an uncapped offer", () => {
-    expect(cashbackCapReachedWarning(null, 1000, "X")).toBeNull();
-  });
-
-  it("returns null when the raw saving is within the cap", () => {
-    expect(cashbackCapReachedWarning(50, 50, "X")).toBeNull();
-  });
-
-  it("warns once the raw saving exceeds the cap", () => {
-    const w = cashbackCapReachedWarning(50, 51, "The offer");
-    expect(w?.code).toBe("cap-reached");
-    expect(w?.level).toBe("caution");
+describe("eligibleSpendCapWarning", () => {
+  it("explains a gift-card eligible-spend limit without calling it a reward cap", () => {
+    const warning = eligibleSpendCapWarning(200, 500, "The offer");
+    expect(warning?.code).toBe("cap-reached");
+    expect(warning?.message).toContain("first $200");
+    expect(warning?.message).toContain("face value");
   });
 });

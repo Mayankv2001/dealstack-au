@@ -3,10 +3,6 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import {
-  checkAdminRateLimit,
-  type AdminActionResult,
-} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
@@ -18,7 +14,6 @@ import {
   type PointsOfferInput,
 } from "@/lib/admin/repos/points";
 import type { Citation, Confidence } from "@/lib/sources/types";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Points admin server actions.
@@ -91,11 +86,10 @@ function parsePointsForm(formData: FormData): ParseResult {
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   const citations: Citation[] = [];
   if (sourceUrl !== "") {
-    const safeSourceUrl = safeHttpsUrl(sourceUrl);
-    if (!safeSourceUrl) {
-      return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
+    if (!URL.canParse(sourceUrl)) {
+      return { ok: false, error: "Source URL must be a valid URL (including https://)." };
     }
-    citations.push({ source: "manual", sourceUrl: safeSourceUrl });
+    citations.push({ source: "manual", sourceUrl });
   }
 
   return {
@@ -129,9 +123,6 @@ export async function createPointsOffer(
 ): Promise<PointsFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parsePointsForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -158,9 +149,6 @@ export async function updatePointsOffer(
 ): Promise<PointsFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parsePointsForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -184,12 +172,8 @@ export async function updatePointsOffer(
 export async function setPublished(
   id: string,
   isPublished: boolean
-): Promise<AdminActionResult> {
+): Promise<void> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   await setPointsPublished(id, isPublished);
   await logAudit({
     actorEmail: email,
@@ -199,5 +183,4 @@ export async function setPublished(
     diff: { isPublished },
   });
   revalidatePoints();
-  return { ok: true };
 }

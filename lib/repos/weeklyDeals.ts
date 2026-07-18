@@ -1,13 +1,11 @@
-import { filterLive } from "@/lib/offers/expiry";
 import { weeklyDeals as staticWeeklyDeals } from "@/lib/offers/manualOffers";
-import { sanitisePublicText } from "@/lib/stack/buildStack";
 import type { WeeklyDeal, WeeklyHighlight } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
-import { fromDbOrDemo, type DbClient } from "@/lib/supabase/server";
+import { fromDbOrStatic, type DbClient } from "@/lib/supabase/server";
 
 /**
- * Weekly deals repository. Supabase is authoritative when configured; the
- * static array is only for explicit demo mode or an unconfigured environment.
+ * Weekly deals repository. Supabase when configured (published only), otherwise
+ * the static `weeklyDeals` array. Rows mapped back to the `WeeklyDeal` shape.
  */
 
 interface WeeklyDealRow {
@@ -28,10 +26,8 @@ function mapWeeklyDeal(r: WeeklyDealRow): WeeklyDeal {
     id: r.id,
     weekOf: r.week_of,
     merchantId: r.merchant_id,
-    // Editorial rows seeded with development wording ("Sample: …") must never
-    // surface it — the detail page renders these fields verbatim.
-    title: sanitisePublicText(r.title),
-    summary: sanitisePublicText(r.summary),
+    title: r.title,
+    summary: r.summary,
     highlight: r.highlight,
     componentIds: r.component_ids ?? [],
     citations: r.citations ?? [],
@@ -40,43 +36,13 @@ function mapWeeklyDeal(r: WeeklyDealRow): WeeklyDeal {
   };
 }
 
-export async function getWeeklyDeals(): Promise<WeeklyDeal[]> {
-  const rows = await fromDbOrDemo(
-    "weekly_deals",
-    staticWeeklyDeals,
-    async (db: DbClient) => {
-      const { data, error } = await db
-        .from("weekly_deals")
-        .select("*")
-        .order("week_of", { ascending: false });
-      if (error) throw error;
-      return ((data ?? []) as unknown as WeeklyDealRow[]).map(mapWeeklyDeal);
-    }
-  );
-  return filterLive(rows);
-}
-
-/**
- * One deal by id, for the /deals/[slug] detail page. Deliberately NOT
- * filtered by expiry: a permalinked deal that has ended should render an
- * explicit expired state (and keep its inbound links working) rather than
- * 404. Missing id → null.
- */
-export async function getWeeklyDealById(
-  id: string
-): Promise<WeeklyDeal | null> {
-  const rows = await fromDbOrDemo(
-    "weekly_deals",
-    staticWeeklyDeals,
-    async (db: DbClient) => {
-      const { data, error } = await db
-        .from("weekly_deals")
-        .select("*")
-        .eq("id", id)
-        .limit(1);
-      if (error) throw error;
-      return ((data ?? []) as unknown as WeeklyDealRow[]).map(mapWeeklyDeal);
-    }
-  );
-  return rows.find((deal) => deal.id === id) ?? null;
+export function getWeeklyDeals(): Promise<WeeklyDeal[]> {
+  return fromDbOrStatic("weekly_deals", staticWeeklyDeals, async (db: DbClient) => {
+    const { data, error } = await db
+      .from("weekly_deals")
+      .select("*")
+      .order("week_of", { ascending: false });
+    if (error) throw error;
+    return ((data ?? []) as unknown as WeeklyDealRow[]).map(mapWeeklyDeal);
+  });
 }

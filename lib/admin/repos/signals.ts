@@ -82,7 +82,6 @@ export interface SignalInput {
   confidence: Confidence;
   isSample: boolean;
   status: SignalStatus;
-  productGroup: string | null;
 }
 
 // ── Row mapping ──────────────────────────────────────────────────────────────
@@ -109,7 +108,6 @@ interface AdminSignalRow {
   last_checked_at: string;
   is_sample: boolean;
   status: SignalStatus;
-  product_group: string | null;
   updated_at: string;
   // Embedded one-to-one store (PostgREST returns an object, but type defensively).
   store: { name: string } | { name: string }[] | null;
@@ -140,7 +138,6 @@ function mapAdminSignal(r: AdminSignalRow): AdminSignal {
     lastCheckedAt: r.last_checked_at,
     isSample: r.is_sample,
     status: r.status,
-    productGroup: r.product_group ?? null,
     storeName: store?.name ?? null,
     updatedAt: r.updated_at,
   };
@@ -168,7 +165,6 @@ function toRow(input: SignalInput) {
     confidence: input.confidence,
     is_sample: input.isSample,
     status: input.status,
-    product_group: input.productGroup,
     // The admin is hand-verifying the data on every save, so stamp it now.
     last_checked_at: new Date().toISOString(),
   };
@@ -246,20 +242,9 @@ export async function setSignalStatus(
   status: SignalStatus
 ): Promise<void> {
   const db = getSupabaseAdmin();
-  const now = new Date().toISOString();
-  const update =
-    status === "approved"
-      ? {
-          status,
-          archived_at: null,
-          archive_reason: null,
-          last_validated_at: now,
-          last_checked_at: now,
-        }
-      : { status };
   const { error } = await db
     .from("ozbargain_signals")
-    .update(update)
+    .update({ status })
     .eq("id", id);
   if (error) throw new Error(`setSignalStatus failed: ${error.message}`);
 }

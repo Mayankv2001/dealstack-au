@@ -1,20 +1,14 @@
+import { stores as staticStores, type Store, type StoreLogoTheme } from "@/lib/data";
 import {
-  stores as staticStores,
-  type Store,
-  type StoreLogoTheme,
-} from "@/lib/data";
-import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
-import {
-  fromDbOrDemo,
+  fromDbOrStatic,
   toNumber,
   type DbClient,
 } from "@/lib/supabase/server";
-import { safeLogoPath } from "@/lib/security/urlPolicy";
 
 /**
- * Stores repository. Supabase is authoritative when configured; static stores
- * are only for explicit demo mode or an unconfigured environment. Rows are
- * mapped from snake_case to the existing `Store` shape.
+ * Stores repository. Reads from Supabase when configured, otherwise returns the
+ * static `stores` array. Rows are mapped from snake_case back to the existing
+ * `Store` shape so callers are unaffected by the data source.
  */
 
 interface StoreRow {
@@ -35,7 +29,6 @@ interface StoreRow {
   gift_card_source: string;
   points_program: string;
   points_rate: string;
-  aliases: string[] | null;
 }
 
 function mapStore(r: StoreRow): Store {
@@ -44,7 +37,7 @@ function mapStore(r: StoreRow): Store {
     name: r.name,
     category: r.category,
     logo: r.logo,
-    logoPath: safeLogoPath(r.logo_path) ?? undefined,
+    logoPath: r.logo_path ?? undefined,
     logoText: r.logo_text ?? undefined,
     logoSubtext: r.logo_subtext ?? undefined,
     logoTheme: r.logo_theme ?? undefined,
@@ -57,7 +50,6 @@ function mapStore(r: StoreRow): Store {
     giftCardSource: r.gift_card_source,
     pointsProgram: r.points_program,
     pointsRate: r.points_rate,
-    aliases: r.aliases ?? [],
   };
 }
 
@@ -70,19 +62,6 @@ async function queryStores(supabase: DbClient): Promise<Store[]> {
   return ((data ?? []) as unknown as StoreRow[]).map(mapStore);
 }
 
-/** Suppress only an expired discount-code layer; other store layers stay live. */
-export function guardStoreDiscount(store: Store, today: string): Store {
-  if (!isPastExpiry(store.expiryDate, today)) return store;
-  return {
-    ...store,
-    discountPercent: 0,
-    discountCode: "No current public code",
-    expiryDate: null,
-  };
-}
-
-export async function getStores(): Promise<Store[]> {
-  const stores = await fromDbOrDemo("stores", staticStores, queryStores);
-  const today = todayAU();
-  return stores.map((store) => guardStoreDiscount(store, today));
+export function getStores(): Promise<Store[]> {
+  return fromDbOrStatic("stores", staticStores, queryStores);
 }

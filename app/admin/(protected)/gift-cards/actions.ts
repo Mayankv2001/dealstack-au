@@ -3,17 +3,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import {
-  checkAdminRateLimit,
-  type AdminActionResult,
-} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
   GIFT_CARD_CHANNELS,
   PURCHASE_METHODS,
   insertGiftCardOffer,
-  getGiftCardPublishFacts,
   setGiftCardPublished,
   updateGiftCardOffer as persistGiftCardOffer,
   type GiftCardChannel,
@@ -21,8 +16,6 @@ import {
   type PurchaseMethod,
 } from "@/lib/admin/repos/giftCards";
 import type { Citation, Confidence } from "@/lib/sources/types";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
-import { giftCardPublishError } from "@/lib/giftcards/publishReadiness";
 
 /**
  * Gift-card admin server actions.
@@ -130,22 +123,20 @@ function parseGiftCardForm(formData: FormData): ParseResult {
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   const citations: Citation[] = [];
   if (sourceUrl !== "") {
-    const safeSourceUrl = safeHttpsUrl(sourceUrl);
-    if (!safeSourceUrl) {
-      return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
+    if (!URL.canParse(sourceUrl)) {
+      return { ok: false, error: "Source URL must be a valid URL (including https://)." };
     }
-    citations.push({ source: "manual", sourceUrl: safeSourceUrl });
+    citations.push({ source: "manual", sourceUrl });
   }
 
-  const rawSourceDetailUrl = parseOptionalText(formData.get("source_detail_url"));
-  const sourceDetailUrl = rawSourceDetailUrl
-    ? safeHttpsUrl(rawSourceDetailUrl)
-    : null;
-  if (rawSourceDetailUrl !== null && !sourceDetailUrl) {
-    return { ok: false, error: "Source detail URL must be a safe HTTPS URL without credentials." };
+  const sourceDetailUrl = parseOptionalText(formData.get("source_detail_url"));
+  if (sourceDetailUrl !== null && !URL.canParse(sourceDetailUrl)) {
+    return { ok: false, error: "Source detail URL must be a valid URL (including https://)." };
   }
 
-  const input: GiftCardOfferInput = {
+  return {
+    ok: true,
+    input: {
       brand,
       discountPercent,
       channel: channel as GiftCardChannel,
@@ -168,29 +159,7 @@ function parseGiftCardForm(formData: FormData): ParseResult {
       citations,
       confidence: confidence as Confidence,
       isPublished: parseBool(formData, "is_published"),
-  };
-  if (input.isPublished) {
-    const publishError = giftCardPublishError({
-      brand: input.brand,
-      seller: input.purchaseLocation,
-      sourceUrl: input.sourceDetailUrl ?? input.citations[0]?.sourceUrl ?? null,
-      promotionType: "discount",
-      discountPercent: input.discountPercent,
-      bonusPercent: null,
-      pointsMultiplier: null,
-      pointsProgram: null,
-      fixedDiscountDollars: null,
-      promoCreditDollars: null,
-      thresholdDollars: null,
-      membershipRequired: input.channel === "membership-portal",
-      expiryDate: input.expiryDate,
-      isOngoing: false,
-    });
-    if (publishError) return { ok: false, error: publishError };
-  }
-  return {
-    ok: true,
-    input,
+    },
   };
 }
 
@@ -207,9 +176,6 @@ export async function createGiftCardOffer(
   formData: FormData
 ): Promise<GiftCardFormState> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
 
   const parsed = parseGiftCardForm(formData);
   if (!parsed.ok) return { error: parsed.error };
@@ -238,9 +204,6 @@ export async function updateGiftCardOffer(
 ): Promise<GiftCardFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseGiftCardForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -265,19 +228,8 @@ export async function updateGiftCardOffer(
 export async function setPublished(
   id: string,
   isPublished: boolean
-): Promise<AdminActionResult> {
+): Promise<void> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
-  if (isPublished) {
-    const facts = await getGiftCardPublishFacts(id);
-    if (!facts) return { error: "Gift-card offer not found." };
-    const publishError = giftCardPublishError(facts);
-    if (publishError) return { error: publishError };
-  }
-
   await setGiftCardPublished(id, isPublished);
   await logAudit({
     actorEmail: email,
@@ -287,5 +239,4 @@ export async function setPublished(
     diff: { isPublished },
   });
   revalidateGiftCards();
-  return { ok: true };
 }

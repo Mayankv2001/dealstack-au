@@ -1,7 +1,3 @@
-import { cardOfferReadiness } from "@/lib/offers/cardReadiness";
-import type { CardOfferType } from "@/lib/offers/types";
-import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
-import { cardOfferToSourceResult, type CardOfferSourceInput } from "@/lib/sources/cardResults";
 import {
   rankSourceResults,
   rankSourceResultsForStore,
@@ -17,13 +13,10 @@ import {
 } from "@/lib/sources/types";
 import {
   getSupabaseServer,
-  isStaticDataSource,
+  shouldUseStaticData,
   toNumber,
-  toNumberOrNull,
   type DbClient,
 } from "@/lib/supabase/server";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
-import { reportOperationalError } from "@/lib/observability/report-server-error";
 
 /**
  * Source-checks adapter — Supabase-backed "Checked sources" results.
@@ -37,16 +30,11 @@ import { reportOperationalError } from "@/lib/observability/report-server-error"
  * `is_published = true` offers and `status = 'approved'` signals come back
  * (requirement: only approved/published records show publicly).
  *
- * Trust boundary (same contract as lib/repos/offers.ts):
- *   - DATA_SOURCE=static, or Supabase env missing → loadDbSourceResults()
- *     returns null and callers defer to the static searchSources()/
- *     sourceResultsForStore() demo pipeline (local/demo mode only).
- *   - Supabase configured → loadDbSourceResults() returns an array, even when
- *     EMPTY. A query error is logged and treated as zero rows ([]), and hard-
- *     expired rows plus not-yet-public-ready card offers are filtered out
- *     before ranking. The static demo pool is NEVER resurrected once Supabase
- *     is configured — an empty/erroring DB renders the checked-sources empty
- *     state, not stale samples.
+ * Static mode is deliberately narrow:
+ *   - DATA_SOURCE=static, or an unconfigured local development environment,
+ *     uses the sample search pipeline.
+ *   - Production query errors and legitimate empty results remain empty so
+ *     expired or unpublished sample records cannot appear as live offers.
  *
  * No scraping / agents / external source requests live here — it only reads our
  * own Supabase project. Cashback is ShopBack/TopCashback only (never Cashrewards).
@@ -74,12 +62,12 @@ function asDealKind(value: string): DealKind {
 }
 
 // ── Row shapes (only the columns the source cards need) ──────────────────────
-export interface StoreNameRow {
+interface StoreNameRow {
   id: string;
   name: string;
 }
 
-export interface CashbackResultRow {
+interface CashbackResultRow {
   id: string;
   merchant_id: string;
   provider: string;
@@ -90,7 +78,7 @@ export interface CashbackResultRow {
   confidence: Confidence;
 }
 
-export interface GiftCardResultRow {
+interface GiftCardResultRow {
   id: string;
   brand: string;
   discount_percent: number | string;
@@ -102,7 +90,7 @@ export interface GiftCardResultRow {
   confidence: Confidence;
 }
 
-export interface PointsResultRow {
+interface PointsResultRow {
   id: string;
   merchant_id: string | null;
   program: string;
@@ -112,25 +100,7 @@ export interface PointsResultRow {
   confidence: Confidence;
 }
 
-export interface CardOfferResultRow {
-  id: string;
-  provider: string;
-  card_name: string;
-  offer_type: CardOfferType;
-  bonus_points: number | string | null;
-  cashback_amount: number | string | null;
-  statement_credit_amount: number | string | null;
-  annual_fee: number | string | null;
-  eligibility_notes: string;
-  offer_summary: string;
-  source_url: string;
-  expiry_date: string | null;
-  review_by_date: string;
-  last_checked_at: string;
-  confidence: Confidence;
-}
-
-export interface SignalResultRow {
+interface SignalResultRow {
   id: string;
   merchant_id: string | null;
   title: string;
@@ -199,9 +169,7 @@ function giftCardToResults(
     cardOrProvider: null,
     expiryDate: r.expiry_date,
     startDate: r.start_date,
-    sourceUrl:
-      (r.source_detail_url ? safeHttpsUrl(r.source_detail_url) : null) ??
-      SOURCE_META.gcdb.homepage,
+    sourceUrl: r.source_detail_url ?? SOURCE_META.gcdb.homepage,
     publishedAt: null,
     lastCheckedAt: r.last_checked_at,
     confidence: r.confidence,
@@ -244,48 +212,6 @@ function pointsToResult(r: PointsResultRow, nameOf: NameOf): DealSourceResult {
     lastCheckedAt: r.last_checked_at,
     confidence: r.confidence,
   };
-}
-
-function cardOfferRowToInput(r: CardOfferResultRow): CardOfferSourceInput {
-  return {
-    id: r.id,
-    provider: r.provider,
-    cardName: r.card_name,
-    bonusPoints: toNumberOrNull(r.bonus_points),
-    cashbackAmount: toNumberOrNull(r.cashback_amount),
-    statementCreditAmount: toNumberOrNull(r.statement_credit_amount),
-    offerSummary: r.offer_summary,
-    sourceUrl: r.source_url,
-    expiryDate: r.expiry_date,
-    lastCheckedAt: r.last_checked_at,
-    confidence: r.confidence,
-  };
-}
-
-// Same public-readiness rule as /cards (lib/repos/offers.ts): a card offer is
-// only shown publicly once it's independently public-ready, not merely live.
-function cardOfferRowIsPublicReady(
-  r: CardOfferResultRow,
-  today: string
-): boolean {
-  return cardOfferReadiness(
-    {
-      provider: r.provider,
-      cardName: r.card_name,
-      offerType: r.offer_type,
-      bonusPoints: toNumberOrNull(r.bonus_points),
-      cashbackAmount: toNumberOrNull(r.cashback_amount),
-      statementCreditAmount: toNumberOrNull(r.statement_credit_amount),
-      annualFee: toNumberOrNull(r.annual_fee),
-      eligibilityNotes: r.eligibility_notes,
-      offerSummary: r.offer_summary,
-      sourceUrl: r.source_url,
-      confidence: r.confidence,
-      expiryDate: r.expiry_date,
-      reviewByDate: r.review_by_date,
-    },
-    today
-  ).ready;
 }
 
 function signalToResult(r: SignalResultRow, nameOf: NameOf): DealSourceResult {
@@ -353,16 +279,6 @@ async function queryPoints(db: DbClient): Promise<PointsResultRow[]> {
   return (data ?? []) as unknown as PointsResultRow[];
 }
 
-async function queryCardOffers(db: DbClient): Promise<CardOfferResultRow[]> {
-  const { data, error } = await db
-    .from("card_offers")
-    .select(
-      "id, provider, card_name, offer_type, bonus_points, cashback_amount, statement_credit_amount, annual_fee, eligibility_notes, offer_summary, source_url, expiry_date, review_by_date, last_checked_at, confidence"
-    );
-  if (error) throw error;
-  return (data ?? []) as unknown as CardOfferResultRow[];
-}
-
 async function querySignals(db: DbClient): Promise<SignalResultRow[]> {
   const { data, error } = await db
     .from("ozbargain_signals")
@@ -373,89 +289,37 @@ async function querySignals(db: DbClient): Promise<SignalResultRow[]> {
   return (data ?? []) as unknown as SignalResultRow[];
 }
 
-export interface SourceResultRows {
-  stores: StoreNameRow[];
-  cashback: CashbackResultRow[];
-  giftCards: GiftCardResultRow[];
-  points: PointsResultRow[];
-  cardOffers: CardOfferResultRow[];
-  signals: SignalResultRow[];
-}
-
 /**
- * Pure pool builder — no Supabase involved, so tests can feed rows directly.
- * Filters each table's hard-expired rows (and not-yet-public-ready card
- * offers) BEFORE mapping to DealSourceResult, so a merchant that has several
- * gift-card fan-out results never leaks a still-expired one through, and a
- * final filterLive-equivalent pass across the mapped pool catches anything
- * a mapper might have missed.
- */
-export function buildSourceResultPool(
-  rows: SourceResultRows,
-  now: Date = new Date()
-): DealSourceResult[] {
-  const today = todayAU(now);
-  const notExpired = (expiryDate: string | null) =>
-    !isPastExpiry(expiryDate, today);
-  const nameOf = buildNameMap(rows.stores);
-
-  const results: DealSourceResult[] = [
-    ...rows.cashback
-      .filter((r) => notExpired(r.expiry_date))
-      .map((r) => cashbackToResult(r, nameOf)),
-    ...rows.giftCards
-      .filter((r) => notExpired(r.expiry_date))
-      .flatMap((r) => giftCardToResults(r, nameOf)),
-    ...rows.points
-      .filter((r) => notExpired(r.expiry_date))
-      .map((r) => pointsToResult(r, nameOf)),
-    ...rows.cardOffers
-      .filter((r) => notExpired(r.expiry_date) && cardOfferRowIsPublicReady(r, today))
-      .map((r) => cardOfferToSourceResult(cardOfferRowToInput(r))),
-    ...rows.signals
-      .filter(
-        (r) =>
-          notExpired(r.expiry_date) &&
-          (r.is_sample || safeHttpsUrl(r.source_url) !== null)
-      )
-      .map((r) => signalToResult(r, nameOf)),
-  ];
-
-  return results.filter((r) => notExpired(r.expiryDate));
-}
-
-/**
- * The Supabase-backed source-result pool, or null when we should defer to the
- * static demo pool (DATA_SOURCE=static or Supabase env missing — local/demo
- * mode only). Once Supabase is configured, this always returns an array —
- * empty on a query error or on zero public rows — and never null again, so
- * callers never resurrect the static pool for a configured project.
+ * The Supabase-backed source-result pool, or null only in deliberate static
+ * demo/development mode. Empty and failed production reads stay empty.
  */
 export async function loadDbSourceResults(): Promise<DealSourceResult[] | null> {
-  if (isStaticDataSource()) return null;
+  if (shouldUseStaticData()) return null;
   const db = getSupabaseServer();
-  if (!db) return null;
+  if (!db) return [];
 
   try {
-    const [storeRows, cashback, giftCards, points, cardOffers, signals] =
-      await Promise.all([
-        queryStoreNames(db),
-        queryCashback(db),
-        queryGiftCards(db),
-        queryPoints(db),
-        queryCardOffers(db),
-        querySignals(db),
-      ]);
-    return buildSourceResultPool({
-      stores: storeRows,
-      cashback,
-      giftCards,
-      points,
-      cardOffers,
-      signals,
-    });
+    const [storeRows, cashback, giftCards, points, signals] = await Promise.all([
+      queryStoreNames(db),
+      queryCashback(db),
+      queryGiftCards(db),
+      queryPoints(db),
+      querySignals(db),
+    ]);
+    const nameOf = buildNameMap(storeRows);
+    const results: DealSourceResult[] = [
+      ...cashback.map((r) => cashbackToResult(r, nameOf)),
+      ...giftCards.flatMap((r) => giftCardToResults(r, nameOf)),
+      ...points.map((r) => pointsToResult(r, nameOf)),
+      ...signals.map((r) => signalToResult(r, nameOf)),
+    ];
+    return results;
   } catch (err) {
-    await reportOperationalError("source-results-read", err);
+    console.warn(
+      `[sourceResults] DB read failed; returning no public source checks. ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
     return [];
   }
 }

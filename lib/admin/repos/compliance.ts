@@ -9,9 +9,8 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
  * (which bypasses RLS) and must only run on the server behind requireAdmin();
  * the browser guard inside getSupabaseAdmin() is the backstop.
  *
- * This is record-keeping only. There is NO fetcher, cron, or agent here, and
- * nothing makes an external request. A review with approved_for_monitoring = true
- * is the gate the future monitor must check before it ever runs.
+ * This module only records reviews and makes no external request. A review with
+ * approved_for_monitoring = true is a gate checked before live monitor runs.
  */
 
 /** A compliance review as the admin sees it. */

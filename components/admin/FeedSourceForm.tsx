@@ -14,28 +14,17 @@ import { Input } from "@/components/ui/input";
  * layer is bundled into the browser. Validation lives in the server action; this
  * only collects input and surfaces the returned error.
  *
- * No fetching/cron exists — see the warning rendered near the enable checkbox.
+ * The network monitor remains compliance- and kill-switch-gated; this form only
+ * registers approved OzBargain feed endpoints.
  */
 
 export const FEED_ENABLE_WARNING =
-  "Enabling a feed only makes it eligible for future monitor runs. No fetcher or cron is implemented yet.";
+  "Enabling makes this source eligible for the gated monitor. Items still go only to the private review queue.";
 
 const KIND_OPTIONS: { value: string; label: string }[] = [
   { value: "front", label: "Front page" },
   { value: "store", label: "Store" },
   { value: "category", label: "Category" },
-];
-
-// Registry tags. Only "ozbargain" has verified feed support today; the rest are
-// registry-only until they do (the monitor skips them). Mirrors
-// FEED_SOURCE_TYPES in lib/monitor/offerChanges.ts.
-const SOURCE_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "ozbargain", label: "OzBargain (RSS — fetched)" },
-  { value: "pointhacks", label: "Point Hacks (registry only)" },
-  { value: "freepoints", label: "FreePoints (registry only)" },
-  { value: "gcdb", label: "GCDB (registry only)" },
-  { value: "provider-feed", label: "Provider feed/API (registry only)" },
-  { value: "manual-url", label: "Manual public URL (registry only)" },
 ];
 
 export interface StoreOption {
@@ -47,7 +36,6 @@ export interface FeedSourceFormDefaults {
   label?: string;
   feedUrl?: string;
   kind?: string;
-  sourceType?: string;
   merchantId?: string | null;
   isEnabled?: boolean;
 }
@@ -128,7 +116,7 @@ export function FeedSourceForm({
       <Field
         label="Feed URL"
         htmlFor="feed_url"
-        hint="The RSS/Atom feed URL. Must be verified against robots.txt/ToS before enabling."
+        hint="Official HTTPS OzBargain URL ending in /feed or /rss.xml. Compliance approval is still required."
       >
         <Input
           id="feed_url"
@@ -138,26 +126,6 @@ export function FeedSourceForm({
           placeholder="https://…"
           defaultValue={defaultValues?.feedUrl ?? ""}
         />
-      </Field>
-
-      <Field
-        label="Source type"
-        htmlFor="source_type"
-        hint="Only ozbargain sources are fetched by the monitor. Other types are registry-only entries and will never be polled."
-      >
-        <select
-          id="source_type"
-          name="source_type"
-          required
-          defaultValue={defaultValues?.sourceType ?? "manual-url"}
-          className={controlClass}
-        >
-          {SOURCE_TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -3,17 +3,8 @@
 import type { ReactNode } from "react";
 import { useActionState } from "react";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -70,7 +61,6 @@ export interface SignalFormDefaults {
   sourceUrl?: string;
   merchantUrl?: string | null;
   productUrl?: string | null;
-  productGroup?: string | null;
   postedAt?: string | null;
   expiryDate?: string | null;
   tags?: string[];
@@ -108,13 +98,11 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
+      <label htmlFor={htmlFor} className="text-sm font-medium">
         {label}
       </label>
       {children}
-      {hint ? (
-        <p className="text-[11px] leading-normal text-muted-foreground/80">{hint}</p>
-      ) : null}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -131,360 +119,299 @@ export function SignalForm({
   );
 
   return (
-    <Card className="max-w-2xl">
-      {/* display:contents makes the form layout-transparent so Card's flex gap applies
-          between CardHeader / CardContent / CardFooter — form submission is unaffected. */}
-      <form action={formAction} className="contents">
-        <CardHeader>
-          <CardTitle>OzBargain signal</CardTitle>
-          <CardDescription>
-            Community signal with status, sentiment, and citation for store-page context.
-          </CardDescription>
-        </CardHeader>
+    <form action={formAction} className="max-w-2xl space-y-6">
+      {state?.error ? (
+        <p
+          role="alert"
+          className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          {state.error}
+        </p>
+      ) : null}
 
-        <CardContent className="space-y-6">
-          {state?.error ? (
-            <p
-              role="alert"
-              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-            >
-              {state.error}
-            </p>
-          ) : null}
+      <Field
+        label="Title"
+        htmlFor="title"
+        hint="Headline only — our own paraphrase, never copied content."
+      >
+        <Input
+          id="title"
+          name="title"
+          required
+          defaultValue={defaultValues?.title ?? ""}
+        />
+      </Field>
 
-          <Field
-            label="Title"
-            htmlFor="title"
-            hint="Headline only — our own paraphrase, never copied content."
+      <Field
+        label="Summary"
+        htmlFor="summary"
+        hint="Short paraphrase in our own words (≈200 chars max)."
+      >
+        <textarea
+          id="summary"
+          name="summary"
+          rows={3}
+          defaultValue={defaultValues?.summary ?? ""}
+          className={cn(controlClass, "min-h-16")}
+        />
+      </Field>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Store"
+          htmlFor="merchant_id"
+          hint="Optional — leave blank for a non-merchant signal."
+        >
+          <select
+            id="merchant_id"
+            name="merchant_id"
+            defaultValue={defaultValues?.merchantId ?? ""}
+            className={controlClass}
           >
-            <Input
-              id="title"
-              name="title"
-              required
-              defaultValue={defaultValues?.title ?? ""}
-            />
-          </Field>
+            <option value="">No store</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>
+                {store.name}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <Field
-            label="Summary"
-            htmlFor="summary"
-            hint="Short paraphrase in our own words (≈200 chars max)."
+        <Field label="Status" htmlFor="status">
+          <select
+            id="status"
+            name="status"
+            required
+            defaultValue={defaultValues?.status ?? "pending"}
+            className={controlClass}
           >
-            <textarea
-              id="summary"
-              name="summary"
-              rows={3}
-              defaultValue={defaultValues?.summary ?? ""}
-              className={cn(controlClass, "min-h-16")}
-            />
-          </Field>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Store"
-              htmlFor="merchant_id"
-              hint="Optional — leave blank for a non-merchant signal."
-            >
-              <select
-                id="merchant_id"
-                name="merchant_id"
-                defaultValue={defaultValues?.merchantId ?? ""}
-                className={controlClass}
-              >
-                <option value="">No store</option>
-                {stores.map((store) => (
-                  <option key={store.id} value={store.id}>
-                    {store.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Status" htmlFor="status">
-              <select
-                id="status"
-                name="status"
-                required
-                defaultValue={defaultValues?.status ?? "pending"}
-                className={controlClass}
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Sentiment" htmlFor="sentiment">
-              <select
-                id="sentiment"
-                name="sentiment"
-                required
-                defaultValue={defaultValues?.sentiment ?? ""}
-                className={controlClass}
-              >
-                <option value="" disabled>
-                  Select a sentiment…
-                </option>
-                {SENTIMENT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Deal kind" htmlFor="deal_kind">
-              <select
-                id="deal_kind"
-                name="deal_kind"
-                required
-                defaultValue={defaultValues?.dealKind ?? ""}
-                className={controlClass}
-              >
-                <option value="" disabled>
-                  Select a deal kind…
-                </option>
-                {DEAL_KIND_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Confidence" htmlFor="confidence">
-              <select
-                id="confidence"
-                name="confidence"
-                required
-                defaultValue={defaultValues?.confidence ?? "needs-verification"}
-                className={controlClass}
-              >
-                {CONFIDENCE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field
-              label="Signal score"
-              htmlFor="signal_score"
-              hint="Optional 0–1 heuristic score."
-            >
-              <Input
-                id="signal_score"
-                name="signal_score"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                defaultValue={defaultValues?.signalScore ?? ""}
-                className="max-w-xs"
-              />
-            </Field>
-
-            <Field label="Votes (sample)" htmlFor="votes_sample" hint="Optional.">
-              <Input
-                id="votes_sample"
-                name="votes_sample"
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                defaultValue={defaultValues?.votesSample ?? ""}
-                className="max-w-xs"
-              />
-            </Field>
-
-            <Field label="Comment count" htmlFor="comment_count" hint="Optional.">
-              <Input
-                id="comment_count"
-                name="comment_count"
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                defaultValue={defaultValues?.commentCount ?? ""}
-                className="max-w-xs"
-              />
-            </Field>
-
-            <Field label="Posted date" htmlFor="posted_at" hint="Optional.">
-              <Input
-                id="posted_at"
-                name="posted_at"
-                type="date"
-                defaultValue={defaultValues?.postedAt ?? ""}
-                className="max-w-[200px]"
-              />
-            </Field>
-
-            <Field
-              label="Expiry date"
-              htmlFor="expiry_date"
-              hint="Optional. When set, the DQ report flags this signal as expired once the date passes."
-            >
-              <Input
-                id="expiry_date"
-                name="expiry_date"
-                type="date"
-                defaultValue={defaultValues?.expiryDate ?? ""}
-                className="max-w-[200px]"
-              />
-            </Field>
-
-            <Field label="Promo code" htmlFor="promo_code" hint="Optional.">
-              <Input
-                id="promo_code"
-                name="promo_code"
-                defaultValue={defaultValues?.promoCode ?? ""}
-              />
-            </Field>
-
-            <Field
-              label="Price text"
-              htmlFor="price_text"
-              hint='Optional, e.g. "$1,799 (was $1,999)".'
-            >
-              <Input
-                id="price_text"
-                name="price_text"
-                defaultValue={defaultValues?.priceText ?? ""}
-              />
-            </Field>
-          </div>
-
-          <Field
-            label="Product group"
-            htmlFor="product_group"
-            hint="Optional exact key shared only by the same product at other retailers, e.g. airpods-pro-3. Requires a store, exact product URL and AUD price."
+        <Field label="Sentiment" htmlFor="sentiment">
+          <select
+            id="sentiment"
+            name="sentiment"
+            required
+            defaultValue={defaultValues?.sentiment ?? ""}
+            className={controlClass}
           >
-            <Input
-              id="product_group"
-              name="product_group"
-              maxLength={80}
-              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              placeholder="airpods-pro-3"
-              defaultValue={defaultValues?.productGroup ?? ""}
-            />
-          </Field>
+            <option value="" disabled>
+              Select a sentiment…
+            </option>
+            {SENTIMENT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <Field
-            label="Source URL"
-            htmlFor="source_url"
-            hint="Required. Link to the OzBargain post (or placeholder for samples)."
+        <Field label="Deal kind" htmlFor="deal_kind">
+          <select
+            id="deal_kind"
+            name="deal_kind"
+            required
+            defaultValue={defaultValues?.dealKind ?? ""}
+            className={controlClass}
           >
-            <Input
-              id="source_url"
-              name="source_url"
-              type="url"
-              required
-              placeholder="https://…"
-              defaultValue={defaultValues?.sourceUrl ?? ""}
-            />
-          </Field>
+            <option value="" disabled>
+              Select a deal kind…
+            </option>
+            {DEAL_KIND_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Merchant URL"
-              htmlFor="merchant_url"
-              hint="Optional retailer homepage."
-            >
-              <Input
-                id="merchant_url"
-                name="merchant_url"
-                type="url"
-                placeholder="https://…"
-                defaultValue={defaultValues?.merchantUrl ?? ""}
-              />
-            </Field>
-
-            <Field
-              label="Product URL"
-              htmlFor="product_url"
-              hint="Optional exact product / category page."
-            >
-              <Input
-                id="product_url"
-                name="product_url"
-                type="url"
-                placeholder="https://…"
-                defaultValue={defaultValues?.productUrl ?? ""}
-              />
-            </Field>
-          </div>
-
-          <Field
-            label="Tags"
-            htmlFor="tags"
-            hint="Optional. Comma- or newline-separated labels."
+        <Field label="Confidence" htmlFor="confidence">
+          <select
+            id="confidence"
+            name="confidence"
+            required
+            defaultValue={defaultValues?.confidence ?? "needs-verification"}
+            className={controlClass}
           >
-            <textarea
-              id="tags"
-              name="tags"
-              rows={2}
-              defaultValue={(defaultValues?.tags ?? []).join(", ")}
-              className={cn(controlClass, "min-h-16")}
-            />
-          </Field>
+            {CONFIDENCE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-          <fieldset className="space-y-3">
-            <label htmlFor="is_sample" className="flex items-start gap-2.5 text-sm">
-              <input
-                id="is_sample"
-                name="is_sample"
-                type="checkbox"
-                defaultChecked={defaultValues?.isSample ?? false}
-                className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
-              />
-              <span>
-                <span className="font-medium text-foreground">Sample signal</span>
-                <span className="block text-[11px] leading-normal text-muted-foreground/80">
-                  Placeholder example — the source URL is not a real live post.
-                </span>
-              </span>
-            </label>
-          </fieldset>
-        </CardContent>
+        <Field
+          label="Signal score"
+          htmlFor="signal_score"
+          hint="Optional 0–1 heuristic score."
+        >
+          <Input
+            id="signal_score"
+            name="signal_score"
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            defaultValue={defaultValues?.signalScore ?? ""}
+          />
+        </Field>
 
-        <CardFooter>
-          <div className="flex w-full flex-col gap-4">
-            {/* Freshness callout */}
-            <div className="w-full rounded-r-md border-l-4 border-emerald-500 bg-emerald-50/50 p-3 dark:bg-emerald-950/25">
-              <div className="flex items-start gap-2.5">
-                <RefreshCw className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-400">
-                    Auto-stamps Verification Date
-                  </p>
-                  <p className="text-[11px] leading-normal text-muted-foreground/80">
-                    Saving auto-updates Last&nbsp;checked — clears any stale DQ flag.
-                    Admin edits write instantly to Supabase; seed scripts are for demo reset only.
-                  </p>
-                </div>
-              </div>
-            </div>
+        <Field label="Votes (sample)" htmlFor="votes_sample" hint="Optional.">
+          <Input
+            id="votes_sample"
+            name="votes_sample"
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            defaultValue={defaultValues?.votesSample ?? ""}
+          />
+        </Field>
 
-            {/* Submit row */}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving…" : submitLabel}
-              </Button>
-              <Button asChild variant="ghost">
-                <Link href="/admin/signals">Cancel</Link>
-              </Button>
-              <span className="ml-auto hidden text-[11px] text-muted-foreground/70 sm:inline">
-                Changes write instantly to Supabase.
-              </span>
-            </div>
-          </div>
-        </CardFooter>
-      </form>
-    </Card>
+        <Field label="Comment count" htmlFor="comment_count" hint="Optional.">
+          <Input
+            id="comment_count"
+            name="comment_count"
+            type="number"
+            min="0"
+            step="1"
+            inputMode="numeric"
+            defaultValue={defaultValues?.commentCount ?? ""}
+          />
+        </Field>
+
+        <Field label="Posted date" htmlFor="posted_at" hint="Optional.">
+          <Input
+            id="posted_at"
+            name="posted_at"
+            type="date"
+            defaultValue={defaultValues?.postedAt ?? ""}
+          />
+        </Field>
+
+        <Field label="Expiry date" htmlFor="expiry_date" hint="Optional.">
+          <Input
+            id="expiry_date"
+            name="expiry_date"
+            type="date"
+            defaultValue={defaultValues?.expiryDate ?? ""}
+          />
+        </Field>
+
+        <Field label="Promo code" htmlFor="promo_code" hint="Optional.">
+          <Input
+            id="promo_code"
+            name="promo_code"
+            defaultValue={defaultValues?.promoCode ?? ""}
+          />
+        </Field>
+
+        <Field
+          label="Price text"
+          htmlFor="price_text"
+          hint='Optional, e.g. "$1,799 (was $1,999)".'
+        >
+          <Input
+            id="price_text"
+            name="price_text"
+            defaultValue={defaultValues?.priceText ?? ""}
+          />
+        </Field>
+      </div>
+
+      <Field
+        label="Source URL"
+        htmlFor="source_url"
+        hint="Required. Link to the OzBargain post (or placeholder for samples)."
+      >
+        <Input
+          id="source_url"
+          name="source_url"
+          type="url"
+          required
+          placeholder="https://…"
+          defaultValue={defaultValues?.sourceUrl ?? ""}
+        />
+      </Field>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Merchant URL"
+          htmlFor="merchant_url"
+          hint="Optional retailer homepage."
+        >
+          <Input
+            id="merchant_url"
+            name="merchant_url"
+            type="url"
+            placeholder="https://…"
+            defaultValue={defaultValues?.merchantUrl ?? ""}
+          />
+        </Field>
+
+        <Field
+          label="Product URL"
+          htmlFor="product_url"
+          hint="Optional exact product / category page."
+        >
+          <Input
+            id="product_url"
+            name="product_url"
+            type="url"
+            placeholder="https://…"
+            defaultValue={defaultValues?.productUrl ?? ""}
+          />
+        </Field>
+      </div>
+
+      <Field
+        label="Tags"
+        htmlFor="tags"
+        hint="Optional. Comma- or newline-separated labels."
+      >
+        <textarea
+          id="tags"
+          name="tags"
+          rows={2}
+          defaultValue={(defaultValues?.tags ?? []).join(", ")}
+          className={cn(controlClass, "min-h-16")}
+        />
+      </Field>
+
+      <fieldset className="space-y-3">
+        <label htmlFor="is_sample" className="flex items-start gap-2.5 text-sm">
+          <input
+            id="is_sample"
+            name="is_sample"
+            type="checkbox"
+            defaultChecked={defaultValues?.isSample ?? false}
+            className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
+          />
+          <span>
+            <span className="font-medium">Sample signal</span>
+            <span className="block text-xs text-muted-foreground">
+              Placeholder example — the source URL is not a real live post.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
+      <div className="flex items-center gap-2">
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Saving…" : submitLabel}
+        </Button>
+        <Button asChild variant="ghost">
+          <Link href="/admin/signals">Cancel</Link>
+        </Button>
+      </div>
+    </form>
   );
 }
 

@@ -2,18 +2,8 @@
  * Seed Supabase from the current static data.
  *
  * Reads the existing arrays in lib/data.ts and lib/offers/manualOffers.ts and
- * writes them into the Supabase tables created by
- * supabase/migrations/001_initial_schema.sql.
- *
- * MODES
- *   default        INSERT-ONLY: adds rows whose id does not exist yet and
- *                  leaves every existing row completely untouched. Safe to
- *                  re-run — it can never clobber values or publish states an
- *                  admin has edited in the panel.
- *   --overwrite    UPSERT: rows with a matching id are RESET to the static
- *                  values, including is_published. Any admin edits and any
- *                  unpublish done by cleanup-old-deals on those rows ARE LOST.
- *                  Only use this to deliberately restore the static baseline.
+ * upserts them into the Supabase tables created by
+ * supabase/migrations/001_initial_schema.sql. Safe to re-run (upsert on id).
  *
  * NO network calls to OzBargain/ShopBack/TopCashback/GCDB/FreePoints — this only
  * talks to your own Supabase project using the service-role key.
@@ -24,14 +14,12 @@
  *
  * Run:
  *   1. Apply supabase/migrations/001_initial_schema.sql to your project first.
- *   2. npm run seed                    # insert-only (existing rows untouched)
- *      npm run seed -- --overwrite     # reset seeded rows to static values
+ *   2. npm run seed
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { stores } from "../lib/data";
 import {
-  cardOffers,
   cashbackOffers,
   giftCardOffers,
   ozBargainSignals,
@@ -39,11 +27,6 @@ import {
   weeklyDeals,
 } from "../lib/offers/manualOffers";
 import { supabaseServiceRoleKey, supabaseUrl } from "../lib/env";
-import {
-  filterProductionSignals,
-  filterSeedableSignals,
-  type SignalSeedRow,
-} from "./seed-filters";
 
 // Load .env.local for standalone runs (Next loads it for the app, scripts don't).
 type WithLoadEnv = { loadEnvFile?: (path?: string) => void };
@@ -52,10 +35,6 @@ try {
 } catch {
   // .env.local not found — fall back to shell-provided environment variables.
 }
-
-// ── CLI args ─────────────────────────────────────────────────────────────────
-// Insert-only is the DEFAULT; overwriting live rows requires the explicit flag.
-const OVERWRITE = process.argv.slice(2).includes("--overwrite");
 
 type Row = Record<string, unknown>;
 
@@ -84,23 +63,13 @@ async function seedTable(
     console.log(`• ${table}: nothing to seed`);
     return;
   }
-  // Default: ignoreDuplicates leaves existing rows untouched (insert-only).
-  // --overwrite: matching ids are reset to the static values.
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from(table)
-    .upsert(rows, { onConflict: "id", ignoreDuplicates: !OVERWRITE })
-    .select("id");
+    .upsert(rows, { onConflict: "id", ignoreDuplicates: false });
   if (error) {
     throw new Error(`Failed seeding ${table}: ${error.message}`);
   }
-  const touched = data?.length ?? 0;
-  if (OVERWRITE) {
-    console.log(`✓ ${table}: upserted ${touched} (existing rows OVERWRITTEN)`);
-  } else {
-    console.log(
-      `✓ ${table}: inserted ${touched} new of ${rows.length} (existing rows untouched)`
-    );
-  }
+  console.log(`✓ ${table}: upserted ${rows.length}`);
 }
 
 // ── Row mappers (camelCase → snake_case; undefined → null) ───────────────────
@@ -153,33 +122,6 @@ const giftCardRows: Row[] = giftCardOffers.map((o) => ({
   is_published: true,
 }));
 
-// card_offers requires migration 007 to be applied first — see
-// supabase/migrations/007_card_offers.sql. Rows go in UNPUBLISHED (unlike the
-// other offer tables above): an admin must review and publish each one by
-// hand at /admin/card-offers before it can appear anywhere public.
-const cardOfferRows: Row[] = cardOffers.map((o) => ({
-  id: o.id,
-  provider: o.provider,
-  card_name: o.cardName,
-  offer_type: o.offerType,
-  bonus_points: o.bonusPoints,
-  cashback_amount: o.cashbackAmount,
-  statement_credit_amount: o.statementCreditAmount,
-  minimum_spend: o.minimumSpend,
-  minimum_spend_period: o.minimumSpendPeriod,
-  annual_fee: o.annualFee,
-  bonus_stages: o.bonusStages,
-  point_value_cents: o.pointValueCents,
-  eligibility_notes: o.eligibilityNotes,
-  offer_summary: o.offerSummary,
-  source_url: o.sourceUrl,
-  confidence: o.confidence,
-  expiry_date: o.expiryDate,
-  review_by_date: o.reviewByDate,
-  last_checked_at: o.lastCheckedAt,
-  is_published: false,
-}));
-
 const cashbackRows: Row[] = cashbackOffers.map((o) => ({
   id: o.id,
   merchant_id: o.merchantId,
@@ -212,9 +154,7 @@ const pointsRows: Row[] = pointsOffers.map((o) => ({
   is_published: true,
 }));
 
-const signalRows: (Row & SignalSeedRow)[] = filterProductionSignals(
-  ozBargainSignals
-).map((o) => ({
+const signalRows: Row[] = ozBargainSignals.map((o) => ({
   id: o.id,
   source_native_id: o.sourceNativeId ?? null,
   merchant_id: o.merchantId ?? null,
@@ -227,7 +167,6 @@ const signalRows: (Row & SignalSeedRow)[] = filterProductionSignals(
   source_url: o.sourceUrl,
   merchant_url: o.merchantUrl ?? null,
   product_url: o.productUrl ?? null,
-  product_group: o.productGroup ?? null,
   posted_at: o.postedAt ?? null,
   expiry_date: o.expiryDate ?? null,
   tags: o.tags ?? [],
@@ -262,70 +201,15 @@ async function main(): Promise<void> {
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
 
-  if (OVERWRITE) {
-    console.log(
-      [
-        "⚠".repeat(32),
-        "⚠ OVERWRITE MODE (--overwrite):",
-        "⚠ Existing rows with matching ids will be RESET to the static values,",
-        "⚠ including is_published. Admin edits and any cleanup-old-deals",
-        "⚠ unpublishes on those rows WILL BE LOST.",
-        "⚠".repeat(32),
-        "",
-      ].join("\n")
-    );
-  }
-  console.log(
-    `Seeding Supabase from static data (${
-      OVERWRITE ? "OVERWRITE" : "insert-only; pass --overwrite to reset seeded rows"
-    })…\n`
-  );
+  console.log("Seeding Supabase from static data…\n");
   // Stores first (other tables reference merchant_id).
   await seedTable(supabase, "stores", storeRows);
   await seedTable(supabase, "gift_card_offers", giftCardRows);
   await seedTable(supabase, "cashback_offers", cashbackRows);
   await seedTable(supabase, "points_offers", pointsRows);
-  // This table also has a unique source_native_id. Pre-filter collisions owned
-  // by a different id; onConflict:id cannot handle that second constraint.
-  const { data: existingSignals, error: existingSignalsError } = await supabase
-    .from("ozbargain_signals")
-    .select("id, source_native_id")
-    .not("source_native_id", "is", null);
-  if (existingSignalsError) {
-    throw new Error(
-      `Failed reading existing signal keys: ${existingSignalsError.message}`
-    );
-  }
-  const { seedable, skipped } = filterSeedableSignals(
-    signalRows,
-    (existingSignals ?? []) as unknown as SignalSeedRow[]
-  );
-  for (const { row, ownedById } of skipped) {
-    console.log(
-      `• ozbargain_signals: skipped "${row.id}" — source_native_id "${row.source_native_id}" already belongs to row "${ownedById}"`
-    );
-  }
-  await seedTable(supabase, "ozbargain_signals", seedable);
+  await seedTable(supabase, "ozbargain_signals", signalRows);
   await seedTable(supabase, "weekly_deals", weeklyRows);
-
-  // card_offers needs migration 007 applied first (not done automatically —
-  // see supabase/migrations/007_card_offers.sql). Isolated in its own
-  // try/catch, last, so a not-yet-applied migration never aborts the seeding
-  // of every other table above.
-  try {
-    await seedTable(supabase, "card_offers", cardOfferRows);
-  } catch (err) {
-    console.warn(
-      `\n• card_offers: skipped (${err instanceof Error ? err.message : String(err)}). ` +
-        "Apply supabase/migrations/007_card_offers.sql first, then re-run."
-    );
-  }
-
-  console.log(
-    OVERWRITE
-      ? "\nDone (overwrite mode — seeded rows were reset to static values)."
-      : "\nDone. Insert-only: re-running is always safe; existing rows were not touched."
-  );
+  console.log("\nDone. Re-running is safe (upsert on id).");
 }
 
 main().catch((err) => {

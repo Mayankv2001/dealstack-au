@@ -20,7 +20,6 @@ import {
   type SourceId,
 } from "@/lib/sources/types";
 import { cn } from "@/lib/utils";
-import { safePublicHref } from "@/lib/security/urlPolicy";
 
 /** Subtle per-source tints so citations are recognisable at a glance */
 const sourceBadgeClasses: Record<SourceId, string> = {
@@ -41,7 +40,6 @@ const kindIcons = {
   "gift-card": Gift,
   points: Star,
   guide: StoreIcon,
-  card: CreditCard,
 } as const;
 
 function SourceBadge({ source }: { source: SourceId }) {
@@ -69,11 +67,6 @@ export function SourceResultCard({
       ? `${result.discountPercent}% off`
       : result.pointsAmount;
   const expired = result.confidence === "expired-unknown";
-  const candidateHref = safePublicHref(result.sourceUrl);
-  const sourceHref =
-    result.source === "manual" && candidateHref?.startsWith("/")
-      ? null
-      : candidateHref;
 
   return (
     <Card className={cn("gap-0 py-0", expired && "opacity-70")}>
@@ -142,18 +135,16 @@ export function SourceResultCard({
               Checked {formatDateAU(result.lastCheckedAt)}
             </span>
           </div>
-          {sourceHref ? (
-            <Button asChild variant="outline" size="sm" className="shrink-0">
-              <a
-                href={sourceHref}
-                target="_blank"
-                rel="nofollow noopener noreferrer"
-              >
-                View source
-                <ExternalLink className="size-3.5" />
-              </a>
-            </Button>
-          ) : null}
+          <Button asChild variant="outline" size="sm" className="shrink-0">
+            <a
+              href={result.sourceUrl}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+            >
+              View source
+              <ExternalLink className="size-3.5" />
+            </a>
+          </Button>
         </div>
       </CardContent>
     </Card>

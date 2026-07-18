@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowRight,
   CreditCard,
   ExternalLink,
   Gift,
@@ -20,8 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import SiteFooter from "@/components/SiteFooter";
-import SiteHeader from "@/components/SiteHeader";
+import Logo from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -261,8 +259,33 @@ const warnings: ResourceItem[] = [
 
 export default function ResourcesPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <SiteHeader />
+    <div className="min-h-screen bg-emerald-500/[0.04]">
+      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Logo />
+          <div className="flex items-center gap-2">
+            <span
+              aria-current="page"
+              className="hidden h-8 items-center rounded-md bg-emerald-500/10 px-3 text-sm font-medium text-emerald-700 dark:text-emerald-400 sm:inline-flex"
+            >
+              Resources
+            </span>
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/deals">Weekly Deals</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="bg-background">
+              <Link href="/search">All stores</Link>
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              <Link href="/">Home</Link>
+            </Button>
+          </div>
+        </div>
+      </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {/* Intro */}
@@ -320,18 +343,6 @@ export default function ResourcesPage() {
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {section.intro}
                 </p>
-                {section.id === "credit-cards" && (
-                  <Button
-                    asChild
-                    size="sm"
-                    className="mt-3 w-fit bg-emerald-700 text-white hover:bg-emerald-800"
-                  >
-                    <Link href="/cards">
-                      Browse live card offers
-                      <ArrowRight className="size-3.5" />
-                    </Link>
-                  </Button>
-                )}
                 <ul className="mt-3 space-y-2.5">
                   {section.items.map((item) => (
                     <li key={item.title} className="flex gap-2">
@@ -411,7 +422,6 @@ export default function ResourcesPage() {
           any program, bank or retailer mentioned.
         </p>
       </main>
-      <SiteFooter />
     </div>
   );
 }

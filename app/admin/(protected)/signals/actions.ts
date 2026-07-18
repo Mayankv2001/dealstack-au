@@ -3,10 +3,6 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import {
-  checkAdminRateLimit,
-  type AdminActionResult,
-} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
@@ -21,11 +17,6 @@ import {
   type SignalStatus,
 } from "@/lib/admin/repos/signals";
 import type { Confidence, DealKind } from "@/lib/sources/types";
-import {
-  parseProductGroup,
-  productGroupReadinessError,
-} from "@/lib/offers/productGroup";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * OzBargain signals admin server actions.
@@ -33,8 +24,8 @@ import { safeHttpsUrl } from "@/lib/security/urlPolicy";
  * SECURITY: every action calls requireAdmin() first (a valid session is not
  * enough — the email must be in the admins allowlist). The service-role writes
  * live in the admin repo; nothing here is reachable from the public site. After
- * any change we revalidate the public signal surfaces plus the admin list. No
- * OzBargain fetching / external source calls.
+ * any change we revalidate /deals so the approved view reflects it, plus the
+ * admin list. No OzBargain fetching / external source calls.
  */
 
 /** Returned to the form via useActionState. Empty object means "no error yet". */
@@ -79,14 +70,14 @@ function parseOptionalText(raw: FormDataEntryValue | null): string | null {
   return text === "" ? null : text;
 }
 
-/** Optional URL field. Blank → null; non-blank must be safe public HTTPS. */
+/** Optional URL field. Blank → null; non-blank must parse. */
 function parseOptionalUrl(
   raw: FormDataEntryValue | null
 ): { ok: true; value: string | null } | { ok: false } {
   const text = String(raw ?? "").trim();
   if (text === "") return { ok: true, value: null };
-  const url = safeHttpsUrl(text);
-  return url ? { ok: true, value: url } : { ok: false };
+  if (!URL.canParse(text)) return { ok: false };
+  return { ok: true, value: text };
 }
 
 /** Splits a comma/newline-separated field into a trimmed, blank-free list. */
@@ -124,9 +115,8 @@ function parseSignalForm(formData: FormData): ParseResult {
   // source_url is required and must be a real URL (the column is NOT NULL).
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   if (!sourceUrl) return { ok: false, error: "Source URL is required." };
-  const safeSourceUrl = safeHttpsUrl(sourceUrl);
-  if (!safeSourceUrl) {
-    return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
+  if (!URL.canParse(sourceUrl)) {
+    return { ok: false, error: "Source URL must be a valid URL (including https://)." };
   }
 
   const merchantUrl = parseOptionalUrl(formData.get("merchant_url"));
@@ -137,15 +127,6 @@ function parseSignalForm(formData: FormData): ParseResult {
   const productUrl = parseOptionalUrl(formData.get("product_url"));
   if (!productUrl.ok) {
     return { ok: false, error: "Product URL must be a valid URL (including https://)." };
-  }
-
-  const productGroup = parseProductGroup(formData.get("product_group"));
-  if (!productGroup.ok) {
-    return {
-      ok: false,
-      error:
-        "Product group must be 1-80 characters of lowercase letters, numbers and single hyphens.",
-    };
   }
 
   const votesSample = parseOptionalInt(formData.get("votes_sample"));
@@ -166,14 +147,6 @@ function parseSignalForm(formData: FormData): ParseResult {
   // merchant_id is optional — blank means a non-merchant signal.
   const merchantRaw = String(formData.get("merchant_id") ?? "").trim();
   const merchantId = merchantRaw === "" ? null : merchantRaw;
-  const priceText = parseOptionalText(formData.get("price_text"));
-  const groupReadinessError = productGroupReadinessError({
-    productGroup: productGroup.value,
-    merchantId,
-    productUrl: productUrl.value,
-    priceText,
-  });
-  if (groupReadinessError) return { ok: false, error: groupReadinessError };
 
   return {
     ok: true,
@@ -185,29 +158,26 @@ function parseSignalForm(formData: FormData): ParseResult {
       commentCount: commentCount.value,
       sentiment: sentiment as Sentiment,
       dealKind: dealKind as DealKind,
-      sourceUrl: safeSourceUrl,
+      sourceUrl,
       merchantUrl: merchantUrl.value,
       productUrl: productUrl.value,
       postedAt: parseOptionalText(formData.get("posted_at")),
       expiryDate: parseOptionalText(formData.get("expiry_date")),
       tags: parseTags(formData.get("tags")),
       promoCode: parseOptionalText(formData.get("promo_code")),
-      priceText,
+      priceText: parseOptionalText(formData.get("price_text")),
       signalScore: signalScore.value,
       confidence: confidence as Confidence,
       isSample: parseBool(formData, "is_sample"),
       status: status as SignalStatus,
-      productGroup: productGroup.value,
     },
   };
 }
 
 /** On-demand revalidation of every surface a signal change affects. */
 function revalidateSignals(): void {
-  revalidatePath("/");
   revalidatePath("/deals");
   revalidatePath("/admin/signals");
-  revalidatePath("/search");
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
@@ -217,9 +187,6 @@ export async function createSignal(
   formData: FormData
 ): Promise<SignalFormState> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
 
   const parsed = parseSignalForm(formData);
   if (!parsed.ok) return { error: parsed.error };
@@ -234,7 +201,6 @@ export async function createSignal(
       title: parsed.input.title,
       status: parsed.input.status,
       isSample: parsed.input.isSample,
-      productGroup: parsed.input.productGroup,
     },
   });
   revalidateSignals();
@@ -248,9 +214,6 @@ export async function updateSignal(
 ): Promise<SignalFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseSignalForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -262,7 +225,6 @@ export async function updateSignal(
     rowId: id,
     diff: {
       title: parsed.input.title,
-      productGroup: parsed.input.productGroup,
       status: parsed.input.status,
       isSample: parsed.input.isSample,
     },
@@ -275,12 +237,8 @@ export async function updateSignal(
 export async function setStatus(
   id: string,
   status: SignalStatus
-): Promise<AdminActionResult> {
+): Promise<void> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   await setSignalStatus(id, status);
   await logAudit({
     actorEmail: email,
@@ -290,65 +248,4 @@ export async function setStatus(
     diff: { status },
   });
   revalidateSignals();
-  return { ok: true };
-}
-
-/** Hard cap on a single bulk-approve call — defensive against a huge payload. */
-const BULK_APPROVE_MAX = 200;
-
-/**
- * Approve a scoped set of signals in one pass — the ids the admin explicitly
- * ticked in the list (select-all minus any unticked exceptions). This IS the
- * manual review step: it uses the same per-signal status write as the per-row
- * Approve button, just batched. Per-signal failures don't abort the batch; the
- * returned error summarises what failed so the admin can retry.
- */
-export async function approveSelectedSignals(
-  signalIds: string[]
-): Promise<AdminActionResult> {
-  const { email } = await requireAdmin();
-
-  // One bulk pass counts as a single admin mutation against the limit.
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
-  const ids = [...new Set(signalIds)]
-    .filter((id): id is string => typeof id === "string" && id.length > 0)
-    .slice(0, BULK_APPROVE_MAX);
-  if (ids.length === 0) return { ok: true };
-
-  let approved = 0;
-  const failed: string[] = [];
-  for (const id of ids) {
-    try {
-      await setSignalStatus(id, "approved");
-      approved++;
-    } catch {
-      failed.push(id);
-    }
-  }
-
-  await logAudit({
-    actorEmail: email,
-    action: "status",
-    tableName: "ozbargain_signals",
-    rowId: null,
-    // One summary row for the batch; keep a capped id list for traceability.
-    diff: {
-      bulk: true,
-      status: "approved",
-      count: ids.length,
-      approved,
-      failedCount: failed.length,
-      ids: ids.slice(0, 50),
-    },
-  });
-  revalidateSignals();
-
-  if (failed.length > 0) {
-    return {
-      error: `Approved ${approved} of ${ids.length}; ${failed.length} failed — retry the remaining selection.`,
-    };
-  }
-  return { ok: true };
 }

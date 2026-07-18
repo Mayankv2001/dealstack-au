@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { classifyBody, fetchFeed } from "../../lib/monitor/fetchFeed";
+import {
+  classifyBody,
+  fetchFeed,
+  MAX_FEED_BYTES,
+} from "../../lib/monitor/fetchFeed";
 
 const RSS = '<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>';
 
@@ -51,8 +55,7 @@ describe("fetchFeed", () => {
       "content-type": "application/rss+xml",
     });
     const out = await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed.xml",
-      sourceType: "ozbargain",
+      feedUrl: "https://www.ozbargain.com.au/feed",
       userAgent: "DealStackAU/1.0",
     });
     expect(out.kind).toBe("ok");
@@ -66,8 +69,7 @@ describe("fetchFeed", () => {
   it("returns not-modified on a 304", async () => {
     stubFetch(304, null, { etag: 'W/"abc"' });
     const out = await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed.xml",
-      sourceType: "ozbargain",
+      feedUrl: "https://www.ozbargain.com.au/feed",
       userAgent: "DealStackAU/1.0",
       etag: 'W/"abc"',
     });
@@ -79,8 +81,7 @@ describe("fetchFeed", () => {
       "content-type": "text/html",
     });
     const out = await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed.xml",
-      sourceType: "ozbargain",
+      feedUrl: "https://www.ozbargain.com.au/feed",
       userAgent: "DealStackAU/1.0",
     });
     expect(out.kind).toBe("blocked");
@@ -89,8 +90,7 @@ describe("fetchFeed", () => {
   it("treats a Cloudflare 403 challenge as blocked", async () => {
     stubFetch(403, "<html><title>Just a moment...</title></html>");
     const out = await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed.xml",
-      sourceType: "ozbargain",
+      feedUrl: "https://www.ozbargain.com.au/feed",
       userAgent: "DealStackAU/1.0",
     });
     expect(out.kind).toBe("blocked");
@@ -99,8 +99,7 @@ describe("fetchFeed", () => {
   it("treats a plain 500 as an error carrying the status", async () => {
     stubFetch(500, "upstream error");
     const out = await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed.xml",
-      sourceType: "ozbargain",
+      feedUrl: "https://www.ozbargain.com.au/feed",
       userAgent: "DealStackAU/1.0",
     });
     expect(out.kind).toBe("error");
@@ -110,14 +109,13 @@ describe("fetchFeed", () => {
   it("sends the identifying UA and conditional-GET headers", async () => {
     const mock = stubFetch(200, RSS);
     await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed.xml",
-      sourceType: "ozbargain",
+      feedUrl: "https://www.ozbargain.com.au/feed",
       userAgent: "DealStackAU/1.0",
       etag: 'W/"x"',
       lastModified: "Wed, 10 Jun 2026 00:00:00 GMT",
     });
     expect(mock).toHaveBeenCalledWith(
-      "https://www.ozbargain.com.au/feed.xml",
+      "https://www.ozbargain.com.au/feed",
       expect.objectContaining({
         method: "GET",
         redirect: "manual",
@@ -130,113 +128,66 @@ describe("fetchFeed", () => {
     );
   });
 
-  it("blocks an unapproved initial URL before any network call", async () => {
+  it("rejects a non-allowlisted destination before making a request", async () => {
     const mock = vi.fn();
     vi.stubGlobal("fetch", mock);
     const out = await fetchFeed({
-      feedUrl: "https://127.0.0.1/feed.xml",
-      sourceType: "ozbargain",
+      feedUrl: "https://127.0.0.1/feed",
       userAgent: "DealStackAU/1.0",
     });
     expect(out.kind).toBe("blocked");
     expect(mock).not.toHaveBeenCalled();
   });
 
-  it("follows a same-host relative redirect with manual validation", async () => {
-    const mock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(null, { status: 302, headers: { location: "/feed/new" } })
-      )
-      .mockResolvedValueOnce(new Response(RSS, { status: 200 }));
-    vi.stubGlobal("fetch", mock);
-
-    const out = await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed/old",
-      sourceType: "ozbargain",
-      userAgent: "DealStackAU/1.0",
-    });
-
-    expect(out.kind).toBe("ok");
-    expect(mock).toHaveBeenCalledTimes(2);
-    expect(mock.mock.calls[1][0]).toBe(
-      "https://www.ozbargain.com.au/feed/new"
-    );
-  });
-
-  it("blocks a cross-host redirect before requesting the target", async () => {
+  it("blocks a redirect that leaves the approved host allowlist", async () => {
     const mock = vi.fn(async () =>
       new Response(null, {
         status: 302,
-        headers: { location: "https://attacker.test/internal" },
+        headers: { location: "https://example.com/feed" },
       })
     );
     vi.stubGlobal("fetch", mock);
-
     const out = await fetchFeed({
       feedUrl: "https://www.ozbargain.com.au/feed",
-      sourceType: "ozbargain",
       userAgent: "DealStackAU/1.0",
     });
-
     expect(out.kind).toBe("blocked");
     expect(mock).toHaveBeenCalledTimes(1);
   });
 
-  it("detects redirect loops", async () => {
+  it("follows an allowlisted relative redirect", async () => {
     const mock = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(null, { status: 302, headers: { location: "/next" } })
+        new Response(null, { status: 302, headers: { location: "/deals/feed" } })
       )
       .mockResolvedValueOnce(
-        new Response(null, { status: 302, headers: { location: "/feed" } })
+        new Response(RSS, {
+          status: 200,
+          headers: { "content-type": "application/rss+xml" },
+        })
       );
     vi.stubGlobal("fetch", mock);
-
     const out = await fetchFeed({
       feedUrl: "https://www.ozbargain.com.au/feed",
-      sourceType: "ozbargain",
       userAgent: "DealStackAU/1.0",
     });
-
-    expect(out.kind).toBe("blocked");
+    expect(out.kind).toBe("ok");
     expect(mock).toHaveBeenCalledTimes(2);
+    expect(mock.mock.calls[1][0]).toBe(
+      "https://www.ozbargain.com.au/deals/feed"
+    );
   });
 
-  it("rejects a declared body larger than the feed limit", async () => {
-    stubFetch(200, RSS, { "content-length": String(3 * 1024 * 1024) });
+  it("blocks a feed whose declared response size exceeds the limit", async () => {
+    stubFetch(200, RSS, {
+      "content-type": "application/rss+xml",
+      "content-length": String(MAX_FEED_BYTES + 1),
+    });
     const out = await fetchFeed({
       feedUrl: "https://www.ozbargain.com.au/feed",
-      sourceType: "ozbargain",
       userAgent: "DealStackAU/1.0",
     });
-    expect(out.kind).toBe("error");
-    if (out.kind === "error") expect(out.reason).toContain("exceeds");
-  });
-
-  it("keeps the timeout active while reading the response body", async () => {
-    const mock = vi.fn(async (_url: string, init?: RequestInit) => {
-      const signal = init?.signal;
-      const body = new ReadableStream<Uint8Array>({
-        start(controller) {
-          signal?.addEventListener("abort", () => {
-            controller.error(new DOMException("Aborted", "AbortError"));
-          });
-        },
-      });
-      return new Response(body, { status: 200 });
-    });
-    vi.stubGlobal("fetch", mock);
-
-    const out = await fetchFeed({
-      feedUrl: "https://www.ozbargain.com.au/feed",
-      sourceType: "ozbargain",
-      userAgent: "DealStackAU/1.0",
-      timeoutMs: 5,
-    });
-
-    expect(out.kind).toBe("error");
-    if (out.kind === "error") expect(out.reason).toContain("timed out");
+    expect(out.kind).toBe("blocked");
   });
 });

@@ -6,34 +6,22 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "node scripts/require-node.cjs 20 && next dev",
-    "build": "node scripts/require-node.cjs 20 && next build",
-    "start": "node scripts/require-node.cjs 20 && next start",
-    "lint": "node scripts/require-node.cjs 20 && eslint",
-    "seed": "node scripts/require-node.cjs 22 && tsx scripts/seed.ts",
-    "seed:feed-items": "node scripts/require-node.cjs 20 && tsx scripts/seed-feed-items.ts",
-    "seed:offer-changes": "node scripts/require-node.cjs 20 && tsx scripts/seed-offer-changes.ts",
-    "seed:gift-card-products": "node scripts/require-node.cjs 20 && tsx scripts/seed-gift-card-products.ts",
-    "monitor:fixtures": "node scripts/require-node.cjs 20 && tsx scripts/monitor-fixtures.ts",
-    "monitor:feeds": "node scripts/require-node.cjs 20 && tsx scripts/monitor-feeds.ts",
-    "cleanup:old-deals": "node scripts/require-node.cjs 20 && tsx scripts/cleanup-old-deals.ts",
-    "verify:schema": "node scripts/require-node.cjs 22 && tsx scripts/verify-schema.ts",
-    "smoke": "node scripts/require-node.cjs 20 && tsx scripts/smoke-routes.ts",
-    "types:gen": "node scripts/require-node.cjs 20 && tsx scripts/generate-types.ts",
-    "migration:rollout": "node scripts/require-node.cjs 20 && tsx scripts/migration-rollout.ts",
-    "validate:all": "node scripts/require-node.cjs 20 && tsx scripts/validate-all.ts",
-    "test:monitor": "node scripts/require-node.cjs 20 && vitest run tests/monitor",
-    "test:stack": "node scripts/require-node.cjs 20 && vitest run tests/stack",
-    "test:deals": "node scripts/require-node.cjs 20 && vitest run tests/deals",
-    "test:admin": "node scripts/require-node.cjs 20 && vitest run tests/admin",
-    "test:giftcards": "node scripts/require-node.cjs 20 && vitest run tests/giftcards",
-    "test:decision": "node scripts/require-node.cjs 20 && vitest run tests/decision",
-    "test:e2e": "node scripts/require-node.cjs 20 && playwright test"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "seed": "tsx scripts/seed.ts",
+    "seed:feed-items": "tsx scripts/seed-feed-items.ts",
+    "monitor:fixtures": "tsx scripts/monitor-fixtures.ts",
+    "monitor:feeds": "tsx scripts/monitor-feeds.ts",
+    "test:monitor": "vitest run tests/monitor",
+    "test:stack": "vitest run tests/stack",
+    "test:repos": "vitest run tests/repos",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
-    "@vercel/analytics": "^2.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "fast-xml-parser": "^5.9.0",
@@ -42,22 +30,25 @@
     "radix-ui": "^1.5.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "shadcn": "^4.13.0",
+    "shadcn": "^4.11.0",
     "tailwind-merge": "^3.6.0",
-    "tw-animate-css": "^1.4.0"
+    "tw-animate-css": "^1.4.0",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
-    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.8"
+  },
+  "overrides": {
+    "postcss": "8.5.15"
   }
 }

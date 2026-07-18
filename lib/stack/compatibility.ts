@@ -1,9 +1,3 @@
-import {
-  EXPIRY_SOON_DAYS,
-  expiryUrgencyLabelAU,
-  isExpiringSoonAU,
-} from "@/lib/offers/expiry";
-import { formatDateAU } from "@/lib/sources/normalise";
 import type { Confidence } from "@/lib/sources/types";
 import type {
   CashbackOffer,
@@ -21,7 +15,7 @@ import type {
  */
 
 /** Days within which an upcoming expiry is flagged as "expiry-soon". */
-export { EXPIRY_SOON_DAYS };
+export const EXPIRY_SOON_DAYS = 7;
 /** Age beyond which an offer's last check is flagged as "stale-data". */
 export const STALE_DATA_DAYS = 21;
 
@@ -63,21 +57,21 @@ export function cashbackConflictsWithGiftCard(
 
 // ─── Warning builders (return a StackWarning or null) ───────────────────────
 
-/** Flags an expiry within EXPIRY_SOON_DAYS AU-local calendar days of `now` (and not past). */
+/** Flags an expiry that lands within EXPIRY_SOON_DAYS of `now` (and not past). */
 export function expirySoonWarning(
   expiryDate: string | null,
   now: Date,
   label: string
 ): StackWarning | null {
-  if (!isExpiringSoonAU(expiryDate, now, EXPIRY_SOON_DAYS)) return null;
-  const urgency = expiryUrgencyLabelAU(expiryDate, now, EXPIRY_SOON_DAYS);
-  const when = urgency
-    ? `${urgency.toLowerCase()} (${formatDateAU(expiryDate)})`
-    : `expires ${formatDateAU(expiryDate)}`;
+  if (!expiryDate) return null;
+  const end = new Date(`${expiryDate}T23:59:59+10:00`).getTime();
+  const diff = end - now.getTime();
+  if (diff < 0) return null; // already expired — handled by needs-verification path
+  if (diff > EXPIRY_SOON_DAYS * MS_PER_DAY) return null;
   return {
     level: "caution",
     code: "expiry-soon",
-    message: `${label} ${when} — check it is still live before you rely on it.`,
+    message: `${label} expires on ${expiryDate} — verify it is still live before relying on it.`,
   };
 }
 
@@ -94,7 +88,7 @@ export function staleDataWarning(
   return {
     level: "info",
     code: "stale-data",
-    message: `${label} was last checked ${formatDateAU(lastCheckedAt)} — the terms may have changed.`,
+    message: `${label} was last checked on ${lastCheckedAt.slice(0, 10)} — data may be out of date.`,
   };
 }
 
@@ -125,8 +119,8 @@ export function giftCardCashbackConflictWarning(
 }
 
 /**
- * Gift-card (spend) cap check: `capDollars` caps the ELIGIBLE SPEND the
- * discount applies to. Fires when the checkout price exceeds that cap.
+ * Cap-reached check. Placeholder for Phase 1A: the dollar value applied to a
+ * capped layer should never exceed its cap. Returns a warning when it would.
  */
 export function capReachedWarning(
   capDollars: number | null,
@@ -138,21 +132,20 @@ export function capReachedWarning(
   return {
     level: "caution",
     code: "cap-reached",
-    message: `${label} only applies to the first $${capDollars} of spend — savings above that do not apply.`,
+    message: `${label} is capped at $${capDollars} — savings above the cap do not apply.`,
   };
 }
 
-/** Cashback cap: fires when the UNCAPPED saving exceeds the dollar cap. */
-export function cashbackCapReachedWarning(
+/** Flags when only part of a gift-card purchase receives the discount. */
+export function eligibleSpendCapWarning(
   capDollars: number | null,
-  rawSavingDollars: number,
+  purchaseDollars: number,
   label: string
 ): StackWarning | null {
-  if (capDollars === null) return null;
-  if (rawSavingDollars <= capDollars) return null;
+  if (capDollars === null || purchaseDollars <= capDollars) return null;
   return {
     level: "caution",
     code: "cap-reached",
-    message: `${label} is capped at $${capDollars} — cashback above the cap does not accrue.`,
+    message: `${label} applies its discount to only the first $${capDollars} of gift-card face value.`,
   };
 }

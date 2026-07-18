@@ -10,7 +10,7 @@ import {
   type CellTone,
 } from "@/components/admin/AdminListTable";
 import { Button } from "@/components/ui/button";
-import { approveSelectedSignals, setStatus } from "./actions";
+import { setStatus } from "./actions";
 
 export const metadata: Metadata = {
   title: "OzBargain signals | DealStack AU admin",
@@ -22,7 +22,6 @@ const DEAL_KIND_LABELS: Record<AdminSignal["dealKind"], string> = {
   "gift-card": "Gift card",
   points: "Points",
   guide: "Guide",
-  card: "Card",
 };
 
 const STATUS_TONES: Record<AdminSignal["status"], CellTone> = {
@@ -42,7 +41,6 @@ const STATUS_LABELS: Record<AdminSignal["status"], string> = {
 const COLUMNS: AdminColumn[] = [
   { key: "title", header: "Title" },
   { key: "store", header: "Store" },
-  { key: "group", header: "Product group" },
   { key: "kind", header: "Kind" },
   { key: "confidence", header: "Confidence" },
   { key: "status", header: "Status" },
@@ -67,19 +65,13 @@ function toRow(signal: AdminSignal): AdminRow {
   return {
     id: signal.id,
     searchText:
-      `${signal.title} ${store} ${signal.productGroup ?? ""} ${kind} ${STATUS_LABELS[signal.status]}`.toLowerCase(),
+      `${signal.title} ${store} ${kind} ${STATUS_LABELS[signal.status]}`.toLowerCase(),
     filterValue: signal.status,
-    // Bulk approve targets not-yet-approved signals only (same rule as the
-    // per-row Approve button).
-    selectable: signal.status !== "approved",
     editHref: `/admin/signals/${signal.id}/edit`,
     cells: {
       title: { kind: "text", text: signal.title, strong: true },
       store: signal.storeName
         ? { kind: "text", text: signal.storeName }
-        : { kind: "text", text: "—", muted: true },
-      group: signal.productGroup
-        ? { kind: "text", text: signal.productGroup }
         : { kind: "text", text: "—", muted: true },
       kind: { kind: "text", text: kind },
       confidence: { kind: "confidence", value: signal.confidence },
@@ -142,14 +134,6 @@ export default async function SignalsListPage() {
               { value: "hidden", label: "Hidden" },
               { value: "expired", label: "Expired" },
             ],
-          }}
-          bulk={{
-            run: approveSelectedSignals,
-            label: "Approve selected",
-            max: 200,
-            confirmBody:
-              "Approved signals become PUBLIC on /deals and the homepage Top 5 " +
-              "immediately. Untick anything you have not reviewed before confirming.",
           }}
         />
       )}

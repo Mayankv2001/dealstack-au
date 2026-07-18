@@ -1,4 +1,4 @@
-# OzBargain Monitoring — Planning & Compliance
+# OzBargain Monitoring — Operations & Compliance
 
 > **⚠️ Automated fetching only runs behind the compliance gate.**
 >
@@ -7,20 +7,13 @@
 > stay **off by default**: the master switch `OZB_MONITOR_ENABLED` defaults off,
 > every `feed_sources` row starts disabled, and the cron route additionally
 > re-checks the compliance gate at request time. With any one of those off, no
-> outbound request is made and OzBargain data stays 100% manual (admin-entered)
-> with the static sample fallback serving. The invariants are non-negotiable:
+> outbound request is made and OzBargain data stays 100% manual (admin-entered).
+> Production public reads fail closed to honest empty states; static samples are
+> available only in an unconfigured local environment or with
+> `DATA_SOURCE=static`. The invariants are non-negotiable:
 > feed-only (no scraping/crawling/anti-bot bypass), no user-triggered fetches,
 > writes only to the staging tables (never `ozbargain_signals`), and **admin
 > approval stays mandatory**.
->
-> **Current workflow update (migration 015, 2026-07-11):** the historical
-> planning sections below describe the original two-step import design. The
-> implemented daily pipeline now runs once at **00:00 UTC**, archives expired
-> rows, performs status-only validation of approved OzBargain post URLs, fetches
-> due feeds, and records fetched/new/updated/skipped/error counts. New feed rows
-> land directly in `/admin/review?tab=deals`; **Approve** is the single human
-> publication step and **Reject** archives without deletion. Fetch code itself
-> still writes staging tables only and never invokes approval.
 
 ---
 
@@ -38,7 +31,8 @@ Concretely:
 - Let an admin **review, paraphrase, and approve** each item before it appears
   publicly as an `ozbargain_signals` row.
 - Keep the public site fully functional whether the monitor is on, off, or
-  broken (approved signals + static fallback already guarantee this).
+  broken. Public reads use approved database records and show honest empty
+  states when no records are available.
 
 This is an **assistive ingestion pipeline**, not an autonomous agent.
 
@@ -100,15 +94,15 @@ If any box cannot be checked, **the monitor is not built** and we stay manual.
   `feed_items` keyed by the OzBargain node id (idempotent).
 - The job **stops at parsing** — it never opens item links or fetches detail
   pages.
-- First runs are **manual** (`npm run monitor`-style script); scheduling via
-  Vercel Cron comes only after manual runs prove safe.
+- Validate new sources manually with the dry-run script before enabling the
+  daily Vercel Cron path.
 
 ### No user-triggered live fetch rule
 
 > **A user action must never cause an outbound OzBargain request.**
 
-- Search, store pages, and `/deals` read **only our Supabase DB** (or the static
-  fallback). They already do this today.
+- Search, store pages, and `/deals` read **only our Supabase DB** in production,
+  unless explicit demo mode (`DATA_SOURCE=static`) is configured.
 - The **only** code paths allowed to fetch are the scheduled cron route and the
   manual monitor script. The fetcher module must never be imported by a
   request-handling page or public API route.
@@ -124,19 +118,21 @@ If any box cannot be checked, **the monitor is not built** and we stay manual.
  OzBargain feed ──► fetch + parse ──► feed_items (review_state = new)
                                             │
                                    Admin review queue UI
-                                   /admin/review?tab=deals
+                                   /admin/signals/queue
                                             │
-                       ┌────────────────┴────────────────┐
-                       ▼                                 ▼
-                    Reject                           Approve
-             (review_state=rejected;       (transactionally creates/reuses
-              reviewer/time retained)       an APPROVED signal and links it)
+              ┌─────────────┬───────────────┴───────────────┐
+              ▼             ▼                                ▼
+           Ignore        Duplicate                  Import as signal
+      (review_state    (review_state           (creates ozbargain_signals
+        = ignored)      = duplicate)             row, status = PENDING,
+                                                 review_state = imported)
                                                          │
-                                                         ▼
-                                               PUBLIC via RLS
+                                              Admin moderation
                                                          │
-                         Homepage Top 5 when feed-item
-                         curation + live-state checks pass
+                                      ┌──────────────────┼──────────────┐
+                                      ▼                  ▼              ▼
+                                 approved            hidden          expired
+                              (PUBLIC via RLS)    (reversible)    (reversible)
 ```
 
 - The queue lists `feed_items` where `review_state = 'new'`, service-role read,
@@ -144,14 +140,13 @@ If any box cannot be checked, **the monitor is not built** and we stay manual.
 - Each row shows the raw title, source link (display only / `nofollow`, not
   auto-opened), an **auto-suggested merchant** (via `lib/sources/normalise.ts`),
   a heuristic `deal_kind`, posted date, and the feed source.
-- The review-fields panel exposes conservative metadata suggestions. The admin
-  can edit merchant, deal kind, price, coupon, expiry and score before approval.
-- Approval is the only publication decision. The service-role RPC locks and
-  deduplicates the row; rejection is reversible from Review history.
+- Importing reuses the **existing signal create form**, prefilled — the admin
+  edits the paraphrase, confirms the merchant, and saves as `pending`.
+- Nothing in this flow publishes; only the later `approved` transition does.
 
 ---
 
-## Tables planned
+## Private monitor tables
 
 All three are **service-role only** — no anon RLS policies. Only the existing
 `ozbargain_signals` table (with its `status = 'approved'` policy) is ever public.
@@ -184,7 +179,6 @@ All three are **service-role only** — no anon RLS policies. Only the existing
 | `content_hash` | Detect changed re-posts |
 | `review_state` | `new` \| `imported` \| `ignored` \| `duplicate` |
 | `promoted_signal_id` | Nullable FK → `ozbargain_signals` once imported |
-| `hidden_from_homepage` | Independent Top 5 curation veto; default `false` |
 
 ### `feed_fetch_log` — per-run audit / observability
 
@@ -221,7 +215,7 @@ Mapping `feed_item` → the existing `SignalInput` shape used by
   `feed_items.promoted_signal_id` instead of inserting a duplicate.
 - On import: set `feed_items.review_state = 'imported'` and reuse the existing
   `insertSignal()`; the admin later approves via `setSignalStatus()`, which
-  revalidates `/deals` and `/`.
+  revalidates `/deals`.
 
 ---
 
@@ -252,27 +246,6 @@ Two **separate** state machines: ingestion triage vs. publication moderation.
   pass flips `approved → expired` once `expiry_date` passes (or after N stale
   days). It never auto-approves and never deletes — fully reversible.
 
-### Homepage Top 5 publication contract
-
-The homepage uses the feed row only for ingestion/curation state and ranking
-recency. It joins through `feed_items.promoted_signal_id` and renders the
-approved signal's edited title, summary, tags, source URL and posted date. Raw
-feed title, summary, link and categories are never public copy.
-
-| Feed item | Promoted signal | Top 5 result |
-|---|---|---|
-| `new` | none or any status | Hidden |
-| `imported` | `pending` | Hidden |
-| `imported`, `hidden_from_homepage = false` | approved, non-sample, not past expiry | Eligible |
-| `imported`, `hidden_from_homepage = true` | approved | Hidden |
-| `imported` | hidden, expired, sample, or hard-expired by date | Hidden |
-| eligible imported item from a disabled feed source | approved and live | Still eligible |
-
-`feed_sources.is_enabled` is an operational fetch switch, not a publication
-state. Disabling a source stops future requests but does not unpublish content
-that already passed moderation. Approval, hiding, expiry and edited-copy saves
-revalidate the homepage through the signal admin actions.
-
 ---
 
 ## Backoff / rate-limit rules
@@ -291,11 +264,6 @@ revalidate the homepage through the signal admin actions.
 ---
 
 ## Kill switch rules
-
-Admins can use **Disable all feed sources** on `/admin/monitor` for an audited,
-immediate DB-level stop. It disables only `feed_sources.is_enabled`; staged
-items and approved public data are preserved. The homepage publication query
-does not filter on source enablement.
 
 Defence in depth — the monitor must be stoppable instantly at multiple levels:
 
@@ -336,19 +304,18 @@ Each step is independently shippable and safe. **Do not start step 2 until the
       feeds, `User-Agent` string. *(No fetching code.)*
 - [x] 2. Migration: `feed_sources`, `feed_items`, `feed_fetch_log` +
       service-role-only RLS; feeds seeded **disabled by default**. *(Done —
-      `supabase/migrations/002_feed_import_queue.sql`. Schema only; no fetcher.)*
+      `supabase/migrations/002_feed_import_queue.sql`.)*
 - [x] 3. Pure parser/mapper lib (XML → raw item → `feed_items` shape),
       unit-tested against committed **fixture feeds**, zero network. *(Done —
       `lib/monitor/parseFeed.ts`, `lib/monitor/mapFeedItem.ts`,
-      `tests/monitor/parseFeed.test.ts`; run `npm run test:monitor`. Offline
-      only; no fetcher.)*
+      `tests/monitor/parseFeed.test.ts`; run `npm run test:monitor`.)*
 - [x] 4. Fetcher module (kill switch, conditional GET, backoff) run as a manual
       script writing only to `feed_items` / `feed_fetch_log` / `feed_sources`
       poll-state; env flag default off. *(Done — `lib/monitor/fetchFeed.ts`,
       `lib/monitor/backoff.ts`, `lib/monitor/runMonitor.ts`,
       `scripts/monitor-feeds.ts`; `npm run monitor:feeds -- --dry-run`. Dry run is
-      the default; writes need `--write`. Still no cron.)*
-- [ ] 5. Admin review queue UI (list / ignore / import), reusing the signal
+      the default; writes need `--write`.)*
+- [x] 5. Admin review queue UI (list / ignore / import), reusing the signal
       form; promote → `pending`.
 - [ ] 6. Auto-expire job (conservative, reversible).
 - [x] 7. Schedule via Vercel Cron at low cadence. *(Done —
@@ -368,12 +335,12 @@ Each step is independently shippable and safe. **Do not start step 2 until the
 
 ---
 
-## Implementation Plan
+## Implemented design and remaining controls
 
-> **Do not implement automated fetching until compliance review is complete.**
+> **Do not enable automated fetching until compliance review is complete.**
 >
-> This section is the build spec for the monitor. No fetcher, cron route, or
-> monitor script exists yet, and none may be added until the
+> The fetcher, manual runner and cron route exist but ship disabled. They must
+> not be enabled until the
 > [Compliance decision log](#compliance-decision-log) has an approved entry. The
 > invariants still hold: **feed-only**, **no user-triggered fetches**, the
 > importer writes **only** `feed_items` (never `ozbargain_signals`), and **admin
@@ -415,15 +382,6 @@ are correct or permitted:
 
 **Recommendation:** start with **1–2 store feeds** for tracked merchants, not the
 front-page firehose. Map each `Store.id` → its OzBargain store slug in preflight.
-
-**Verified instance (2026-07-11):** the tag/category pattern above was confirmed
-against `https://www.ozbargain.com.au/tag/credit-card/feed` — a live RSS 2.0
-feed ("OzBargain - Credit Card"), no `robots.txt` restriction on `/tag/` or
-`/feed`. Registered in `feed_sources` **disabled** (migration
-`017_card_source_registry.sql`) for the flag-gated card-offer detection-assist
-path — see `docs/bank-card-offer-workflow.md` for the full decision, including
-why Finder.com.au was rejected as an automation source. Detection code remains
-inert until both offer detection and card detection flags are enabled.
 
 ### Required User-Agent format
 
@@ -473,10 +431,9 @@ Layered — the env master OFF always beats a DB `is_enabled=true`. Documented
 Plus the DB-level kill: per-feed `feed_sources.is_enabled` (+ an admin UI toggle
 later).
 
-### Manual run script design
+### Manual runner
 
-- `scripts/monitor-feeds.ts`, npm script `"monitor:feeds": "tsx scripts/monitor-feeds.ts"`
-  — the **first** way to run, before cron exists.
+- `scripts/monitor-feeds.ts`, npm script `"monitor:feeds": "tsx scripts/monitor-feeds.ts"`.
 - Loads `.env.local` and uses the service-role client (like the seed scripts).
 - Flags: `--dry-run`, `--fixtures`, `--source=<id>` (single feed), `--once`.
 - Calls the shared `runMonitor()` core (same code the cron uses); prints a
@@ -484,7 +441,7 @@ later).
 - Writes only `feed_items` + `feed_sources` poll-state + `feed_fetch_log`;
   **never** `ozbargain_signals`.
 
-### Vercel Cron route design
+### Vercel Cron route
 
 - `app/api/cron/monitor-feeds/route.ts` — a `GET` handler matching the existing
   route-handler style (`app/admin/auth/callback/route.ts`).
@@ -496,8 +453,11 @@ later).
   triggering.
 - Top of handler: if `!OZB_MONITOR_ENABLED`, return `200 {disabled:true}` without
   fetching.
+- Takes a short database lease before fetching so overlapping Vercel instances
+  cannot run the same monitor concurrently. Apply
+  `supabase/migrations/004_monitor_lock.sql` before deployment.
 - Calls `runMonitor()`, catches errors → JSON summary (a feed failure must not
-  500 the cron); `export const dynamic = "force-dynamic"`, set `maxDuration`.
+  500 the cron); `export const dynamic = "force-dynamic"`, with `maxDuration`.
 - This is the **only** request path that can fetch; it is secret-gated **and**
   flag-gated, and no page imports the fetcher, so user searches never reach it.
 
@@ -527,7 +487,7 @@ later).
   single live write on staging → enable one feed in prod with the kill switch
   armed.
 
-### Future files to create (none yet)
+### Implemented files
 
 | File | Purpose |
 |---|---|
@@ -544,30 +504,28 @@ later).
 | `tests/fixtures/ozbargain/*.xml` + `tests/monitor/*.test.ts` (+ runner config) | Offline fixture/unit tests. |
 | `.env.example` (edit) | Document the new vars, default off. |
 
-### Dependencies to consider later
+### Runtime dependencies
 
 - **`fast-xml-parser`** — pure RSS/Atom XML parsing (no network).
-- **`vitest`** — test runner for the fixture/unit tests (none exists today).
+- **`vitest`** — fixture and unit test runner.
+- **`ws`** — Node 20 WebSocket transport for the Supabase client.
 
-Both are added **only** when build-order step 3 begins, after compliance sign-off.
-
-### Open decisions
+### Deployment decisions
 
 - **First feeds:** 1–2 store feeds for tracked merchants *(recommended)* vs a tag
   feed.
-- **Cron cadence:** every 12h *(recommended)* vs 6h.
-- **XML parser / test runner:** `fast-xml-parser` + `vitest` *(recommended)* vs
-  alternatives.
-- **Dry-run surface:** secret-gated `?dryRun=1` on the route, or dry-run
-  script-only *(recommended to start)*.
+- **Cron cadence:** daily at 02:00 UTC, with a 12-hour minimum per-feed interval.
+- **Dry-run surface:** script-only; the HTTP route has no dry-run switch.
+- **Go-live:** apply all migrations, provision admin Auth users, complete the
+  compliance record, and run a clean staging dry run before enabling one source.
 
 ---
 
-## Running the manual monitor (Phase 1)
+## Running the manual monitor
 
-The first and only way to run the monitor today — a **manual script**, no cron, no
-route, no agent. Dry run is the default; nothing is written unless you pass
-`--write`.
+Use the manual script to validate feeds before scheduled operation. Dry run is
+the default; nothing is written unless you pass `--write`. The scheduled route
+uses the same monitor core and remains independently gated by `CRON_SECRET`.
 
 ```bash
 # Dry run all enabled, due feeds (fetch + parse, write nothing):
@@ -593,77 +551,27 @@ Behaviour and guarantees (enforced in code, covered by `npm run test:monitor`):
 - A **non-XML / HTML / Cloudflare-like** body is treated as **blocked** → the run
   stops and (live) the feed is auto-disabled. **No bypass, ever.**
 - Live writes touch **only** `feed_items`, `feed_fetch_log`, and `feed_sources`
-  poll-state — **never** `ozbargain_signals`. Staged items still require manual
-  admin approval via `/admin/review?tab=deals`.
-
-## Scheduling the monitor
-
-**One trigger drives the pipeline: Vercel Cron, once a day.** `vercel.json`
-runs `GET /api/cron/monitor-feeds` at `00:00 UTC`:
-
-```json
-{ "crons": [{ "path": "/api/cron/monitor-feeds", "schedule": "0 0 * * *" }] }
-```
-
-Keep this **once daily** — the Vercel Hobby plan only permits one daily cron.
-When `CRON_SECRET` is set in the project env, Vercel sends
-`Authorization: Bearer ${CRON_SECRET}` automatically. Every authenticated call
-runs the **full daily pipeline** (`runDailyPipeline`, `lib/monitor/runDailyPipeline.ts`):
-archive expired public rows, then — when monitoring and compliance are both
-enabled — status-only HEAD validation of approved signals
-(`lib/monitor/validateSourcePost.ts`) followed by the feed fetch, all in one
-invocation. This is not the old "fetch-only" route: gate order and response
-shape changed with migration 015/016 — see below.
-
-### Current gate order and response
-
-1. `CRON_SECRET` configured (else `503`).
-2. Valid `Authorization: Bearer` (else `401`).
-3. **Run lock** (migration 016): if another invocation already holds the
-   single `status = 'running'` row in `daily_pipeline_runs`, this call does
-   nothing at all — no archive, no validation, no fetch, no run row written —
-   and returns `200 { ok: true, ran: false, skipped: "already-running" }`. A
-   `running` row older than 30 minutes is treated as crashed and is
-   superseded before the next attempt, so a dead invocation cannot wedge the
-   lock open forever.
-4. Otherwise the pipeline runs. `OZB_MONITOR_ENABLED` and compliance approval
-   gate the validation + fetch steps only — **archival always runs** (it
-   never makes an external request). The response body is the full
-   `daily_pipeline_runs` patch: `status` (`ok`/`partial`/`error`/`disabled`/`blocked`),
-   `expiredArchived`, `invalidArchived`, `validationChecked`,
-   `validationUnknown`, `feedsProcessed`, `itemsFetched`, `itemsNew`,
-   `itemsUpdated`, `itemsSkipped`, `errors`. HTTP status is `500` only when
-   `status === "error"`; every other outcome (including `disabled` and
-   `blocked`) is `200`.
-
-### No external fetch-triggering scheduler is deployed
-
-An earlier draft of this document recommended pointing an external service
-(e.g. cron-job.org) at this route every 3 hours for tighter polling. **That was
-never wired up in production.** The option actually chosen instead is a
-**read-only** health-check probe — `.github/workflows/monitor-health.yml` —
-which polls `GET /api/health/monitor` and `GET /api/health/data` every 3 hours
-and fails the GitHub Action (alerting via workflow-failure notifications) on
-any non-2xx. It never calls this cron route and never fetches OzBargain; it
-only reads our own health/data-freshness endpoints. **Do not** add a
-fetch-triggering external scheduler for this route without updating this
-section — the single daily Vercel Cron plus the run lock above is the current
-and only intended trigger of `runDailyPipeline`. If tighter polling is ever
-wanted, the run lock (migration 016) makes overlapping triggers safe by
-construction, but every step's idempotency was designed around one run per
-day and an extra trigger multiplies outbound HEAD-validation requests against
-OzBargain — record that decision here before enabling it.
+  poll-state — **never** `ozbargain_signals`. Imported items still require manual
+  admin approval via `/admin/signals/queue`.
+- Every URL and redirect is restricted to official HTTPS OzBargain feed paths,
+  redirect depth is capped, and response bodies are limited to 2 MiB.
+- Scheduled runs acquire the `monitor_locks` database lease so duplicate or
+  overlapping cron deliveries cannot run concurrently.
 
 ## Testing checklist
 
 - [x] Manual queue test data: `npm run seed:feed-items` inserts a **disabled**
       example feed source + a few clearly-fake `feed_items`
-      (`example-seed-*` ids, `example.com` links) so `/admin/review?tab=deals` can
+      (`example-seed-*` ids, `example.com` links) so `/admin/signals/queue` can
       be exercised. Safe to re-run; no network, no OzBargain fetch.
       *(`scripts/seed-feed-items.ts`.)*
 - [x] Unit-test parser/mapper against saved fixture XML — **no network**.
       *(`npm run test:monitor` — RSS + Atom basics, HTML stripping, duplicate
       guid dedupe, missing-description fallback, id/hash generation.)*
+- [x] Reject unsafe feed URLs, off-host redirects, redirect loops, and oversized
+      responses; allow only official HTTPS OzBargain feed paths.
+- [x] Verify duplicate cron invocations return without fetching while the monitor
+      lease is held.
 - [x] Fixture dry-run: `npm run monitor:fixtures` reads the local fixture XML,
       parses + maps it, and prints what it *would* stage — no Supabase client,
       no fetch, no writes. *(`scripts/monitor-fixtures.ts`.)*
@@ -705,102 +613,6 @@ OzBargain — record that decision here before enabling it.
 |---|---|---|---|---|---|
 | see `/admin/compliance` | see admin UI | ✓ | ✓ | register in `feed_sources` (disabled) | Approved review on file in `compliance_reviews`; mirror the specifics here. |
 
-### Addendum: status-only post validation (2026-07-11)
-
-The 2026-06-20 review above covered **RSS feed polling**. Migration 015 added
-a second, distinct kind of outbound request: `lib/monitor/validateSourcePost.ts`
-sends a `HEAD` request to an individual approved signal's OzBargain post URL as
-part of the daily pipeline's live-signal validation, to detect posts that have
-been removed (`404`/`410`) so the linked public signal can be archived. This is
-recorded here as its own addendum rather than folded into the row above because
-it is a different request shape against the same host, not a new source.
-
-Scope and safeguards (mirrors the feed-fetch invariants):
-
-- **HEAD only** — no response body is ever downloaded or parsed; nothing is
-  scraped.
-- **Host- and path-allowlisted** — `isApprovedOzBargainPostUrl()`
-  (`lib/security/urlPolicy.ts`) accepts only `ozbargain.com.au` /
-  `www.ozbargain.com.au` and an exact `/node/<id>/` post path; anything else
-  is treated as `unknown` and never fetched. On a redirect, the target must
-  stay within that same approved host/path shape or the post is treated as
-  `removed`.
-- **Bounded** — 5 second timeout, at most 2 redirects, batches of 4 concurrent
-  checks, capped at 100 signals per run (the daily due-window is 20 hours, so
-  a signal is checked at most once per day).
-- **Same identifying `User-Agent`** as feed polling (`OZB_MONITOR_USER_AGENT`).
-- **Fails safe** — a network error, timeout, or any non-2xx/404/410 response
-  is recorded as `unknown` and never archives the signal; only a definitive
-  `404`/`410` (or a redirect leaving the approved post boundary) does.
-- Gated by the same `OZB_MONITOR_ENABLED` + compliance-approved checks as
-  feed fetching — off means zero validation requests, same as zero feed
-  requests.
-
-No separate `robots.txt`/ToS re-review was conducted for this addendum on the
-basis that it targets the same already-reviewed host with a lighter-weight,
-non-crawling request (a single `HEAD` per post, no pagination, no content
-retrieval). Re-review this addendum alongside the next scheduled compliance
-re-check (see the top-of-file re-review rule) rather than treating it as a
-standalone gate.
-
-### Addendum: structured `ozb` feed fields captured (2026-07-11) — pending owner review
-
-**Status: implementation-time clarification awaiting owner sign-off — this entry
-does not grant approval and no new approval is claimed.** The reading below is
-presented for the owner to confirm (or correct) alongside the next compliance
-re-check, and in any case **before** `OZB_EXPIRY_RECHECK_ENABLED` is turned on
-in production.
-
-What changed: the ingestion parser now also **stores two structured fields**
-OzBargain publishes inside its own RSS items:
-
-- `<ozb:meta expiry="…">` → `feed_items.declared_expires_at` — the poster's
-  declared expiry timestamp (strictly validated ISO date/date-time only).
-- `<ozb:title-msg type="expired">` → `feed_items.source_marked_expired` — the
-  feed's explicit expired/out-of-stock state marker. Only the `type` attribute
-  is read; the marker's human text is **not** stored (no content copying).
-  Other or unknown marker types (`targeted`, `upcoming`, …) are ignored.
-
-Reading presented for owner review: parsing additional structured fields out of
-a feed response the monitor already fetches under the approval above adds **no
-new request shape, no additional request volume, and no new endpoint** — the
-change is entirely offline parsing of an already-permitted response. The field
-shape was verified manually on 2026-07-11 against the already-approved
-`tag/credit-card/feed` URL (one-off browser/curl check with an identifying UA —
-the same manual preflight method as the "Verified instance" note above), and
-`robots.txt` was re-checked the same day: feed paths and `/node/` remain
-permitted; `/api/` and `/ozbapi/` are disallowed.
-
-Unchanged prohibitions — this entry widens **nothing**:
-
-- ❌ No HTML page GETs and no body parsing (per-post checks stay HEAD-only per
-  the status-only addendum above).
-- ❌ No scraping, no crawling, no following links to fetch more pages.
-- ❌ No per-node/per-item feeds (e.g. `/node/<id>/feed`) — not in the approved
-  allowlist.
-- ❌ No `/api/`, `/ozbapi/`, or any endpoint disallowed by `robots.txt` or
-  absent from the approved allowlist.
-- ❌ No storing of marker free text — only the `type` attribute and the expiry
-  timestamp are read.
-
-The fields exist so the separate expiry-recheck job
-(`docs/ozbargain-expiry-recheck.md`, migration 020) can archive pending review
-items whose source deal is explicitly expired — from stored data, with zero
-additional outbound requests. Record any future widening here first.
-
-### Addendum: card-offer source decision (2026-07-11)
-
-A second `compliance_reviews` row now exists, unrelated to the OzBargain
-monitor's own approval above: **Finder.com.au (credit card comparison)**,
-`approved_for_monitoring = false` — evaluated and rejected as a card-offer
-automation source (no public feed/API; this project does not scrape HTML
-regardless of `robots.txt`). It does not affect `isMonitoringApproved()` (an
-OR-gate over any approved row — the existing OzBargain approval is untouched)
-and it gates nothing here; it exists purely as an auditable record of the
-decision. Full write-up, and the compliant OzBargain tag-feed alternative
-registered alongside it, live in `docs/bank-card-offer-workflow.md`'s
-addendum.
-
 ---
 
 ## Status
@@ -827,20 +639,6 @@ Unit-tested offline (`npm run test:monitor`): parser/mapper, backoff math,
 blocked-body detection, and the orchestrator's kill-switch + "dry run writes
 nothing" + "blocked stops & disables" invariants.
 
-Feed egress is restricted to exact approved HTTPS hosts. For `ozbargain`, only
-`ozbargain.com.au` and `www.ozbargain.com.au` are accepted. Redirects are
-followed manually (maximum three), stay on the same approved hostname, and are
-revalidated before every request. Successful bodies are limited to 2 MiB and
-the deadline remains active while the body is read.
-
-For silent-stall alerting, poll `GET /api/health/monitor` every three hours from
-an external uptime service with the same Bearer secret. `200` means off, paused,
-or fresh; `503` means missing compliance, no successful run within 30 hours
-while feeds are expected, or unreadable state. Alert on non-2xx and timeout.
-**Implemented 2026-07-11 via `.github/workflows/monitor-health.yml`** (GitHub
-Actions schedule, fails on non-2xx → GitHub failure notification; needs the
-`CRON_SECRET` repository Actions secret — see FINAL-LAUNCH-CHECKLIST §4).
-
 **Now added (cron Phase 1):** a secret-gated Vercel Cron route
 (`app/api/cron/monitor-feeds/route.ts` + `vercel.json`, `GET`, daily at 02:00 UTC) that
 runs the shared `runMonitor()` in **write mode to the staging tables only**. It is
@@ -859,50 +657,3 @@ requests even with the cron scheduled.
 
 > **Automated scheduling (cron) stays gated** — only enable real feeds and raise
 > cadence after manual dry runs against a staging project look clean.
-
-## Offer-change detection: go-live runbook
-
-Offer-change detection scans already-staged feed items and stages
-`offer_change_candidates` for admin review. It is **built but dark**: the pure
-pipeline (`lib/monitor/detectOffers.ts`, `lib/monitor/runDetection.ts`), the
-post-run cron hook (`app/api/cron/monitor-feeds/route.ts`), and the admin
-preview panel (`app/admin/(protected)/offer-changes/DetectionPreviewClient.tsx`)
-all exist and are tested, but `OZB_OFFER_DETECT_ENABLED` has never been flipped —
-so `offer_change_candidates` has zero rows. Detection **never auto-applies**:
-even once enabled, a candidate only changes a published offer when an admin
-clicks **Apply** on `/admin/offer-changes`. Post-enable status is visible on
-[`/admin/monitor`](../app/admin/(protected)/monitor/page.tsx) in the
-**Offer-change detection** card (flag state, per-review-state counts, last-staged
-time).
-
-Follow these four steps to take it live safely.
-
-1. **Precision review (repeat on ≥2 different days).** Open
-   `/admin/offer-changes` → **Preview detection (dry run)** → run it. The preview
-   scans the last **7 days** of staged items, capped at 200
-   (`DETECTION_SCAN_LIMIT`, `lib/monitor/runDetection.ts`). Judge every
-   candidate: is the provider right, the merchant right, the value real?
-   **Zero candidates is a plausible, healthy result** — the heuristics demand a
-   provider *and* a parseable value *and* a resolvable merchant (precision over
-   recall), so an empty preview is not a bug and does not block go-live. Review
-   on two separate days so a quiet day is not mistaken for a broken detector.
-
-2. **Flip the flag.** Vercel → Settings → Environment Variables → add
-   `OZB_OFFER_DETECT_ENABLED=true` (Production) → **redeploy**. The flag is
-   already documented in `.env.example`. Nothing else changes: the monitor
-   fetch, gates, and cadence are untouched.
-
-3. **Verify within a day.** The daily Vercel Cron (02:00 UTC), or an external
-   scheduler run, now returns a `detection` block in its JSON summary. Once
-   anything stages, `/admin/monitor` shows a non-null "Last candidate staged"
-   time, and candidates appear on `/admin/offer-changes` as
-   `review_state = 'new'` for normal human review. **Nothing auto-applies** —
-   Apply remains the only path to public data. Note the preview scans **7 days**
-   but the live cron hook scans only the last **24 hours**, so a preview showing
-   5 candidates does **not** mean the first live run stages 5; expect fewer.
-
-4. **Rollback.** Remove the env var (or set it to `false`) and **redeploy**. No
-   code revert is needed. A detection failure can **never** fail the monitor
-   run — the post-run hook is fully wrapped in try/catch
-   (`app/api/cron/monitor-feeds/route.ts`), so on error the monitor completes
-   normally and the failure is recorded in the run's `detection` block only.

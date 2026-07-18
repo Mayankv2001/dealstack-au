@@ -8,12 +8,12 @@ import {
 } from "./backoff";
 
 /**
- * Feed monitor orchestrator — shared by the manual script and daily cron. It
- * selects enabled, due feeds, conditionally GETs each one
+ * Feed monitor orchestrator — shared core for the manual script (and a future
+ * cron route). It selects enabled, due feeds, conditionally GETs each one
  * SEQUENTIALLY (concurrency = 1), parses + maps the XML, and — only when NOT a
  * dry run — stages new `feed_items`, writes a `feed_fetch_log` row, and updates
- * `feed_sources` poll-state. It NEVER writes `ozbargain_signals`; an admin queue
- * approval remains mandatory.
+ * `feed_sources` poll-state. It NEVER writes `ozbargain_signals`; promotion to a
+ * (still pending, still admin-approved) signal stays a manual queue action.
  *
  * Safety invariants enforced here:
  *   - the kill switch (`config.enabled`) short-circuits with ZERO outbound calls;
@@ -35,7 +35,6 @@ export interface MonitorFeed {
   id: string;
   label: string;
   feedUrl: string;
-  sourceType: string;
   etag: string | null;
   lastModified: string | null;
   failureCount: number;
@@ -70,24 +69,13 @@ export interface FeedFetchLogEntry {
   httpStatus: number | null;
   itemsSeen: number;
   itemsNew: number;
-  itemsUpdated: number;
-  itemsSkipped: number;
   error: string | null;
-}
-
-export interface FeedUpsertResult {
-  inserted: number;
-  updated: number;
-  skipped: number;
 }
 
 /** Side-effecting writes — supplied only for a non-dry run. */
 export interface MonitorPersistence {
   /** Insert new feed_items (ignore conflicts on source_native_id); returns inserted count. */
-  upsertFeedItems(
-    feedSourceId: string,
-    items: FeedItemInsert[]
-  ): Promise<FeedUpsertResult>;
+  upsertFeedItems(feedSourceId: string, items: FeedItemInsert[]): Promise<number>;
   recordPollState(feedSourceId: string, patch: FeedPollStatePatch): Promise<void>;
   insertFetchLog(entry: FeedFetchLogEntry): Promise<void>;
 }
@@ -103,7 +91,6 @@ export interface MonitorDeps {
   /** Defaults to the real networked fetchFeed; tests inject a fake. */
   fetchFeed?: (input: {
     feedUrl: string;
-    sourceType: string;
     etag?: string | null;
     lastModified?: string | null;
     userAgent: string;
@@ -129,8 +116,6 @@ export interface FeedRunResult {
   itemsSeen: number;
   /** Live: rows inserted. Dry run: unique candidates that WOULD be staged. */
   itemsNew: number;
-  itemsUpdated: number;
-  itemsSkipped: number;
   error: string | null;
   /** A few parsed items, for the dry-run report. */
   sampleItems: { sourceNativeId: string; rawTitle: string }[];
@@ -166,27 +151,6 @@ async function handleFeed(
     feedUrl: feed.feedUrl,
   };
 
-  // Parse up front: a body can pass the fetcher's sniff yet still crash the XML
-  // parser (e.g. truncated mid-CDATA / mid-tag). Degrading that to a normal
-  // fetch failure keeps the backoff + fetch-log + auto-disable accounting
-  // intact instead of aborting the run with nothing recorded for the feed.
-  let prepared: { itemsSeen: number; mapped: FeedItemInsert[] } | null = null;
-  if (outcome.kind === "ok") {
-    try {
-      const parsed = parseFeed(outcome.body);
-      prepared = { itemsSeen: parsed.length, mapped: mapFeedItems(parsed) };
-    } catch (err) {
-      outcome = {
-        kind: "error",
-        httpStatus: outcome.httpStatus,
-        reason: `feed XML parse failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-        retryAfterSeconds: null,
-      };
-    }
-  }
-
   if (outcome.kind === "not-modified") {
     if (!dryRun && persistence) {
       const ts = now();
@@ -205,8 +169,6 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen: 0,
         itemsNew: 0,
-        itemsUpdated: 0,
-        itemsSkipped: 0,
         error: null,
       });
     }
@@ -217,8 +179,6 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen: 0,
         itemsNew: 0,
-        itemsUpdated: 0,
-        itemsSkipped: 0,
         error: null,
         sampleItems: [],
       },
@@ -226,22 +186,19 @@ async function handleFeed(
     };
   }
 
-  if (outcome.kind === "ok" && prepared) {
-    const { itemsSeen, mapped } = prepared;
+  if (outcome.kind === "ok") {
+    const parsed = parseFeed(outcome.body);
+    const mapped = mapFeedItems(parsed);
+    const itemsSeen = parsed.length;
     const sampleItems = mapped.slice(0, SAMPLE_LIMIT).map((m) => ({
       sourceNativeId: m.source_native_id,
       rawTitle: m.raw_title,
     }));
     // Dry run reports unique candidates; a live run reports rows actually inserted.
     let itemsNew = mapped.length;
-    let itemsUpdated = 0;
-    let itemsSkipped = Math.max(0, itemsSeen - mapped.length);
     if (!dryRun && persistence) {
       const ts = now();
-      const upsert = await persistence.upsertFeedItems(feed.id, mapped);
-      itemsNew = upsert.inserted;
-      itemsUpdated = upsert.updated;
-      itemsSkipped += upsert.skipped;
+      itemsNew = await persistence.upsertFeedItems(feed.id, mapped);
       await persistence.recordPollState(feed.id, {
         etag: outcome.etag,
         lastModified: outcome.lastModified,
@@ -257,8 +214,6 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen,
         itemsNew,
-        itemsUpdated,
-        itemsSkipped,
         error: null,
       });
     }
@@ -269,8 +224,6 @@ async function handleFeed(
         httpStatus: outcome.httpStatus,
         itemsSeen,
         itemsNew,
-        itemsUpdated,
-        itemsSkipped,
         error: null,
         sampleItems,
       },
@@ -279,11 +232,6 @@ async function handleFeed(
   }
 
   // error | blocked — back off, log, and (live) auto-disable on block/threshold.
-  // An ok outcome either returned above or was rewritten to an error by the
-  // parse guard; this narrows the union for the failure handling below.
-  if (outcome.kind === "ok") {
-    throw new Error("handleFeed: unhandled ok outcome");
-  }
   const blocked = outcome.kind === "blocked";
   const status: FeedStatus = blocked ? "blocked" : "error";
   const failureCount = feed.failureCount + 1;
@@ -308,8 +256,6 @@ async function handleFeed(
       httpStatus: outcome.httpStatus,
       itemsSeen: 0,
       itemsNew: 0,
-      itemsUpdated: 0,
-      itemsSkipped: 0,
       error: outcome.reason,
     });
   }
@@ -320,8 +266,6 @@ async function handleFeed(
       httpStatus: outcome.httpStatus,
       itemsSeen: 0,
       itemsNew: 0,
-      itemsUpdated: 0,
-      itemsSkipped: 0,
       error: outcome.reason,
       sampleItems: [],
     },
@@ -371,7 +315,6 @@ export async function runMonitor(
     const startedAt = now().toISOString();
     const outcome = await doFetch({
       feedUrl: feed.feedUrl,
-      sourceType: feed.sourceType,
       etag: feed.etag,
       lastModified: feed.lastModified,
       userAgent: config.userAgent,

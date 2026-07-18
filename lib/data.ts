@@ -20,8 +20,6 @@ export interface Store {
   id: string;
   name: string;
   category: string;
-  /** Reviewed merchant aliases used for exact, non-fuzzy search resolution. */
-  aliases?: string[];
   /** Text/initials placeholder shown instead of an image logo */
   logo: string;
   /**
@@ -58,11 +56,7 @@ export function formatExpiry(iso: string | null): string {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
-  // Guarded like formatDateAU (lib/sources/normalise.ts): malformed input
-  // falls back instead of rendering "Expires undefined undefined NaN".
-  const [datePart] = iso.split("T");
-  const [y, m, d] = datePart.split("-").map(Number);
-  if (!y || !m || !d || m > 12) return "Check provider for expiry";
+  const [y, m, d] = iso.split("-").map(Number);
   return `Expires ${d} ${months[m - 1]} ${y}`;
 }
 
@@ -82,7 +76,7 @@ export const stores: Store[] = [
     logoTheme: { bg: "linear-gradient(135deg,#2c2c2c,#000000)", fg: "#ffffff" },
     discountPercent: 10,
     discountCode: "MYER10",
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     cashbackPercent: 6,
     cashbackProvider: "ShopBack",
     giftCardDiscountPercent: 4,
@@ -202,7 +196,7 @@ export const stores: Store[] = [
     logoTheme: { bg: "linear-gradient(135deg,#2563eb,#1e293b)", fg: "#ffffff" },
     discountPercent: 10,
     discountCode: "KOGAN10",
-    expiryDate: "2026-09-21",
+    expiryDate: "2026-06-21",
     cashbackPercent: 3,
     cashbackProvider: "ShopBack",
     giftCardDiscountPercent: 0,
@@ -231,29 +225,5 @@ export const stores: Store[] = [
     giftCardSource: "Ultimate Health gift cards",
     pointsProgram: "Everyday Rewards",
     pointsRate: "1 point per $1",
-  },
-  {
-    id: "costco",
-    name: "Costco",
-    category: "Warehouse Club",
-    logo: "CO",
-    logoText: "Costco",
-    logoTheme: {
-      bg: "linear-gradient(135deg,#005daa,#003a6b)",
-      fg: "#ffffff",
-      accent: "#e31837",
-    },
-    // Costco AU does not run public stacking codes / portal cashback. These
-    // fields reflect that reality (no fabricated stack layers) — the "Costco
-    // Hot Buys" surface is signal-based, not a synthesised stack.
-    discountPercent: 0,
-    discountCode: "Membership required",
-    expiryDate: null,
-    cashbackPercent: 0,
-    cashbackProvider: "—",
-    giftCardDiscountPercent: 0,
-    giftCardSource: "Costco Shop Card (no public discount)",
-    pointsProgram: "—",
-    pointsRate: "No store program",
   },
 ];

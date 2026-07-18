@@ -4,8 +4,8 @@ import { XMLParser } from "fast-xml-parser";
  * Pure RSS/Atom feed parser — OFFLINE ONLY.
  *
  * Takes a feed XML STRING and returns normalised entries. There is NO network
- * here: this module never calls fetch and never reaches OzBargain — the
- * compliance-gated fetcher is the only thing allowed to
+ * here: this module never calls fetch and never reaches OzBargain — the future
+ * fetcher (a separate, compliance-gated module) is the only thing allowed to
  * make a request, and it will hand the response body to this parser. Tests feed
  * it local fixture XML only.
  *
@@ -26,19 +26,6 @@ export interface ParsedFeedItem {
   /** Raw pubDate/updated/published string; null when absent. */
   published: string | null;
   categories: string[];
-  /** Optional feed-supplied image URL; never fetched by the monitor. */
-  thumbnailUrl?: string | null;
-  /**
-   * Raw source-declared expiry timestamp from a structured feed extension —
-   * OzBargain's `<ozb:meta expiry="…">` attribute. Normalised in mapFeedItem.
-   */
-  declaredExpiry?: string | null;
-  /**
-   * True when the feed itself marks the item expired/out-of-stock —
-   * OzBargain's `<ozb:title-msg type="expired">`. Other marker types
-   * (targeted, upcoming) are deliberately ignored.
-   */
-  sourceMarkedExpired?: boolean;
 }
 
 type XmlNode = Record<string, unknown>;
@@ -110,62 +97,6 @@ function categoriesOf(node: unknown): string[] {
   return out;
 }
 
-/**
- * Child ELEMENT nodes whose local name matches, under any namespace prefix —
- * `<ozb:meta>`, `<ozbargain:meta>` and `<meta>` all match "meta". The parser
- * keeps prefixes in key names, so a prefix rename by the source must not
- * silently drop the field. Attribute keys (`@_…`) and text children are
- * excluded: only element nodes (objects) can carry the attributes we read.
- */
-function childrenByLocalName(node: XmlNode, localName: string): XmlNode[] {
-  const suffix = `:${localName}`;
-  const out: XmlNode[] = [];
-  for (const [key, value] of Object.entries(node)) {
-    if (key.startsWith("@_")) continue;
-    if (key !== localName && !key.endsWith(suffix)) continue;
-    const candidates = Array.isArray(value) ? value : value ? [value] : [];
-    for (const candidate of candidates) {
-      if (candidate && typeof candidate === "object") {
-        out.push(candidate as XmlNode);
-      }
-    }
-  }
-  return out;
-}
-
-/** First non-empty `expiry` attribute of a `meta` extension element, if any. */
-function declaredExpiryOf(item: XmlNode): string | null {
-  for (const node of childrenByLocalName(item, "meta")) {
-    const value = textOf(node["@_expiry"])?.trim();
-    if (value) return value;
-  }
-  return null;
-}
-
-/**
- * True only when a `title-msg` extension element carries exactly
- * type="expired". Markers with other, unknown, or missing type attributes
- * (targeted, upcoming, …) never count.
- */
-function sourceMarkedExpiredOf(item: XmlNode): boolean {
-  return childrenByLocalName(item, "title-msg").some(
-    (node) => textOf(node["@_type"])?.trim().toLowerCase() === "expired"
-  );
-}
-
-function thumbnailOf(item: XmlNode): string | null {
-  for (const key of ["media:thumbnail", "media:content", "thumbnail", "enclosure"]) {
-    const raw = item[key];
-    const candidates = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    for (const candidate of candidates) {
-      if (!candidate || typeof candidate !== "object") continue;
-      const value = textOf((candidate as XmlNode)["@_url"])?.trim();
-      if (value) return value;
-    }
-  }
-  return null;
-}
-
 function mapRssItem(item: XmlNode): ParsedFeedItem {
   return {
     title: textOf(item.title) ?? "",
@@ -174,9 +105,6 @@ function mapRssItem(item: XmlNode): ParsedFeedItem {
     summary: textOf(item.description) ?? "",
     published: textOf(item.pubDate),
     categories: categoriesOf(item.category),
-    thumbnailUrl: thumbnailOf(item),
-    declaredExpiry: declaredExpiryOf(item),
-    sourceMarkedExpired: sourceMarkedExpiredOf(item),
   };
 }
 
@@ -188,11 +116,6 @@ function mapAtomEntry(entry: XmlNode): ParsedFeedItem {
     summary: textOf(entry.summary) ?? textOf(entry.content) ?? "",
     published: textOf(entry.updated) ?? textOf(entry.published),
     categories: categoriesOf(entry.category),
-    thumbnailUrl: thumbnailOf(entry),
-    // The ozb extension rides OzBargain's RSS 2.0 feeds; the helpers return
-    // null/false when the elements are absent, so Atom stays uniform.
-    declaredExpiry: declaredExpiryOf(entry),
-    sourceMarkedExpired: sourceMarkedExpiredOf(entry),
   };
 }
 

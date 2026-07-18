@@ -1,20 +1,17 @@
-import { deriveConfidence, isExpired, normaliseText } from "./normalise";
+import { deriveConfidence, isExpired } from "./normalise";
 import { SOURCE_META, type RankedDealResult } from "./types";
 
 export interface RankingContext {
   /** Store.id the query resolved to, if any */
   queryMerchantId: string | null;
   now: Date;
-  /** Normalised user query, used to reward exact entity/category matches. */
-  queryText?: string;
 }
 
 const WEIGHTS = {
-  exactMatch: 0.25,
-  merchantMatch: 0.2,
-  confidence: 0.2,
-  savings: 0.15,
-  trust: 0.1,
+  merchantMatch: 0.3,
+  confidence: 0.25,
+  savings: 0.2,
+  trust: 0.15,
   recency: 0.1,
 };
 
@@ -41,25 +38,6 @@ function confidenceScore(result: RankedDealResult, now: Date): number {
   }
 }
 
-function exactMatchScore(result: RankedDealResult, queryText?: string): number {
-  const query = normaliseText(queryText ?? "");
-  if (!query) return 0.75;
-  const primary = [
-    result.merchant,
-    result.title,
-    result.cardOrProvider,
-    result.giftCardBrand,
-    result.pointsProgram,
-    result.kind,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .map(normaliseText);
-  if (primary.some((value) => value === query)) return 1;
-  if (primary.some((value) => value.startsWith(query))) return 0.8;
-  if (primary.some((value) => value.includes(query))) return 0.65;
-  return 0.2;
-}
-
 /**
  * Rough "how big is the saving" signal, normalised 0..1.
  * Discounts compare against a 25% ceiling; points offers score on
@@ -81,9 +59,8 @@ function recencyScore(result: RankedDealResult, now: Date): number {
   const checked = new Date(result.lastCheckedAt).getTime();
   if (Number.isNaN(checked)) return 0;
   const ageDays = Math.max(0, (now.getTime() - checked) / DAY_MS);
-  // Half-life: guides and card offers stay relevant for months (bank timelines,
-  // not deal timelines); other deals go stale in a week.
-  const halfLifeDays = result.kind === "guide" || result.kind === "card" ? 60 : 7;
+  // Half-life: guides stay relevant for months, deals go stale in a week
+  const halfLifeDays = result.kind === "guide" ? 60 : 7;
   return Math.exp((-Math.LN2 * ageDays) / halfLifeDays);
 }
 
@@ -99,7 +76,6 @@ export function scoreResult(
   ctx: RankingContext
 ): number {
   return (
-    WEIGHTS.exactMatch * exactMatchScore(result, ctx.queryText) +
     WEIGHTS.merchantMatch * merchantScore(result, ctx) +
     WEIGHTS.confidence * confidenceScore(result, ctx.now) +
     WEIGHTS.savings * savingsScore(result) +

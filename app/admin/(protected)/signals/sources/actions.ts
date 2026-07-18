@@ -3,26 +3,16 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import {
-  checkAdminRateLimit,
-  type AdminActionResult,
-} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   FEED_SOURCE_KINDS,
-  getFeedSource,
   insertFeedSource,
-  isFeedSourceType,
   setFeedSourceEnabled,
   updateFeedSource as persistFeedSource,
   type FeedSourceInput,
   type FeedSourceKind,
-  type FeedSourceType,
 } from "@/lib/admin/repos/feedSources";
-import {
-  isApprovedFeedUrl,
-  safeHttpsUrl,
-} from "@/lib/security/urlPolicy";
+import { validateFeedUrl } from "@/lib/monitor/feedUrl";
 
 /**
  * Feed source admin server actions.
@@ -31,8 +21,8 @@ import {
  * enough — the email must be in the admins allowlist). The service-role writes
  * live in the admin repo; nothing here is reachable from the public site.
  *
- * This is registration/config only — there is NO fetcher or cron, and nothing
- * here makes an external request. Feed sources are not public, so we revalidate
+ * This is registration/config only and makes no external request. Feed sources
+ * are not public, so we revalidate
  * only the admin list (never /deals).
  */
 
@@ -51,29 +41,14 @@ function parseFeedSourceForm(formData: FormData): ParseResult {
   const label = String(formData.get("label") ?? "").trim();
   if (!label) return { ok: false, error: "Label is required." };
 
+  const feedUrl = String(formData.get("feed_url") ?? "").trim();
+  if (!feedUrl) return { ok: false, error: "Feed URL is required." };
+  const validatedUrl = validateFeedUrl(feedUrl);
+  if (!validatedUrl.ok) return { ok: false, error: validatedUrl.error };
+
   const kind = String(formData.get("kind") ?? "").trim();
   if (!FEED_SOURCE_KINDS.includes(kind as FeedSourceKind)) {
     return { ok: false, error: "Choose a valid kind (front, store or category)." };
-  }
-
-  const sourceType = String(formData.get("source_type") ?? "").trim();
-  if (!isFeedSourceType(sourceType)) {
-    return { ok: false, error: "Choose a valid source type." };
-  }
-
-  const feedUrl = String(formData.get("feed_url") ?? "").trim();
-  if (!feedUrl) return { ok: false, error: "Feed URL is required." };
-  const safeFeedUrl = safeHttpsUrl(feedUrl);
-  if (!safeFeedUrl) {
-    return { ok: false, error: "Feed URL must be a safe HTTPS URL without credentials." };
-  }
-
-  const isEnabled = parseBool(formData, "is_enabled");
-  if (isEnabled && !isApprovedFeedUrl(sourceType, safeFeedUrl)) {
-    return {
-      ok: false,
-      error: "Enabled feeds must use an approved host for their source type.",
-    };
   }
 
   // merchant_id is optional — blank means a non-store-specific feed.
@@ -84,11 +59,10 @@ function parseFeedSourceForm(formData: FormData): ParseResult {
     ok: true,
     input: {
       label,
-      feedUrl: safeFeedUrl,
+      feedUrl: validatedUrl.url,
       kind: kind as FeedSourceKind,
-      sourceType: sourceType as FeedSourceType,
       merchantId,
-      isEnabled,
+      isEnabled: parseBool(formData, "is_enabled"),
     },
   };
 }
@@ -115,9 +89,6 @@ export async function createFeedSource(
 ): Promise<FeedSourceFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseFeedSourceForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -136,7 +107,6 @@ export async function createFeedSource(
       label: parsed.input.label,
       feedUrl: parsed.input.feedUrl,
       kind: parsed.input.kind,
-      sourceType: parsed.input.sourceType,
       isEnabled: parsed.input.isEnabled,
     },
   });
@@ -150,9 +120,6 @@ export async function updateFeedSource(
   formData: FormData
 ): Promise<FeedSourceFormState> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
 
   const parsed = parseFeedSourceForm(formData);
   if (!parsed.ok) return { error: parsed.error };
@@ -171,7 +138,6 @@ export async function updateFeedSource(
       label: parsed.input.label,
       feedUrl: parsed.input.feedUrl,
       kind: parsed.input.kind,
-      sourceType: parsed.input.sourceType,
       isEnabled: parsed.input.isEnabled,
     },
   });
@@ -180,23 +146,8 @@ export async function updateFeedSource(
 }
 
 /** Enable / disable toggle invoked from the list view (bound id + next value). */
-export async function setEnabled(
-  id: string,
-  isEnabled: boolean
-): Promise<AdminActionResult> {
+export async function setEnabled(id: string, isEnabled: boolean): Promise<void> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
-  if (isEnabled) {
-    const source = await getFeedSource(id);
-    if (!source) return { error: "Feed source not found." };
-    if (!isApprovedFeedUrl(source.sourceType, source.feedUrl)) {
-      return { error: "This feed URL is not approved for its source type." };
-    }
-  }
-
   await setFeedSourceEnabled(id, isEnabled);
   await logAudit({
     actorEmail: email,
@@ -206,5 +157,4 @@ export async function setEnabled(
     diff: { isEnabled },
   });
   revalidateFeedSources();
-  return { ok: true };
 }

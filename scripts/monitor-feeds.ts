@@ -1,23 +1,19 @@
 /**
- * Manual OzBargain feed monitor runner (dry run by default).
+ * Manual OzBargain feed monitor runner — Phase 1 (dry run by default).
  *
- * It runs the same shared runMonitor() core as the daily cron against enabled,
- * due feeds in
+ * The FIRST and ONLY way to run the monitor today (no cron, no agent, no route).
+ * It runs the shared runMonitor() core against the enabled, due feeds in
  * feed_sources, conditionally GETs each one, parses the RSS/Atom XML, and reports
  * what it found.
  *
  * Safety:
  *   - The master kill switch OZB_MONITOR_ENABLED must be exactly "true"; otherwise
  *     this exits immediately with NO fetch.
- *   - COMPLIANCE GATE (same gate as the cron route): a write-mode run REFUSES to
- *     start unless an approved compliance review is on file (fail-closed — a
- *     failed gate read also refuses). A dry run without approval is allowed for
- *     pre-approval testing, with a loud warning.
  *   - DRY RUN IS THE DEFAULT. Nothing is written unless you pass --write.
- *   - Only enabled feeds are fetched (concurrency 1, max 10 feeds/run by default).
+ *   - Only enabled feeds are fetched (concurrency 1, max 1 feed/run by default).
  *   - A blocked/HTML/Cloudflare-like response stops the run; no bypass.
  *   - Writes (only with --write) touch ONLY feed_items, feed_fetch_log, and
- *     feed_sources poll-state — NEVER ozbargain_signals. Queue items still
+ *     feed_sources poll-state — NEVER ozbargain_signals. Imported signals still
  *     require manual admin approval via /admin/signals/queue.
  *
  * Usage:
@@ -29,7 +25,7 @@
  *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (service-role; script only)
  *   OZB_MONITOR_ENABLED=true                              (kill switch)
  *   OZB_MONITOR_USER_AGENT=...                            (required when enabled)
- *   OZB_MONITOR_MAX_FEEDS_PER_RUN (default 10), OZB_MONITOR_MIN_INTERVAL_HOURS (default 12)
+ *   OZB_MONITOR_MAX_FEEDS_PER_RUN (default 1), OZB_MONITOR_MIN_INTERVAL_HOURS (default 12)
  */
 
 import {
@@ -37,10 +33,7 @@ import {
   ozbMonitorMaxFeedsPerRun,
   ozbMonitorMinIntervalHours,
   ozbMonitorUserAgent,
-  ozbOfferDetectEnabled,
 } from "../lib/env";
-import type { DetectionSummary } from "../lib/monitor/runDetection";
-import { isMonitoringApproved } from "../lib/admin/repos/compliance";
 import { fetchFeed } from "../lib/monitor/fetchFeed";
 import {
   runMonitor,
@@ -112,8 +105,6 @@ function printSummary(summary: MonitorRunSummary): void {
       const verb = summary.dryRun ? "would stage" : "staged";
       console.log(`   items seen: ${r.itemsSeen}`);
       console.log(`   ${verb}:    ${r.itemsNew} new (deduped)`);
-      console.log(`   updated:    ${r.itemsUpdated}`);
-      console.log(`   skipped:    ${r.itemsSkipped}`);
       r.sampleItems.forEach((s) =>
         console.log(`     - ${s.sourceNativeId}  ${s.rawTitle}`)
       );
@@ -136,42 +127,6 @@ function printSummary(summary: MonitorRunSummary): void {
   console.log(modeBanner(summary.dryRun));
 }
 
-/** Print the offer-change detection summary (mirrors the monitor mode banner). */
-function printDetection(detection: DetectionSummary, dryRun: boolean): void {
-  console.log("\n" + "=".repeat(64));
-  console.log(" Offer-change detection (post-run, staging-only)");
-  console.log(` ${modeBanner(dryRun)}`);
-  console.log("=".repeat(64));
-  console.log(`Feed items scanned:     ${detection.scanned}`);
-  console.log(`Raw detections:         ${detection.detected}`);
-  console.log(`Unique after dedupe:    ${detection.deduped}`);
-  const verb = dryRun ? "would stage" : "staged";
-  console.log(`Candidates ${verb}: ${detection.inserted}`);
-  if (dryRun) {
-    console.log(
-      "\nDRY RUN — nothing was written to offer_change_candidates. " +
-        `${detection.deduped} candidate(s) WOULD be staged in a --write run.`
-    );
-    if (detection.candidates && detection.candidates.length > 0) {
-      console.log("");
-      detection.candidates.forEach((c, i) => {
-        const merchant = c.merchant_id ?? "—";
-        const from = c.previous_value ?? "?";
-        const target = c.target_id ? "linked" : "unresolved (Apply will refuse)";
-        console.log(
-          `  ${i + 1}. [${c.source_type}] ${c.source_name} @ ${merchant}   ${from} → ${c.proposed_value}   target: ${target}`
-        );
-        console.log(`     title: ${c.detected_title}`);
-        console.log(`     url:   ${c.detected_url}`);
-      });
-    }
-  } else {
-    console.log(
-      `\nStaged ${detection.inserted} new offer_change_candidate(s) for review at /admin/offer-changes.`
-    );
-  }
-}
-
 async function main(): Promise<void> {
   const { dryRun, sourceId } = parseArgs(process.argv);
 
@@ -185,42 +140,6 @@ async function main(): Promise<void> {
   // State the mode up front, before any fetch — so it is obvious even if the
   // run later errors out mid-way.
   console.log(modeBanner(dryRun));
-
-  // Compliance gate — the same gate the cron route enforces. Checked BEFORE any
-  // fetch. Fail-closed: if the gate can't be read (env/table missing), a write
-  // run refuses too.
-  let complianceApproved = false;
-  let complianceError: string | null = null;
-  try {
-    complianceApproved = await isMonitoringApproved();
-  } catch (err) {
-    complianceError = err instanceof Error ? err.message : String(err);
-  }
-  if (!complianceApproved) {
-    const why = complianceError
-      ? `compliance check failed: ${complianceError}`
-      : "no approved compliance review on file";
-    if (!dryRun) {
-      console.error(
-        `\nREFUSING write-mode run — ${why}.\n` +
-          "Record and approve a review at /admin/compliance first (see docs/ozbargain-monitoring.md)."
-      );
-      process.exitCode = 1;
-      return;
-    }
-    console.warn(
-      [
-        "",
-        "!".repeat(64),
-        `!! WARNING: ${why}.`,
-        "!! Proceeding ONLY because this is a dry run (fetch + parse, no writes).",
-        "!! A --write run would refuse. Approve the compliance review before",
-        "!! staging anything: /admin/compliance.",
-        "!".repeat(64),
-        "",
-      ].join("\n")
-    );
-  }
 
   let userAgent: string;
   try {
@@ -258,31 +177,6 @@ async function main(): Promise<void> {
   );
 
   printSummary(summary);
-
-  // Offer-change detection — OFF by default, additive, staging-only. Runs AFTER
-  // the monitor over already-staged feed_items (no network). Honours --dry-run:
-  // a dry run prints what WOULD be staged and inserts nothing. A failure here is
-  // reported but never fails the monitor run itself.
-  if (ozbOfferDetectEnabled()) {
-    try {
-      const { runDetection } = await import("../lib/monitor/runDetection");
-      const { createDetectionPersistence } = await import(
-        "../lib/admin/repos/offerChanges"
-      );
-      const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const detection = await runDetection(createDetectionPersistence(), {
-        sinceIso,
-        dryRun,
-        includeCandidates: dryRun,
-      });
-      printDetection(detection, dryRun);
-    } catch (err) {
-      console.error(
-        "\nOffer-change detection failed (monitor run unaffected):",
-        err instanceof Error ? err.message : err
-      );
-    }
-  }
 }
 
 main().catch((err) => {

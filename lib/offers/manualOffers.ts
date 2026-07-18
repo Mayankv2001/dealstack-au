@@ -1,5 +1,4 @@
 import type {
-  CardOffer,
   CashbackOffer,
   GiftCardOffer,
   OzBargainSignal,
@@ -17,15 +16,15 @@ import type {
  * database — these are hand-written examples in the shape real adapters will
  * emit later.
  *
- * Reference "today" for these samples: late June 2026.
- * Current sample week: weekOf = "2026-06-23" (Monday).
+ * Reference "today" for these samples: mid-June 2026.
+ * Current sample week: weekOf = "2026-06-08" (Monday).
  *
  * Merchant ids below must match Store.id in lib/data.ts:
  *   myer · jb-hifi · the-good-guys · coles · woolworths · amazon-au ·
  *   kogan · chemist-warehouse
  */
 
-const SAMPLE_CHECKED_AT = "2026-06-25T22:00:00+10:00";
+const SAMPLE_CHECKED_AT = "2026-06-12T22:00:00+10:00";
 /** Deliberately old, to demonstrate the stale-data warning. */
 const STALE_CHECKED_AT = "2026-05-20T22:00:00+10:00";
 
@@ -44,7 +43,7 @@ export const giftCardOffers: GiftCardOffer[] = [
       earnNote: "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards",
     },
     capDollars: 200,
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     startDate: "2026-06-08",
     purchaseLocation: "Coles supermarkets & Coles Online",
     purchaseMethod: "online-and-in-store",
@@ -105,7 +104,7 @@ export const giftCardOffers: GiftCardOffer[] = [
     acceptedAtMerchantIds: ["jb-hifi", "the-good-guys"],
     pointsOnPurchase: null,
     capDollars: 500,
-    expiryDate: "2026-07-02", // close to "today" → triggers expiry-soon
+    expiryDate: "2026-06-15", // close to "today" → triggers expiry-soon
     startDate: "2026-06-01",
     purchaseLocation: "Suncorp Benefits portal",
     purchaseMethod: "online",
@@ -169,7 +168,7 @@ export const giftCardOffers: GiftCardOffer[] = [
       earnNote: "Sample: bonus Everyday Rewards points on Apple gift cards this week",
     },
     capDollars: 200,
-    expiryDate: "2026-07-24",
+    expiryDate: "2026-06-24",
     startDate: "2026-06-08",
     purchaseLocation: "Woolworths supermarkets",
     purchaseMethod: "in-store",
@@ -236,7 +235,7 @@ export const cashbackOffers: CashbackOffer[] = [
     excludesGiftCardPayment: true,
     termsSummary:
       "Sample upsized rate on full-priced items; excludes gift card payment and some brands.",
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     citations: [
       { source: "manual", sourceUrl: "https://www.shopback.com.au" },
     ],
@@ -273,7 +272,7 @@ export const pointsOffers: PointsOffer[] = [
     earnMultiple: 20,
     pointValueCents: 0.5, // ~2,000 pts ≈ $10 in sample terms
     mechanism: "in-store-boost",
-    expiryDate: "2026-07-17",
+    expiryDate: "2026-06-17",
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
@@ -303,7 +302,7 @@ export const pointsOffers: PointsOffer[] = [
     earnMultiple: 3,
     pointValueCents: 1, // ~1c/pt sample valuation
     mechanism: "shopping-portal",
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
@@ -318,136 +317,11 @@ export const pointsOffers: PointsOffer[] = [
     earnMultiple: 2,
     pointValueCents: 1,
     mechanism: "shopping-portal",
-    expiryDate: "2026-07-28",
+    expiryDate: "2026-06-28",
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
     confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-];
-
-// ─── Card offers (bank / credit-card sign-up bonuses) ──────────────────────
-// Demo rows only, hand-typed for the admin CRUD launch — NOT scraped, NOT
-// live-verified. Every figure is illustrative/rounded, not a confirmed rate.
-// confidence is deliberately "needs-verification" and the seed script (see
-// scripts/seed.ts) inserts these as UNPUBLISHED drafts: an admin must open
-// each one, check it against the bank's own current page, and publish by
-// hand before it can appear anywhere public. See docs/bank-card-offer-workflow.md.
-export const cardOffers: CardOffer[] = [
-  {
-    id: "card-amex-qantas-bonus",
-    provider: "American Express",
-    cardName: "Qantas Ultimate Card",
-    offerType: "sign_up_bonus",
-    bonusPoints: 100000,
-    cashbackAmount: null,
-    statementCreditAmount: null,
-    minimumSpend: 3000,
-    minimumSpendPeriod: "3 months",
-    annualFee: 450,
-    bonusStages: [{ points: 100000, requirement: "Spend $3,000 in 3 months", timing: "Initial bonus", withinFirstYear: true }],
-    pointValueCents: 1,
-    eligibilityNotes:
-      "Sample only. Typically new customers, subject to not holding/having held a similar Amex Qantas card recently — check current terms.",
-    offerSummary:
-      "Illustrative sign-up bonus: bonus Qantas Points after meeting a minimum-spend threshold within a set window.",
-    sourceUrl: "https://www.americanexpress.com/en-au/",
-    confidence: "needs-verification",
-    expiryDate: null,
-    reviewByDate: "2026-08-31",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
-    id: "card-nab-rewards-bonus",
-    provider: "NAB",
-    cardName: "NAB Rewards Signature Card",
-    offerType: "sign_up_bonus",
-    bonusPoints: 90000,
-    cashbackAmount: null,
-    statementCreditAmount: null,
-    minimumSpend: 4000,
-    minimumSpendPeriod: "3 months",
-    annualFee: 195,
-    bonusStages: [{ points: 90000, requirement: "Spend $4,000 in 3 months", timing: "Initial bonus", withinFirstYear: true }],
-    pointValueCents: 0.5,
-    eligibilityNotes:
-      "Sample only. Typically new-to-product customers — check current terms before applying.",
-    offerSummary:
-      "Illustrative sign-up bonus: bonus NAB Rewards points after meeting a minimum-spend threshold within a set window.",
-    sourceUrl: "https://www.nab.com.au/personal/credit-cards",
-    confidence: "needs-verification",
-    expiryDate: null,
-    reviewByDate: "2026-08-31",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
-    id: "card-cba-statement-credit",
-    provider: "Commonwealth Bank",
-    cardName: "CommBank Low Fee Gold Credit Card",
-    offerType: "statement_credit",
-    bonusPoints: null,
-    cashbackAmount: null,
-    statementCreditAmount: 200,
-    minimumSpend: 1500,
-    minimumSpendPeriod: "60 days",
-    annualFee: 59,
-    bonusStages: [],
-    pointValueCents: null,
-    eligibilityNotes:
-      "Sample only. Typically new cardholders — check current terms before applying.",
-    offerSummary:
-      "Illustrative statement credit after meeting a minimum-spend threshold within a set window.",
-    sourceUrl: "https://www.commbank.com.au/credit-cards.html",
-    confidence: "needs-verification",
-    expiryDate: null,
-    reviewByDate: "2026-08-31",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
-    id: "card-westpac-altitude-bonus",
-    provider: "Westpac",
-    cardName: "Altitude Platinum",
-    offerType: "points_bonus",
-    bonusPoints: 120000,
-    cashbackAmount: null,
-    statementCreditAmount: null,
-    minimumSpend: 3000,
-    minimumSpendPeriod: "90 days",
-    annualFee: 250,
-    bonusStages: [{ points: 120000, requirement: "Spend $3,000 in 90 days", timing: "Initial bonus", withinFirstYear: true }],
-    pointValueCents: 0.4,
-    eligibilityNotes:
-      "Sample only. Typically new-to-bank or new-to-product customers — check current terms before applying.",
-    offerSummary:
-      "Illustrative bonus Altitude Rewards points after meeting a minimum-spend threshold within a set window.",
-    sourceUrl: "https://www.westpac.com.au/personal-banking/credit-cards/",
-    confidence: "needs-verification",
-    expiryDate: null,
-    reviewByDate: "2026-08-31",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
-    id: "card-anz-rewards-bonus",
-    provider: "ANZ",
-    cardName: "ANZ Rewards Black",
-    offerType: "sign_up_bonus",
-    bonusPoints: 100000,
-    cashbackAmount: null,
-    statementCreditAmount: null,
-    minimumSpend: 3000,
-    minimumSpendPeriod: "3 months",
-    annualFee: 375,
-    bonusStages: [{ points: 100000, requirement: "Spend $3,000 in 3 months", timing: "Initial bonus", withinFirstYear: true }],
-    pointValueCents: 0.5,
-    eligibilityNotes:
-      "Sample only. Typically new-to-product customers — check current terms before applying.",
-    offerSummary:
-      "Illustrative sign-up bonus: bonus ANZ Rewards points after meeting a minimum-spend threshold within a set window.",
-    sourceUrl: "https://www.anz.com.au/personal/credit-cards/",
-    confidence: "needs-verification",
-    expiryDate: null,
-    reviewByDate: "2026-08-31",
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
 ];
@@ -467,109 +341,6 @@ export const cardOffers: CardOffer[] = [
 // a real post. We stamp `isSample: true` on all of them via the map at the end
 // so the UI never renders these as live OzBargain links.
 const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
-  {
-    id: "ozb-signal-jbhifi-macbook",
-    sourceNativeId: "node-900020",
-    merchantId: "jb-hifi",
-    title: "MacBook Air M3 spotted at a sharp price at JB Hi-Fi",
-    summary:
-      "Sample price-drop signal. Pair with discounted Ultimate gift cards and a cashback portal — the Smart Stack estimates the effective price below.",
-    votesSample: 168,
-    commentCount: 44,
-    tags: ["hot-buys", "electronics", "laptop", "macbook", "apple"],
-    promoCode: null,
-    priceText: "$1,799 (was $2,199)",
-    sentiment: "hot",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/node/900020",
-    merchantUrl: "https://www.jbhifi.com.au",
-    productUrl: "https://www.jbhifi.com.au/products/apple-macbook-air-m3",
-    productGroup: "macbook-air-m3",
-    postedAt: "2026-06-24",
-    expiryDate: "2026-08-31",
-    signalScore: 0.88,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  // ── Costco "Hot Buys" samples ──────────────────────────────────────────
-  // SAMPLE manual-curation rows (isSample stamped below), tagged "costco" +
-  // "hot-buys" so the public Costco section can filter them. These are NOT
-  // scraped from costco.com.au and NOT auto-published — same posture as every
-  // other sample signal: approved, illustrative, placeholder URLs.
-  {
-    id: "ozb-signal-costco-macbook-hotbuy",
-    sourceNativeId: "node-900024",
-    merchantId: "costco",
-    title: "Costco Hot Buys: MacBook Air M3 bundle for members",
-    summary:
-      "Sample Hot Buys listing. Costco member pricing on a current MacBook Air bundle — verify in warehouse or on the member site.",
-    votesSample: 96,
-    commentCount: 19,
-    tags: ["costco", "hot-buys", "electronics", "laptop", "macbook"],
-    promoCode: null,
-    priceText: "$1,749 member price",
-    sentiment: "hot",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/node/900024",
-    merchantUrl: "https://www.costco.com.au",
-    productUrl: "https://www.costco.com.au/c/hot-buys",
-    productGroup: "macbook-air-m3",
-    postedAt: "2026-06-25",
-    expiryDate: "2026-07-31",
-    signalScore: 0.8,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
-    id: "ozb-signal-costco-tv-hotbuy",
-    sourceNativeId: "node-900022",
-    merchantId: "costco",
-    title: "Costco Hot Buys: 65\" 4K TV with member discount",
-    summary:
-      "Sample Hot Buys listing. A large 4K TV at member pricing this cycle — stock and price vary by warehouse, confirm before travelling.",
-    votesSample: 74,
-    commentCount: 12,
-    tags: ["costco", "hot-buys", "electronics", "tv"],
-    promoCode: null,
-    priceText: "$795 member price",
-    sentiment: "neutral",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/node/900022",
-    merchantUrl: "https://www.costco.com.au",
-    productUrl: "https://www.costco.com.au/c/hot-buys",
-    postedAt: "2026-06-24",
-    expiryDate: "2026-07-28",
-    signalScore: 0.73,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
-  {
-    id: "ozb-signal-costco-airpods-hotbuy",
-    sourceNativeId: "node-900023",
-    merchantId: "costco",
-    title: "Costco Hot Buys: wireless earbuds instant savings",
-    summary:
-      "Sample Hot Buys listing. Instant member savings on popular wireless earbuds — limited-time card on the warehouse floor.",
-    votesSample: 58,
-    commentCount: 8,
-    tags: ["costco", "hot-buys", "electronics", "audio"],
-    promoCode: null,
-    priceText: "$249 ($60 instant saving)",
-    sentiment: "neutral",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.ozbargain.com.au/node/900023",
-    merchantUrl: "https://www.costco.com.au",
-    productUrl: "https://www.costco.com.au/c/hot-buys",
-    postedAt: "2026-06-23",
-    expiryDate: "2026-07-26",
-    signalScore: 0.68,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-  },
   {
     id: "ozb-signal-jbhifi-ultimate",
     sourceNativeId: "node-900001",
@@ -603,7 +374,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
       "Sample community price-drop alert. Click through a cashback portal first, then check the live price.",
     votesSample: 140,
     commentCount: 52,
-    tags: ["hot-buys", "electronics", "audio", "amazon"],
+    tags: ["electronics", "audio", "amazon"],
     promoCode: null,
     priceText: "$129 (was $179)",
     sentiment: "hot",
@@ -612,7 +383,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.amazon.com.au",
     productUrl: "https://www.amazon.com.au/deals",
     postedAt: "2026-06-11",
-    expiryDate: "2026-07-18", // within 7 days → expiring soon
+    expiryDate: "2026-06-18", // within 7 days → expiring soon
     signalScore: 0.78,
     status: "approved",
     confidence: "needs-verification",
@@ -636,7 +407,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.woolworths.com.au",
     productUrl: "https://www.woolworths.com.au/shop/catalogue",
     postedAt: "2026-06-11",
-    expiryDate: "2026-07-17", // within 7 days → expiring soon
+    expiryDate: "2026-06-17", // within 7 days → expiring soon
     signalScore: 0.75,
     status: "approved",
     confidence: "needs-verification",
@@ -660,7 +431,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.jbhifi.com.au",
     productUrl: null,
     postedAt: "2026-06-10",
-    expiryDate: "2026-07-20",
+    expiryDate: "2026-06-20",
     signalScore: 0.72,
     status: "approved",
     confidence: "needs-verification",
@@ -684,7 +455,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.coles.com.au",
     productUrl: "https://www.coles.com.au/gift-cards",
     postedAt: "2026-06-11",
-    expiryDate: "2026-08-30",
+    expiryDate: "2026-06-30",
     signalScore: 0.7,
     status: "approved",
     confidence: "needs-verification",
@@ -708,7 +479,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.apple.com/au/",
     productUrl: null,
     postedAt: "2026-06-10",
-    expiryDate: "2026-07-24",
+    expiryDate: "2026-06-24",
     signalScore: 0.62,
     status: "approved",
     confidence: "needs-verification",
@@ -732,7 +503,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.myer.com.au",
     productUrl: null,
     postedAt: "2026-06-10",
-    expiryDate: "2026-08-30",
+    expiryDate: "2026-06-30",
     signalScore: 0.6,
     status: "approved",
     confidence: "needs-verification",
@@ -747,7 +518,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
       "Sample community code for a small extra discount on selected Kogan lines. Check category exclusions first.",
     votesSample: 38,
     commentCount: 7,
-    tags: ["hot-buys", "marketplace", "coupon", "kogan"],
+    tags: ["marketplace", "coupon", "kogan"],
     promoCode: "KOGAN10",
     priceText: null,
     sentiment: "neutral",
@@ -756,7 +527,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.kogan.com",
     productUrl: null,
     postedAt: "2026-06-09",
-    expiryDate: "2026-07-21",
+    expiryDate: "2026-06-21",
     signalScore: 0.55,
     status: "approved",
     confidence: "needs-verification",
@@ -804,7 +575,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.amazon.com.au",
     productUrl: null,
     postedAt: "2026-06-08",
-    expiryDate: "2026-08-30",
+    expiryDate: "2026-06-30",
     signalScore: 0.5,
     status: "approved",
     confidence: "needs-verification",
@@ -884,77 +655,18 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
   },
 ];
 
-// Real, admin-curated Costco Hot Buys (transcribed by hand from data supplied by
-// the operator — NOT scraped). isSample: false, so they render with a live link
-// to Costco's Hot Buys page. Prices change; confidence stays needs-verification.
-const COSTCO_HOT_BUYS_REAL: OzBargainSignal[] = [
-  {
-    id: "costco-hotbuy-airpods4",
-    sourceNativeId: "costco:airpods4",
-    merchantId: "costco",
-    title: "Apple AirPods 4",
-    summary:
-      "Costco Hot Buy: Apple AirPods 4 at member price, delivery included. Trade in an old device for $20+ as a Costco Shop Card. Rated 4.8★.",
-    votesSample: null,
-    commentCount: null,
-    tags: ["costco", "hot-buys", "electronics", "audio", "airpods", "apple"],
-    promoCode: null,
-    priceText: "$144.99 (save $65)",
-    sentiment: "hot",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.costco.com.au/c/hot-buys",
-    merchantUrl: "https://www.costco.com.au",
-    productUrl: "https://www.costco.com.au/c/hot-buys",
-    postedAt: "2026-06-28",
-    expiryDate: null,
-    signalScore: 0.86,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-    isSample: false,
-  },
-  {
-    id: "costco-hotbuy-airpods4-anc",
-    sourceNativeId: "costco:airpods4-anc",
-    merchantId: "costco",
-    title: "Apple AirPods 4 with Active Noise Cancellation",
-    summary:
-      "Costco Hot Buy: Apple AirPods 4 with Active Noise Cancellation at member price, delivery included. Trade-in offer available. Rated 4.7★.",
-    votesSample: null,
-    commentCount: null,
-    tags: ["costco", "hot-buys", "electronics", "audio", "airpods", "apple", "anc"],
-    promoCode: null,
-    priceText: "$264.99 (save $15)",
-    sentiment: "hot",
-    dealKind: "discount-code",
-    sourceUrl: "https://www.costco.com.au/c/hot-buys",
-    merchantUrl: "https://www.costco.com.au",
-    productUrl: "https://www.costco.com.au/c/hot-buys",
-    postedAt: "2026-06-28",
-    expiryDate: null,
-    signalScore: 0.84,
-    status: "approved",
-    confidence: "needs-verification",
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-    isSample: false,
-  },
-];
-
-// Static sample signals are stamped isSample: true (muted "Sample listing"
-// label, placeholder URLs never linked). Real curated Hot Buys are appended as-is.
-export const ozBargainSignals: OzBargainSignal[] = [
-  ...SAMPLE_SIGNALS.map((s) => ({
-    ...s,
-    isSample: true,
-  })),
-  ...COSTCO_HOT_BUYS_REAL,
-];
+// All static signals are samples: stamp isSample: true so the UI shows a muted
+// "Sample OzBargain signal" label instead of opening the placeholder node URL.
+export const ozBargainSignals: OzBargainSignal[] = SAMPLE_SIGNALS.map((s) => ({
+  ...s,
+  isSample: true,
+}));
 
 // ─── Weekly deals (curated view referencing the offers above) ──────────────
 export const weeklyDeals: WeeklyDeal[] = [
   {
     id: "wk-2026-06-08-jbhifi-stack",
-    weekOf: "2026-06-23",
+    weekOf: "2026-06-08",
     merchantId: "jb-hifi",
     title: "Best stack: JB Hi-Fi via discounted Ultimate cards",
     summary:
@@ -970,7 +682,7 @@ export const weeklyDeals: WeeklyDeal[] = [
   },
   {
     id: "wk-2026-06-08-woolworths-20x",
-    weekOf: "2026-06-23",
+    weekOf: "2026-06-08",
     merchantId: "woolworths",
     title: "Points boost: 20x Everyday Rewards at Woolworths",
     summary:
@@ -980,12 +692,12 @@ export const weeklyDeals: WeeklyDeal[] = [
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
-    expiryDate: "2026-07-17",
+    expiryDate: "2026-06-17",
     confidence: "needs-verification",
   },
   {
     id: "wk-2026-06-08-coles-gc-points",
-    weekOf: "2026-06-23",
+    weekOf: "2026-06-08",
     merchantId: "coles",
     title: "Gift card bonus: Flybuys when buying Coles Group cards",
     summary:
@@ -995,12 +707,12 @@ export const weeklyDeals: WeeklyDeal[] = [
     citations: [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ],
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     confidence: "needs-verification",
   },
   {
     id: "wk-2026-06-08-myer-cashback",
-    weekOf: "2026-06-23",
+    weekOf: "2026-06-08",
     merchantId: "myer",
     title: "Cashback boost: upsized ShopBack at Myer",
     summary:
@@ -1010,7 +722,7 @@ export const weeklyDeals: WeeklyDeal[] = [
     citations: [
       { source: "manual", sourceUrl: "https://www.shopback.com.au" },
     ],
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     confidence: "confirmed",
   },
 ];

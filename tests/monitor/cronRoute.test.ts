@@ -7,33 +7,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 // Hoisted so the vi.mock factories below can reference them.
-const {
-  runMonitorMock,
-  isApprovedMock,
-  archiveExpiredMock,
-  validatePublishedMock,
-  startRunMock,
-  finishRunMock,
-  runDetectionMock,
-} = vi.hoisted(() => ({
-  runMonitorMock: vi.fn(),
-  isApprovedMock: vi.fn(),
-  archiveExpiredMock: vi.fn(),
-  validatePublishedMock: vi.fn(),
-  startRunMock: vi.fn(),
-  finishRunMock: vi.fn(),
-  runDetectionMock: vi.fn(),
-}));
+const { runMonitorMock, isApprovedMock, acquireLockMock, releaseLockMock } =
+  vi.hoisted(() => ({
+    runMonitorMock: vi.fn(),
+    isApprovedMock: vi.fn(),
+    acquireLockMock: vi.fn(),
+    releaseLockMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/monitor/runMonitor", () => ({ runMonitor: runMonitorMock }));
 vi.mock("@/lib/admin/repos/compliance", () => ({
   isMonitoringApproved: isApprovedMock,
 }));
-vi.mock("@/lib/admin/repos/dailyPipeline", () => ({
-  archiveExpiredDeals: archiveExpiredMock,
-  validatePublishedSignals: validatePublishedMock,
-  startPipelineRun: startRunMock,
-  finishPipelineRun: finishRunMock,
+vi.mock("@/lib/admin/repos/monitorLock", () => ({
+  acquireMonitorLock: acquireLockMock,
+  releaseMonitorLock: releaseLockMock,
 }));
 // These are wired into runMonitor's deps; mock them so importing the route never
 // pulls in the real Supabase client chain or the networked fetcher.
@@ -43,12 +31,6 @@ vi.mock("@/lib/admin/repos/feedSources", () => ({
   upsertFeedItems: vi.fn(),
   recordFeedPollState: vi.fn(),
   insertFeedFetchLog: vi.fn(),
-}));
-vi.mock("@/lib/monitor/runDetection", () => ({
-  runDetection: runDetectionMock,
-}));
-vi.mock("@/lib/admin/repos/offerChanges", () => ({
-  createDetectionPersistence: vi.fn(() => ({})),
 }));
 
 import { GET } from "@/app/api/cron/monitor-feeds/route";
@@ -76,8 +58,6 @@ const okSummary = {
       httpStatus: 200,
       itemsSeen: 3,
       itemsNew: 2,
-      itemsUpdated: 0,
-      itemsSkipped: 1,
       error: null,
       sampleItems: [{ sourceNativeId: "n1", rawTitle: "secret-ish raw title" }],
     },
@@ -87,24 +67,10 @@ const okSummary = {
 beforeEach(() => {
   runMonitorMock.mockReset();
   isApprovedMock.mockReset();
-  archiveExpiredMock.mockReset().mockResolvedValue({
-    total: 1,
-    expired: 1,
-    staleSignals: 0,
-    cardOffers: 0,
-    feedItemsRetired: 0,
-    feedItemsPurged: 0,
-  });
-  validatePublishedMock.mockReset().mockResolvedValue({
-    checked: 2,
-    archived: 0,
-    unknown: 0,
-  });
-  startRunMock
-    .mockReset()
-    .mockResolvedValue({ started: true, runId: "run-1" });
-  finishRunMock.mockReset().mockResolvedValue(undefined);
-  runDetectionMock.mockReset().mockResolvedValue({});
+  acquireLockMock.mockReset();
+  releaseLockMock.mockReset();
+  acquireLockMock.mockResolvedValue({ holderId: "lock-1" });
+  releaseLockMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -134,17 +100,17 @@ describe("GET /api/cron/monitor-feeds", () => {
     expect(runMonitorMock).not.toHaveBeenCalled();
   });
 
-  it("still archives expiry but does no network work when monitoring is disabled", async () => {
+  it("returns 200 disabled:true (no fetch) when OZB_MONITOR_ENABLED is not 'true'", async () => {
     vi.stubEnv("CRON_SECRET", SECRET);
     vi.stubEnv("OZB_MONITOR_ENABLED", "false");
 
     const res = await GET(makeRequest(`Bearer ${SECRET}`));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.status).toBe("disabled");
-    expect(body.ran).toBe(true);
-    expect(body.expiredArchived).toBe(1);
-    expect(archiveExpiredMock).toHaveBeenCalledOnce();
+    expect(body.disabled).toBe(true);
+    expect(body.ran).toBe(false);
+    // Disabled short-circuits before the compliance read and any fetch.
+    expect(isApprovedMock).not.toHaveBeenCalled();
     expect(runMonitorMock).not.toHaveBeenCalled();
   });
 
@@ -157,40 +123,9 @@ describe("GET /api/cron/monitor-feeds", () => {
     const res = await GET(makeRequest(`Bearer ${SECRET}`));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.status).toBe("blocked");
-    expect(body.ran).toBe(true);
-    expect(archiveExpiredMock).toHaveBeenCalledOnce();
+    expect(body.blockedByCompliance).toBe(true);
+    expect(body.ran).toBe(false);
     expect(runMonitorMock).not.toHaveBeenCalled();
-  });
-
-  it("does not run offer detection when the feed phase is compliance-blocked", async () => {
-    vi.stubEnv("CRON_SECRET", SECRET);
-    vi.stubEnv("OZB_MONITOR_ENABLED", "true");
-    vi.stubEnv("OZB_OFFER_DETECT_ENABLED", "true");
-    vi.stubEnv("OZB_MONITOR_USER_AGENT", UA);
-    isApprovedMock.mockResolvedValue(false);
-
-    await GET(makeRequest(`Bearer ${SECRET}`));
-
-    expect(runDetectionMock).not.toHaveBeenCalled();
-  });
-
-  it("returns 500 and records the run when the compliance check fails", async () => {
-    vi.stubEnv("CRON_SECRET", SECRET);
-    vi.stubEnv("OZB_MONITOR_ENABLED", "true");
-    isApprovedMock.mockRejectedValueOnce(new Error("database unavailable"));
-
-    const response = await GET(makeRequest(`Bearer ${SECRET}`));
-
-    expect(response.status).toBe(500);
-    expect((await response.json()).status).toBe("error");
-    expect(archiveExpiredMock).toHaveBeenCalledOnce();
-    expect(runMonitorMock).not.toHaveBeenCalled();
-    expect(finishRunMock).toHaveBeenCalledWith(
-      "run-1",
-      expect.objectContaining({ status: "error" }),
-      expect.any(Date)
-    );
   });
 
   it("runs the monitor in WRITE mode when all gates pass (happy path)", async () => {
@@ -212,31 +147,27 @@ describe("GET /api/cron/monitor-feeds", () => {
     expect(runMonitorMock).toHaveBeenCalledTimes(1);
     const [options, deps] = runMonitorMock.mock.calls[0];
     expect(options).toMatchObject({ dryRun: false });
-    expect(deps.config.maxFeedsPerRun).toBe(10);
+    expect(deps.config.maxFeedsPerRun).toBe(1); // default first-version cap
     expect(deps.persistence).toBeDefined();
     expect(typeof deps.persistence.upsertFeedItems).toBe("function");
     expect(typeof deps.selectFeeds).toBe("function");
+    expect(acquireLockMock).toHaveBeenCalledTimes(1);
+    expect(releaseLockMock).toHaveBeenCalledWith({ holderId: "lock-1" });
   });
 
-  it("skips the whole pipeline and returns 200 when another run is in flight", async () => {
+  it("skips a duplicate invocation while another run holds the lock", async () => {
     vi.stubEnv("CRON_SECRET", SECRET);
     vi.stubEnv("OZB_MONITOR_ENABLED", "true");
     vi.stubEnv("OZB_MONITOR_USER_AGENT", UA);
     isApprovedMock.mockResolvedValue(true);
-    startRunMock.mockResolvedValue({
-      started: false,
-      reason: "already-running",
-    });
+    acquireLockMock.mockResolvedValue(null);
 
     const res = await GET(makeRequest(`Bearer ${SECRET}`));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ ok: true, ran: false, skipped: "already-running" });
-
-    expect(archiveExpiredMock).not.toHaveBeenCalled();
-    expect(validatePublishedMock).not.toHaveBeenCalled();
+    expect(body.alreadyRunning).toBe(true);
+    expect(body.ran).toBe(false);
     expect(runMonitorMock).not.toHaveBeenCalled();
-    expect(finishRunMock).not.toHaveBeenCalled();
-    expect(runDetectionMock).not.toHaveBeenCalled();
+    expect(releaseLockMock).not.toHaveBeenCalled();
   });
 });

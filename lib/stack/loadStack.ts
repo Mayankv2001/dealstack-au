@@ -1,8 +1,6 @@
 import {
   getCashbackOffers,
   getGiftCardOffers,
-  getGiftCardAcceptance,
-  getGiftCardProducts,
   getOzBargainSignals,
   getPointsOffers,
   getStores,
@@ -16,12 +14,12 @@ import {
 /**
  * Server-side stack loaders.
  *
- * Gather the engine's data from the repository layer, then run the pure stack
- * engine. Configured Supabase is authoritative; demo arrays are used only in
- * explicit static/unconfigured mode. Server/data-layer only.
+ * Gather the engine's data from the repository layer (Supabase when configured,
+ * static fallback otherwise), then run the pure stack engine. Server/data-layer
+ * only — not yet wired into any page.
  */
 
-/** Load the full StackData bundle using the repositories' DB-or-demo policy. */
+/** Load the full StackData bundle from the repos (DB-or-static). */
 export async function loadStackData(): Promise<StackData> {
   const [stores, giftCardOffers, cashbackOffers, pointsOffers, ozBargainSignals] =
     await Promise.all([
@@ -31,28 +29,7 @@ export async function loadStackData(): Promise<StackData> {
       getPointsOffers(),
       getOzBargainSignals(),
     ]);
-  const productIds = [
-    ...new Set(
-      giftCardOffers.flatMap((offer) =>
-        [offer.productId, ...(offer.includedProductIds ?? [])].filter(
-          (id): id is string => Boolean(id)
-        )
-      )
-    ),
-  ];
-  const [giftCardProducts, giftCardAcceptance] = await Promise.all([
-    getGiftCardProducts(productIds),
-    getGiftCardAcceptance(productIds),
-  ]);
-  return {
-    stores,
-    giftCardOffers,
-    cashbackOffers,
-    pointsOffers,
-    ozBargainSignals,
-    giftCardProducts,
-    giftCardAcceptance,
-  };
+  return { stores, giftCardOffers, cashbackOffers, pointsOffers, ozBargainSignals };
 }
 
 /** Load repo data and return stack recommendations (same engine, injected data). */

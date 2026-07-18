@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { toNumber, toNumberOrNull } from "@/lib/supabase/server";
-import type { Json } from "@/lib/supabase/database.types";
 import type { CashbackOffer } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
 
@@ -118,7 +117,7 @@ function toRow(input: CashbackOfferInput) {
     excludes_gift_card_payment: input.excludesGiftCardPayment,
     terms_summary: input.termsSummary,
     expiry_date: input.expiryDate,
-    citations: input.citations as unknown as Json,
+    citations: input.citations,
     confidence: input.confidence,
     is_published: input.isPublished,
     // The admin is hand-verifying the data on every save, so stamp it now.

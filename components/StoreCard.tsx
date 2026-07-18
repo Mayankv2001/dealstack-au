@@ -4,17 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import StoreLogo from "@/components/StoreLogo";
-import { formatAUD } from "@/lib/calculateStack";
+import { calculateStack, formatAUD } from "@/lib/calculateStack";
 import { formatExpiry, type Store } from "@/lib/data";
-import { publicFreshness } from "@/lib/freshness";
-import type { StackRecommendation } from "@/lib/offers/types";
 import { cn } from "@/lib/utils";
 
 /** Subtle brand-ish colours per cashback provider, shared with the store detail page */
 export const providerBadgeClasses: Record<string, string> = {
   ShopBack:
     "border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-400",
-  TopCashback: "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-400",
+  TopCashback:
+    "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-400",
 };
 
 export const SAMPLE_SPEND = 500;
@@ -33,7 +32,7 @@ function SavingRow({
       <span
         className={cn(
           "flex size-5 shrink-0 items-center justify-center rounded-md",
-          iconClass,
+          iconClass
         )}
       >
         <Icon className="size-3" />
@@ -43,113 +42,17 @@ function SavingRow({
   );
 }
 
-/**
- * "stack" is the minimal homepage card — store name, headline estimated stack
- * percentage and a row of capability badges. "detailed" (the default, used by
- * /search) keeps the full breakdown with code, expiry and effective price.
- */
-export function StoreCard({
-  store,
-  recommendation = null,
-  variant = "detailed",
-  now = new Date(),
-}: {
-  store: Store;
-  recommendation?: StackRecommendation | null;
-  variant?: "detailed" | "stack";
-  now?: Date;
-}) {
-  const hasPoints = store.pointsProgram !== "—";
-  const freshness = publicFreshness(recommendation?.checkedAsOf, now);
-
-  if (variant === "stack") {
-    const activeLayers = (recommendation?.components ?? []).filter(
-      (component) =>
-        !component.optional &&
-        (component.layer === "points"
-          ? (component.pointsEarned ?? 0) > 0
-          : (component.valueDollars ?? 0) > 0),
-    );
-    const headline = recommendation
-      ? recommendation.kind === "points-only"
-        ? "Points only"
-        : recommendation.totalSaving > 0
-          ? `Up to ${recommendation.effectiveDiscountPercent}%`
-          : "No active stack found"
-      : "Watching for offers";
-    return (
-      <Link href={`/stores/${store.id}`} className="group block h-full">
-        <Card className="h-full rounded-2xl border-0 py-0 shadow-sm ring-1 ring-foreground/10 transition-all group-hover:-translate-y-0.5 group-hover:ring-emerald-500/50 group-hover:shadow-md">
-          <CardContent className="flex h-full flex-col gap-3.5 p-4.5">
-            <div className="flex items-center gap-3">
-              <StoreLogo store={store} size="sm" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold leading-tight">
-                  {store.name}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {activeLayers.length} active{" "}
-                  {activeLayers.length === 1 ? "layer" : "layers"}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                Estimated stack
-              </p>
-              <p
-                className={cn(
-                  "mt-0.5 text-2xl font-black tracking-[-0.035em]",
-                  recommendation?.kind === "cash" &&
-                    recommendation.totalSaving > 0
-                    ? "text-emerald-800 dark:text-emerald-300"
-                    : "text-foreground",
-                )}
-              >
-                {headline}
-              </p>
-            </div>
-
-            <div className="flex min-h-6 flex-wrap gap-1.5 border-t pt-3">
-              {activeLayers.map((component, index) => (
-                <span
-                  key={`${component.layer}-${index}`}
-                  className="rounded-full border bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
-                >
-                  {component.layer === "discount"
-                    ? "Code"
-                    : component.layer === "gift-card"
-                      ? "Gift card"
-                      : component.layer === "cashback"
-                        ? "Cashback"
-                        : "Points"}
-                </span>
-              ))}
-            </div>
-            <p className="mt-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Clock aria-hidden className="size-3" />
-              {freshness.label}
-              {freshness.checkedDate
-                ? ` · checked ${freshness.checkedDate}`
-                : ""}
-            </p>
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 group-hover:underline dark:text-emerald-300">
-              Open purchase plan{" "}
-              <ArrowRight
-                aria-hidden
-                className="size-3.5 transition-transform group-hover:translate-x-0.5"
-              />
-            </span>
-          </CardContent>
-        </Card>
-      </Link>
-    );
-  }
+export function StoreCard({ store }: { store: Store }) {
+  const stack = calculateStack({
+    originalPrice: SAMPLE_SPEND,
+    discountPercent: store.discountPercent,
+    cashbackPercent: store.cashbackPercent,
+    giftCardDiscountPercent: store.giftCardDiscountPercent,
+  });
 
   return (
     <Link href={`/stores/${store.id}`} className="group block">
-      <Card className="h-full gap-0 rounded-2xl py-0 shadow-sm ring-foreground/[0.08] transition-all duration-200 group-hover:-translate-y-1 group-hover:ring-emerald-500/50 group-hover:shadow-lg group-hover:shadow-emerald-500/10">
+      <Card className="h-full gap-0 py-0 shadow-sm transition-all duration-200 group-hover:-translate-y-1 group-hover:border-emerald-500/50 group-hover:shadow-lg group-hover:shadow-emerald-500/10">
         <CardContent className="flex h-full flex-col gap-3 p-4">
           <div className="flex items-center gap-2.5">
             <StoreLogo store={store} size="sm" />
@@ -197,7 +100,7 @@ export function StoreCard({
                     variant="outline"
                     className={cn(
                       "ml-auto shrink-0 px-1.5 py-0 text-[10px]",
-                      providerBadgeClasses[store.cashbackProvider],
+                      providerBadgeClasses[store.cashbackProvider]
                     )}
                   >
                     {store.cashbackProvider}
@@ -224,54 +127,37 @@ export function StoreCard({
               iconClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
             >
               <span className="min-w-0 truncate text-muted-foreground">
-                {hasPoints
+                {store.pointsProgram !== "—"
                   ? `${store.pointsProgram} · ${store.pointsRate}`
                   : store.pointsRate}
               </span>
             </SavingRow>
           </div>
 
-          {/* Engine-verified estimate on a $500 spend — compatible layers only,
-              matching the Decision Hub and homepage instead of naively
-              compounding every recorded rate. */}
-          {recommendation && recommendation.totalSaving > 0 ? (
-            <div className="rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2 dark:from-emerald-500/15 dark:to-emerald-500/5">
-              <p className="text-[11px] text-muted-foreground">
-                On a {formatAUD(recommendation.basePrice)} spend · compatible
-                layers only
-              </p>
-              <div className="mt-0.5 flex items-center justify-between">
-                <span className="text-xs font-medium">Effective price</span>
-                <span className="text-base font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
-                  {formatAUD(recommendation.effectivePrice)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium">Estimated saving</span>
-                <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                  {formatAUD(recommendation.totalSaving)} ·{" "}
-                  {recommendation.effectiveDiscountPercent}%
-                </span>
-              </div>
+          {/* Effective price preview on a sample spend */}
+          <div className="rounded-lg border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-emerald-500/[0.03] px-3 py-2 dark:from-emerald-500/15 dark:to-emerald-500/5">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>Example spend</span>
+              <span className="font-medium">{formatAUD(SAMPLE_SPEND)}</span>
             </div>
-          ) : (
-            <div className="rounded-xl border border-dashed px-3 py-2 text-xs text-muted-foreground">
-              {recommendation?.kind === "points-only"
-                ? "Points-only opportunity — the cash price is unchanged."
-                : "No compatible stack estimate yet — layers above are individual rates, not a combined saving."}
+            <div className="mt-0.5 flex items-center justify-between">
+              <span className="text-xs font-medium">Effective price</span>
+              <span className="text-base font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
+                {formatAUD(stack.finalEffectivePrice)}
+              </span>
             </div>
-          )}
-
-          <p className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Clock aria-hidden className="size-3" />
-            {freshness.label}
-            {freshness.checkedDate ? ` · checked ${freshness.checkedDate}` : ""}
-          </p>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium">Estimated saving</span>
+              <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                {formatAUD(stack.totalSaving)} · {stack.totalSavingPercent}%
+              </span>
+            </div>
+          </div>
 
           <span
             className={cn(
               buttonVariants({ variant: "outline", size: "sm" }),
-              "mt-auto w-full group-hover:border-emerald-700 group-hover:bg-emerald-700 group-hover:text-white",
+              "mt-auto w-full group-hover:border-emerald-600 group-hover:bg-emerald-600 group-hover:text-white"
             )}
           >
             View stack

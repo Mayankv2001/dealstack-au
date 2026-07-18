@@ -1,5 +1,3 @@
-import { cardOffers } from "@/lib/offers/manualOffers";
-import { cardOfferToSourceResult } from "./cardResults";
 import type { DealSourceResult } from "./types";
 
 /**
@@ -29,11 +27,11 @@ export const ozbargainResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     startDate: "2026-06-10",
     sourceUrl: "https://www.ozbargain.com.au/deals",
     publishedAt: "2026-06-10",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "confirmed",
   },
   {
@@ -50,11 +48,11 @@ export const ozbargainResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-21",
+    expiryDate: "2026-06-21",
     startDate: "2026-06-14",
     sourceUrl: "https://www.ozbargain.com.au/deals",
     publishedAt: "2026-06-11",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "confirmed",
   },
   {
@@ -75,7 +73,7 @@ export const ozbargainResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.ozbargain.com.au/deals",
     publishedAt: "2026-06-08",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "needs-verification",
   },
   {
@@ -96,7 +94,7 @@ export const ozbargainResults: DealSourceResult[] = [
     startDate: "2026-05-25",
     sourceUrl: "https://www.ozbargain.com.au/deals",
     publishedAt: "2026-05-25",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "confirmed",
   },
 ];
@@ -121,7 +119,7 @@ export const pointHacksResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.pointhacks.com.au",
     publishedAt: "2026-06-01",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "needs-verification",
   },
   {
@@ -138,11 +136,11 @@ export const pointHacksResults: DealSourceResult[] = [
     pointsAmount: "15% transfer bonus",
     giftCardBrand: null,
     cardOrProvider: "Eligible bank rewards programs",
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     startDate: "2026-06-01",
     sourceUrl: "https://www.pointhacks.com.au",
     publishedAt: "2026-06-02",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "confirmed",
   },
 ];
@@ -163,11 +161,11 @@ export const freePointsResults: DealSourceResult[] = [
     pointsAmount: "10x points",
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-16",
+    expiryDate: "2026-06-16",
     startDate: "2026-06-10",
     sourceUrl: "https://www.freepoints.com.au",
     publishedAt: "2026-06-10",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "confirmed",
   },
   {
@@ -184,11 +182,11 @@ export const freePointsResults: DealSourceResult[] = [
     pointsAmount: "2,000 bonus points",
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-23",
+    expiryDate: "2026-06-23",
     startDate: "2026-06-09",
     sourceUrl: "https://www.freepoints.com.au",
     publishedAt: "2026-06-09",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "confirmed",
   },
   {
@@ -209,7 +207,7 @@ export const freePointsResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.freepoints.com.au",
     publishedAt: "2026-06-05",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "needs-verification",
   },
   {
@@ -230,7 +228,7 @@ export const freePointsResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.freepoints.com.au",
     publishedAt: "2026-06-07",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "needs-verification",
   },
 ];
@@ -255,7 +253,7 @@ export const gcdbResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.gcdb.com.au",
     publishedAt: "2026-06-03",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "needs-verification",
   },
   {
@@ -276,7 +274,7 @@ export const gcdbResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.gcdb.com.au",
     publishedAt: "2026-06-03",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "needs-verification",
   },
   {
@@ -297,7 +295,7 @@ export const gcdbResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.gcdb.com.au",
     publishedAt: "2026-06-06",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    lastCheckedAt: "2026-06-12T22:00:00+10:00",
     confidence: "confirmed",
   },
 ];
@@ -320,11 +318,11 @@ export const manualResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-30",
+    expiryDate: "2026-06-30",
     startDate: "2026-06-10",
     sourceUrl: "https://www.myer.com.au",
     publishedAt: "2026-06-11",
-    lastCheckedAt: "2026-06-25T09:00:00+10:00",
+    lastCheckedAt: "2026-06-13T09:00:00+10:00",
     confidence: "confirmed",
   },
   {
@@ -345,13 +343,10 @@ export const manualResults: DealSourceResult[] = [
     startDate: null,
     sourceUrl: "https://www.chemistwarehouse.com.au",
     publishedAt: "2026-06-12",
-    lastCheckedAt: "2026-06-25T09:00:00+10:00",
+    lastCheckedAt: "2026-06-13T09:00:00+10:00",
     confidence: "confirmed",
   },
 ];
-
-// ─── Card offers — demo bank/credit-card rows (Illustrative, needs-verification) ─
-export const cardResults: DealSourceResult[] = cardOffers.map(cardOfferToSourceResult);
 
 /** Every static sample result across all sources */
 export const allSourceResults: DealSourceResult[] = [
@@ -360,5 +355,4 @@ export const allSourceResults: DealSourceResult[] = [
   ...freePointsResults,
   ...gcdbResults,
   ...manualResults,
-  ...cardResults,
 ];

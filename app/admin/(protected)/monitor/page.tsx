@@ -3,13 +3,9 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Check,
-  Clock,
   Info,
   Lightbulb,
   ListChecks,
-  PowerOff,
-  Radar,
-  RefreshCw,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -19,18 +15,6 @@ import {
   type MonitorFetchLogEntry,
   type MonitorStatus,
 } from "@/lib/admin/repos/monitorStatus";
-import { getDetectionOpsStatus } from "@/lib/admin/repos/offerChanges";
-import {
-  getGiftCardPipelineStatus,
-  type GiftCardPipelineStatus,
-} from "@/lib/admin/repos/giftCardPipeline";
-import { disableAllFeeds } from "./actions";
-import {
-  gcdbIngestEnabled,
-  ozbExpiryRecheckDryRun,
-  ozbExpiryRecheckEnabled,
-  ozbOfferDetectEnabled,
-} from "@/lib/env";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -46,8 +30,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StagingFlowViz } from "@/components/monitor/staging-flow-viz";
-import { ActionButton } from "@/components/admin/ActionButton";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -123,8 +105,7 @@ function FetchLogSummary({
       <p className="font-medium">{log.feedSourceLabel ?? "—"}</p>
       <p className="text-xs text-muted-foreground tabular-nums">
         {formatDate(log.startedAt)} · HTTP {log.httpStatus ?? "—"} · seen{" "}
-        {log.itemsSeen} seen · {log.itemsNew} new · {log.itemsUpdated} updated ·{" "}
-        {log.itemsSkipped} skipped
+        {log.itemsSeen} · new {log.itemsNew}
       </p>
       {log.error ? (
         <p className="break-words text-xs text-destructive">{log.error}</p>
@@ -233,7 +214,7 @@ function recommendedAction(status: MonitorStatus): NextAction {
   if (!status.lastSuccessLog) {
     return {
       message:
-        "Configured — waiting for the first successful run. The pipeline runs daily at 00:00 UTC; check Recent pipeline runs below.",
+        "Configured — waiting for the first successful run. The cron runs daily at 02:00 UTC; check Recent fetch runs below.",
       tone: "info",
     };
   }
@@ -249,167 +230,16 @@ function recommendedAction(status: MonitorStatus): NextAction {
       status.feedQueuePending === 1 ? "" : "s"
     } in the queue.`,
     tone: "ok",
-    href: "/admin/review?tab=deals",
-    hrefLabel: "Deal review queue",
+    href: "/admin/signals/queue",
+    hrefLabel: "Feed import queue",
   };
-}
-
-/**
- * Read-only gift-card pipeline snapshot. Resilient to migration 021 not yet
- * being applied to production: the gift_card_* tables may not exist, in which
- * case the query throws and we render a "not provisioned" state rather than
- * crashing the whole monitor page.
- */
-async function loadGiftCardPipelineStatus(): Promise<GiftCardPipelineStatus | null> {
-  try {
-    return await getGiftCardPipelineStatus();
-  } catch {
-    return null;
-  }
-}
-
-/** Source is stale when it is enabled but has not succeeded within this window. */
-const GC_STALE_SOURCE_HOURS = 60;
-
-function GiftCardPipelineCard({
-  status,
-  envEnabled,
-  fmt,
-  nowMs,
-}: {
-  status: GiftCardPipelineStatus | null;
-  envEnabled: boolean;
-  fmt: (iso: string | null) => string;
-  nowMs: number;
-}) {
-  if (!status) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Radar className="size-4" /> Gift-card ingest pipeline
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Not provisioned — migration 021 has not been applied, or the pipeline
-          tables are unavailable. The public gift-card offers and the review
-          queue are unaffected.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { source, lastRun } = status;
-  const sourceEnabled = source?.enabled === true;
-  const fetchAllowed = source?.automated_fetch_allowed === true;
-  const lastSuccess = source?.last_success_at ?? null;
-  const lastSuccessMs = lastSuccess ? Date.parse(lastSuccess) : NaN;
-  const staleSource =
-    envEnabled &&
-    sourceEnabled &&
-    fetchAllowed &&
-    (!Number.isFinite(lastSuccessMs) ||
-      nowMs - lastSuccessMs > GC_STALE_SOURCE_HOURS * 3_600_000);
-  const oldestPendingLabel = status.oldestPendingAt ? fmt(status.oldestPendingAt) : "—";
-
-  const stat = (label: string, value: React.ReactNode) => (
-    <div className="rounded-lg border bg-muted/30 p-2.5">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold">{value}</p>
-    </div>
-  );
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
-          <Radar className="size-4" /> Gift-card ingest pipeline
-          <Badge variant={envEnabled ? "default" : "secondary"}>
-            {envEnabled ? "env enabled" : "env disabled"}
-          </Badge>
-          <Badge variant={sourceEnabled && fetchAllowed ? "default" : "secondary"}>
-            {sourceEnabled ? "source on" : "source off"}
-            {sourceEnabled && !fetchAllowed ? " (fetch not permitted)" : ""}
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {staleSource ? (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            <span>
-              Stale source — enabled but no successful ingest in the last{" "}
-              {GC_STALE_SOURCE_HOURS} hours. Check the scheduler and the last error below.
-            </span>
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {stat("Pending candidates", status.pendingCandidates)}
-          {stat("Changed candidates", status.changedCandidates)}
-          {stat("Oldest pending", oldestPendingLabel)}
-          {stat("Active published offers", status.activeOffers)}
-          {stat("Expiring within 72h", status.expiringWithin72h)}
-          {stat(
-            "Automated fetch",
-            fetchAllowed ? "permitted" : "not permitted"
-          )}
-        </div>
-
-        <dl className="space-y-1.5 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Last run</dt>
-            <dd className="text-right font-medium">
-              {lastRun
-                ? `${fmt(lastRun.startedAt)} — ${lastRun.status}`
-                : "never run"}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Last success</dt>
-            <dd className="text-right font-medium">{fmt(lastSuccess)}</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Last failure</dt>
-            <dd className="text-right font-medium">
-              {source?.last_error_at ? fmt(source.last_error_at) : "—"}
-              {source?.last_error ? (
-                <span className="block text-xs font-normal text-amber-700 dark:text-amber-400">
-                  {source.last_error}
-                </span>
-              ) : null}
-            </dd>
-          </div>
-        </dl>
-
-        <p className="text-xs text-muted-foreground">
-          Staged candidates await manual approval in the{" "}
-          <Link href="/admin/gift-cards/review" className="underline">
-            gift-card review queue
-          </Link>
-          . Nothing here publishes automatically.
-        </p>
-      </CardContent>
-    </Card>
-  );
 }
 
 export default async function MonitorStatusPage() {
   // Belt-and-suspenders gate — the protected layout already checks, but every
   // admin page verifies independently (the proxy is only an optimistic check).
   await requireAdmin();
-  // Fetch both read-only snapshots together (no waterfall). The flag is read
-  // per-request via the env accessor — never inline process.env.
-  const [status, detection, giftCardPipeline] = await Promise.all([
-    getMonitorStatus(),
-    getDetectionOpsStatus(),
-    loadGiftCardPipelineStatus(),
-  ]);
-  const gcdbEnabled = gcdbIngestEnabled();
-  const detectionEnabled = ozbOfferDetectEnabled();
-  const recheckEnabled = ozbExpiryRecheckEnabled();
-  const recheckDryRun = ozbExpiryRecheckDryRun();
-  const nowMs = new Date().getTime();
+  const status = await getMonitorStatus();
 
   const hasRisk = status.enabledWithoutApproval > 0;
   const checklist = cronChecklist(status);
@@ -430,36 +260,6 @@ export default async function MonitorStatusPage() {
           secret-gated Vercel Cron route. Nothing is published automatically.
         </p>
       </header>
-
-      {/* Category auto-ignore note — explains the monitor's initial review_state. */}
-      <div className="flex items-start gap-2.5 rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <Info className="mt-0.5 size-4 shrink-0" />
-        <p>
-          <span className="font-medium text-foreground">
-            Category-aware staging.
-          </span>{" "}
-          Future RSS items are sorted on arrival by preferred category. Tech,
-          fashion, gift cards, beauty, automotive and household/appliance deals
-          (and anything uncertain) are staged as <code className="text-xs">new</code>{" "}
-          for review in the{" "}
-          <Link href="/admin/review?tab=deals" className="underline">
-            deal review queue
-          </Link>
-          . Clearly off-theme items (alcohol, anime/collectibles, gaming
-          pre-orders, snacks, supplements, pets, travel) are staged as{" "}
-          <code className="text-xs">ignored</code> — still saved for audit, just
-          hidden from the queue. Nothing is deleted, and nothing is ever
-          published without manual approval.
-        </p>
-      </div>
-
-      {/* Gift-card ingest pipeline — separate from the OzBargain monitor. */}
-      <GiftCardPipelineCard
-        status={giftCardPipeline}
-        envEnabled={gcdbEnabled}
-        fmt={formatDate}
-        nowMs={nowMs}
-      />
 
       {/* Most severe: the master switch is armed but compliance is NOT approved. */}
       {status.envEnabled && !status.complianceApproved ? (
@@ -583,20 +383,6 @@ export default async function MonitorStatusPage() {
         />
       </div>
 
-      {/* Staging-flow visualisation — illustrative only. "Live" means the
-          monitor is armed (enabled + compliance-approved + at least one feed),
-          not that a fetch is in flight; this page never fetches. */}
-      <StagingFlowViz
-        isFetching={
-          status.envEnabled &&
-          status.complianceApproved &&
-          status.feedSourcesEnabled > 0
-        }
-        stagedItemCount={status.feedItemsTotal}
-        activeSources={status.feedSourcesEnabled}
-        pendingCount={status.feedQueuePending}
-      />
-
       {/* Cron readiness — operator checklist + a single recommended next action. */}
       <Card>
         <CardHeader>
@@ -678,210 +464,19 @@ export default async function MonitorStatusPage() {
         </CardContent>
       </Card>
 
-      {/* Scheduler options — informational only; this page runs nothing and
-          cannot detect whether an external scheduler is configured. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Clock className="size-5 text-muted-foreground" />
-            Scheduler options
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            The same secret-gated route (
-            <code className="text-xs">GET /api/cron/monitor-feeds</code>) can be
-            triggered two ways. Both pass through every gate in “Cron ready?”
-            above, stage only <code className="text-xs">feed_items</code> /
-            fetch-log / poll-state, and never publish anything automatically —
-            admin review stays mandatory.
-          </p>
-          <div className="rounded-md border bg-muted/30 px-3 py-2.5 text-sm">
-            <p className="font-medium">Vercel Cron — once daily</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Runs at 02:00 UTC, configured in{" "}
-              <code className="text-xs">vercel.json</code>. Kept once daily on
-              the Hobby plan so deploys stay valid.
-            </p>
-          </div>
-          <div className="rounded-md border bg-muted/30 px-3 py-2.5 text-sm">
-            <p className="font-medium">
-              External scheduler — every 3 hours{" "}
-              <span className="font-normal text-muted-foreground">
-                (optional, if configured)
-              </span>
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              An external scheduler (e.g. cron-job.org) can call the same route
-              every 3 hours with{" "}
-              <code className="text-xs">Authorization: Bearer ${"{CRON_SECRET}"}</code>
-              . Per-feed polling is still throttled by{" "}
-              <code className="text-xs">OZB_MONITOR_MIN_INTERVAL_HOURS</code>{" "}
-              (default 12h), so most extra calls find nothing due. Setup steps are
-              in <code className="text-xs">docs/ozbargain-monitoring.md</code>.
-            </p>
-          </div>
-          <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <Info className="mt-0.5 size-3.5 shrink-0" />
-            This page can’t detect whether an external scheduler is set up — it
-            only reflects the run history below.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* How to stop the monitor — always visible so admins can act quickly. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <PowerOff className="size-5 text-muted-foreground" />
-            How to stop monitoring
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            Two ways to disable the monitor. Neither deletes staged items or
-            changes any published offer.
-          </p>
-          <div className="rounded-md border bg-muted/30 px-3 py-2.5">
-            <p className="font-medium">Option 1 — Vercel env var (preferred)</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              In Vercel Dashboard → Project → Settings → Environment Variables,
-              set <code className="text-xs">OZB_MONITOR_ENABLED</code> to{" "}
-              <code className="text-xs">false</code> (or delete it), then
-              redeploy. Takes effect on the next deployment.
-            </p>
-          </div>
-          <div className="rounded-md border bg-muted/30 px-3 py-2.5">
-            <p className="font-medium">Option 2 — disable feed sources (immediate, no redeploy)</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              The cron will still run on schedule but find no enabled sources
-              and exit immediately. Staged feed items remain available for
-              review; public data is unchanged.
-            </p>
-            {status.feedSourcesEnabled > 0 ? (
-              <ActionButton
-                run={disableAllFeeds}
-                confirm="Disable all enabled feed sources now? This does not delete staged items or change public data."
-                variant="destructive"
-                className="mt-2"
-              >
-                <PowerOff className="size-3.5" />
-                Disable all feed sources ({status.feedSourcesEnabled})
-              </ActionButton>
-            ) : (
-              <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                No feed sources are currently enabled.
-              </p>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Full emergency steps and rollback plan are in{" "}
-            <code className="text-xs">docs/production-readiness.md</code>.
-          </p>
-        </CardContent>
-      </Card>
-
       {/* Staged feed items by triage state. */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-lg">
-              Staged feed items ({status.feedItemsTotal})
-            </CardTitle>
-            {status.feedQueuePending > 0 ? (
-              <Link
-                href="/admin/review?tab=deals"
-                className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-              >
-                Review queue ({status.feedQueuePending} pending) →
-              </Link>
-            ) : null}
-          </div>
+          <CardTitle className="text-lg">
+            Staged feed items ({status.feedItemsTotal})
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <CountPill label="New" value={status.feedItemCounts.new} />
             <CountPill label="Imported" value={status.feedItemCounts.imported} />
             <CountPill label="Ignored" value={status.feedItemCounts.ignored} />
             <CountPill label="Duplicate" value={status.feedItemCounts.duplicate} />
-            <CountPill label="Rejected" value={status.feedItemCounts.rejected} />
-            <CountPill label="Archived" value={status.feedItemCounts.archived} />
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Archived</span> items had
-            their OzBargain source confirmed expired or removed by the expiry-recheck
-            job and were moved out of the review queue. They are kept for audit —
-            never deleted — and appear in Review → History.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Offer-change detection — read-only ops status. This page never runs
-          detection; the flag gates the post-run staging hook in the cron route,
-          reviewed and flipped by a human per the go-live runbook. */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Radar className="size-5 text-muted-foreground" />
-              Offer-change detection
-            </CardTitle>
-            <Badge
-              variant="outline"
-              className={cn(
-                "gap-1",
-                detectionEnabled
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "border-muted-foreground/30 text-muted-foreground"
-              )}
-            >
-              {detectionEnabled ? "Enabled" : "Disabled"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            <code className="text-xs">OZB_OFFER_DETECT_ENABLED</code> ={" "}
-            <code className="text-xs">{detectionEnabled ? "true" : "false"}</code>.
-            Gates the post-run staging hook only — the{" "}
-            <Link href="/admin/offer-changes" className="underline">
-              preview panel
-            </Link>{" "}
-            works regardless.
-          </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <CountPill label="Total" value={detection.totalCandidates} />
-            <CountPill label="New" value={detection.byReviewState.new} />
-            <CountPill label="Applied" value={detection.byReviewState.applied} />
-            <CountPill label="Ignored" value={detection.byReviewState.ignored} />
-            <CountPill
-              label="Duplicate"
-              value={detection.byReviewState.duplicate}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">
-              Last candidate staged:
-            </span>{" "}
-            {detection.latestStagedAt ? (
-              <span className="tabular-nums">
-                {formatDate(detection.latestStagedAt)}
-              </span>
-            ) : (
-              "Never — detection has not run in write mode."
-            )}
-          </p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            <Link
-              href="/admin/offer-changes"
-              className="font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-            >
-              Review candidates / run a preview →
-            </Link>
-            <span className="text-xs text-muted-foreground">
-              Go-live runbook:{" "}
-              <code className="text-xs">docs/ozbargain-monitoring.md</code>
-            </span>
           </div>
         </CardContent>
       </Card>
@@ -995,154 +590,6 @@ export default async function MonitorStatusPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Recent daily pipeline runs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {status.recentPipelineRuns.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No daily pipeline run recorded yet.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Started</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Archived</TableHead>
-                  <TableHead className="text-right">Queue retired</TableHead>
-                  <TableHead className="text-right">Purged</TableHead>
-                  <TableHead className="text-right">Validated</TableHead>
-                  <TableHead className="text-right">Unknown</TableHead>
-                  <TableHead className="text-right">Fetched</TableHead>
-                  <TableHead className="text-right">New</TableHead>
-                  <TableHead className="text-right">Updated</TableHead>
-                  <TableHead className="text-right">Skipped</TableHead>
-                  <TableHead className="text-right">Detected</TableHead>
-                  <TableHead>Errors</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {status.recentPipelineRuns.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell className="tabular-nums text-muted-foreground">
-                      {formatDate(run.startedAt)}
-                    </TableCell>
-                    <TableCell className="capitalize">{run.status}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {run.expiredArchived +
-                        run.invalidArchived +
-                        run.staleArchived +
-                        run.cardOffersArchived}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {run.feedItemsRetired}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {run.feedItemsPurged}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {run.validationChecked}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {run.validationUnknown}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{run.itemsFetched}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.itemsNew}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.itemsUpdated}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.itemsSkipped}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {run.detectionInserted}/{run.detectionDetected}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate text-muted-foreground">
-                      {run.errors.join("; ") || "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent expiry-recheck runs — SEPARATE cron from ingestion. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <RefreshCw className="size-5 text-muted-foreground" />
-            Recent expiry-recheck runs
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            The expiry-recheck job (
-            <code className="text-xs">GET /api/cron/recheck-ozbargain-expiry</code>)
-            re-probes pending OzBargain review items and archives only those whose
-            source post is explicitly <span className="font-medium">expired</span>{" "}
-            or <span className="font-medium">deleted</span>. It is independent of
-            ingestion, gated by{" "}
-            <code className="text-xs">OZB_EXPIRY_RECHECK_ENABLED</code> (currently{" "}
-            <code className="text-xs">{recheckEnabled ? "true" : "false"}</code>),
-            runs in preview by default (
-            <code className="text-xs">OZB_EXPIRY_RECHECK_DRY_RUN</code>, currently{" "}
-            <code className="text-xs">{recheckDryRun ? "true" : "false"}</code>),
-            and never publishes or deletes anything. Transient failures (timeout,
-            429, 5xx, anti-bot) never archive — the item stays in Review.
-          </p>
-          {status.recentRecheckRuns.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              No expiry-recheck run recorded yet.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Started</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Mode</TableHead>
-                  <TableHead className="text-right">Scanned</TableHead>
-                  <TableHead className="text-right">Active</TableHead>
-                  <TableHead className="text-right">Expired</TableHead>
-                  <TableHead className="text-right">Deleted</TableHead>
-                  <TableHead className="text-right">Unknown</TableHead>
-                  <TableHead className="text-right">Fetch-failed</TableHead>
-                  <TableHead className="text-right">Would archive</TableHead>
-                  <TableHead className="text-right">Archived</TableHead>
-                  <TableHead className="text-right">Errors</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {status.recentRecheckRuns.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell className="tabular-nums text-muted-foreground">
-                      {formatDate(run.startedAt)}
-                    </TableCell>
-                    <TableCell className="capitalize">{run.status}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {run.dryRun ? "preview" : "live"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{run.scanned}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.active}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.expired}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.deleted}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.unknown}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.fetchFailed}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.wouldArchive}</TableCell>
-                    <TableCell className="text-right tabular-nums">{run.actuallyArchived}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {run.errors.length}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Recent fetch runs (latest 5). */}
       <Card>
         <CardHeader>
@@ -1164,8 +611,6 @@ export default async function MonitorStatusPage() {
                   <TableHead className="text-right">HTTP</TableHead>
                   <TableHead className="text-right">Seen</TableHead>
                   <TableHead className="text-right">New</TableHead>
-                  <TableHead className="text-right">Updated</TableHead>
-                  <TableHead className="text-right">Skipped</TableHead>
                   <TableHead>Error</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1189,12 +634,6 @@ export default async function MonitorStatusPage() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {entry.itemsNew}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {entry.itemsUpdated}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {entry.itemsSkipped}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-muted-foreground">
                       {entry.error ?? "—"}

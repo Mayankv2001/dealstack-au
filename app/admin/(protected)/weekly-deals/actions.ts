@@ -3,10 +3,6 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
-import {
-  checkAdminRateLimit,
-  type AdminActionResult,
-} from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
   CONFIDENCE_LEVELS,
@@ -18,7 +14,6 @@ import {
 } from "@/lib/admin/repos/weeklyDeals";
 import type { WeeklyHighlight } from "@/lib/offers/types";
 import type { Citation, Confidence } from "@/lib/sources/types";
-import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 
 /**
  * Weekly-deals admin server actions.
@@ -81,11 +76,10 @@ function parseWeeklyDealForm(formData: FormData): ParseResult {
   const sourceUrl = String(formData.get("source_url") ?? "").trim();
   const citations: Citation[] = [];
   if (sourceUrl !== "") {
-    const safeSourceUrl = safeHttpsUrl(sourceUrl);
-    if (!safeSourceUrl) {
-      return { ok: false, error: "Source URL must be a safe HTTPS URL without credentials." };
+    if (!URL.canParse(sourceUrl)) {
+      return { ok: false, error: "Source URL must be a valid URL (including https://)." };
     }
-    citations.push({ source: "manual", sourceUrl: safeSourceUrl });
+    citations.push({ source: "manual", sourceUrl });
   }
 
   return {
@@ -119,9 +113,6 @@ export async function createWeeklyDeal(
 ): Promise<WeeklyDealFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseWeeklyDealForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -149,9 +140,6 @@ export async function updateWeeklyDeal(
 ): Promise<WeeklyDealFormState> {
   const { email } = await requireAdmin();
 
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   const parsed = parseWeeklyDealForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
@@ -176,12 +164,8 @@ export async function updateWeeklyDeal(
 export async function setPublished(
   id: string,
   isPublished: boolean
-): Promise<AdminActionResult> {
+): Promise<void> {
   const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
   await setWeeklyDealPublished(id, isPublished);
   await logAudit({
     actorEmail: email,
@@ -191,5 +175,4 @@ export async function setPublished(
     diff: { isPublished },
   });
   revalidateWeeklyDeals();
-  return { ok: true };
 }

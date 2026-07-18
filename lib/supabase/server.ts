@@ -1,7 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { hasSupabaseEnv, supabaseAnonKey, supabaseUrl } from "@/lib/env";
-import type { Database } from "@/lib/supabase/database.types";
-import { reportOperationalError } from "@/lib/observability/report-server-error";
+import { serverWebSocket } from "@/lib/supabase/websocket";
 
 /**
  * Server-side Supabase access for PUBLIC reads.
@@ -11,10 +10,23 @@ import { reportOperationalError } from "@/lib/observability/report-server-error"
  * service-role key here (that stays in scripts/admin actions).
  */
 
-export type DbClient = SupabaseClient<Database>;
-
-/** Every public table name — lets helpers take a table name as a plain string param. */
-export type PublicTable = keyof Database["public"]["Tables"] & string;
+// Permissive schema so dynamic table names type-check without generated types.
+// Exported so the service-role (./admin.ts) and SSR auth (./ssr.ts) clients
+// share one loose schema type — no behaviour change to public reads here.
+type Row = Record<string, unknown>;
+export type LooseDB = {
+  public: {
+    Tables: Record<
+      string,
+      { Row: Row; Insert: Row; Update: Row; Relationships: [] }
+    >;
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+};
+export type DbClient = SupabaseClient<LooseDB>;
 
 let cached: DbClient | null = null;
 
@@ -22,41 +34,61 @@ let cached: DbClient | null = null;
 export function getSupabaseServer(): DbClient | null {
   if (!hasSupabaseEnv()) return null;
   if (!cached) {
-    cached = createClient<Database>(supabaseUrl(), supabaseAnonKey(), {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    cached = createClient<LooseDB>(
+      supabaseUrl(),
+      supabaseAnonKey(),
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+        realtime: { transport: serverWebSocket },
+      }
+    ) as unknown as DbClient;
   }
   return cached;
 }
 
-/** Explicit override: DATA_SOURCE=static forces local/demo arrays everywhere. */
+/** Explicit override: DATA_SOURCE=static forces the static fallback everywhere. */
 export function isStaticDataSource(): boolean {
   return process.env.DATA_SOURCE === "static";
 }
 
 /**
- * Public-repository fallback policy. Static arrays are ONLY local/demo
- * substitutes, never production fallbacks:
- *   - DATA_SOURCE=static or Supabase env absent → demo data (local/demo mode);
- *   - Supabase configured + query succeeds      → the DB rows, even when EMPTY —
- *     zero published rows must render the empty state, not resurrect demos;
- *   - Supabase configured + query throws        → [] (never the demo data).
- * `deps` exists so tests can inject the mode/client; production callers omit it.
+ * Static samples are an explicit demo mode in production. Local development
+ * remains convenient when Supabase has not been configured yet.
  */
-export async function fromDbOrDemo<T>(
+export function shouldUseStaticData(): boolean {
+  if (isStaticDataSource()) return true;
+  if (process.env.DATA_SOURCE === "supabase") return false;
+  return process.env.NODE_ENV !== "production" && !hasSupabaseEnv();
+}
+
+/**
+ * Run a public DB read. Static data is returned only in explicit static mode,
+ * or for an unconfigured local development environment. A legitimate empty
+ * result stays empty, and production failures stay empty instead of reviving
+ * expired sample offers.
+ */
+export async function fromDbOrStatic<T>(
   label: string,
-  demoData: T[],
-  query: (supabase: DbClient) => Promise<T[]>,
-  deps: { staticMode?: boolean; client?: DbClient | null } = {}
+  staticData: T[],
+  query: (supabase: DbClient) => Promise<T[]>
 ): Promise<T[]> {
-  const staticMode = deps.staticMode ?? isStaticDataSource();
-  if (staticMode) return demoData;
-  const supabase = deps.client !== undefined ? deps.client : getSupabaseServer();
-  if (!supabase) return demoData;
+  if (shouldUseStaticData()) return staticData;
+  const supabase = getSupabaseServer();
+  if (!supabase) {
+    console.warn(
+      `[repos] ${label}: Supabase is not configured; returning an empty public result.`
+    );
+    return [];
+  }
   try {
-    return (await query(supabase)) ?? [];
+    const rows = await query(supabase);
+    return rows ?? [];
   } catch (err) {
-    await reportOperationalError(`public-repo-${label}`, err);
+    console.warn(
+      `[repos] ${label}: DB read failed; returning an empty public result. ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
     return [];
   }
 }
