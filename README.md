@@ -1,5 +1,8 @@
 # DealStack AU
 
+[![CI](https://github.com/Mayankv2001/dealstack-au/actions/workflows/ci.yml/badge.svg)](https://github.com/Mayankv2001/dealstack-au/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
+
 A deal-stacking platform for Australian shoppers that combines cashback portals, gift cards, points programmes, and OzBargain feed signals into a single research tool. Built as a full-stack portfolio project demonstrating Next.js 16, Supabase, and responsible data-pipeline design.
 
 ---
@@ -125,3 +128,16 @@ Before going live:
 - [ ] Enable `OZB_MONITOR_ENABLED=true` in Vercel env if feed monitoring is wanted
 - [ ] Optionally configure cron-job.org to call the monitor route every 3 hours
 - [ ] Review any staged feed items in `/admin/review?tab=deals` before publishing
+
+---
+
+## Contributing & Community
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — setup, workflow, and the project's hard guardrails
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Contributor Covenant v2.1
+- [SECURITY.md](SECURITY.md) — how to report vulnerabilities privately
+- [GitHub Issues](../../issues) — bug reports and feature requests
+
+## Licence
+
+Released under the [MIT Licence](LICENSE).
