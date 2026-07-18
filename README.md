@@ -133,10 +133,12 @@ Before going live:
 
 ## Contributing & Community
 
+- [ROADMAP.md](ROADMAP.md) — what's shipped, what's next, and how milestones exit
 - [CONTRIBUTING.md](CONTRIBUTING.md) — setup, workflow, and the project's hard guardrails
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Contributor Covenant v2.1
 - [SECURITY.md](SECURITY.md) — how to report vulnerabilities privately
 - [GitHub Issues](../../issues) — bug reports and feature requests
+- [GitHub Discussions](../../discussions) — questions and ideas
 
 ## Licence
 
