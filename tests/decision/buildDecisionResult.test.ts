@@ -8,6 +8,7 @@ import {
   makeGiftCard,
   makeGiftCardAcceptance,
   makeGiftCardProduct,
+  makeStackData,
   makeStore,
   TEST_NOW,
 } from "../stack/factories";
@@ -81,6 +82,7 @@ function bundle(over: Partial<DealsBundle> = {}): DealsBundle {
     stores: [makeStore()],
     deals: [community],
     stackRecommendations: [stack],
+    stackData: makeStackData(),
     partial: false,
     ...over,
   };

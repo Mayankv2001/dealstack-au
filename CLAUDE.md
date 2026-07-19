@@ -18,6 +18,7 @@ DealStack AU is a deal-stacking platform for Australian shoppers that combines c
 npm run dev            # local dev server
 npm run build          # production build (must pass before committing)
 npm run lint           # ESLint (must pass before committing)
+npm run typecheck      # tsc --noEmit incl. tests — CI runs this; must pass before committing
 npm run test:monitor   # tests for monitor/feed/top-deals/ranking logic
 npm run test:stack     # tests for stack/calculation logic
 npm run seed           # seed base data
@@ -89,8 +90,9 @@ supabase/              Migrations and seed SQL
 ## Commit Checklist
 Before every commit:
 1. `npm run lint` — must pass
-2. `npm run build` — must pass
-3. `npm run test:monitor` — if monitor/feed/top-deals/ranking logic changed
-4. `npm run test:stack` — if stack/calculation logic changed
-5. `npm run test:admin` — if admin action/rate-limit/fallback logic changed
-6. `git status` — confirm only intended files are staged
+2. `npm run typecheck` — must pass (`next build` does NOT typecheck `tests/`; CI does)
+3. `npm run build` — must pass
+4. `npm run test:monitor` — if monitor/feed/top-deals/ranking logic changed
+5. `npm run test:stack` — if stack/calculation logic changed
+6. `npm run test:admin` — if admin action/rate-limit/fallback logic changed
+7. `git status` — confirm only intended files are staged

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildDecisionResult } from "@/lib/decision/buildDecisionResult";
 import type { DealsBundle } from "@/lib/deals/load";
-import { makeGiftCard, makeGiftCardAcceptance, makeGiftCardProduct, makeStore } from "../stack/factories";
+import { makeGiftCard, makeGiftCardAcceptance, makeGiftCardProduct, makeStackData, makeStore } from "../stack/factories";
 
 const NOW = new Date("2026-07-15T00:00:00Z");
 const store = makeStore({ id: "nike", name: "Nike", aliases: ["Nike Australia"] });
-const bundle: DealsBundle = { stores: [store], deals: [], stackRecommendations: [], partial: false };
+const bundle: DealsBundle = { stores: [store], deals: [], stackRecommendations: [], stackData: makeStackData(), partial: false };
 const products = [
   makeGiftCardProduct({ id: "tcn-shop", brand: "TCN Shop", slug: "tcn-shop" }),
   makeGiftCardProduct({ id: "tcn-love", brand: "TCN Love", slug: "tcn-love" }),
