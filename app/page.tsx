@@ -69,11 +69,14 @@ export default async function Home() {
             nowIso={now.toISOString()}
             marquee={
               <OfferMarquee
+                key="offer-marquee"
                 slides={marquee.slides}
                 liveCount={marquee.liveCount}
               />
             }
-            todayFeed={<TopDealsSection deals={topDeals.slice(0, 5)} />}
+            todayFeed={
+              <TopDealsSection key="today-feed" deals={topDeals.slice(0, 5)} />
+            }
           />
 
           <SavingsLayersSection />
