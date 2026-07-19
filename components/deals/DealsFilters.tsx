@@ -319,9 +319,11 @@ export function DealsFilters({
             Apply
           </Button>
         </Form>
+        {/* A link toggle navigates URL state; aria-pressed is button-only
+            ARIA, so the active state is conveyed with aria-current instead. */}
         <Link
           href={dealsHref(params, { stackable: !params.stackable })}
-          aria-pressed={params.stackable}
+          aria-current={params.stackable ? "true" : undefined}
           className={
             params.stackable
               ? "inline-flex h-9 items-center rounded-lg border border-emerald-700 bg-emerald-700 px-3 text-xs font-semibold text-white"

@@ -195,12 +195,15 @@ test("search: canonical product key compares retailer prices and stacks", async 
 }) => {
   await page.goto("/search?q=macbook-air-m3");
 
-  await expect(page.getByText("Compare 2 retailers")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Compare current retailers" }),
+  ).toBeVisible();
   await expect(page.getByText("JB Hi-Fi").first()).toBeVisible();
   await expect(page.getByText("Costco").first()).toBeVisible();
-  await expect(page.getByText("Best price")).toBeVisible();
-  await expect(page.getByText(/^Stack:/)).toBeVisible();
-  await expect(page.getByText("$1,749.00", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Stack:/).first()).toBeVisible();
+  // JB Hi-Fi's stack-adjusted checkout price undercuts Costco's flat listing.
+  await expect(page.getByText("$1,709.05").first()).toBeVisible();
+  await expect(page.getByText("$1,749.00").first()).toBeVisible();
 });
 
 test("decision hub: store search returns a shareable purchase plan", async ({
@@ -237,8 +240,10 @@ test("deals: compact controls preserve a full-width scan-first feed", async ({
   await expect(
     page.getByRole("link", { name: "Popular", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  // Compact inline controls plus one "All filters" drawer — no sidebar.
+  await expect(page.locator("#deal-cat")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Refine results" }),
+    page.locator("summary").filter({ hasText: "All filters" }),
   ).toBeVisible();
   await expect(page.getByText(/Popularity uses captured comment and vote counts/)).toBeVisible();
   await expect(page.getByRole("complementary", { name: "Deal filters" })).toHaveCount(0);
@@ -438,7 +443,7 @@ test("deals: weekly pick links through to its permalink page", async ({
 }) => {
   await page.goto("/deals");
   await expect(
-    page.getByRole("heading", { level: 1, name: "Find a deal worth stacking" }),
+    page.getByRole("heading", { level: 1, name: "What are you planning to buy?" }),
   ).toBeVisible();
 
   // Editorial picks have no lastCheckedAt (weekly_deals has no such column),
@@ -451,8 +456,8 @@ test("deals: weekly pick links through to its permalink page", async ({
 
   await pickLink.click();
   await page.waitForURL("**/deals/**");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByText("All deals")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+  await expect(page.getByText("All deals").first()).toBeVisible();
 });
 
 test("deals: offer-family filters narrow the server-rendered results", async ({
@@ -493,12 +498,16 @@ test("deals: filters and search are shareable and clearable", async ({
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "desktop filter sidebar");
   await page.goto("/deals?view=top");
-  await page.locator("#desktop-merchant").selectOption("jb-hifi");
-  await page.locator("#desktop-trust").selectOption("verified");
-  await page.getByRole("button", { name: "Apply filters" }).first().click();
+  // The visible Store select auto-submits its GET form on change.
+  await page.locator("#deal-merchant").selectOption("jb-hifi");
   await expect(page).toHaveURL(/merchant=jb-hifi/);
+  // Trust lives in the "All filters" drawer with an explicit Apply.
+  await page.locator("summary").filter({ hasText: "All filters" }).click();
+  await page.locator("#drawer-trust").selectOption("verified");
+  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page).toHaveURL(/trust=verified/);
-  await page.getByLabel("Search public deals").fill("nothing-can-match-this");
+  await expect(page).toHaveURL(/merchant=jb-hifi/);
+  await page.locator("#deal-search").fill("nothing-can-match-this");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(
     page.getByText("No currently verified offers are available."),
@@ -526,9 +535,9 @@ test("deals: mobile filter disclosure exposes labelled controls", async ({
 }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "mobile-only control");
   await page.goto("/deals?kind=community");
-  const summary = page.locator("summary").filter({ hasText: "Filters" });
+  const summary = page.locator("summary").filter({ hasText: "All filters" });
   await summary.click();
-  await expect(page.locator("#mobile-trust")).toBeVisible();
+  await expect(page.locator("#drawer-trust")).toBeVisible();
 });
 
 test("cards: sparse filters explain withheld content and preserve the URL", async ({
