@@ -1,0 +1,56 @@
+# Manual trigger for the daily monitor-feeds cron route.
+#
+# workflow_dispatch ONLY — no schedule. The Vercel cron (vercel.json, 00:00 UTC)
+# remains the sole scheduled caller; this exists so a missed day (deploy outage,
+# cron misfire) can be backfilled by hand without needing the CRON_SECRET
+# locally. It calls the same secret-gated route with the same auth the cron
+# uses; every gate in the route (kill switch, compliance, one-running lock)
+# still applies, and nothing is auto-published.
+#
+# Exit contract (mirrors gift-card-lifecycle.yml):
+#   0 = route ran (or safely skipped: disabled/lock/compliance)
+#   1 = non-2xx HTTP response
+#   2 = CRON_SECRET repository secret missing (blind trigger must be red)
+
+name: Monitor feeds (manual trigger)
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: monitor-feeds-production
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call the monitor-feeds endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is missing — this trigger is blind."
+            exit 2
+          fi
+          status=$(curl -sS -o response.json -w "%{http_code}" \
+            --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://dealstack-au.vercel.app/api/cron/monitor-feeds")
+          echo "HTTP $status"
+          python3 - <<'PY'
+          import json
+          with open("response.json") as f:
+              data = json.load(f)
+          keys = ["ok", "ran", "skipped", "status", "feedsProcessed",
+                  "itemsFetched", "itemsNew", "expiredArchived", "errorCount"]
+          print({k: data.get(k) for k in keys if k in data})
+          PY
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::monitor-feeds endpoint returned HTTP $status"
+            exit 1
+          fi
