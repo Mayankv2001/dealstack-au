@@ -42,7 +42,7 @@ export function filterLive<T extends { expiryDate?: string | null }>(
 export const EXPIRY_SOON_DAYS = 7;
 
 /** "YYYY-MM-DD" plus N days. UTC arithmetic on the date parts cannot DST-shift. */
-function addDaysToIsoDate(isoDate: string, days: number): string {
+export function addDaysToIsoDate(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }

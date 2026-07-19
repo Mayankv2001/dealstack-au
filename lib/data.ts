@@ -1,4 +1,19 @@
+import { addDaysToIsoDate, todayAU } from "@/lib/offers/expiry";
+
 export type CashbackProvider = "ShopBack" | "TopCashback" | "—";
+
+/**
+ * Sample promo-code expiries are ANCHORED TO TODAY, matching the convention in
+ * lib/offers/manualOffers.ts: the stores repo blanks a code once its expiry
+ * passes (lib/repos/stores.ts), so fixed literals silently lapse over real
+ * time and the demo states the e2e suite asserts on disappear.
+ */
+const TODAY_AU = todayAU();
+
+/** "YYYY-MM-DD" exactly `days` calendar days from today AU. */
+function sampleExpiry(days: number): string {
+  return addDaysToIsoDate(TODAY_AU, days);
+}
 
 /**
  * Brand-INSPIRED colour theme for a CSS-only logo tile. These are custom,
@@ -82,7 +97,7 @@ export const stores: Store[] = [
     logoTheme: { bg: "linear-gradient(135deg,#2c2c2c,#000000)", fg: "#ffffff" },
     discountPercent: 10,
     discountCode: "MYER10",
-    expiryDate: "2026-09-30",
+    expiryDate: sampleExpiry(97),
     cashbackPercent: 6,
     cashbackProvider: "ShopBack",
     giftCardDiscountPercent: 4,
@@ -104,7 +119,7 @@ export const stores: Store[] = [
     },
     discountPercent: 5,
     discountCode: "PERKS5",
-    expiryDate: "2026-07-15",
+    expiryDate: sampleExpiry(20),
     cashbackPercent: 1.5,
     cashbackProvider: "TopCashback",
     giftCardDiscountPercent: 5,
@@ -184,7 +199,7 @@ export const stores: Store[] = [
     },
     discountPercent: 5,
     discountCode: "Subscribe & Save",
-    expiryDate: "2026-08-01",
+    expiryDate: sampleExpiry(37),
     cashbackPercent: 4,
     cashbackProvider: "TopCashback",
     giftCardDiscountPercent: 0,
@@ -202,7 +217,7 @@ export const stores: Store[] = [
     logoTheme: { bg: "linear-gradient(135deg,#2563eb,#1e293b)", fg: "#ffffff" },
     discountPercent: 10,
     discountCode: "KOGAN10",
-    expiryDate: "2026-09-21",
+    expiryDate: sampleExpiry(88),
     cashbackPercent: 3,
     cashbackProvider: "ShopBack",
     giftCardDiscountPercent: 0,

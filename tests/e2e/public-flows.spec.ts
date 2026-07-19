@@ -441,7 +441,11 @@ test("deals: weekly pick links through to its permalink page", async ({
     page.getByRole("heading", { level: 1, name: "Find a deal worth stacking" }),
   ).toBeVisible();
 
-  // Every weekly pick title links to /deals/{slug}--{id}.
+  // Editorial picks have no lastCheckedAt (weekly_deals has no such column),
+  // so freshly checked offers outrank them on the unfiltered feed and they can
+  // sit past page 1. Narrow to one merchant to reach a pick deterministically;
+  // every weekly pick title links to /deals/{slug}--{id}.
+  await page.goto("/deals?merchant=jb-hifi");
   const pickLink = page.locator('a[href*="/deals/"][href*="--"]').first();
   await expect(pickLink).toBeVisible();
 

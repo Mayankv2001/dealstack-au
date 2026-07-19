@@ -6,6 +6,7 @@ import type {
   PointsOffer,
   WeeklyDeal,
 } from "./types";
+import { addDaysToIsoDate, todayAU } from "./expiry";
 
 /**
  * SAMPLE / STATIC / MANUAL DATA ONLY.
@@ -17,17 +18,43 @@ import type {
  * database — these are hand-written examples in the shape real adapters will
  * emit later.
  *
- * Reference "today" for these samples: late June 2026.
- * Current sample week: weekOf = "2026-06-23" (Monday).
+ * DATES ARE ANCHORED TO TODAY, not written as literals. Public reads pass
+ * this data through the expiry guard (lib/offers/expiry.ts filterLive), so
+ * fixed dates silently lapse as real time passes and the demo states the
+ * e2e suite asserts on disappear — that broke CI when the original
+ * late-June-2026 literals expired in mid-July. Every date is an offset from
+ * today's AU date chosen to preserve the intended state: live, expiring soon
+ * (within EXPIRY_SOON_DAYS), or deliberately expired.
  *
  * Merchant ids below must match Store.id in lib/data.ts:
  *   myer · jb-hifi · the-good-guys · coles · woolworths · amazon-au ·
  *   kogan · chemist-warehouse
  */
 
-const SAMPLE_CHECKED_AT = "2026-06-25T22:00:00+10:00";
+/** Today's AU calendar date, captured once at module load. */
+const TODAY_AU = todayAU();
+
+/** "YYYY-MM-DD" exactly `days` calendar days from today AU (negative = past). */
+function sampleDate(days: number): string {
+  return addDaysToIsoDate(TODAY_AU, days);
+}
+
+/** Monday (YYYY-MM-DD) of the current AU week — the weekOf convention. */
+function sampleWeekMonday(): string {
+  const [y, m, d] = TODAY_AU.split("-").map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  utc.setUTCDate(utc.getUTCDate() - ((utc.getUTCDay() + 6) % 7));
+  return utc.toISOString().slice(0, 10);
+}
+
+/** ISO timestamp `daysAgo` days back, 22:00 AEST — sample lastCheckedAt. */
+function sampleCheckedAt(daysAgo: number): string {
+  return `${sampleDate(-daysAgo)}T22:00:00+10:00`;
+}
+
+const SAMPLE_CHECKED_AT = sampleCheckedAt(1);
 /** Deliberately old, to demonstrate the stale-data warning. */
-const STALE_CHECKED_AT = "2026-05-20T22:00:00+10:00";
+const STALE_CHECKED_AT = sampleCheckedAt(36);
 
 // ─── Gift card offers ──────────────────────────────────────────────────────
 export const giftCardOffers: GiftCardOffer[] = [
@@ -44,8 +71,8 @@ export const giftCardOffers: GiftCardOffer[] = [
       earnNote: "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards",
     },
     capDollars: 200,
-    expiryDate: "2026-09-30",
-    startDate: "2026-06-08",
+    expiryDate: sampleDate(97),
+    startDate: sampleDate(-17),
     purchaseLocation: "Coles supermarkets & Coles Online",
     purchaseMethod: "online-and-in-store",
     limitPerCustomer: "Bonus on up to $200 in gift cards (sample)",
@@ -75,8 +102,8 @@ export const giftCardOffers: GiftCardOffer[] = [
     acceptedAtMerchantIds: ["jb-hifi", "the-good-guys"],
     pointsOnPurchase: null,
     capDollars: null,
-    expiryDate: "2026-07-15",
-    startDate: "2026-06-01",
+    expiryDate: sampleDate(20),
+    startDate: sampleDate(-24),
     purchaseLocation: "RACV Member Benefits portal",
     purchaseMethod: "online",
     limitPerCustomer: "No stated cap (sample)",
@@ -105,8 +132,8 @@ export const giftCardOffers: GiftCardOffer[] = [
     acceptedAtMerchantIds: ["jb-hifi", "the-good-guys"],
     pointsOnPurchase: null,
     capDollars: 500,
-    expiryDate: "2026-07-02", // close to "today" → triggers expiry-soon
-    startDate: "2026-06-01",
+    expiryDate: sampleDate(5), // close to today → triggers expiry-soon
+    startDate: sampleDate(-24),
     purchaseLocation: "Suncorp Benefits portal",
     purchaseMethod: "online",
     limitPerCustomer: "Up to $500 per order (sample)",
@@ -135,8 +162,8 @@ export const giftCardOffers: GiftCardOffer[] = [
     acceptedAtMerchantIds: ["woolworths"],
     pointsOnPurchase: null,
     capDollars: null,
-    expiryDate: "2026-07-10",
-    startDate: "2026-06-01",
+    expiryDate: sampleDate(15),
+    startDate: sampleDate(-24),
     purchaseLocation: "Suncorp Benefits portal",
     purchaseMethod: "online",
     limitPerCustomer: "No stated cap (sample)",
@@ -169,8 +196,8 @@ export const giftCardOffers: GiftCardOffer[] = [
       earnNote: "Sample: bonus Everyday Rewards points on Apple gift cards this week",
     },
     capDollars: 200,
-    expiryDate: "2026-07-24",
-    startDate: "2026-06-08",
+    expiryDate: sampleDate(29),
+    startDate: sampleDate(-17),
     purchaseLocation: "Woolworths supermarkets",
     purchaseMethod: "in-store",
     limitPerCustomer: "Bonus on up to $200 per transaction (sample)",
@@ -200,8 +227,8 @@ export const giftCardOffers: GiftCardOffer[] = [
     acceptedAtMerchantIds: [],
     pointsOnPurchase: null,
     capDollars: 250,
-    expiryDate: "2026-07-31",
-    startDate: "2026-06-01",
+    expiryDate: sampleDate(36),
+    startDate: sampleDate(-24),
     purchaseLocation: "NRMA Blue member portal",
     purchaseMethod: "online",
     limitPerCustomer: "Up to $250 per order (sample)",
@@ -236,7 +263,7 @@ export const cashbackOffers: CashbackOffer[] = [
     excludesGiftCardPayment: true,
     termsSummary:
       "Sample upsized rate on full-priced items; excludes gift card payment and some brands.",
-    expiryDate: "2026-09-30",
+    expiryDate: sampleDate(97),
     citations: [
       { source: "manual", sourceUrl: "https://www.shopback.com.au" },
     ],
@@ -273,7 +300,7 @@ export const pointsOffers: PointsOffer[] = [
     earnMultiple: 20,
     pointValueCents: 0.5, // ~2,000 pts ≈ $10 in sample terms
     mechanism: "in-store-boost",
-    expiryDate: "2026-07-17",
+    expiryDate: sampleDate(22),
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
@@ -303,7 +330,7 @@ export const pointsOffers: PointsOffer[] = [
     earnMultiple: 3,
     pointValueCents: 1, // ~1c/pt sample valuation
     mechanism: "shopping-portal",
-    expiryDate: "2026-09-30",
+    expiryDate: sampleDate(97),
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
@@ -318,7 +345,7 @@ export const pointsOffers: PointsOffer[] = [
     earnMultiple: 2,
     pointValueCents: 1,
     mechanism: "shopping-portal",
-    expiryDate: "2026-07-28",
+    expiryDate: sampleDate(33),
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
@@ -355,7 +382,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.americanexpress.com/en-au/",
     confidence: "needs-verification",
     expiryDate: null,
-    reviewByDate: "2026-08-31",
+    reviewByDate: sampleDate(67),
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -378,7 +405,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.nab.com.au/personal/credit-cards",
     confidence: "needs-verification",
     expiryDate: null,
-    reviewByDate: "2026-08-31",
+    reviewByDate: sampleDate(67),
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -401,7 +428,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.commbank.com.au/credit-cards.html",
     confidence: "needs-verification",
     expiryDate: null,
-    reviewByDate: "2026-08-31",
+    reviewByDate: sampleDate(67),
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -424,7 +451,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.westpac.com.au/personal-banking/credit-cards/",
     confidence: "needs-verification",
     expiryDate: null,
-    reviewByDate: "2026-08-31",
+    reviewByDate: sampleDate(67),
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
   {
@@ -447,7 +474,7 @@ export const cardOffers: CardOffer[] = [
     sourceUrl: "https://www.anz.com.au/personal/credit-cards/",
     confidence: "needs-verification",
     expiryDate: null,
-    reviewByDate: "2026-08-31",
+    reviewByDate: sampleDate(67),
     lastCheckedAt: SAMPLE_CHECKED_AT,
   },
 ];
@@ -485,8 +512,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.jbhifi.com.au",
     productUrl: "https://www.jbhifi.com.au/products/apple-macbook-air-m3",
     productGroup: "macbook-air-m3",
-    postedAt: "2026-06-24",
-    expiryDate: "2026-08-31",
+    postedAt: sampleDate(-1),
+    expiryDate: sampleDate(67),
     signalScore: 0.88,
     status: "approved",
     confidence: "needs-verification",
@@ -515,8 +542,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     merchantUrl: "https://www.costco.com.au",
     productUrl: "https://www.costco.com.au/c/hot-buys",
     productGroup: "macbook-air-m3",
-    postedAt: "2026-06-25",
-    expiryDate: "2026-07-31",
+    postedAt: sampleDate(0),
+    expiryDate: sampleDate(36),
     signalScore: 0.8,
     status: "approved",
     confidence: "needs-verification",
@@ -539,8 +566,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900022",
     merchantUrl: "https://www.costco.com.au",
     productUrl: "https://www.costco.com.au/c/hot-buys",
-    postedAt: "2026-06-24",
-    expiryDate: "2026-07-28",
+    postedAt: sampleDate(-1),
+    expiryDate: sampleDate(33),
     signalScore: 0.73,
     status: "approved",
     confidence: "needs-verification",
@@ -563,8 +590,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900023",
     merchantUrl: "https://www.costco.com.au",
     productUrl: "https://www.costco.com.au/c/hot-buys",
-    postedAt: "2026-06-23",
-    expiryDate: "2026-07-26",
+    postedAt: sampleDate(-2),
+    expiryDate: sampleDate(31),
     signalScore: 0.68,
     status: "approved",
     confidence: "needs-verification",
@@ -587,8 +614,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900001",
     merchantUrl: "https://www.jbhifi.com.au",
     productUrl: "https://www.jbhifi.com.au/collections/gift-cards",
-    postedAt: "2026-06-10",
-    expiryDate: "2026-07-15",
+    postedAt: sampleDate(-15),
+    expiryDate: sampleDate(20),
     signalScore: 0.82,
     status: "approved",
     confidence: "needs-verification",
@@ -611,8 +638,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900002",
     merchantUrl: "https://www.amazon.com.au",
     productUrl: "https://www.amazon.com.au/deals",
-    postedAt: "2026-06-11",
-    expiryDate: "2026-07-18", // within 7 days → expiring soon
+    postedAt: sampleDate(-14),
+    expiryDate: sampleDate(4), // within 7 days → expiring soon
     signalScore: 0.78,
     status: "approved",
     confidence: "needs-verification",
@@ -635,8 +662,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900003",
     merchantUrl: "https://www.woolworths.com.au",
     productUrl: "https://www.woolworths.com.au/shop/catalogue",
-    postedAt: "2026-06-11",
-    expiryDate: "2026-07-17", // within 7 days → expiring soon
+    postedAt: sampleDate(-14),
+    expiryDate: sampleDate(3), // within 7 days → expiring soon
     signalScore: 0.75,
     status: "approved",
     confidence: "needs-verification",
@@ -659,8 +686,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900004",
     merchantUrl: "https://www.jbhifi.com.au",
     productUrl: null,
-    postedAt: "2026-06-10",
-    expiryDate: "2026-07-20",
+    postedAt: sampleDate(-15),
+    expiryDate: sampleDate(25),
     signalScore: 0.72,
     status: "approved",
     confidence: "needs-verification",
@@ -683,8 +710,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900006",
     merchantUrl: "https://www.coles.com.au",
     productUrl: "https://www.coles.com.au/gift-cards",
-    postedAt: "2026-06-11",
-    expiryDate: "2026-08-30",
+    postedAt: sampleDate(-14),
+    expiryDate: sampleDate(66),
     signalScore: 0.7,
     status: "approved",
     confidence: "needs-verification",
@@ -707,8 +734,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900008",
     merchantUrl: "https://www.apple.com/au/",
     productUrl: null,
-    postedAt: "2026-06-10",
-    expiryDate: "2026-07-24",
+    postedAt: sampleDate(-15),
+    expiryDate: sampleDate(29),
     signalScore: 0.62,
     status: "approved",
     confidence: "needs-verification",
@@ -731,8 +758,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900010",
     merchantUrl: "https://www.myer.com.au",
     productUrl: null,
-    postedAt: "2026-06-10",
-    expiryDate: "2026-08-30",
+    postedAt: sampleDate(-15),
+    expiryDate: sampleDate(66),
     signalScore: 0.6,
     status: "approved",
     confidence: "needs-verification",
@@ -755,8 +782,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900012",
     merchantUrl: "https://www.kogan.com",
     productUrl: null,
-    postedAt: "2026-06-09",
-    expiryDate: "2026-07-21",
+    postedAt: sampleDate(-16),
+    expiryDate: sampleDate(26),
     signalScore: 0.55,
     status: "approved",
     confidence: "needs-verification",
@@ -779,7 +806,7 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900014",
     merchantUrl: "https://www.chemistwarehouse.com.au",
     productUrl: null,
-    postedAt: "2026-06-09",
+    postedAt: sampleDate(-16),
     expiryDate: null,
     signalScore: 0.52,
     status: "approved",
@@ -803,8 +830,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900016",
     merchantUrl: "https://www.amazon.com.au",
     productUrl: null,
-    postedAt: "2026-06-08",
-    expiryDate: "2026-08-30",
+    postedAt: sampleDate(-17),
+    expiryDate: sampleDate(66),
     signalScore: 0.5,
     status: "approved",
     confidence: "needs-verification",
@@ -827,8 +854,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900018",
     merchantUrl: null,
     productUrl: null,
-    postedAt: "2026-06-08",
-    expiryDate: "2026-07-31",
+    postedAt: sampleDate(-17),
+    expiryDate: sampleDate(36),
     signalScore: 0.45,
     status: "pending",
     confidence: "needs-verification",
@@ -851,8 +878,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900020",
     merchantUrl: null,
     productUrl: null,
-    postedAt: "2026-06-07",
-    expiryDate: "2026-07-31",
+    postedAt: sampleDate(-18),
+    expiryDate: sampleDate(36),
     signalScore: 0.4,
     status: "approved",
     confidence: "needs-verification",
@@ -875,8 +902,8 @@ const SAMPLE_SIGNALS: Omit<OzBargainSignal, "isSample">[] = [
     sourceUrl: "https://www.ozbargain.com.au/node/900022",
     merchantUrl: "https://www.thegoodguys.com.au",
     productUrl: null,
-    postedAt: "2026-06-02",
-    expiryDate: "2026-06-05", // past → expired styling
+    postedAt: sampleDate(-23),
+    expiryDate: sampleDate(-20), // past → expired styling
     signalScore: 0.1,
     status: "expired",
     confidence: "expired-unknown",
@@ -954,7 +981,7 @@ export const ozBargainSignals: OzBargainSignal[] = [
 export const weeklyDeals: WeeklyDeal[] = [
   {
     id: "wk-2026-06-08-jbhifi-stack",
-    weekOf: "2026-06-23",
+    weekOf: sampleWeekMonday(),
     merchantId: "jb-hifi",
     title: "Best stack: JB Hi-Fi via discounted Ultimate cards",
     summary:
@@ -965,12 +992,12 @@ export const weeklyDeals: WeeklyDeal[] = [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
       { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/deals" },
     ],
-    expiryDate: "2026-07-15",
+    expiryDate: sampleDate(20),
     confidence: "needs-verification",
   },
   {
     id: "wk-2026-06-08-woolworths-20x",
-    weekOf: "2026-06-23",
+    weekOf: sampleWeekMonday(),
     merchantId: "woolworths",
     title: "Points boost: 20x Everyday Rewards at Woolworths",
     summary:
@@ -980,12 +1007,12 @@ export const weeklyDeals: WeeklyDeal[] = [
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ],
-    expiryDate: "2026-07-17",
+    expiryDate: sampleDate(22),
     confidence: "needs-verification",
   },
   {
     id: "wk-2026-06-08-coles-gc-points",
-    weekOf: "2026-06-23",
+    weekOf: sampleWeekMonday(),
     merchantId: "coles",
     title: "Gift card bonus: Flybuys when buying Coles Group cards",
     summary:
@@ -995,12 +1022,12 @@ export const weeklyDeals: WeeklyDeal[] = [
     citations: [
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ],
-    expiryDate: "2026-09-30",
+    expiryDate: sampleDate(97),
     confidence: "needs-verification",
   },
   {
     id: "wk-2026-06-08-myer-cashback",
-    weekOf: "2026-06-23",
+    weekOf: sampleWeekMonday(),
     merchantId: "myer",
     title: "Cashback boost: upsized ShopBack at Myer",
     summary:
@@ -1010,7 +1037,7 @@ export const weeklyDeals: WeeklyDeal[] = [
     citations: [
       { source: "manual", sourceUrl: "https://www.shopback.com.au" },
     ],
-    expiryDate: "2026-09-30",
+    expiryDate: sampleDate(97),
     confidence: "confirmed",
   },
 ];

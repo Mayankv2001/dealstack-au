@@ -1,3 +1,4 @@
+import { addDaysToIsoDate, todayAU } from "@/lib/offers/expiry";
 import { cardOffers } from "@/lib/offers/manualOffers";
 import { cardOfferToSourceResult } from "./cardResults";
 import type { DealSourceResult } from "./types";
@@ -10,8 +11,23 @@ import type { DealSourceResult } from "./types";
  * website — titles and summaries are our own illustrative wording, and
  * URLs point to source homepages/category pages as placeholders.
  *
- * Today's reference date for samples: June 2026.
+ * Dates are ANCHORED TO TODAY (same convention as lib/offers/manualOffers.ts):
+ * expired literals would silently drop rows from the static pipeline as real
+ * time passes, changing the demo states CI asserts on.
  */
+
+/** Today's AU calendar date, captured once at module load. */
+const TODAY_AU = todayAU();
+
+/** "YYYY-MM-DD" exactly `days` calendar days from today AU (negative = past). */
+function sampleDate(days: number): string {
+  return addDaysToIsoDate(TODAY_AU, days);
+}
+
+/** Sample "checked yesterday evening" timestamp shared by most rows. */
+const SAMPLE_CHECKED_AT = `${sampleDate(-1)}T22:00:00+10:00`;
+/** Admin-verified rows are checked on a morning pass. */
+const MANUAL_CHECKED_AT = `${sampleDate(-1)}T09:00:00+10:00`;
 
 // ─── OzBargain — discount code / community deal examples ───────────────
 export const ozbargainResults: DealSourceResult[] = [
@@ -29,11 +45,11 @@ export const ozbargainResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-30",
-    startDate: "2026-06-10",
+    expiryDate: sampleDate(97),
+    startDate: sampleDate(-15),
     sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: "2026-06-10",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-15),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "confirmed",
   },
   {
@@ -50,11 +66,11 @@ export const ozbargainResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-21",
-    startDate: "2026-06-14",
+    expiryDate: sampleDate(88),
+    startDate: sampleDate(-11),
     sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: "2026-06-11",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-14),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "confirmed",
   },
   {
@@ -74,8 +90,8 @@ export const ozbargainResults: DealSourceResult[] = [
     expiryDate: null,
     startDate: null,
     sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: "2026-06-08",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-17),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "needs-verification",
   },
   {
@@ -92,11 +108,11 @@ export const ozbargainResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-06-01",
-    startDate: "2026-05-25",
+    expiryDate: sampleDate(-24),
+    startDate: sampleDate(-31),
     sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: "2026-05-25",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-31),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "confirmed",
   },
 ];
@@ -120,8 +136,8 @@ export const pointHacksResults: DealSourceResult[] = [
     expiryDate: null,
     startDate: null,
     sourceUrl: "https://www.pointhacks.com.au",
-    publishedAt: "2026-06-01",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-24),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "needs-verification",
   },
   {
@@ -138,11 +154,11 @@ export const pointHacksResults: DealSourceResult[] = [
     pointsAmount: "15% transfer bonus",
     giftCardBrand: null,
     cardOrProvider: "Eligible bank rewards programs",
-    expiryDate: "2026-09-30",
-    startDate: "2026-06-01",
+    expiryDate: sampleDate(97),
+    startDate: sampleDate(-24),
     sourceUrl: "https://www.pointhacks.com.au",
-    publishedAt: "2026-06-02",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-23),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "confirmed",
   },
 ];
@@ -163,11 +179,11 @@ export const freePointsResults: DealSourceResult[] = [
     pointsAmount: "10x points",
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-16",
-    startDate: "2026-06-10",
+    expiryDate: sampleDate(83),
+    startDate: sampleDate(-15),
     sourceUrl: "https://www.freepoints.com.au",
-    publishedAt: "2026-06-10",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-15),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "confirmed",
   },
   {
@@ -184,11 +200,11 @@ export const freePointsResults: DealSourceResult[] = [
     pointsAmount: "2,000 bonus points",
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-23",
-    startDate: "2026-06-09",
+    expiryDate: sampleDate(90),
+    startDate: sampleDate(-16),
     sourceUrl: "https://www.freepoints.com.au",
-    publishedAt: "2026-06-09",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-16),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "confirmed",
   },
   {
@@ -208,8 +224,8 @@ export const freePointsResults: DealSourceResult[] = [
     expiryDate: null,
     startDate: null,
     sourceUrl: "https://www.freepoints.com.au",
-    publishedAt: "2026-06-05",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-20),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "needs-verification",
   },
   {
@@ -229,8 +245,8 @@ export const freePointsResults: DealSourceResult[] = [
     expiryDate: null,
     startDate: null,
     sourceUrl: "https://www.freepoints.com.au",
-    publishedAt: "2026-06-07",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-18),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "needs-verification",
   },
 ];
@@ -254,8 +270,8 @@ export const gcdbResults: DealSourceResult[] = [
     expiryDate: null,
     startDate: null,
     sourceUrl: "https://www.gcdb.com.au",
-    publishedAt: "2026-06-03",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-22),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "needs-verification",
   },
   {
@@ -275,8 +291,8 @@ export const gcdbResults: DealSourceResult[] = [
     expiryDate: null,
     startDate: null,
     sourceUrl: "https://www.gcdb.com.au",
-    publishedAt: "2026-06-03",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-22),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "needs-verification",
   },
   {
@@ -293,11 +309,11 @@ export const gcdbResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: "JB Hi-Fi",
     cardOrProvider: null,
-    expiryDate: "2026-07-31",
+    expiryDate: sampleDate(36),
     startDate: null,
     sourceUrl: "https://www.gcdb.com.au",
-    publishedAt: "2026-06-06",
-    lastCheckedAt: "2026-06-25T22:00:00+10:00",
+    publishedAt: sampleDate(-19),
+    lastCheckedAt: SAMPLE_CHECKED_AT,
     confidence: "confirmed",
   },
 ];
@@ -320,11 +336,11 @@ export const manualResults: DealSourceResult[] = [
     pointsAmount: null,
     giftCardBrand: null,
     cardOrProvider: null,
-    expiryDate: "2026-09-30",
-    startDate: "2026-06-10",
+    expiryDate: sampleDate(97),
+    startDate: sampleDate(-15),
     sourceUrl: "https://www.myer.com.au",
-    publishedAt: "2026-06-11",
-    lastCheckedAt: "2026-06-25T09:00:00+10:00",
+    publishedAt: sampleDate(-14),
+    lastCheckedAt: MANUAL_CHECKED_AT,
     confidence: "confirmed",
   },
   {
@@ -344,8 +360,8 @@ export const manualResults: DealSourceResult[] = [
     expiryDate: null,
     startDate: null,
     sourceUrl: "https://www.chemistwarehouse.com.au",
-    publishedAt: "2026-06-12",
-    lastCheckedAt: "2026-06-25T09:00:00+10:00",
+    publishedAt: sampleDate(-13),
+    lastCheckedAt: MANUAL_CHECKED_AT,
     confidence: "confirmed",
   },
 ];
