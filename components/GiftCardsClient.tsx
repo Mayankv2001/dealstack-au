@@ -68,7 +68,7 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
     params.activation,
     params.format,
     params.minSave,
-    !params.confirmedCurrentOnly,
+    params.confirmedCurrentOnly,
   ].filter(Boolean).length;
 
   function update(overrides: Partial<GiftCardQueryParams>): void {

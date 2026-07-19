@@ -74,6 +74,20 @@ describe("giftCardHref", () => {
       "/gift-cards?tab=points&minSave=5",
     );
   });
+
+  it("round-trips the opt-in confirmed-dates filter; legacy dates=all is the default", () => {
+    expect(giftCardHref(GC_DEFAULTS, { confirmedCurrentOnly: true })).toBe(
+      "/gift-cards?dates=confirmed",
+    );
+    expect(
+      parseGiftCardParams({ dates: "confirmed" }).confirmedCurrentOnly,
+    ).toBe(true);
+    // Pre-flip bookmarks used dates=all to widen the view — now the default.
+    expect(parseGiftCardParams({ dates: "all" }).confirmedCurrentOnly).toBe(
+      false,
+    );
+    expect(parseGiftCardParams({}).confirmedCurrentOnly).toBe(false);
+  });
 });
 
 describe("offerEffectiveSaving", () => {
@@ -180,7 +194,7 @@ describe("queryGiftCardOffers — filtering", () => {
     expect(result.map((o) => o.id)).toEqual(["big"]);
   });
 
-  it("excludes unknown-date offers by default but keeps them available for research", () => {
+  it("shows unknown-date offers by default (demoted) and hides them behind the opt-in filter", () => {
     const offers = [
       gc({ id: "dated", expiryDate: "2026-07-20" }),
       gc({
@@ -196,16 +210,18 @@ describe("queryGiftCardOffers — filtering", () => {
         discountPercent: 2,
       }),
     ];
+    // Default view keeps the unknown-date row but the recommended score's
+    // -100 demotion ranks it last even with the biggest headline discount.
     expect(
       queryGiftCardOffers(offers, GC_DEFAULTS, NOW).map((offer) => offer.id),
-    ).toEqual(["dated", "ongoing"]);
+    ).toEqual(["dated", "ongoing", "unknown"]);
     expect(
       queryGiftCardOffers(
         offers,
-        { ...GC_DEFAULTS, confirmedCurrentOnly: false },
+        { ...GC_DEFAULTS, confirmedCurrentOnly: true },
         NOW,
       ).map((offer) => offer.id),
-    ).toEqual(["dated", "ongoing", "unknown"]);
+    ).toEqual(["dated", "ongoing"]);
   });
 
   it("never treats an unknown date as expiring", () => {

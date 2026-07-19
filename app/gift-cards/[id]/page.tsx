@@ -26,8 +26,8 @@ import GiftCardAcceptance from "@/components/GiftCardAcceptance";
 import GiftCardWorkedExample from "@/components/GiftCardWorkedExample";
 import ReportProblemForm from "@/components/ReportProblemForm";
 import {
+  getCurrentReviewedGiftCardOffers,
   getGiftCardAcceptance,
-  getGiftCardOffers,
   getGiftCardProducts,
   getStores,
 } from "@/lib/repos";
@@ -106,7 +106,9 @@ const FACT_TONE: Record<string, string> = {
 };
 
 async function findOffer(id: string): Promise<GiftCardOffer | undefined> {
-  const offers = await getGiftCardOffers();
+  // Display boundary: an unknown-expiry reviewed offer must resolve here —
+  // the carousel and grid link to it — while expired/future rows still 404.
+  const offers = await getCurrentReviewedGiftCardOffers();
   return offers.find((o) => o.id === id);
 }
 

@@ -1,6 +1,7 @@
 import type { GiftCardOffer } from "@/lib/offers/types";
 import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import { effectiveDiscountPercent } from "./value";
+import { giftCardDateState } from "./dateState";
 import { isConfirmedCurrent } from "./lifecycle";
 
 /**
@@ -74,7 +75,10 @@ export const GC_DEFAULTS: GiftCardQueryParams = {
   activation: false,
   format: null,
   minSave: null,
-  confirmedCurrentOnly: true,
+  // Show every current reviewed offer by default — including unknown-expiry
+  // rows, which are honestly labelled and demoted by the recommended sort.
+  // The opt-in filter (`?dates=confirmed`) narrows to confirmed dates only.
+  confirmedCurrentOnly: false,
 };
 
 type Raw = Record<string, string | string[] | undefined>;
@@ -102,7 +106,9 @@ export function parseGiftCardParams(raw: Raw): GiftCardQueryParams {
   if (Number.isFinite(minSave) && minSave > 0 && minSave < 100) {
     params.minSave = minSave;
   }
-  params.confirmedCurrentOnly = first(raw.dates) !== "all";
+  // `dates=confirmed` opts INTO the confirmed-dates-only filter; the legacy
+  // `dates=all` (and no param) both mean the default full current set.
+  params.confirmedCurrentOnly = first(raw.dates) === "confirmed";
   return params;
 }
 
@@ -121,7 +127,7 @@ export function giftCardHref(
   if (merged.activation) query.set("activation", "1");
   if (merged.format) query.set("format", merged.format);
   if (merged.minSave != null) query.set("minSave", String(merged.minSave));
-  if (!merged.confirmedCurrentOnly) query.set("dates", "all");
+  if (merged.confirmedCurrentOnly) query.set("dates", "confirmed");
   const qs = query.toString();
   return qs ? `/gift-cards?${qs}` : "/gift-cards";
 }
@@ -231,6 +237,9 @@ export function queryGiftCardOffers(
 
   const filtered = offers.filter((offer) => {
     if (isPastExpiry(offer.expiryDate, today)) return false;
+    // A future start date must never appear active, regardless of the
+    // confirmed-dates toggle — it is a hard boundary, not a preference.
+    if (giftCardDateState(offer, now) === "future") return false;
     if (
       params.confirmedCurrentOnly &&
       !isConfirmedCurrentGiftCardOffer(offer, now)

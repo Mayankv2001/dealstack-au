@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { GiftCardsClient } from "@/components/GiftCardsClient";
-import { getGiftCardOffers } from "@/lib/repos";
+import { getCurrentReviewedGiftCardOffers } from "@/lib/repos";
 
 /**
  * Public gift-card offers route — server component. Loads published offers from
@@ -22,7 +22,10 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function GiftCardsPage() {
-  const offers = await getGiftCardOffers();
+  // Display boundary: keeps reviewed unknown-expiry offers (labelled "Date
+  // unknown", ranked last) — unlike the strict stack-engine read. See
+  // lib/giftcards/currentOffers.ts.
+  const offers = await getCurrentReviewedGiftCardOffers();
   return (
     <Suspense fallback={<div className="min-h-screen bg-emerald-500/[0.04]" />}>
       <GiftCardsClient offers={offers} />
