@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  CircleHelp,
   Copy,
   ExternalLink,
   Layers3,
@@ -11,7 +10,9 @@ import {
 import StoreLogo from "@/components/StoreLogo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import LayerFactsLine from "@/components/deals/LayerFacts";
 import type { Store } from "@/lib/data";
+import type { MerchantStackFacts } from "@/lib/deals/merchantFacts";
 import {
   stackableChipLabel,
   type DealGroup,
@@ -51,12 +52,15 @@ export function DealCard({
   now,
   compact = false,
   list = false,
+  facts = null,
 }: {
   deal: PublicDeal;
   stores: Store[];
   now: Date;
   compact?: boolean;
   list?: boolean;
+  /** Engine-derived layer facts for this deal's merchant (list mode). */
+  facts?: MerchantStackFacts | null;
 }) {
   const store = deal.merchantId
     ? stores.find((candidate) => candidate.id === deal.merchantId)
@@ -66,11 +70,8 @@ export function DealCard({
   const visibleTags = deal.tags.slice(0, 3);
 
   if (list) {
-    const planHref = deal.merchantName
-      ? `/search?q=${encodeURIComponent(deal.merchantName)}&spend=500`
-      : "/search";
     return (
-      <article className="grid gap-3 py-4 sm:grid-cols-[2.75rem_minmax(0,1fr)_9rem_auto] sm:items-center">
+      <article className="grid gap-3 py-4 sm:grid-cols-[2.75rem_minmax(0,1fr)_10rem] sm:items-start">
         <StoreLogo
           store={store}
           text={
@@ -89,7 +90,24 @@ export function DealCard({
             </span>
           </div>
           <h3 className="mt-1 line-clamp-2 font-semibold leading-snug">
-            {deal.title}
+            {href ? (
+              external ? (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="nofollow noopener noreferrer"
+                  className="hover:underline"
+                >
+                  {deal.title}
+                </a>
+              ) : (
+                <Link href={href} className="hover:underline">
+                  {deal.title}
+                </Link>
+              )
+            ) : (
+              deal.title
+            )}
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
             <DealStatusBadge
@@ -97,10 +115,6 @@ export function DealCard({
               dealStackVerified={deal.dealStackVerified}
             />
             <DealFreshness deal={deal} now={now} />
-            <span className="inline-flex items-center gap-1">
-              <CircleHelp aria-hidden className="size-3" /> Compatibility:
-              unknown — check plan
-            </span>
             {deal.stackable ? (
               <span className="inline-flex items-center gap-1">
                 <Layers3 aria-hidden className="size-3" />{" "}
@@ -118,44 +132,41 @@ export function DealCard({
               </span>
             ) : null}
           </div>
+          <div className="mt-2">
+            <LayerFactsLine facts={facts} />
+          </div>
         </div>
-        <div className="sm:text-right">
-          <DealPrice deal={deal} />
-          {deal.couponCode ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Code{" "}
-              <code className="font-semibold text-foreground">
-                {deal.couponCode}
-              </code>
-            </p>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2 sm:justify-end">
+        <div className="flex flex-row items-center justify-between gap-2 sm:flex-col sm:items-end">
+          <div className="sm:text-right">
+            <DealPrice deal={deal} />
+            {deal.couponCode ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Code{" "}
+                <code className="font-semibold text-foreground">
+                  {deal.couponCode}
+                </code>
+              </p>
+            ) : null}
+          </div>
           {href ? (
             external ? (
               <a
                 href={href}
                 target="_blank"
                 rel="nofollow noopener noreferrer"
-                className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted"
+                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-emerald-700 px-2.5 text-xs font-semibold text-white hover:bg-emerald-800"
               >
-                View deal <ExternalLink aria-hidden className="size-3" />
+                Open retailer <ExternalLink aria-hidden className="size-3" />
               </a>
             ) : (
               <Link
                 href={href}
-                className="inline-flex h-8 items-center rounded-lg border px-2.5 text-xs font-semibold hover:bg-muted"
+                className="inline-flex h-8 shrink-0 items-center rounded-lg bg-emerald-700 px-2.5 text-xs font-semibold text-white hover:bg-emerald-800"
               >
                 View deal
               </Link>
             )
           ) : null}
-          <Link
-            href={planHref}
-            className="inline-flex h-8 items-center rounded-lg bg-emerald-700 px-2.5 text-xs font-semibold text-white hover:bg-emerald-800"
-          >
-            Plan
-          </Link>
         </div>
       </article>
     );

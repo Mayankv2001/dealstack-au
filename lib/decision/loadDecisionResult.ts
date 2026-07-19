@@ -77,6 +77,7 @@ export async function loadDecisionResult(
     deals,
     stores: stackData.stores,
     stackRecommendations,
+    stackData,
     partial,
   };
   const productMatches = query.trim()

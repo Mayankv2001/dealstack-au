@@ -392,7 +392,10 @@ export default async function SearchPage({
                   {result.selectedTarget?.name ?? primaryRecommendation.merchantName} · {formatAUD(spend)}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Estimated effective cost: {formatAUD(primaryRecommendation.effectivePrice)}
+                  Pay at checkout: {formatAUD(primaryRecommendation.payAtCheckout)}
+                  {primaryRecommendation.cashbackLater > 0
+                    ? ` · +${formatAUD(primaryRecommendation.cashbackLater)} cashback later`
+                    : ""}
                 </p>
               </div>
               <a

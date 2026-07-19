@@ -476,6 +476,14 @@ export interface StackRecommendation {
   components: StackComponent[];
   /** Out-of-pocket after discount + gift card + cashback (points not deducted). */
   effectivePrice: number;
+  /**
+   * What the shopper actually hands over at checkout: base price minus the
+   * layers that reduce the payment itself (discount code, discounted gift
+   * cards). Cashback is NOT deducted here — it arrives later.
+   */
+  payAtCheckout: number;
+  /** Cashback dollars expected AFTER purchase (0 when no cashback layer used). */
+  cashbackLater: number;
   effectiveDiscountPercent: number;
   totalSaving: number;
   /** The subset of totalSaving from CONFIRMED cash layers only. */

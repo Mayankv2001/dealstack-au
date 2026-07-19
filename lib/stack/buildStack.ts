@@ -531,8 +531,10 @@ function buildForStore(
     });
   }
 
+  let cashbackLater = 0; // deducted from effectivePrice but paid AFTER checkout
   if (useCashback && cashback) {
     running = round(running - cashbackSaving);
+    cashbackLater = cashbackSaving;
     components.push({
       layer: "cashback",
       label: `${cashback.ratePercent}% ${cashback.provider} cashback${cashback.isUpsized ? " (upsized)" : ""}`,
@@ -769,6 +771,9 @@ function buildForStore(
   }
 
   const effectivePrice = round(running);
+  // Cashback reduces the EFFECTIVE price but not the checkout payment — the
+  // shopper still pays it at the till and receives the cashback later.
+  const payAtCheckout = round(effectivePrice + cashbackLater);
   const totalSaving = round(spend - effectivePrice);
   const effectiveDiscountPercent =
     spend > 0 ? round((totalSaving / spend) * 100) : 0;
@@ -832,6 +837,8 @@ function buildForStore(
     basePrice: spend,
     components: publicComponents,
     effectivePrice,
+    payAtCheckout,
+    cashbackLater: round(cashbackLater),
     effectiveDiscountPercent,
     totalSaving,
     verifiedSaving,

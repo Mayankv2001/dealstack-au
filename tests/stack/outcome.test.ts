@@ -17,6 +17,8 @@ describe("homepage stack outcome", () => {
         { layer: "points", label: "Points", pointsEarned: 900, valueDollars: 4.5, optional: false, citation: { source: "manual", sourceUrl: "/" }, confidence: "confirmed" },
       ],
       effectivePrice: 423,
+      payAtCheckout: 450,
+      cashbackLater: 27,
       effectiveDiscountPercent: 15.4,
       totalSaving: 77,
       verifiedSaving: 77,

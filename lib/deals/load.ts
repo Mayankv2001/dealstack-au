@@ -18,6 +18,8 @@ export interface DealsBundle {
   deals: PublicDeal[];
   stores: Store[];
   stackRecommendations: StackRecommendation[];
+  /** The engine input bundle, for listed-price recalculations downstream. */
+  stackData: StackData;
   /** True when one of the sources failed and the page is partial. */
   partial: boolean;
 }
@@ -64,5 +66,11 @@ export async function loadDealsBundle(
     now
   );
 
-  return { deals, stores: data.stores, stackRecommendations, partial };
+  return {
+    deals,
+    stores: data.stores,
+    stackRecommendations,
+    stackData: data,
+    partial,
+  };
 }

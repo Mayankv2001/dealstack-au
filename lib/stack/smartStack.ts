@@ -116,6 +116,22 @@ export function comparablePrice(result: SmartStackResult): number | null {
   return result.recommendation?.effectivePrice ?? result.signalPrice;
 }
 
+/**
+ * True when the option's effective price depends on at least one included
+ * layer that is not confirmed — the UI must label such prices as estimates,
+ * never as a settled "best price" fact.
+ */
+export function priceReliesOnUnverifiedLayer(result: SmartStackResult): boolean {
+  if (!result.recommendation) return false;
+  return result.recommendation.components.some(
+    (component) =>
+      !component.optional &&
+      component.layer !== "points" &&
+      (component.valueDollars ?? 0) > 0 &&
+      component.confidence !== "confirmed"
+  );
+}
+
 function compareRetailerOptions(
   a: SmartStackResult,
   b: SmartStackResult
@@ -127,6 +143,11 @@ function compareRetailerOptions(
   if (aPrice !== null && bPrice !== null && aPrice !== bPrice) {
     return aPrice - bPrice;
   }
+  // Equal value: the better-verified, lower-risk option ranks first.
+  const verifiedDiff =
+    Number(priceReliesOnUnverifiedLayer(a)) -
+    Number(priceReliesOnUnverifiedLayer(b));
+  if (verifiedDiff !== 0) return verifiedDiff;
   const scoreDiff = (b.signal.signalScore ?? 0) - (a.signal.signalScore ?? 0);
   if (scoreDiff !== 0) return scoreDiff;
   return a.signal.id.localeCompare(b.signal.id);

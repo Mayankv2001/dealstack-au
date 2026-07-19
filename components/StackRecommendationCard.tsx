@@ -532,10 +532,17 @@ export function StackRecommendationCard({
             ) : (
               <>
                 <div>
-                  <p className="text-[10px] text-muted-foreground">Effective</p>
-                  <p className="text-lg font-bold leading-none tracking-tight text-emerald-700 dark:text-emerald-400">
-                    {formatAUD(rec.effectivePrice)}
+                  <p className="text-[10px] text-muted-foreground">
+                    At checkout
                   </p>
+                  <p className="text-lg font-bold leading-none tracking-tight text-emerald-700 dark:text-emerald-400">
+                    {formatAUD(rec.payAtCheckout)}
+                  </p>
+                  {rec.cashbackLater > 0 ? (
+                    <p className="text-[10px] font-medium text-muted-foreground">
+                      +{formatAUD(rec.cashbackLater)} back later
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-muted-foreground">Save</p>
@@ -683,11 +690,17 @@ export function StackRecommendationCard({
           <div className="mt-2 flex items-end justify-between gap-2 border-t border-emerald-500/20 pt-2">
             <div>
               <p className="text-[11px] text-muted-foreground">
-                Effective price
+                Pay at checkout
               </p>
               <p className="text-xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
-                {formatAUD(rec.effectivePrice)}
+                {formatAUD(rec.payAtCheckout)}
               </p>
+              {rec.cashbackLater > 0 ? (
+                <p className="text-[11px] font-medium text-muted-foreground">
+                  + {formatAUD(rec.cashbackLater)} cashback later ·{" "}
+                  {formatAUD(rec.effectivePrice)} effective
+                </p>
+              ) : null}
             </div>
             <p className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
               <TrendingDown aria-hidden className="size-3.5" />

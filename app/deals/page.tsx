@@ -12,13 +12,18 @@ import {
   Star,
   X,
 } from "lucide-react";
+import CardSignupSection from "@/components/deals/CardSignupSection";
 import { DealCard, DealGroupCard } from "@/components/deals/DealCard";
+import DealRecommendations from "@/components/deals/DealRecommendations";
 import { DealsFilters } from "@/components/deals/DealsFilters";
+import FilterSelect from "@/components/deals/FilterSelect";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
 import { Button } from "@/components/ui/button";
 import {
+  CATEGORY_LABEL,
+  CATEGORY_SHORTCUTS,
   DEALS_SORTS,
   DEAL_KIND_LABEL,
   DEFAULT_PARAMS,
@@ -33,7 +38,16 @@ import {
   type DealsParams,
 } from "@/lib/deals/params";
 import { loadDealsBundle } from "@/lib/deals/load";
-import { queryDeals } from "@/lib/deals/query";
+import {
+  deriveMerchantFacts,
+  type MerchantStackFacts,
+} from "@/lib/deals/merchantFacts";
+import { matchDeals, queryDeals } from "@/lib/deals/query";
+import {
+  buildDealRecommendations,
+  hasPurchaseIntent,
+} from "@/lib/deals/recommend";
+import { getCardOffers } from "@/lib/repos";
 import { formatAUD } from "@/lib/calculateStack";
 import { BEST_STACK_INITIAL_COUNT, partitionStacks } from "@/lib/stack/present";
 import type { DealListItem } from "@/lib/deals/types";
@@ -48,39 +62,98 @@ export const revalidate = 300;
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 
+/** Product examples that seed a useful electronics search in one tap. */
+const SEARCH_EXAMPLES = ["MacBook Air", "AirPods", "65-inch TV", "JB Hi-Fi"];
+
 function SearchBox({ params }: { params: DealsParams }) {
   return (
-    <Form
-      action="/deals"
-      className="relative mx-auto mt-5 flex max-w-3xl gap-2"
-      role="search"
-    >
-      <label htmlFor="deal-search" className="sr-only">
-        Search public deals
-      </label>
-      <Search
-        aria-hidden
-        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-      />
-      <input
-        id="deal-search"
-        name="q"
-        type="search"
-        defaultValue={params.q}
-        placeholder="Search products, merchants, coupons or programmes"
-        className="h-11 min-w-0 flex-1 rounded-xl border bg-background pl-10 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      <Button type="submit" size="lg">
-        Search
-      </Button>
-      {params.q ? (
-        <Button asChild size="lg" variant="ghost">
-          <Link href="/deals" aria-label="Clear search">
-            <X aria-hidden />
-          </Link>
+    <div className="mx-auto mt-5 max-w-3xl">
+      <Form action="/deals" className="flex flex-wrap gap-2" role="search">
+        <div className="relative min-w-0 flex-1 basis-64">
+          <label htmlFor="deal-search" className="sr-only">
+            What are you planning to buy?
+          </label>
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            id="deal-search"
+            name="q"
+            type="search"
+            defaultValue={params.q}
+            placeholder="Product or store, e.g. MacBook Air or JB Hi-Fi"
+            className="h-11 w-full min-w-0 rounded-xl border bg-background pl-10 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </div>
+        <label
+          htmlFor="deal-spend"
+          className="flex h-11 items-center gap-1.5 rounded-xl border bg-background px-3 text-sm"
+        >
+          <span className="text-muted-foreground">Spend $</span>
+          <input
+            id="deal-spend"
+            name="spend"
+            type="number"
+            inputMode="numeric"
+            min={MIN_SPEND}
+            max={MAX_SPEND}
+            step={10}
+            defaultValue={
+              params.spend !== DEFAULT_PARAMS.spend ? params.spend : undefined
+            }
+            placeholder="optional"
+            className="w-20 bg-transparent text-sm outline-none"
+          />
+        </label>
+        <Button type="submit" size="lg">
+          Search
         </Button>
-      ) : null}
-    </Form>
+        {params.q ? (
+          <Button asChild size="lg" variant="ghost">
+            <Link href="/deals" aria-label="Clear search">
+              <X aria-hidden />
+            </Link>
+          </Button>
+        ) : null}
+      </Form>
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
+        <span className="text-muted-foreground">Try</span>
+        {SEARCH_EXAMPLES.map((example) => (
+          <Link
+            key={example}
+            href={dealsHref(DEFAULT_PARAMS, { q: example })}
+            className="rounded-full border bg-background px-2.5 py-1 font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            {example}
+          </Link>
+        ))}
+      </div>
+      <div
+        className="-mx-4 mt-2.5 overflow-x-auto px-4 [scrollbar-width:none]"
+        aria-label="Electronics categories"
+      >
+        <div className="flex w-max gap-1.5 text-xs">
+          {CATEGORY_SHORTCUTS.map((cat) => {
+            const active = params.cat === cat;
+            return (
+              <Link
+                key={cat}
+                href={dealsHref(params, { cat: active ? null : cat })}
+                aria-current={active ? "true" : undefined}
+                className={
+                  active
+                    ? "rounded-full border border-emerald-700 bg-emerald-700 px-3 py-1.5 font-semibold text-white"
+                    : "rounded-full border bg-background px-3 py-1.5 font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                }
+              >
+                {CATEGORY_LABEL[cat]}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -133,10 +206,12 @@ function DealGrid({
   items,
   stores,
   now,
+  facts,
 }: {
   items: DealListItem[];
   stores: Awaited<ReturnType<typeof loadDealsBundle>>["stores"];
   now: Date;
+  facts: Map<string, MerchantStackFacts>;
 }) {
   return (
     <div className="divide-y border-y">
@@ -148,6 +223,11 @@ function DealGrid({
             stores={stores}
             now={now}
             list
+            facts={
+              item.deal.merchantId
+                ? (facts.get(item.deal.merchantId) ?? null)
+                : null
+            }
           />
         ) : (
           <div key={`group:${item.group.productGroup}`} className="py-4">
@@ -161,6 +241,14 @@ function DealGrid({
 
 function ActiveFilters({ params }: { params: DealsParams }) {
   const filters: Array<[string, string, Partial<DealsParams>]> = [];
+  if (params.cat)
+    filters.push(["cat", CATEGORY_LABEL[params.cat], { cat: null }]);
+  if (params.maxPrice != null)
+    filters.push([
+      "maxPrice",
+      `Up to $${params.maxPrice.toLocaleString("en-AU")}`,
+      { maxPrice: null },
+    ]);
   if (params.merchant)
     filters.push([
       "merchant",
@@ -293,7 +381,7 @@ function SpendSelector({ params }: { params: DealsParams }) {
   );
 }
 
-function Results({
+async function Results({
   bundle,
   params,
   now,
@@ -403,6 +491,18 @@ function Results({
     );
   }
   const result = queryDeals(bundle.deals, params, now);
+  const facts = deriveMerchantFacts(bundle.stackRecommendations);
+  const intent = hasPurchaseIntent(params);
+  const recommendations = intent
+    ? buildDealRecommendations(
+        matchDeals(bundle.deals, params, now),
+        bundle.stackRecommendations,
+        bundle.stackData,
+        params,
+        now,
+      )
+    : [];
+  const cardOffers = intent ? await getCardOffers() : [];
   return (
     <section className="mt-8">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -424,6 +524,12 @@ function Results({
         <Form action="/deals" className="flex items-end gap-2">
           {params.q ? <input type="hidden" name="q" value={params.q} /> : null}
           <input type="hidden" name="view" value={params.view} />
+          {params.cat ? (
+            <input type="hidden" name="cat" value={params.cat} />
+          ) : null}
+          {params.maxPrice != null ? (
+            <input type="hidden" name="maxPrice" value={params.maxPrice} />
+          ) : null}
           {params.merchant ? (
             <input type="hidden" name="merchant" value={params.merchant} />
           ) : null}
@@ -467,22 +573,19 @@ function Results({
               value={params.minSaving}
             />
           ) : null}
-          <label className="grid gap-1 text-xs font-medium" htmlFor="deal-sort">
-            Sort by
-            <select
-              id="deal-sort"
-              name="sort"
-              defaultValue={params.sort}
-              className="h-9 rounded-lg border bg-background px-2 text-sm"
-            >
-              {DEALS_SORTS.map((sort) => (
-                <option key={sort} value={sort}>
-                  {SORT_LABEL[sort]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button type="submit" variant="outline">
+          <FilterSelect
+            id="deal-sort"
+            label="Sort by"
+            name="sort"
+            defaultValue={params.sort}
+          >
+            {DEALS_SORTS.map((sort) => (
+              <option key={sort} value={sort}>
+                {SORT_LABEL[sort]}
+              </option>
+            ))}
+          </FilterSelect>
+          <Button type="submit" variant="outline" className="sr-only">
             Apply
           </Button>
         </Form>
@@ -490,14 +593,28 @@ function Results({
       <div className="space-y-4">
         <DealsFilters params={params} stores={bundle.stores} />
         <ActiveFilters params={params} />
+        <DealRecommendations
+          items={recommendations}
+          stores={bundle.stores}
+          spend={params.spend}
+          now={now}
+        />
         {params.view === "popular" ? (
           <p className="rounded-lg border border-orange-500/20 bg-orange-500/[0.06] px-3 py-2 text-xs text-muted-foreground">
             Popularity uses captured comment and vote counts for discovery. It
             does not prove that an offer is current or compatible.
           </p>
         ) : null}
+        {recommendations.length > 0 && result.items.length ? (
+          <h2 className="pt-2 text-lg font-bold">All matching offers</h2>
+        ) : null}
         {result.items.length ? (
-          <DealGrid items={result.items} stores={bundle.stores} now={now} />
+          <DealGrid
+            items={result.items}
+            stores={bundle.stores}
+            now={now}
+            facts={facts}
+          />
         ) : (
           <EmptyState
             filtered={activeFilterCount(params) > 0 || Boolean(params.q)}
@@ -536,6 +653,7 @@ function Results({
             )}
           </nav>
         ) : null}
+        <CardSignupSection offers={cardOffers} spend={params.spend} />
       </div>
     </section>
   );
@@ -593,11 +711,12 @@ export default async function DealsPage({
             with clear source and freshness labels
           </div>
           <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl">
-            Find a deal worth stacking
+            What are you planning to buy?
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Scan current Australian offers, compare the conditions and see which
-            saving layers can actually work together.
+            Search a product or store to see the best current route — checkout
+            price, later cashback and points shown separately, with every
+            layer&rsquo;s compatibility stated up front.
           </p>
           <SearchBox params={params} />
           <PrimaryNav params={params} />

@@ -13,6 +13,7 @@ import type { Store } from "@/lib/data";
 import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import {
   comparablePrice,
+  priceReliesOnUnverifiedLayer,
   type SmartStackComparison,
   type SmartStackResult,
 } from "@/lib/stack/smartStack";
@@ -98,7 +99,11 @@ export function SmartStackComparisonCard({
                       {name}
                     </p>
                     {index === 0 && effectivePrice !== null ? (
-                      <Badge className="shrink-0 text-[10px]">Best price</Badge>
+                      <Badge className="shrink-0 text-[10px]">
+                        {priceReliesOnUnverifiedLayer(result)
+                          ? "Best estimated price"
+                          : "Best price"}
+                      </Badge>
                     ) : null}
                   </div>
 
@@ -145,14 +150,28 @@ export function SmartStackComparisonCard({
                         : "Listed price"}
                     </p>
                     <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                      {effectivePrice !== null
-                        ? formatAUD(effectivePrice)
-                        : (signal.priceText ?? "Check retailer")}
+                      {recommendation && signalPrice !== null
+                        ? formatAUD(recommendation.payAtCheckout)
+                        : effectivePrice !== null
+                          ? formatAUD(effectivePrice)
+                          : (signal.priceText ?? "Check retailer")}
                     </p>
                     {recommendation && signalPrice !== null ? (
-                      <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-                        Save {formatAUD(recommendation.totalSaving)} with stack
-                      </p>
+                      <>
+                        <p className="text-[11px] text-muted-foreground">
+                          at checkout
+                        </p>
+                        {recommendation.cashbackLater > 0 ? (
+                          <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                            + {formatAUD(recommendation.cashbackLater)} cashback
+                            later
+                          </p>
+                        ) : null}
+                        <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                          Save {formatAUD(recommendation.totalSaving)} with
+                          stack
+                        </p>
+                      </>
                     ) : null}
                   </div>
                   {link ? (

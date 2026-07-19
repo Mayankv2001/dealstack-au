@@ -3,6 +3,7 @@ import { isPubliclyFresh, publicFreshness } from "@/lib/freshness";
 import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import { daysSince } from "./score";
 import {
+  CATEGORY_KEYWORDS,
   PAGE_SIZE,
   PROGRAM_MATCH,
   VIEW_KIND,
@@ -47,6 +48,18 @@ function matchesFilters(
     return false;
   }
   if (params.merchant && deal.merchantId !== params.merchant) return false;
+  if (params.cat) {
+    const keywords = CATEGORY_KEYWORDS[params.cat];
+    if (!keywords.some((keyword) => deal.searchText.includes(keyword))) {
+      return false;
+    }
+  }
+  if (
+    params.maxPrice != null &&
+    (deal.priceValue == null || deal.priceValue > params.maxPrice)
+  ) {
+    return false;
+  }
   if (
     params.program &&
     !deal.searchText.includes(PROGRAM_MATCH[params.program])
@@ -324,19 +337,32 @@ export function sortItems(
   return sorted;
 }
 
+/**
+ * The matched, deduped pool for a request — every live deal that satisfies the
+ * search and filters, before grouping/sorting/pagination. Shared by the result
+ * list and the top-recommendations strip so they can never disagree.
+ */
+export function matchDeals(
+  deals: PublicDeal[],
+  params: DealsParams,
+  now: Date = new Date(),
+): PublicDeal[] {
+  const live = filterActive(deals, now);
+  return dedupeDeals(
+    live.filter(
+      (deal) =>
+        matchesSearch(deal, params.q) && matchesFilters(deal, params, now),
+    ),
+  );
+}
+
 /** Full pipeline for results mode. Expired records are excluded up front. */
 export function queryDeals(
   deals: PublicDeal[],
   params: DealsParams,
   now: Date = new Date(),
 ): DealsQueryResult {
-  const live = filterActive(deals, now);
-  const matched = dedupeDeals(
-    live.filter(
-      (deal) =>
-        matchesSearch(deal, params.q) && matchesFilters(deal, params, now),
-    ),
-  );
+  const matched = matchDeals(deals, params, now);
   const effectiveSort =
     params.view === "recent"
       ? "checked"

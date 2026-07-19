@@ -129,6 +129,10 @@ function finalise(
     ...partial,
     title: sanitisePublicText(partial.title),
     summary: sanitisePublicText(partial.summary),
+    // Price text can carry development wording too ("$40 back (sample)").
+    priceText: partial.priceText
+      ? tidyPriceText(sanitisePublicText(partial.priceText))
+      : partial.priceText,
   };
   const searchText = [
     partial.title,

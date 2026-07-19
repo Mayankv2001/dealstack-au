@@ -90,6 +90,8 @@ describe("SmartStackComparisonCard", () => {
             basePrice: 500,
             components: [],
             effectivePrice: 450,
+            payAtCheckout: 450,
+            cashbackLater: 0,
             effectiveDiscountPercent: 10,
             totalSaving: 50,
             verifiedSaving: 0,

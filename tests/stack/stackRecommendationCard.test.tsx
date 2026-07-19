@@ -71,6 +71,8 @@ function cashRec(over: Partial<StackRecommendation> = {}): StackRecommendation {
       },
     ],
     effectivePrice: 423,
+    payAtCheckout: 450,
+    cashbackLater: 27,
     effectiveDiscountPercent: 15.4,
     totalSaving: 77,
     verifiedSaving: 27,
@@ -128,6 +130,8 @@ function pointsRec(): StackRecommendation {
       },
     ],
     effectivePrice: 500,
+    payAtCheckout: 500,
+    cashbackLater: 0,
     effectiveDiscountPercent: 0,
     totalSaving: 0,
     verifiedSaving: 0,
@@ -187,6 +191,10 @@ describe("StackRecommendationCard — cash stack", () => {
     expect(html).toContain("Up to $77.00 including unverified layers");
     expect(html).toContain("on a $500.00 spend");
     expect(html).not.toMatch(/example (spend|purchase)/i);
+    // Checkout price leads; later cashback and the effective net stay separate.
+    expect(html).toContain("Pay at checkout");
+    expect(html).toContain("$450.00");
+    expect(html).toContain("+ $27.00 cashback later");
     expect(html).toContain("$423.00");
     expect(html).toContain("15.4% total saving");
     expect(html).not.toMatch(/\d{4}-\d{2}-\d{2}/);
