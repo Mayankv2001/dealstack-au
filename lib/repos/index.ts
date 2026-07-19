@@ -15,6 +15,7 @@ export {
   getPublicCardOffer,
   getCardOfferHistory,
   getGiftCardOffers,
+  getCurrentReviewedGiftCardOffers,
   getCashbackOffers,
   getPointsOffers,
   getOzBargainSignals,

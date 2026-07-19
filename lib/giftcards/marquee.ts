@@ -1,5 +1,5 @@
 import type { GiftCardOffer } from "@/lib/offers/types";
-import { filterLive, todayAU } from "@/lib/offers/expiry";
+import { orderCurrentReviewedGiftCardOffers } from "@/lib/giftcards/currentOffers";
 import {
   buildGiftCardOfferCardViewModel,
   type GiftCardCompatibilityTone,
@@ -7,16 +7,18 @@ import {
 import { buildWorkedExample } from "@/lib/giftcards/value";
 
 /**
- * Homepage offer marquee ("Design 3"): the week's live gift-card offers as a
- * slideshow, one after another, ordered by ending soonest. Pure derivation —
- * no fetching, no new publication surface. Every display string comes from the
- * shared card view model so the marquee can never disagree with the grid, and
+ * Homepage offer carousel: the week's current gift-card offers as a paged
+ * carousel (the component groups these cards 3/2/1-up by breakpoint), ordered
+ * by ending soonest with unknown-expiry offers last. Pure derivation — no
+ * fetching, no new publication surface. Every display string comes from the
+ * shared card view model so the carousel can never disagree with the grid, and
  * the worked $100 example reuses the detail page's maths, which keeps cash and
- * reward estimates strictly separate.
+ * reward estimates strictly separate. Selection + ordering are the shared,
+ * deterministic rules in lib/giftcards/currentOffers.ts.
  */
 
-/** The marquee shows at most this many slides; the grid link carries the rest. */
-export const MARQUEE_SLIDE_CAP = 5;
+/** The carousel shows at most this many cards; the grid link carries the rest. */
+export const MARQUEE_SLIDE_CAP = 18;
 
 /** Face value used for each slide's worked example. */
 export const MARQUEE_EXAMPLE_FACE_VALUE = 100;
@@ -63,14 +65,6 @@ export interface MarqueeModel {
   liveCount: number;
 }
 
-/** Soonest expiry first; evergreen/unknown (null) last; stable id tiebreak. */
-function byExpirySoonest(a: GiftCardOffer, b: GiftCardOffer): number {
-  const aEnd = a.expiryDate ?? "9999-12-31";
-  const bEnd = b.expiryDate ?? "9999-12-31";
-  if (aEnd !== bEnd) return aEnd.localeCompare(bEnd);
-  return a.id.localeCompare(b.id);
-}
-
 /** One prioritised condition per slide — the thing to check before relying on it. */
 function slideCaveat(offer: GiftCardOffer, isRewardOnly: boolean, dateLabel: string): string {
   if (offer.membershipRequired || offer.channel === "membership-portal") {
@@ -92,7 +86,7 @@ export function buildMarquee(
   offers: GiftCardOffer[],
   now: Date = new Date(),
 ): MarqueeModel {
-  const live = filterLive(offers, todayAU(now)).slice().sort(byExpirySoonest);
+  const live = orderCurrentReviewedGiftCardOffers(offers, now);
 
   const slides = live.slice(0, MARQUEE_SLIDE_CAP).map((offer): MarqueeSlide => {
     const vm = buildGiftCardOfferCardViewModel(offer, now);

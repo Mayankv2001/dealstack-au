@@ -10,7 +10,8 @@ import {
   SavingsLayersSection,
 } from "@/components/home/HomeStaticSections";
 import { siteUrl } from "@/lib/env";
-import { buildMarquee } from "@/lib/giftcards/marquee";
+import { buildMarquee, MARQUEE_SLIDE_CAP } from "@/lib/giftcards/marquee";
+import { getCurrentReviewedGiftCardOffers } from "@/lib/repos";
 import { getTopDeals } from "@/lib/repos/topDeals";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
@@ -42,7 +43,15 @@ export const revalidate = 300;
 
 export default async function Home() {
   const now = new Date();
-  const [data, topDeals] = await Promise.all([loadStackData(), getTopDeals()]);
+  const [data, topDeals, giftCardCarouselOffers] = await Promise.all([
+    loadStackData(),
+    getTopDeals(),
+    // The carousel keeps reviewed offers whose expiry is merely unknown (ranked
+    // last), so it shows the full current set — not just the confirmed-current
+    // rows the stack engine consumes via loadStackData(). See
+    // getCurrentReviewedGiftCardOffers / lib/giftcards/currentOffers.ts.
+    getCurrentReviewedGiftCardOffers({ limit: MARQUEE_SLIDE_CAP, orderBy: "ending-soonest" }),
+  ]);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const { best } = partitionStacks(recommendations);
   const featured =
@@ -50,9 +59,10 @@ export default async function Home() {
       isFeaturedStackEligible(recommendation, now),
     ) ?? null;
   const heroStack = featured;
-  // Design 3 "offer marquee": the week's live gift-card offers, ending
-  // soonest first, derived from the same published offers the grid uses.
-  const marquee = buildMarquee(data.giftCardOffers, now);
+  // Homepage offer carousel: the week's current gift-card offers, ending
+  // soonest first (unknown-expiry last), derived from the same published
+  // offers the /gift-cards grid uses.
+  const marquee = buildMarquee(giftCardCarouselOffers, now);
   const site = siteUrl();
 
   return (

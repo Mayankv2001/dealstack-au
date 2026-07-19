@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getGiftCardOffers } from "@/lib/repos/offers";
+import {
+  getCurrentReviewedGiftCardOffers,
+  getGiftCardOffers,
+} from "@/lib/repos/offers";
 import type { DbClient } from "@/lib/supabase/server";
 
 const NOW = new Date("2026-07-15T02:00:00Z");
@@ -98,5 +101,46 @@ describe("getGiftCardOffers lifecycle boundary", () => {
         now: NOW,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("getCurrentReviewedGiftCardOffers display boundary", () => {
+  it("surfaces unknown-expiry offers (ranked last), dropping only expired/future", async () => {
+    const offers = await getCurrentReviewedGiftCardOffers({
+      staticMode: false,
+      client: client([
+        row("soon", "2026-07-01", "2026-07-16"),
+        row("later", "2026-07-01", "2026-09-30"),
+        row("future", "2026-07-16", "2026-07-20"),
+        row("expired", "2026-07-01", "2026-07-14"),
+        row("unknown", null, null),
+        row("ongoing", null, null, true),
+      ]),
+      now: NOW,
+    });
+    // Dated offers first (soonest → latest), then the undated ones behind them.
+    expect(offers.slice(0, 2).map((o) => o.id)).toEqual(["soon", "later"]);
+    expect(offers.map((o) => o.id).sort()).toEqual([
+      "later",
+      "ongoing",
+      "soon",
+      "unknown",
+    ]);
+    expect(offers.map((o) => o.id)).not.toContain("expired");
+    expect(offers.map((o) => o.id)).not.toContain("future");
+  });
+
+  it("applies the limit after ordering", async () => {
+    const offers = await getCurrentReviewedGiftCardOffers({
+      staticMode: false,
+      client: client([
+        row("later", "2026-07-01", "2026-09-30"),
+        row("soon", "2026-07-01", "2026-07-16"),
+        row("unknown", null, null),
+      ]),
+      now: NOW,
+      limit: 2,
+    });
+    expect(offers.map((o) => o.id)).toEqual(["soon", "later"]);
   });
 });

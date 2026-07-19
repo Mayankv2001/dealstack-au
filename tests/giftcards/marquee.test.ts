@@ -34,13 +34,18 @@ describe("buildMarquee", () => {
     ]);
   });
 
-  it("caps the slideshow while still reporting the full live count", () => {
-    const offers = Array.from({ length: MARQUEE_SLIDE_CAP + 2 }, (_, i) =>
-      makeOffer({ id: `gc-${i}`, expiryDate: `2026-08-0${i + 1}` }),
+  it("caps the carousel while still reporting the full live count", () => {
+    const total = MARQUEE_SLIDE_CAP + 2;
+    const offers = Array.from({ length: total }, (_, i) =>
+      makeOffer({
+        id: `gc-${String(i).padStart(2, "0")}`,
+        // Distinct, valid far-future expiries so none are dropped as expired.
+        expiryDate: `2027-01-${String((i % 28) + 1).padStart(2, "0")}`,
+      }),
     );
     const { slides, liveCount } = buildMarquee(offers, NOW);
     expect(slides).toHaveLength(MARQUEE_SLIDE_CAP);
-    expect(liveCount).toBe(MARQUEE_SLIDE_CAP + 2);
+    expect(liveCount).toBe(total);
   });
 
   it("works the $100 discount example as cash, matching the detail page", () => {

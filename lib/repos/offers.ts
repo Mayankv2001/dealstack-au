@@ -16,6 +16,7 @@ import type {
 import { filterLive, todayAU } from "@/lib/offers/expiry";
 import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
 import { filterConfirmedCurrentOffers } from "@/lib/giftcards/lifecycle";
+import { orderCurrentReviewedGiftCardOffers } from "@/lib/giftcards/currentOffers";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import { safeHttpsUrl, safePublicHref } from "@/lib/security/urlPolicy";
 import {
@@ -167,11 +168,15 @@ interface GiftCardOfferReadDeps {
   now?: Date;
 }
 
-export async function getGiftCardOffers(
-  deps: GiftCardOfferReadDeps = {},
+/**
+ * Fetch the RLS-published gift-card rows, mapped to the TypeScript shape.
+ * Shared by every public read path so DB/demo resolution and column mapping
+ * are defined exactly once; each caller applies its own date boundary on top.
+ */
+async function readPublishedGiftCardOffers(
+  deps: Pick<GiftCardOfferReadDeps, "staticMode" | "client">,
 ): Promise<GiftCardOffer[]> {
-  // Apply the expiry guard after resolving DB/demo mode so both sources obey it.
-  const rows = await fromDbOrDemo(
+  return fromDbOrDemo(
     "gift_card_offers",
     staticGiftCards,
     async (db: DbClient) => {
@@ -181,11 +186,49 @@ export async function getGiftCardOffers(
     },
     { staticMode: deps.staticMode, client: deps.client },
   );
+}
+
+export async function getGiftCardOffers(
+  deps: GiftCardOfferReadDeps = {},
+): Promise<GiftCardOffer[]> {
+  // Apply the expiry guard after resolving DB/demo mode so both sources obey it.
+  const rows = await readPublishedGiftCardOffers(deps);
   const now = deps.now ?? new Date();
   // Both DB and explicit demo data pass through the same date-state boundary.
   // RLS alone cannot hide a reviewed future row, while filterLive alone treats
-  // a missing expiry as current; neither is sufficient by itself.
+  // a missing expiry as current; neither is sufficient by itself. This strict
+  // boundary feeds the STACK ENGINE, where an unconfirmed date must not count.
   return filterConfirmedCurrentOffers(filterLive(rows, todayAU(now)), now);
+}
+
+export interface CurrentReviewedGiftCardOffersOptions {
+  /** Cap the returned list after ordering; omit for all current offers. */
+  limit?: number;
+  /** Ordering strategy. Only "ending-soonest" is supported today. */
+  orderBy?: "ending-soonest";
+  /** Test-only public-repository injection; production callers omit these. */
+  staticMode?: boolean;
+  client?: DbClient | null;
+  now?: Date;
+}
+
+/**
+ * Public DISPLAY read for the gift-card surfaces (homepage carousel,
+ * /gift-cards grid). Unlike `getGiftCardOffers()`, this keeps reviewed offers
+ * whose expiry is merely unknown and ranks them LAST behind every dated offer
+ * (see lib/giftcards/currentOffers.ts). It never surfaces anything unreviewed —
+ * the input is the RLS-published set — and never shows expired or not-yet-started
+ * rows. Ordering is deterministic and stable across renders.
+ */
+export async function getCurrentReviewedGiftCardOffers(
+  options: CurrentReviewedGiftCardOffersOptions = {},
+): Promise<GiftCardOffer[]> {
+  const rows = await readPublishedGiftCardOffers(options);
+  const now = options.now ?? new Date();
+  const ordered = orderCurrentReviewedGiftCardOffers(rows, now);
+  return typeof options.limit === "number"
+    ? ordered.slice(0, Math.max(0, options.limit))
+    : ordered;
 }
 
 // ── Card offers (bank / credit-card sign-up bonuses) ─────────────────────────
