@@ -246,3 +246,148 @@ current public inaccuracies and is the prerequisite for safely applying the
 database constraint. If production review must wait, the safest code-only task
 is Phase 3’s idempotency and atomic-replacement test coverage; do not split the
 live Amazon row yet.
+Act as the programme manager and senior reviewer for the Gift Card End-to-End Automation programme.
+
+You have already completed repository discovery and created:
+
+* PLAN-gift-card-end-to-end-automation.md
+* tasks/gift-card-automation/TASK-00-INDEX.md
+* The associated TASK files
+
+Now execute Wave 0 only:
+
+* TASK-01 — source-policy and permission audit
+* TASK-02 — author migrations 028, 029 and 030 as SQL files only
+* TASK-16a — DST, scheduling and idempotency test scaffolding using existing modules
+
+Non-negotiable restrictions
+
+1. Do not apply any migration.
+2. Do not connect to or modify production data.
+3. Do not deploy.
+4. Do not commit or push.
+5. Do not enable any ingestion source, feature flag, cron gate or workflow.
+6. Do not start Wave 1 or any later task.
+7. Do not fabricate source permissions, robots findings, legal approval or production evidence.
+8. Preserve the existing admin-approval boundary.
+9. Predictions must remain isolated from live offers.
+10. Acceptance data must remain reviewed structured data, not hard-coded production lists.
+
+Execution model
+
+Run TASK-01, TASK-02 and TASK-16a in parallel where their files do not overlap.
+
+Before assigning work:
+
+1. Read the programme plan.
+2. Read TASK-00-INDEX.md.
+3. Read each Wave 0 task file in full.
+4. Inspect the exact existing files each task may modify.
+5. Record the initial git status.
+
+Each worker must:
+
+* Follow only its assigned task.
+* Avoid unrelated refactors.
+* Reuse existing repository patterns.
+* Add or update tests where required.
+* Report every changed file.
+* Report commands run and their exact results.
+* Stop without committing or pushing.
+
+Required manager review
+
+After all workers finish, become the senior engineering manager and review the combined work yourself.
+
+Do not trust worker completion claims. Inspect every diff and verify:
+
+TASK-01
+
+* Every relevant source is recorded.
+* Permission, terms and robots evidence is factual and timestamped where available.
+* Unknown permission is explicitly marked unknown.
+* No unsupported claim is made that scraping is permitted.
+* Disabled/admin-assisted operation is clearly documented for sources without confirmed permission.
+* Registry gaps for the Point Hacks predictions page and GCDB merchant data are addressed or clearly documented.
+
+TASK-02
+
+Review migrations 028–030 for:
+
+* Correct numbering and dependencies after migrations 023–027.
+* No duplicate or overlapping tables.
+* Safe foreign keys, indexes, constraints and defaults.
+* Appropriate enums or check constraints.
+* RLS default-deny where required.
+* Prediction data isolation from approved/live offer queries.
+* Acceptance fields covering channel, evidence tier, source, freshness, review status and reconciliation.
+* Run-kind support without weakening existing locking or idempotency.
+* Reversible or operationally safe migration design.
+* No migration was applied.
+
+Run static SQL checks available in the repository. Compare generated types only if the task explicitly requires it; do not regenerate unrelated types.
+
+TASK-16a
+
+Verify tests cover at least:
+
+* Australia/Sydney 07:00 scheduling.
+* Standard-time and daylight-saving UTC mappings.
+* Both sides of DST transitions.
+* Duplicate execution protection.
+* The 48-hour guard.
+* Lock/idempotency behaviour.
+* Default-off gates.
+* No new candidate bypasses admin approval.
+* Activation affects only already-approved, future-dated offers.
+* Predictions cannot enter live-offer paths.
+
+Tests must use existing schedule and ingestion modules rather than duplicating production logic inside fixtures.
+
+Validation
+
+Run the smallest relevant tests during worker execution, then run the complete repository quality gate appropriate for these changes, including:
+
+* Lint
+* TypeScript/typecheck
+* Relevant gift-card, ingestion, schedule and migration tests
+* The full Vitest suite if practical
+* Production build if the changed files can affect compilation or routes
+
+Do not conceal pre-existing failures. Clearly distinguish:
+
+* New failures caused by Wave 0
+* Pre-existing failures
+* Environmental limitations
+
+Completion rules
+
+A task may be marked complete only when:
+
+* Its acceptance criteria are satisfied.
+* Its diff has been personally reviewed by the manager.
+* Relevant tests pass.
+* No restriction was violated.
+* Documentation matches the implementation.
+
+When something is incomplete or incorrect, fix it directly and repeat the review. Do not merely describe what remains.
+
+Final response
+
+Provide:
+
+1. Executive completion status for each Wave 0 task.
+2. Manager-review findings and any corrections you made.
+3. Exact files created or modified.
+4. Exact validation commands and results.
+5. Migration design summary for 028–030.
+6. Source-policy findings, clearly separating confirmed, prohibited, unclear and pending-human-approval sources.
+7. Remaining blockers before Wave 1.
+8. Final git status.
+9. Explicit confirmation that nothing was committed, pushed, deployed, migrated or changed in production.
+10. A recommendation of either:
+
+* WAVE 0 APPROVED — READY FOR HUMAN MIGRATION DESIGN REVIEW, or
+* WAVE 0 NOT APPROVED, with the exact unresolved issues.
+
+Do not ask to begin Wave 1. Stop after the Wave 0 manager review.
