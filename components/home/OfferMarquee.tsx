@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatAUD } from "@/lib/calculateStack";
@@ -26,6 +32,19 @@ const TONE_CHIP: Record<MarqueeSlide["compatibilityTone"], string> = {
   negative: "border-transparent bg-red-400/15 text-red-300",
   neutral: "border-emerald-100/20 text-emerald-100/70",
 };
+
+/** prefers-reduced-motion, SSR-safe (false on the server). */
+function useReducedMotion(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => false,
+  );
+}
 
 /** Cards visible at once, matching the Tailwind breakpoints used on the track. */
 function useCardsPerView(): number {
@@ -139,6 +158,7 @@ export function OfferMarquee({
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const perView = useCardsPerView();
+  const reducedMotion = useReducedMotion();
   const [scrollPage, setScrollPage] = useState(0);
   const pageCount = Math.max(1, Math.ceil(slides.length / perView));
   // Clamp during render so a breakpoint change (fewer pages) can never leave a
@@ -153,15 +173,26 @@ export function OfferMarquee({
     setScrollPage((current) => (current === next ? current : next));
   }, []);
 
-  const goToPage = useCallback((next: number) => {
-    const track = trackRef.current;
-    if (!track) return;
-    const clamped = Math.max(
-      0,
-      Math.min(next, Math.max(0, Math.ceil(track.scrollWidth / track.clientWidth) - 1)),
-    );
-    track.scrollTo({ left: clamped * track.clientWidth, behavior: "smooth" });
-  }, []);
+  const goToPage = useCallback(
+    (next: number) => {
+      const track = trackRef.current;
+      if (!track) return;
+      const lastPage = Math.max(
+        0,
+        Math.ceil(track.scrollWidth / track.clientWidth) - 1,
+      );
+      const clamped = Math.max(0, Math.min(next, lastPage));
+      // Smoothness is driven by the `behavior` option, NOT a CSS `scroll-smooth`
+      // class: some engines make programmatic scrollTo a no-op when CSS
+      // scroll-behavior is already smooth. Reduced-motion users get an instant
+      // jump.
+      track.scrollTo({
+        left: clamped * track.clientWidth,
+        behavior: reducedMotion ? "auto" : "smooth",
+      });
+    },
+    [reducedMotion],
+  );
 
   if (slides.length === 0) return null;
 
@@ -209,7 +240,7 @@ export function OfferMarquee({
             onScroll={syncPage}
             role="group"
             aria-label={`Offers, page ${page + 1} of ${pageCount}`}
-            className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
             {slides.map((slide) => (
               <div
