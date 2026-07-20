@@ -123,3 +123,40 @@ describe("dev wording never reaches the public terms table", () => {
     expect(row(rows, "denominations")?.value).toBe("$50 and $100 cards only");
   });
 });
+
+describe("buildTermsRows — structured purchase limits", () => {
+  it("keeps fixed-value and variable-load daily limits as distinct rows", () => {
+    const rows = buildTermsRows(
+      makeOffer({
+        purchaseLimits: {
+          totalCards: null,
+          fixedValueCardsPerDay: 5,
+          variableLoadCardsPerDay: 2,
+        },
+        usesPerCustomer: null,
+        limitPerCustomer: "prose that structure should replace",
+      }),
+    );
+    const fixed = rows.find((row) => row.key === "limit-fixed-value")!;
+    const variable = rows.find((row) => row.key === "limit-variable-load")!;
+    expect(fixed.value).toBe("Limit 5 per day");
+    expect(variable.value).toBe("Limit 2 per day");
+    // The prose fallback is suppressed once structured limits exist.
+    expect(rows.find((row) => row.key === "uses-per-customer")).toBeUndefined();
+  });
+
+  it("shows a total-cards limit (the 12943 five-card account cap)", () => {
+    const rows = buildTermsRows(
+      makeOffer({
+        purchaseLimits: {
+          totalCards: 5,
+          fixedValueCardsPerDay: null,
+          variableLoadCardsPerDay: null,
+        },
+      }),
+    );
+    expect(rows.find((row) => row.key === "limit-total-cards")!.value).toBe(
+      "5 eligible gift cards in total per customer/account",
+    );
+  });
+});

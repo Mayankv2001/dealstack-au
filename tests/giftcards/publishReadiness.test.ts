@@ -14,6 +14,7 @@ const facts = (
   discountPercent: 10,
   bonusPercent: null,
   pointsMultiplier: null,
+  fixedPoints: null,
   pointsProgram: null,
   fixedDiscountDollars: null,
   promoCreditDollars: null,
@@ -57,5 +58,65 @@ describe("manual gift-card publish readiness", () => {
         })
       )
     ).toBeNull();
+  });
+});
+
+describe("publish readiness — points mechanics", () => {
+  it("keeps a valid fixed-points offer publishable", () => {
+    expect(
+      giftCardPublishError(
+        facts({
+          promotionType: "points",
+          discountPercent: null,
+          fixedPoints: 1000,
+          pointsProgram: "Flybuys",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps a valid multiplier offer publishable", () => {
+    expect(
+      giftCardPublishError(
+        facts({
+          promotionType: "points",
+          discountPercent: null,
+          pointsMultiplier: 10,
+          pointsProgram: "Everyday Rewards",
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("blocks a points offer with neither multiplier nor fixed points", () => {
+    expect(
+      giftCardPublishError(
+        facts({
+          promotionType: "points",
+          discountPercent: null,
+          pointsProgram: "Flybuys",
+        }),
+      ),
+    ).toMatch(/multiplier or a fixed points award/i);
+  });
+
+  it("blocks contradictory multiplier + fixed points", () => {
+    expect(
+      giftCardPublishError(
+        facts({
+          promotionType: "points",
+          discountPercent: null,
+          pointsMultiplier: 10,
+          fixedPoints: 1000,
+          pointsProgram: "Flybuys",
+        }),
+      ),
+    ).toMatch(/cannot carry both/i);
+  });
+
+  it("blocks a row with no declared promotion type — never defaults to discount", () => {
+    expect(giftCardPublishError(facts({ promotionType: null }))).toMatch(
+      /known atomic promotion type/i,
+    );
   });
 });

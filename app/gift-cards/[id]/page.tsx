@@ -23,6 +23,7 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import GiftCardAcceptance from "@/components/GiftCardAcceptance";
+import GiftCardDenominationExamples from "@/components/GiftCardDenominationExamples";
 import GiftCardWorkedExample from "@/components/GiftCardWorkedExample";
 import ReportProblemForm from "@/components/ReportProblemForm";
 import {
@@ -46,6 +47,8 @@ import {
   type StageAnalysis,
 } from "@/lib/giftcards/stackability";
 import { buildProductAcceptance } from "@/lib/giftcards/acceptanceModel";
+import { buildOfferWorkedExampleRows } from "@/lib/giftcards/offerWorkedExamples";
+import { giftCardDateState } from "@/lib/giftcards/dateState";
 import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 
 /**
@@ -264,6 +267,10 @@ export default async function GiftCardDetailPage({
   const claimSteps = buildClaimSteps(offer);
   const termsRows = buildTermsRows(offer);
   const productViews = buildProductAcceptance(offer, products, acceptance, now);
+  const denominationRows = buildOfferWorkedExampleRows(offer, products);
+  // Display boundary keeps upcoming-soon offers resolvable; they must read as
+  // upcoming everywhere, never as active.
+  const isUpcoming = giftCardDateState(offer, now) === "future";
 
   const storeNames: Record<string, string> = Object.fromEntries(
     stores.map((s) => [s.id, s.name]),
@@ -335,11 +342,18 @@ export default async function GiftCardDetailPage({
             ? offer.feeWaiverDollars
               ? `$${round1(offer.feeWaiverDollars)} purchase fee waived`
               : "Purchase fee waived"
-            : effectivePct != null
-              ? offer.discountPercent > 0
-                ? `${round1(offer.discountPercent)}% off face value`
-                : `≈${round1(effectivePct)}% effective`
-              : "Not quantifiable",
+            : // A points award is a real, stated benefit even when we hold no
+              // cents-per-point valuation — state the facts, never
+              // "Not quantifiable" for a quantified reward.
+              (offer.fixedPoints ?? 0) > 0
+              ? `${offer.fixedPoints!.toLocaleString("en-AU")} ${offer.pointsProgram ?? "loyalty"} points per eligible card${effectivePct != null ? ` (≈${round1(effectivePct)}% effective on $100)` : ""}`
+              : (offer.pointsMultiplier ?? 0) > 0
+                ? `${round1(offer.pointsMultiplier!)}× ${offer.pointsProgram ?? "loyalty"} points${effectivePct != null ? ` (≈${round1(effectivePct)}% effective)` : ""}`
+                : effectivePct != null
+                  ? offer.discountPercent > 0
+                    ? `${round1(offer.discountPercent)}% off face value`
+                    : `≈${round1(effectivePct)}% effective`
+                  : "Not quantifiable",
     },
     {
       label: "Starts",
@@ -380,8 +394,23 @@ export default async function GiftCardDetailPage({
                 >
                   {PROMO_LABEL[offer.promotionType ?? "discount"]}
                 </Badge>
+                {isUpcoming && offer.startDate ? (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  >
+                    Upcoming — starts {formatDateAU(offer.startDate)}
+                  </Badge>
+                ) : null}
                 <ConfidenceBadge confidence={offer.confidence} />
               </div>
+              {isUpcoming && offer.startDate ? (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  This promotion has not started. Nothing can be claimed before{" "}
+                  {formatDateAU(offer.startDate)} — the details below describe
+                  what the offer will be.
+                </p>
+              ) : null}
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
                 {offerTitle(offer)}
               </h1>
@@ -615,6 +644,11 @@ export default async function GiftCardDetailPage({
               title="Worked example"
               icon={Coins}
             >
+              {denominationRows.length > 0 ? (
+                <div className="mb-4 border-b pb-4">
+                  <GiftCardDenominationExamples rows={denominationRows} />
+                </div>
+              ) : null}
               <GiftCardWorkedExample
                 stackSearchQuery={`${offer.brand} ${seller}`}
                 inputs={{

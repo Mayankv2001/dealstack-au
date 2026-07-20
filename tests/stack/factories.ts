@@ -113,6 +113,7 @@ export function makeGiftCardProduct(
     activationDelayNote: null,
     splitPayment: "unknown",
     expiryOrFeesNote: null,
+    purchaseFees: null,
     ...over,
   };
 }

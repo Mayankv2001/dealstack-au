@@ -201,7 +201,7 @@ describe("extractOffer — reconciliation warnings", () => {
     expect(result.pointsMultiplier).toBe(15);
     expect(result.pointsProgram).toBeNull();
     expect(result.warnings).toContain(
-      "Points multiplier found but the programme is unclear."
+      "Points value found but the programme is unclear."
     );
   });
 });
@@ -363,5 +363,98 @@ describe("sanitised real-feed extraction", () => {
       parentIsCompound: true,
       subOfferKey: "compound-summary",
     });
+  });
+});
+
+describe("extractOffer — GCDB 12943 (fixed Flybuys award, verified 2026-07-20)", () => {
+  const result = extractOffer(
+    item({
+      externalId: "12943",
+      canonicalUrl: "https://gcdb.com.au/offer/12943/",
+      title: "1,000 bonus Flybuys points on selected TCN gift cards at Coles",
+      offerType: "points",
+      sellerName: "Coles",
+      giftCardBrands: [
+        "TCN Party",
+        "TCN Teen",
+        "TCN Her",
+        "TCN Restaurant",
+        "TCN Eftpos",
+      ],
+      startsAt: "2026-07-22",
+      endsAt: "2026-07-28",
+      excerpt:
+        "Earn 1,000 bonus Flybuys points per eligible gift card in-store at Coles. Limit of five eligible gift cards per Flybuys account. No activation required. Starts 22 Jul 2026. Ends 28 Jul 2026.",
+    }),
+  );
+
+  it("parses as a FIXED points award — not a discount, not a multiplier", () => {
+    expect(result.promotionType).toBe("points");
+    expect(result.fixedPoints).toBe(1000);
+    expect(result.pointsMultiplier).toBeNull();
+    expect(result.discountPercent).toBeNull();
+    expect(result.bonusPercent).toBeNull();
+    expect(result.pointsProgram).toBe("Flybuys");
+  });
+
+  it("keeps the promotion window and the stated limit as evidence", () => {
+    expect(result.startsAt).toBe("2026-07-22");
+    expect(result.expiresAt).toBe("2026-07-28");
+    expect(result.purchaseLimitNote).toMatch(/five eligible gift cards/i);
+  });
+
+  it("reads 'No activation required' as NOT requiring activation", () => {
+    expect(result.activationRequired).toBe(false);
+  });
+
+  it("extracts with full confidence and no warnings", () => {
+    expect(result.warnings).toEqual([]);
+    expect(result.confidence).toBe(1);
+  });
+
+  it("values the fixed award per card, never scaled by spend", () => {
+    // 1,000 Flybuys at the disclosed 0.5c/pt = $5 on a $100 face default.
+    expect(result.effectiveDiscountPercent).toBeCloseTo(4.76, 2);
+  });
+});
+
+describe("extractOffer — GCDB 12944 (10x Everyday Rewards, verified 2026-07-20)", () => {
+  const result = extractOffer(
+    item({
+      externalId: "12944",
+      canonicalUrl: "https://gcdb.com.au/offer/12944/",
+      title:
+        "10x Everyday Rewards points on Restaurant Choice, Cafe Choice and selected Ultimate gift cards at Woolworths",
+      offerType: "points",
+      sellerName: "Woolworths",
+      giftCardBrands: ["Restaurant Choice", "Cafe Choice", "Ultimate"],
+      startsAt: "2026-07-22",
+      endsAt: "2026-07-28",
+      excerpt:
+        "Earn 10x Everyday Rewards points in-store. Limit of five fixed-value cards and two variable-load cards per day. Starts 22 Jul 2026. Ends 28 Jul 2026.",
+    }),
+  );
+
+  it("parses as a points MULTIPLIER — not a discount, not a fixed award", () => {
+    expect(result.promotionType).toBe("points");
+    expect(result.pointsMultiplier).toBe(10);
+    expect(result.fixedPoints).toBeNull();
+    expect(result.discountPercent).toBeNull();
+    expect(result.pointsProgram).toBe("Everyday Rewards");
+  });
+
+  it("keeps the window, the limits prose and full confidence", () => {
+    expect(result.startsAt).toBe("2026-07-22");
+    expect(result.expiresAt).toBe("2026-07-28");
+    expect(result.purchaseLimitNote).toMatch(/five fixed-value cards/i);
+    expect(result.warnings).toEqual([]);
+    expect(result.confidence).toBe(1);
+  });
+
+  it("carries no editorial verdict fields — value facts only", () => {
+    // GCDB editorialises this as a "bad offer"; DealStack imports the 10x
+    // fact and nothing else. The extractor output simply has nowhere for
+    // editorial prose to live beyond the bounded factual fields asserted here.
+    expect(Object.values(result).join(" ")).not.toMatch(/bad offer|not recommended/i);
   });
 });

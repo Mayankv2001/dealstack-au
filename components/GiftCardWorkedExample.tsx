@@ -89,6 +89,12 @@ export default function GiftCardWorkedExample({
         <div className="mt-3">
           <dl>
             <Line label="Gift-card face value" value={aud(example.coveredFaceValue)} />
+            {example.purchaseFeeDollars > 0 ? (
+              <Line
+                label="Purchase fee"
+                value={`+${aud(example.purchaseFeeDollars)}`}
+              />
+            ) : null}
             <Line label="Cash paid" value={aud(example.cashPaid)} strong />
             <Line
               label="Immediate cash saving"

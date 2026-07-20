@@ -34,6 +34,7 @@ const product = (overrides: Partial<GiftCardProduct> = {}): GiftCardProduct => (
   activationDelayNote: null,
   splitPayment: "unknown",
   expiryOrFeesNote: null,
+    purchaseFees: null,
   ...overrides,
 });
 

@@ -8,6 +8,15 @@
       "port": 3000
     },
     {
+      "name": "dealstack-static",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/mayank/Downloads/dealstack-au-clean && export PATH=/Users/mayank/.nvm/versions/node/v20.20.2/bin:$PATH && export DATA_SOURCE=static && export DATA_SOURCE_STATIC_PREVIEW_ACK=serve-demo-data-not-production && export PORT=3211 && exec /Users/mayank/.nvm/versions/node/v20.20.2/bin/node node_modules/next/dist/bin/next start -p 3211"
+      ],
+      "port": 3211
+    },
+    {
       "name": "dealstack-hmr",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": [

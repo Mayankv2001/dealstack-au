@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Stale agent worktrees (and their .next artefacts) are not lintable
+    // source; CI never sees them, and locally they drown out real findings.
+    ".claude/worktrees/**",
   ]),
 ]);
 

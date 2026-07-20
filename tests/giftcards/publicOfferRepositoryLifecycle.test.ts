@@ -105,29 +105,34 @@ describe("getGiftCardOffers lifecycle boundary", () => {
 });
 
 describe("getCurrentReviewedGiftCardOffers display boundary", () => {
-  it("surfaces unknown-expiry offers (ranked last), dropping only expired/future", async () => {
+  it("surfaces unknown-expiry offers (ranked last) and labelled upcoming-soon offers behind them", async () => {
     const offers = await getCurrentReviewedGiftCardOffers({
       staticMode: false,
       client: client([
         row("soon", "2026-07-01", "2026-07-16"),
         row("later", "2026-07-01", "2026-09-30"),
-        row("future", "2026-07-16", "2026-07-20"),
+        // Starts tomorrow: inside the 7-day upcoming window → shown LAST.
+        row("upcoming", "2026-07-16", "2026-07-20"),
+        // Starts beyond the window → hidden entirely.
+        row("far-future", "2026-08-30", "2026-09-06"),
         row("expired", "2026-07-01", "2026-07-14"),
         row("unknown", null, null),
         row("ongoing", null, null, true),
       ]),
       now: NOW,
     });
-    // Dated offers first (soonest → latest), then the undated ones behind them.
+    // Active dated first (soonest → latest), then undated, then upcoming.
     expect(offers.slice(0, 2).map((o) => o.id)).toEqual(["soon", "later"]);
+    expect(offers.at(-1)!.id).toBe("upcoming");
     expect(offers.map((o) => o.id).sort()).toEqual([
       "later",
       "ongoing",
       "soon",
       "unknown",
+      "upcoming",
     ]);
     expect(offers.map((o) => o.id)).not.toContain("expired");
-    expect(offers.map((o) => o.id)).not.toContain("future");
+    expect(offers.map((o) => o.id)).not.toContain("far-future");
   });
 
   it("applies the limit after ordering", async () => {
@@ -142,5 +147,73 @@ describe("getCurrentReviewedGiftCardOffers display boundary", () => {
       limit: 2,
     });
     expect(offers.map((o) => o.id)).toEqual(["soon", "later"]);
+  });
+});
+
+describe("public value-readiness boundary (both read paths)", () => {
+  it("drops published rows without promotion-specific value data — the detail route then 404s", async () => {
+    const corrupted = {
+      ...row("gc-corrupted", "2026-07-01", "2026-09-30"),
+      // The Coles Group corruption shape: a 0% "discount" whose only value
+      // lives in prose. It was published before the rule existed.
+      discount_percent: 0,
+      promotion_type: null,
+      points_on_purchase: {
+        program: "Flybuys",
+        earnNote: "Bonus points described only in prose",
+      },
+    };
+    const contradictory = {
+      ...row("gc-contradictory", "2026-07-01", "2026-09-30"),
+      discount_percent: 0,
+      promotion_type: "points",
+      points_multiplier: 10,
+      fixed_points: 1000,
+      points_program: "Flybuys",
+    };
+    const healthy = row("gc-healthy", "2026-07-01", "2026-09-30");
+    const fixedPoints = {
+      ...row("gc-fixed-points", "2026-07-01", "2026-08-30"),
+      discount_percent: 0,
+      promotion_type: "points",
+      fixed_points: 1000,
+      points_program: "Flybuys",
+      reward_destination: "loyalty-points",
+    };
+
+    const display = await getCurrentReviewedGiftCardOffers({
+      staticMode: false,
+      client: client([corrupted, contradictory, healthy, fixedPoints]),
+      now: NOW,
+    });
+    expect(display.map((o) => o.id).sort()).toEqual([
+      "gc-fixed-points",
+      "gc-healthy",
+    ]);
+
+    const engine = await getGiftCardOffers({
+      staticMode: false,
+      client: client([corrupted, contradictory, healthy, fixedPoints]),
+      now: NOW,
+    });
+    expect(engine.map((o) => o.id)).not.toContain("gc-corrupted");
+    expect(engine.map((o) => o.id)).not.toContain("gc-contradictory");
+  });
+
+  it("keeps a fixed-points offer public even without a disclosed valuation", async () => {
+    const obscureProgramme = {
+      ...row("gc-obscure", "2026-07-01", "2026-08-30"),
+      discount_percent: 0,
+      promotion_type: "points",
+      fixed_points: 500,
+      points_program: "Mystery Rewards",
+      reward_destination: "loyalty-points",
+    };
+    const display = await getCurrentReviewedGiftCardOffers({
+      staticMode: false,
+      client: client([obscureProgramme]),
+      now: NOW,
+    });
+    expect(display.map((o) => o.id)).toEqual(["gc-obscure"]);
   });
 });

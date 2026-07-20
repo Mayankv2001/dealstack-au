@@ -5,6 +5,7 @@ import {
   ozBargainSignals as staticSignals,
   pointsOffers as staticPoints,
 } from "@/lib/offers/manualOffers";
+import { gcdbFixtureGiftCardOffers } from "@/lib/offers/gcdbFixtureOffers";
 import type {
   CardOfferHistoryEntry,
   CardOffer,
@@ -17,6 +18,7 @@ import { filterLive, todayAU } from "@/lib/offers/expiry";
 import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
 import { filterConfirmedCurrentOffers } from "@/lib/giftcards/lifecycle";
 import { orderCurrentReviewedGiftCardOffers } from "@/lib/giftcards/currentOffers";
+import { hasPublicOfferValue } from "@/lib/giftcards/valueReadiness";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import { safeHttpsUrl, safePublicHref } from "@/lib/security/urlPolicy";
 import {
@@ -90,6 +92,8 @@ interface GiftCardRow {
   combinable_with_seller_promotions: boolean | null;
   terms_url: string | null;
   included_product_ids: string[];
+  /** Migration 034 (authored, not yet applied) — maps to null until applied. */
+  purchase_limits?: unknown;
   citations: Citation[];
   confidence: Confidence;
   last_checked_at: string;
@@ -100,6 +104,36 @@ function safeCitations(citations: Citation[] | null | undefined): Citation[] {
     const sourceUrl = safePublicHref(citation.sourceUrl);
     return sourceUrl ? [{ ...citation, sourceUrl }] : [];
   });
+}
+
+/** Structured limits from the migration-034 jsonb column; null pre-apply.
+ * Only positive whole-number limits survive — a malformed value maps to
+ * absent, never to a fabricated condition. */
+function mapPurchaseLimits(
+  value: unknown,
+): GiftCardOffer["purchaseLimits"] {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const limit = (v: unknown): number | null => {
+    const n = Number(v);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+  const limits = {
+    totalCards: limit(raw.totalCards ?? raw.total_cards),
+    fixedValueCardsPerDay: limit(
+      raw.fixedValueCardsPerDay ?? raw.fixed_value_cards_per_day,
+    ),
+    variableLoadCardsPerDay: limit(
+      raw.variableLoadCardsPerDay ?? raw.variable_load_cards_per_day,
+    ),
+  };
+  return limits.totalCards ||
+    limits.fixedValueCardsPerDay ||
+    limits.variableLoadCardsPerDay
+    ? limits
+    : null;
 }
 
 function mapGiftCard(r: GiftCardRow): GiftCardOffer {
@@ -155,6 +189,7 @@ function mapGiftCard(r: GiftCardRow): GiftCardOffer {
     combinableWithSellerPromotions: r.combinable_with_seller_promotions ?? null,
     termsUrl: r.terms_url ? (safeHttpsUrl(r.terms_url) ?? null) : null,
     includedProductIds: r.included_product_ids ?? [],
+    purchaseLimits: mapPurchaseLimits(r.purchase_limits),
     citations: safeCitations(r.citations),
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,
@@ -172,13 +207,32 @@ interface GiftCardOfferReadDeps {
  * Fetch the RLS-published gift-card rows, mapped to the TypeScript shape.
  * Shared by every public read path so DB/demo resolution and column mapping
  * are defined exactly once; each caller applies its own date boundary on top.
+ *
+ * Value-readiness boundary: rows without promotion-specific value data (a
+ * "discount" with no percentage, "points" with neither multiplier nor fixed
+ * award, contradictory mechanics…) are dropped HERE, so no public surface —
+ * grid, carousel, detail permalink, stack engine — can render a row that was
+ * published before the rule existed or corrupted since. Review state is
+ * untouched; the row simply stops being public until an admin corrects it
+ * (the publish gate reports the same gap message on any re-publish attempt).
  */
 async function readPublishedGiftCardOffers(
   deps: Pick<GiftCardOfferReadDeps, "staticMode" | "client">,
 ): Promise<GiftCardOffer[]> {
+  const rows = await readPublishedGiftCardOfferRows(deps);
+  return rows.filter(hasPublicOfferValue);
+}
+
+async function readPublishedGiftCardOfferRows(
+  deps: Pick<GiftCardOfferReadDeps, "staticMode" | "client">,
+): Promise<GiftCardOffer[]> {
   return fromDbOrDemo(
     "gift_card_offers",
-    staticGiftCards,
+    // Demo mode only: the hand-typed samples plus the GCDB acceptance
+    // fixtures (lib/offers/gcdbFixtureOffers.ts). With a configured database
+    // fromDbOrDemo never touches this array, and scripts/seed.ts seeds only
+    // the manualOffers samples — the fixtures can never reach a database.
+    [...staticGiftCards, ...gcdbFixtureGiftCardOffers],
     async (db: DbClient) => {
       const { data, error } = await db.from("gift_card_offers").select("*");
       if (error) throw error;

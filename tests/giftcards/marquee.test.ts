@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  MARQUEE_SLIDE_CAP,
-  buildMarquee,
-} from "@/lib/giftcards/marquee";
+import { buildMarquee } from "@/lib/giftcards/marquee";
 import { makeBareOffer, makeOffer, NOW } from "./offerFixture";
 
 describe("buildMarquee", () => {
@@ -34,8 +31,8 @@ describe("buildMarquee", () => {
     ]);
   });
 
-  it("caps the carousel while still reporting the full live count", () => {
-    const total = MARQUEE_SLIDE_CAP + 2;
+  it("never truncates: every displayable offer becomes a slide", () => {
+    const total = 20;
     const offers = Array.from({ length: total }, (_, i) =>
       makeOffer({
         id: `gc-${String(i).padStart(2, "0")}`,
@@ -44,8 +41,68 @@ describe("buildMarquee", () => {
       }),
     );
     const { slides, liveCount } = buildMarquee(offers, NOW);
-    expect(slides).toHaveLength(MARQUEE_SLIDE_CAP);
+    expect(slides).toHaveLength(total);
     expect(liveCount).toBe(total);
+  });
+
+  it("keeps a deterministic order so desktop page 3 is exactly offers 7–9", () => {
+    // 9 offers with staggered expiries, supplied shuffled. Desktop shows 3 per
+    // page; the third page must be positions 7–9 of the ending-soonest order.
+    const offers = [5, 2, 8, 0, 6, 3, 7, 1, 4].map((i) =>
+      makeOffer({
+        id: `gc-slide-${i}`,
+        expiryDate: `2026-08-${String(10 + i).padStart(2, "0")}`,
+      }),
+    );
+    const { slides } = buildMarquee(offers, NOW);
+    const ids = slides.map((slide) => slide.id);
+    expect(ids).toEqual(Array.from({ length: 9 }, (_, i) => `gc-slide-${i}`));
+    expect(ids.slice(6, 9)).toEqual(["gc-slide-6", "gc-slide-7", "gc-slide-8"]);
+    // Rebuilding from a different input order changes nothing.
+    const again = buildMarquee(offers.slice().reverse(), NOW);
+    expect(again.slides.map((slide) => slide.id)).toEqual(ids);
+  });
+
+  it("appends upcoming-soon offers after active ones, labelled and non-urgent", () => {
+    const { slides, liveCount } = buildMarquee(
+      [
+        makeOffer({
+          id: "gc-upcoming",
+          // NOW is 12 Jul 2026: starts within the 7-day window.
+          startDate: "2026-07-15",
+          expiryDate: "2026-07-21",
+        }),
+        makeOffer({ id: "gc-active", expiryDate: "2026-07-17" }),
+        makeOffer({
+          id: "gc-far-future",
+          startDate: "2026-09-01",
+          expiryDate: "2026-09-07",
+        }),
+      ],
+      NOW,
+    );
+    expect(slides.map((slide) => slide.id)).toEqual([
+      "gc-active",
+      "gc-upcoming",
+    ]);
+    expect(liveCount).toBe(2);
+    const upcoming = slides[1];
+    expect(upcoming.dateLabel).toBe("Starts 15 Jul 2026 · ends 21 Jul 2026");
+    // Never described as currently active: no urgency chip, explicit caveat.
+    expect(upcoming.urgencyLabel).toBeUndefined();
+    expect(upcoming.caveat).toMatch(/not active yet/i);
+  });
+
+  it("gives every slide a working detail link for its own offer id", () => {
+    const offers = [
+      makeOffer({ id: "gc-a", expiryDate: "2026-07-17" }),
+      makeOffer({ id: "gc-b", expiryDate: "2026-07-18" }),
+    ];
+    const { slides } = buildMarquee(offers, NOW);
+    expect(slides.map((slide) => slide.detailHref)).toEqual([
+      "/gift-cards/gc-a",
+      "/gift-cards/gc-b",
+    ]);
   });
 
   it("works the $100 discount example as cash, matching the detail page", () => {

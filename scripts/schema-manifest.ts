@@ -81,6 +81,11 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Policy/constraint/trigger/RPC-only approval hardening. No new columns;
   // coverage keeps the forward security boundary in the migration ledger.
   "033_gift_card_offer_approval_hardening.sql",
+  // Structured purchase fees (products) + purchase limits (offers). Authored
+  // alongside the public value-readiness boundary; the app maps both columns
+  // to honest nulls until applied, so the drift probe's "apply 034" line is
+  // the expected state between authoring and the gated apply.
+  "034_gift_card_value_structures.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -130,6 +135,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "promo_credit_dollars", "fee_waiver_dollars", "threshold_dollars",
       "is_ongoing", "targeted",
       "lifecycle_state", "lifecycle_activated_at", "lifecycle_archived_at",
+      "purchase_limits",
     ],
     {
       promotion_type: "021_gift_card_pipeline.sql",
@@ -171,6 +177,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       is_ongoing: "023_gift_card_accuracy_model.sql",
       targeted: "023_gift_card_accuracy_model.sql",
       lifecycle_state: "032_gift_card_lifecycle_orchestration.sql",
+      purchase_limits: "034_gift_card_value_structures.sql",
       lifecycle_activated_at: "032_gift_card_lifecycle_orchestration.sql",
       lifecycle_archived_at: "032_gift_card_lifecycle_orchestration.sql",
     }
@@ -383,7 +390,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "is_active", "source_evidence", "created_at", "updated_at",
       "aliases", "official_product_page", "activation_method", "online_available",
       "in_store_available", "denominations", "activation_delay_note",
-      "split_payment", "expiry_or_fees_note",
+      "split_payment", "expiry_or_fees_note", "purchase_fees",
     ],
     {
       unsupported_mccs: "022_gift_card_offer_detail.sql",
@@ -393,6 +400,7 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       online_available: "028_gift_card_acceptance_extensions.sql",
       in_store_available: "028_gift_card_acceptance_extensions.sql",
       denominations: "028_gift_card_acceptance_extensions.sql",
+      purchase_fees: "034_gift_card_value_structures.sql",
       activation_delay_note: "028_gift_card_acceptance_extensions.sql",
       split_payment: "028_gift_card_acceptance_extensions.sql",
       expiry_or_fees_note: "028_gift_card_acceptance_extensions.sql",

@@ -10,7 +10,7 @@ import {
   SavingsLayersSection,
 } from "@/components/home/HomeStaticSections";
 import { siteUrl } from "@/lib/env";
-import { buildMarquee, MARQUEE_SLIDE_CAP } from "@/lib/giftcards/marquee";
+import { buildMarquee } from "@/lib/giftcards/marquee";
 import { getCurrentReviewedGiftCardOffers } from "@/lib/repos";
 import { getTopDeals } from "@/lib/repos/topDeals";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
@@ -47,10 +47,10 @@ export default async function Home() {
     loadStackData(),
     getTopDeals(),
     // The carousel keeps reviewed offers whose expiry is merely unknown (ranked
-    // last), so it shows the full current set — not just the confirmed-current
-    // rows the stack engine consumes via loadStackData(). See
-    // getCurrentReviewedGiftCardOffers / lib/giftcards/currentOffers.ts.
-    getCurrentReviewedGiftCardOffers({ limit: MARQUEE_SLIDE_CAP, orderBy: "ending-soonest" }),
+    // last) plus labelled upcoming-soon offers, so it shows the full displayable
+    // set — every offer becomes a slide; the carousel pages, never truncates.
+    // See getCurrentReviewedGiftCardOffers / lib/giftcards/currentOffers.ts.
+    getCurrentReviewedGiftCardOffers({ orderBy: "ending-soonest" }),
   ]);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const { best } = partitionStacks(recommendations);

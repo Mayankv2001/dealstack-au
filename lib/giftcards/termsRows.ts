@@ -96,13 +96,39 @@ export function buildTermsRows(offer: GiftCardOffer): TermsRow[] {
     );
   }
 
-  if (offer.usesPerCustomer != null) {
+  // Structured purchase limits (migration 034). Each stated limit is its own
+  // row — fixed-value and variable-load daily caps are DIFFERENT conditions
+  // and are never merged into one number.
+  const limits = offer.purchaseLimits;
+  if (limits?.totalCards != null) {
+    add(
+      "limit-total-cards",
+      "Card limit",
+      `${limits.totalCards} eligible gift cards in total per customer/account`,
+    );
+  }
+  if (limits?.fixedValueCardsPerDay != null) {
+    add(
+      "limit-fixed-value",
+      "Fixed-value cards",
+      `Limit ${limits.fixedValueCardsPerDay} per day`,
+    );
+  }
+  if (limits?.variableLoadCardsPerDay != null) {
+    add(
+      "limit-variable-load",
+      "Variable-load cards",
+      `Limit ${limits.variableLoadCardsPerDay} per day`,
+    );
+  }
+
+  if (limits?.totalCards == null && offer.usesPerCustomer != null) {
     add(
       "uses-per-customer",
       "Uses per customer",
       offer.usesPerCustomer === 1 ? "One use" : `${offer.usesPerCustomer} uses`
     );
-  } else if (offer.limitPerCustomer) {
+  } else if (!limits && offer.limitPerCustomer) {
     // Free-text field seeded from sample data in places — scrub dev wording
     // ("No stated cap (sample)") before it reaches the public table.
     add(

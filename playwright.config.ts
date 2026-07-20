@@ -34,7 +34,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `DATA_SOURCE=static PORT=${PORT} npm run start`,
+    // `next start` is a production RUNTIME, so serving static demo data
+    // requires the explicit acknowledgement sentence (see
+    // resolveDataSourceMode in lib/supabase/server.ts) — this is the
+    // intentional, authorised static test configuration.
+    command: `DATA_SOURCE=static DATA_SOURCE_STATIC_PREVIEW_ACK=serve-demo-data-not-production PORT=${PORT} npm run start`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

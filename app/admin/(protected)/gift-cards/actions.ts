@@ -178,6 +178,7 @@ function parseGiftCardForm(formData: FormData): ParseResult {
       discountPercent: input.discountPercent,
       bonusPercent: null,
       pointsMultiplier: null,
+      fixedPoints: null,
       pointsProgram: null,
       fixedDiscountDollars: null,
       promoCreditDollars: null,

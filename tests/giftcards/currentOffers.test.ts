@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareCurrentGiftCardOffers,
+  isUpcomingSoonGiftCardOffer,
   orderCurrentReviewedGiftCardOffers,
   selectCurrentGiftCardOffers,
 } from "@/lib/giftcards/currentOffers";
@@ -56,5 +57,48 @@ describe("compareCurrentGiftCardOffers ordering", () => {
       "y",
       "z",
     ]);
+  });
+});
+
+describe("upcoming tier (orderCurrentReviewedGiftCardOffers)", () => {
+  it("appends upcoming-soon offers after every active offer, starting soonest first", () => {
+    const ordered = orderCurrentReviewedGiftCardOffers(
+      [
+        makeOffer({ id: "gc-up-later", startDate: "2026-07-16", expiryDate: "2026-07-30" }),
+        makeOffer({ id: "gc-active-late", expiryDate: "2026-09-30" }),
+        makeOffer({ id: "gc-up-sooner", startDate: "2026-07-14", expiryDate: "2026-07-29" }),
+        makeOffer({ id: "gc-active-soon", expiryDate: "2026-07-15" }),
+      ],
+      NOW,
+    );
+    expect(ordered.map((offer) => offer.id)).toEqual([
+      "gc-active-soon",
+      "gc-active-late",
+      "gc-up-sooner",
+      "gc-up-later",
+    ]);
+  });
+
+  it("hides offers starting beyond the display window", () => {
+    expect(
+      isUpcomingSoonGiftCardOffer(
+        makeOffer({ startDate: "2026-07-19", expiryDate: "2026-07-25" }),
+        NOW,
+      ),
+    ).toBe(true);
+    expect(
+      isUpcomingSoonGiftCardOffer(
+        makeOffer({ startDate: "2026-07-20", expiryDate: "2026-07-25" }),
+        NOW,
+      ),
+    ).toBe(false);
+  });
+
+  it("never lets an expired offer in through either tier", () => {
+    const ordered = orderCurrentReviewedGiftCardOffers(
+      [makeOffer({ id: "gc-dead", startDate: "2026-07-01", expiryDate: "2026-07-10" })],
+      NOW,
+    );
+    expect(ordered).toEqual([]);
   });
 });

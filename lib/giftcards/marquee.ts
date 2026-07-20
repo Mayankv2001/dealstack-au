@@ -17,9 +17,6 @@ import { buildWorkedExample } from "@/lib/giftcards/value";
  * deterministic rules in lib/giftcards/currentOffers.ts.
  */
 
-/** The carousel shows at most this many cards; the grid link carries the rest. */
-export const MARQUEE_SLIDE_CAP = 18;
-
 /** Face value used for each slide's worked example. */
 export const MARQUEE_EXAMPLE_FACE_VALUE = 100;
 
@@ -67,6 +64,9 @@ export interface MarqueeModel {
 
 /** One prioritised condition per slide — the thing to check before relying on it. */
 function slideCaveat(offer: GiftCardOffer, isRewardOnly: boolean, dateLabel: string): string {
+  if (dateLabel.startsWith("Starts ")) {
+    return "Upcoming offer — not active yet. Nothing can be claimed before the start date.";
+  }
   if (offer.membershipRequired || offer.channel === "membership-portal") {
     return "Requires an eligible membership to buy at this price.";
   }
@@ -86,9 +86,12 @@ export function buildMarquee(
   offers: GiftCardOffer[],
   now: Date = new Date(),
 ): MarqueeModel {
+  // Every displayable offer becomes a slide — additional offers create
+  // additional carousel pages; nothing is silently truncated. Active offers
+  // come first, then upcoming ones with their explicit "Starts …" labels.
   const live = orderCurrentReviewedGiftCardOffers(offers, now);
 
-  const slides = live.slice(0, MARQUEE_SLIDE_CAP).map((offer): MarqueeSlide => {
+  const slides = live.map((offer): MarqueeSlide => {
     const vm = buildGiftCardOfferCardViewModel(offer, now);
     const worked = buildWorkedExample(
       {

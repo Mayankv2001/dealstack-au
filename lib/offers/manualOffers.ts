@@ -59,6 +59,10 @@ const STALE_CHECKED_AT = sampleCheckedAt(36);
 // ─── Gift card offers ──────────────────────────────────────────────────────
 export const giftCardOffers: GiftCardOffer[] = [
   {
+    // Structured fixed-points sample. This record once carried its value only
+    // as prose (discountPercent 0 + an earnNote sentence) — the shape the
+    // public value-readiness boundary now rejects; it doubles as the reference
+    // fixture for a well-formed fixed-points promotion.
     id: "gc-coles-group-bonus-points",
     brand: "Coles Group",
     discountPercent: 0,
@@ -70,6 +74,11 @@ export const giftCardOffers: GiftCardOffer[] = [
       program: "Flybuys",
       earnNote: "Sample: 2,000 bonus Flybuys when you buy $100+ in Coles Group gift cards",
     },
+    promotionType: "points",
+    fixedPoints: 2000,
+    pointsProgram: "Flybuys",
+    thresholdDollars: 100,
+    rewardDestination: "loyalty-points",
     capDollars: 200,
     expiryDate: sampleDate(97),
     startDate: sampleDate(-17),
@@ -193,8 +202,14 @@ export const giftCardOffers: GiftCardOffer[] = [
     acceptedAtMerchantIds: [],
     pointsOnPurchase: {
       program: "Everyday Rewards",
-      earnNote: "Sample: bonus Everyday Rewards points on Apple gift cards this week",
+      earnNote: "Sample: 10x Everyday Rewards points on Apple gift cards this week",
     },
+    // Structured multiplier sample — the value-readiness boundary rejects
+    // prose-only points promotions, so the mechanic is recorded properly.
+    promotionType: "points",
+    pointsMultiplier: 10,
+    pointsProgram: "Everyday Rewards",
+    rewardDestination: "loyalty-points",
     capDollars: 200,
     expiryDate: sampleDate(29),
     startDate: sampleDate(-17),

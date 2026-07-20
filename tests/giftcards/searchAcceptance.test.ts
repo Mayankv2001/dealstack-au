@@ -27,6 +27,7 @@ const products: GiftCardProduct[] = [
     activationDelayNote: null,
     splitPayment: "unknown",
     expiryOrFeesNote: null,
+    purchaseFees: null,
   },
 ];
 

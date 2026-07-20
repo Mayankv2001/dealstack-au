@@ -205,6 +205,12 @@ export interface GiftCardAcquisition {
 export interface WorkedExampleInputs extends OfferValueInputs {
   /** Per-order face-value cap the saving applies to, if any. */
   capDollars?: number | null;
+  /**
+   * Purchase fee charged when BUYING this card (eftpos-style cards), dollars.
+   * Added to cash paid and never hidden inside the face value — a $100 card
+   * with a $5.95 fee costs $105.95 at the register.
+   */
+  purchaseFeeDollars?: number | null;
 }
 
 /**
@@ -219,8 +225,10 @@ export interface WorkedExample {
   coveredFaceValue: number;
   /** Requested minus covered — bought at full price if still wanted. */
   uncoveredFaceValue: number;
-  /** Cash handed over for the covered face value. */
+  /** Cash handed over for the covered face value (includes any purchase fee). */
   cashPaid: number;
+  /** Purchase fee included in cashPaid, shown separately so it is never hidden. */
+  purchaseFeeDollars: number;
   /** Immediate CASH saving from a % discount (0 for bonus/points offers). */
   acquisitionSaving: number;
   /** Extra spending power from a bonus-value promotion, in dollars. */
@@ -289,9 +297,16 @@ export function buildWorkedExample(
     futureCreditDollars == null
   ) return null;
 
+  const purchaseFee =
+    offer.purchaseFeeDollars && offer.purchaseFeeDollars > 0
+      ? round2(offer.purchaseFeeDollars)
+      : 0;
   const cashPaid = round2(
-    Math.max(0, covered * (1 - discount / 100) - fixedDiscount - feeWaiver),
+    Math.max(0, covered * (1 - discount / 100) - fixedDiscount - feeWaiver) +
+      purchaseFee,
   );
+  // Saving compares to face value only; the fee reduces it and can turn a
+  // marginal offer into a net cost — that is shown, never smoothed over.
   const acquisitionSaving = round2(covered - cashPaid);
   const bonusValueDollars = bonus > 0 ? round2(covered * (bonus / 100)) : null;
   const rewardValueDollars = pointsValuation?.valueDollars ?? null;
@@ -301,6 +316,7 @@ export function buildWorkedExample(
     coveredFaceValue: round2(covered),
     uncoveredFaceValue: uncovered,
     cashPaid,
+    purchaseFeeDollars: purchaseFee,
     acquisitionSaving,
     bonusValueDollars,
     points: pointsValuation?.points ?? null,

@@ -37,6 +37,17 @@ export type WeeklyHighlight =
 
 // ─── Offer entities ───────────────────────────────────────────────────────
 
+/** Structured purchase limits for a gift-card promotion. All optional — only
+ * limits the source actually states are recorded; absent means "not stated". */
+export interface GiftCardPurchaseLimits {
+  /** Total eligible cards per customer/account across the promotion. */
+  totalCards?: number | null;
+  /** Daily cap for fixed-value (pre-loaded denomination) cards. */
+  fixedValueCardsPerDay?: number | null;
+  /** Daily cap for variable-load cards — a separate condition, never merged. */
+  variableLoadCardsPerDay?: number | null;
+}
+
 export interface GiftCardOffer {
   id: string;
   /** Brand of the gift card, e.g. "Coles Group", "Ultimate", "TCN", "Apple". */
@@ -138,6 +149,13 @@ export interface GiftCardOffer {
   termsUrl?: string | null;
   /** Every gift-card product included in the promotion (productId is the primary). */
   includedProductIds?: string[];
+  /**
+   * Structured purchase limits (migration 034, authored not yet applied —
+   * honest null pre-apply; `limitPerCustomer` keeps the source prose).
+   * Distinct per-day limits for fixed-value vs variable-load cards are kept
+   * separate — they are different conditions, not one number.
+   */
+  purchaseLimits?: GiftCardPurchaseLimits | null;
   citations: Citation[];
   confidence: Confidence;
   lastCheckedAt: string;
@@ -174,6 +192,13 @@ export interface GiftCardProduct {
   inStoreAvailable: boolean | null;
   /** Known face-value denominations. null = unknown (distinct from []). */
   denominations: number[] | null;
+  /**
+   * Purchase fee per denomination, dollars, keyed by the denomination as a
+   * string (e.g. { "100": 5.95, "200": 7.95 } for eftpos cards). null =
+   * unknown; {} = explicitly recorded fee-free. Migration 034 (authored, not
+   * yet applied) — honest null pre-apply.
+   */
+  purchaseFees: Record<string, number> | null;
   activationDelayNote: string | null;
   splitPayment: "supported" | "unsupported" | "partial" | "unknown";
   expiryOrFeesNote: string | null;

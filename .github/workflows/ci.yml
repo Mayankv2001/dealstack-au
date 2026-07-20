@@ -33,6 +33,12 @@ jobs:
       - run: npm run test:decision
       - run: npm run build
       - name: Smoke test the production build
+        # `next start` is a production runtime and the data-source boundary
+        # fails closed without Supabase env — CI must declare static demo
+        # mode explicitly (same acknowledgement as playwright.config.ts).
+        env:
+          DATA_SOURCE: static
+          DATA_SOURCE_STATIC_PREVIEW_ACK: serve-demo-data-not-production
         run: |
           npm run start &
           for i in $(seq 1 30); do

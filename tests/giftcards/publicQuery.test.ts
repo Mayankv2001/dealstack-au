@@ -8,6 +8,7 @@ import {
   parseGiftCardParams,
   queryGiftCardOffers,
 } from "@/lib/giftcards/publicQuery";
+import { orderCurrentReviewedGiftCardOffers } from "@/lib/giftcards/currentOffers";
 
 /**
  * Pure URL-state + filter/sort layer for the public /gift-cards page, over the
@@ -139,13 +140,51 @@ describe("queryGiftCardOffers — filtering", () => {
     expect(result.map((o) => o.id)).toEqual(["live"]);
   });
 
-  it("keeps future-dated offers out of current results", () => {
+  it("lists upcoming-soon offers but hides far-future ones", () => {
     const offers = [
       gc({ id: "current", startDate: "2026-07-12", expiryDate: "2026-07-20" }),
-      gc({ id: "future", startDate: "2026-07-13", expiryDate: "2026-07-20" }),
+      // Inside the shared 7-day upcoming window: listed (labelled "Starts …").
+      gc({ id: "upcoming", startDate: "2026-07-13", expiryDate: "2026-07-20" }),
+      // Beyond the window: hidden.
+      gc({ id: "far-future", startDate: "2026-08-30", expiryDate: "2026-09-06" }),
     ];
     expect(
-      queryGiftCardOffers(offers, GC_DEFAULTS, NOW).map((offer) => offer.id),
+      queryGiftCardOffers(offers, GC_DEFAULTS, NOW)
+        .map((offer) => offer.id)
+        .sort(),
+    ).toEqual(["current", "upcoming"]);
+  });
+
+  it("uses the same display membership as the homepage carousel selection", () => {
+    // The /gift-cards grid and the carousel must never disagree about WHICH
+    // offers are public — only about ordering/pagination.
+    const offers = [
+      gc({ id: "current", startDate: "2026-07-12", expiryDate: "2026-07-20" }),
+      gc({ id: "upcoming", startDate: "2026-07-13", expiryDate: "2026-07-20" }),
+      gc({ id: "far-future", startDate: "2026-08-30", expiryDate: "2026-09-06" }),
+      gc({ id: "expired", startDate: "2026-07-01", expiryDate: "2026-07-10" }),
+      gc({ id: "unknown", startDate: "2026-07-01", expiryDate: null }),
+    ];
+    const grid = queryGiftCardOffers(offers, GC_DEFAULTS, NOW)
+      .map((offer) => offer.id)
+      .sort();
+    const carousel = orderCurrentReviewedGiftCardOffers(offers, NOW)
+      .map((offer) => offer.id)
+      .sort();
+    expect(grid).toEqual(carousel);
+  });
+
+  it("still excludes upcoming offers from the confirmed-current opt-in filter", () => {
+    const offers = [
+      gc({ id: "current", startDate: "2026-07-12", expiryDate: "2026-07-20" }),
+      gc({ id: "upcoming", startDate: "2026-07-13", expiryDate: "2026-07-20" }),
+    ];
+    expect(
+      queryGiftCardOffers(
+        offers,
+        { ...GC_DEFAULTS, confirmedCurrentOnly: true },
+        NOW,
+      ).map((offer) => offer.id),
     ).toEqual(["current"]);
   });
 

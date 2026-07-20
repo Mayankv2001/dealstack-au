@@ -20,6 +20,13 @@ export default defineConfig({
   test: {
     // Playwright owns browser specs; loading them in Vitest invokes an
     // incompatible test runtime before any application test can run.
-    exclude: ["tests/e2e/**", "**/node_modules/**", "**/.git/**"],
+    // Stale agent worktrees carry OLD test copies that resolve `@/…` back to
+    // the CURRENT lib code — excluding them keeps local runs meaningful.
+    exclude: [
+      "tests/e2e/**",
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/.claude/worktrees/**",
+    ],
   },
 });

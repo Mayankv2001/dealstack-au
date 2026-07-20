@@ -9,7 +9,9 @@ import { bonusEffectiveDiscountPercent, effectiveDiscountPercent } from "./value
  * invents rates, dates or programmes.
  */
 
-export const EXTRACTOR_VERSION = 3;
+// v4: fixed-points awards ("1,000 bonus Flybuys points") extracted as
+// first-class points values — bumping re-extracts previously parsed items.
+export const EXTRACTOR_VERSION = 4;
 
 export type PromotionType =
   | "discount"
@@ -156,6 +158,9 @@ export function hasCompoundMechanics(text: string): boolean {
   if (/\bbonus\s+\d+(?:\.\d+)?\s*%\s+value\b|\d+(?:\.\d+)?\s*%\s+bonus\s+value\b/i.test(text)) {
     mechanics.add("bonus-value");
   }
+  if (/\b\d[\d,]*\s+bonus\s+(?:[A-Za-z][A-Za-z ]{0,24}?\s+)?points?\b/i.test(text)) {
+    mechanics.add("fixed-points");
+  }
   const multipliers = [
     ...text.matchAll(/\b(\d{1,3})\s*x\b/gi),
   ].map((match) => match[1]);
@@ -179,6 +184,22 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
   const discountPercent = discountMatch ? Number(discountMatch[1]) : null;
   const multiplierMatch = text.match(/(\d{1,3})\s*x\s*(?:[A-Za-z ]{0,24}?points?|everyday|flybuys|qantas|velocity)/i);
   const pointsMultiplier = multiplierMatch ? Number(multiplierMatch[1]) : null;
+  // Fixed award: "1,000 bonus Flybuys points" / "earn 2,000 points per eligible
+  // card". A fixed award and a spend multiplier are different mechanics — the
+  // "Nx" form always wins when present, and a fixed award is only read from
+  // the explicit bonus/per-card phrasings, never from a bare number.
+  const fixedPointsMatch = pointsMultiplier
+    ? null
+    : (text.replace(/,/g, "").match(
+        /\b(\d{2,6})\s+bonus\s+(?:[A-Za-z][A-Za-z ]{0,24}?\s+)?points?\b/i,
+      ) ??
+      text.replace(/,/g, "").match(
+        /\bbonus\s+(\d{2,6})\s+(?:[A-Za-z][A-Za-z ]{0,24}?\s+)?points?\b/i,
+      ) ??
+      text.replace(/,/g, "").match(
+        /\b(\d{2,6})\s+(?:[A-Za-z][A-Za-z ]{0,24}?\s+)?points?\s+(?:per|when|for)\b/i,
+      ));
+  const fixedPoints = fixedPointsMatch ? Number(fixedPointsMatch[1]) : null;
   const pointsProgram =
     PROGRAM_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ?? null;
 
@@ -188,7 +209,7 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
   // therefore stronger evidence; the source category is only a fallback.
   let promotionType: PromotionType = "unknown";
   if (bonusPercent) promotionType = "bonus-value";
-  else if (pointsMultiplier) promotionType = "points";
+  else if (pointsMultiplier || fixedPoints) promotionType = "points";
   else if (discountPercent) promotionType = "discount";
   else if (item.offerType?.includes("bonus")) promotionType = "bonus-value";
   else if (item.offerType === "points") promotionType = "points";
@@ -198,16 +219,27 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
   if (promotionType === "discount" && !discountPercent && bonusPercent == null) {
     warnings.push("Classified as a discount but no percentage was found.");
   }
-  if (promotionType === "points" && !pointsMultiplier) {
-    warnings.push("Classified as a points offer but no multiplier was found.");
+  if (promotionType === "points" && !pointsMultiplier && !fixedPoints) {
+    warnings.push(
+      "Classified as a points offer but neither a multiplier nor a fixed award was found.",
+    );
   }
-  if (promotionType === "points" && pointsMultiplier && !pointsProgram) {
-    warnings.push("Points multiplier found but the programme is unclear.");
+  if (
+    promotionType === "points" &&
+    (pointsMultiplier || fixedPoints) &&
+    !pointsProgram
+  ) {
+    warnings.push("Points value found but the programme is unclear.");
   }
 
   // ── Conditions ─────────────────────────────────────────────────────────
   const membershipRequired = MEMBERSHIP_PATTERN.test(text);
-  const activationRequired = /\b(activate|activation|boost(?:ed)?\s+offer)\b/i.test(text);
+  // "No activation required" must not read as an activation requirement.
+  const activationRequired =
+    /\b(activate|activation|boost(?:ed)?\s+offer)\b/i.test(text) &&
+    !/\b(?:no|without)\s+activation\b|\bdoes\s+not\s+require\s+activation\b|\bactivation\s+(?:is\s+)?not\s+required\b/i.test(
+      text,
+    );
   const couponRequired = /\b(promo\s*code|coupon|use\s+code)\b/i.test(text);
   const minSpend = firstDollars(text, /min(?:imum)?\s+spend[^$]{0,12}\$\s*(\d+(?:\.\d{1,2})?)/i);
   const limitMatch = text.match(/limit[^.,;]{0,60}/i);
@@ -223,8 +255,9 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
   else warnings.push("No seller found in the source item.");
   if (item.giftCardBrands.length > 0) confidence += 0.2;
   else warnings.push("No gift-card brand found in the source item.");
-  if (discountPercent || bonusPercent || pointsMultiplier) confidence += 0.25;
-  else warnings.push("No promotion value could be extracted.");
+  if (discountPercent || bonusPercent || pointsMultiplier || fixedPoints) {
+    confidence += 0.25;
+  } else warnings.push("No promotion value could be extracted.");
   const whileStocksLast = item.whileStocksLast === true;
   if (item.endsAt) confidence += 0.15;
   else if (whileStocksLast) {
@@ -245,7 +278,7 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
     discountPercent,
     bonusPercent,
     pointsMultiplier,
-    fixedPoints: null,
+    fixedPoints,
     pointsProgram,
     fixedDiscountDollars: null,
     promoCreditDollars: null,
@@ -256,6 +289,7 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
       discountPercent,
       bonusPercent,
       pointsMultiplier,
+      fixedPoints,
       pointsProgram,
     }),
     startsAt: item.startsAt,

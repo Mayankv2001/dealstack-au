@@ -522,3 +522,133 @@ describe("runGiftCardIngest — rejection retention", () => {
     });
   });
 });
+
+// ─── GCDB 12943/12944 — real-shape fixtures (source facts verified 2026-07-20) ──
+
+function fixedPointsItem12943(endsAt = "28 Jul 2026"): string {
+  return `<item>
+    <title>1,000 bonus Flybuys points on selected TCN gift cards at Coles</title>
+    <link>https://gcdb.com.au/offer/12943/</link>
+    <guid>https://gcdb.com.au/?post_type=offer&amp;p=12943</guid>
+    <description>Earn 1,000 bonus Flybuys points per eligible gift card in-store at Coles. Limit of five eligible gift cards per Flybuys account. No activation required. Starts 22 Jul 2026. Ends ${endsAt}.</description>
+    <offer_type>Points</offer_type>
+    <offer_store>Coles</offer_store>
+    <offer_gc>TCN Party</offer_gc>
+    <offer_gc>TCN Teen</offer_gc>
+    <offer_gc>TCN Her</offer_gc>
+    <offer_gc>TCN Restaurant</offer_gc>
+    <offer_gc>TCN Eftpos</offer_gc>
+  </item>`;
+}
+
+function multiplierItem12944(): string {
+  return `<item>
+    <title>10x Everyday Rewards points on Restaurant Choice, Cafe Choice and Ultimate gift cards at Woolworths</title>
+    <link>https://gcdb.com.au/offer/12944/</link>
+    <guid>https://gcdb.com.au/?post_type=offer&amp;p=12944</guid>
+    <description>Earn 10x Everyday Rewards points in-store. Limit of five fixed-value cards and two variable-load cards per day. Starts 22 Jul 2026. Ends 28 Jul 2026.</description>
+    <offer_type>Points</offer_type>
+    <offer_store>Woolworths</offer_store>
+    <offer_gc>Restaurant Choice</offer_gc>
+    <offer_gc>Cafe Choice</offer_gc>
+    <offer_gc>Ultimate</offer_gc>
+  </item>`;
+}
+
+describe("runGiftCardIngest — GCDB 12943 + 12944 end to end", () => {
+  it("stages one structured candidate per offer with the right mechanics", async () => {
+    const body = feed(fixedPointsItem12943() + multiplierItem12944());
+    const { deps, rec } = makeDeps(okFetch(body));
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics.itemsNew).toBe(2);
+    expect(metrics.candidatesNew).toBe(2);
+    expect(rec.inserts.map((i) => i.externalId).sort()).toEqual([
+      "12943",
+      "12944",
+    ]);
+
+    const coles = rec.staged.find((c) => c.rawItemId === "raw-12943")!;
+    expect(coles.extraction).toMatchObject({
+      promotionType: "points",
+      fixedPoints: 1000,
+      pointsMultiplier: null,
+      discountPercent: null,
+      pointsProgram: "Flybuys",
+      sellerName: "Coles",
+      startsAt: "2026-07-22",
+      expiresAt: "2026-07-28",
+      activationRequired: false,
+    });
+    expect(coles.extraction.giftCardBrands).toEqual([
+      "TCN Party",
+      "TCN Teen",
+      "TCN Her",
+      "TCN Restaurant",
+      "TCN Eftpos",
+    ]);
+
+    const woolworths = rec.staged.find((c) => c.rawItemId === "raw-12944")!;
+    expect(woolworths.extraction).toMatchObject({
+      promotionType: "points",
+      pointsMultiplier: 10,
+      fixedPoints: null,
+      pointsProgram: "Everyday Rewards",
+      sellerName: "Woolworths",
+    });
+    expect(woolworths.extraction.purchaseLimitNote).toMatch(
+      /five fixed-value cards/i,
+    );
+  });
+
+  it("reprocessing the same external id is idempotent — touch, no duplicate", async () => {
+    const body = feed(fixedPointsItem12943());
+    const parsed = parseGcdbFeed(body)[0];
+    const existing: RawItemState = {
+      id: "raw-12943",
+      externalId: "12943",
+      contentHash: contentHashOf(parsed),
+      processingStatus: "parsed",
+      extraction: extractOffer(parsed),
+      openCandidateId: "cand-12943",
+      approvedOfferId: null,
+    };
+    const { deps, rec } = makeDeps(okFetch(body), [existing]);
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics.itemsNew).toBe(0);
+    expect(metrics.itemsUnchanged).toBe(1);
+    expect(metrics.candidatesNew).toBe(0);
+    expect(metrics.candidatesChanged).toBe(0);
+    expect(rec.inserts).toEqual([]);
+    expect(rec.staged).toEqual([]);
+    expect(rec.touches).toEqual(["raw-12943"]);
+  });
+
+  it("a changed source record updates the SAME raw item and stages a changed candidate — no duplicate offer", async () => {
+    const before = parseGcdbFeed(feed(fixedPointsItem12943()))[0];
+    const existing: RawItemState = {
+      id: "raw-12943",
+      externalId: "12943",
+      contentHash: contentHashOf(before),
+      processingStatus: "parsed",
+      extraction: extractOffer(before),
+      openCandidateId: null,
+      approvedOfferId: "gc-coles-tcn-flybuys-1000",
+    };
+    // The source extends the promotion by a week.
+    const changed = feed(fixedPointsItem12943("4 Aug 2026"));
+    const { deps, rec } = makeDeps(okFetch(changed), [existing]);
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 40 }, deps);
+
+    expect(metrics.itemsNew).toBe(0);
+    expect(metrics.itemsUpdated).toBe(1);
+    expect(rec.inserts).toEqual([]);
+    expect(rec.updates).toEqual(["raw-12943"]);
+    const staged = rec.staged[0]!;
+    expect(staged.rawItemId).toBe("raw-12943");
+    expect(staged.reviewStatus).toBe("changed");
+    expect(staged.extraction.expiresAt).toBe("2026-08-04");
+    expect(staged.extraction.fixedPoints).toBe(1000);
+  });
+});

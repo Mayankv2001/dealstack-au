@@ -2,6 +2,7 @@ import type {
   GiftCardAcceptanceRow,
   GiftCardProduct,
 } from "@/lib/offers/types";
+import { gcdbFixtureGiftCardProducts } from "@/lib/offers/gcdbFixtureOffers";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 import { fromDbOrDemo, toNumberOrNull } from "@/lib/supabase/server";
 
@@ -12,8 +13,12 @@ import { fromDbOrDemo, toNumberOrNull } from "@/lib/supabase/server";
  * admin explicitly activated (`gift_card_products.is_active`) or published
  * (`gift_card_merchant_acceptance.is_public`) are visible to the anon client —
  * RLS enforces it, these queries just add the matching filter for clarity.
- * There is deliberately NO demo fallback: absent data renders the honest
- * "not recorded" states on the detail page.
+ * Acceptance rows have deliberately NO demo fallback: absent data renders the
+ * honest "not recorded" states on the detail page. Products carry a demo
+ * fallback of the explicitly test-only GCDB fixture catalogue
+ * (lib/offers/gcdbFixtureOffers.ts) so demo mode can exercise the
+ * per-denomination worked-example surfaces; a configured database never sees
+ * that array.
  */
 
 const NETWORKS = ["visa", "mastercard", "eftpos", "closed-loop", "unknown"] as const;
@@ -100,7 +105,26 @@ interface ProductRow {
   activation_delay_note?: unknown;
   split_payment?: unknown;
   expiry_or_fees_note?: unknown;
+  // Migration 034 (authored, not yet applied) — maps to null until applied.
+  purchase_fees?: unknown;
 }
+
+/** { "100": 5.95 } purchase-fee map; null when the column is unset/unknown. */
+const feeMap = (value: unknown): Record<string, number> | null => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const entries = Object.entries(value as Record<string, unknown>).flatMap(
+    ([denomination, fee]) => {
+      const denom = Number(denomination);
+      const dollars = Number(fee);
+      return Number.isFinite(denom) && denom > 0 && Number.isFinite(dollars) && dollars >= 0
+        ? [[String(denom), dollars] as const]
+        : [];
+    },
+  );
+  return Object.fromEntries(entries);
+};
 
 interface AcceptanceDbRow {
   id: string;
@@ -183,6 +207,7 @@ export function mapGiftCardProduct(r: ProductRow): GiftCardProduct {
       typeof r.expiry_or_fees_note === "string" && r.expiry_or_fees_note.trim()
         ? r.expiry_or_fees_note.trim()
         : null,
+    purchaseFees: feeMap(r.purchase_fees),
   };
 }
 
@@ -247,7 +272,10 @@ export async function getGiftCardProducts(
 ): Promise<GiftCardProduct[]> {
   const wanted = [...new Set(ids.filter(Boolean))];
   if (wanted.length === 0) return [];
-  return fromDbOrDemo("gift_card_products", [] as GiftCardProduct[], async (db) => {
+  const demoProducts = gcdbFixtureGiftCardProducts.filter((product) =>
+    wanted.includes(product.id),
+  );
+  return fromDbOrDemo("gift_card_products", demoProducts, async (db) => {
     const { data, error } = await db
       .from("gift_card_products")
       .select("*")
@@ -260,7 +288,7 @@ export async function getGiftCardProducts(
 
 /** All admin-activated products for the public directory. */
 export async function getAllGiftCardProducts(): Promise<GiftCardProduct[]> {
-  return fromDbOrDemo("gift_card_products", [] as GiftCardProduct[], async (db) => {
+  return fromDbOrDemo("gift_card_products", gcdbFixtureGiftCardProducts, async (db) => {
     const { data, error } = await db
       .from("gift_card_products")
       .select("*")

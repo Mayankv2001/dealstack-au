@@ -3,6 +3,7 @@ import { isExpiringSoonAU, isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import { effectiveDiscountPercent } from "./value";
 import { giftCardDateState } from "./dateState";
 import { isConfirmedCurrent } from "./lifecycle";
+import { isUpcomingSoonGiftCardOffer } from "./currentOffers";
 
 /**
  * Pure query layer for the public /gift-cards page: tab/filter/sort over the
@@ -237,9 +238,16 @@ export function queryGiftCardOffers(
 
   const filtered = offers.filter((offer) => {
     if (isPastExpiry(offer.expiryDate, today)) return false;
-    // A future start date must never appear active, regardless of the
-    // confirmed-dates toggle — it is a hard boundary, not a preference.
-    if (giftCardDateState(offer, now) === "future") return false;
+    // A future start date must never appear ACTIVE. Rows starting within the
+    // shared upcoming window stay listed — the card view-model labels them
+    // "Starts D Mon YYYY" — so the grid and the homepage carousel expose the
+    // same offer set. Far-future rows remain hidden.
+    if (
+      giftCardDateState(offer, now) === "future" &&
+      !isUpcomingSoonGiftCardOffer(offer, now)
+    ) {
+      return false;
+    }
     if (
       params.confirmedCurrentOnly &&
       !isConfirmedCurrentGiftCardOffer(offer, now)

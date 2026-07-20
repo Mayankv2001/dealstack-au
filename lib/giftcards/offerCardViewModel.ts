@@ -180,7 +180,7 @@ function valueBadge(offer: GiftCardOffer, mechanic: Mechanic): string {
       return offer.pointsMultiplier
         ? `${displayNumber(offer.pointsMultiplier)}× POINTS`
         : offer.fixedPoints
-          ? `${displayNumber(offer.fixedPoints)} POINTS`
+          ? `${offer.fixedPoints.toLocaleString("en-AU")} POINTS`
         : "POINTS";
     case "member-discount":
       return `${displayNumber(offer.discountPercent)}% MEMBER`;
@@ -215,7 +215,7 @@ function headline(offer: GiftCardOffer, mechanic: Mechanic): string {
       return offer.pointsMultiplier
         ? `${displayNumber(offer.pointsMultiplier)}× ${pointsProgram(offer)} points`
         : offer.fixedPoints
-          ? `${displayNumber(offer.fixedPoints)} ${pointsProgram(offer)} points`
+          ? `${offer.fixedPoints.toLocaleString("en-AU")} ${pointsProgram(offer)} points per eligible card`
         : `${pointsProgram(offer)} points`;
     case "bonus-points":
       return `Bonus ${pointsProgram(offer)} points`;
@@ -303,7 +303,12 @@ export function buildGiftCardOfferCardViewModel(
         : dateState === "ongoing"
           ? "Ongoing"
           : "Date unknown";
-  const urgencyLabel = expiryUrgencyLabelAU(offer.expiryDate, now) ?? undefined;
+  // An upcoming offer must never carry active-sounding urgency ("Ends in 2
+  // days") — its only date message is the explicit "Starts …" label.
+  const urgencyLabel =
+    dateState === "future"
+      ? undefined
+      : (expiryUrgencyLabelAU(offer.expiryDate, now) ?? undefined);
 
   const trustLabel =
     offer.confidence === "confirmed"

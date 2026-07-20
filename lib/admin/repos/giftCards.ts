@@ -222,11 +222,14 @@ export async function getGiftCardPublishFacts(
           : null,
     sourceUrl:
       typeof row.source_detail_url === "string" ? row.source_detail_url : null,
+    // No "discount" default: a row without a declared mechanic must fail the
+    // publish gate explicitly, not masquerade as a discount.
     promotionType:
-      typeof row.promotion_type === "string" ? row.promotion_type : "discount",
+      typeof row.promotion_type === "string" ? row.promotion_type : null,
     discountPercent: numberOrNull(row.discount_percent),
     bonusPercent: numberOrNull(row.bonus_percent),
     pointsMultiplier: numberOrNull(row.points_multiplier),
+    fixedPoints: numberOrNull(row.fixed_points),
     pointsProgram:
       typeof row.points_program === "string" ? row.points_program : null,
     fixedDiscountDollars: numberOrNull(row.fixed_discount_dollars),
