@@ -86,6 +86,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // to honest nulls until applied, so the drift probe's "apply 034" line is
   // the expected state between authoring and the gated apply.
   "034_gift_card_value_structures.sql",
+  // RPC-only: re-issues the 033 approve RPC with purchase_limits persistence
+  // (the 034 column gains its reviewed write path). No new columns.
+  "035_gift_card_purchase_limits_persistence.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */

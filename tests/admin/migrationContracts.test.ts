@@ -326,6 +326,42 @@ describe("production safety migration contracts", () => {
     expect(COVERED_MIGRATIONS).toContain(
       "033_gift_card_offer_approval_hardening.sql",
     );
+
+    // The public policy carries the upcoming arm: reviewed approved-future
+    // offers stay publicly readable (carousel/grid/detail upcoming tier),
+    // bounded by expiry and candidate lineage rather than cron activation.
+    expect(sql).toContain("lifecycle_state = 'approved-future'");
+    expect(sql).toContain("source_candidate_id is not null");
+  });
+
+  it("persists reviewed structured purchase limits through the approval boundary", () => {
+    const sql = migration("035_gift_card_purchase_limits_persistence.sql");
+
+    // Same hardened RPC surface as 033 — nothing loosened by the re-issue.
+    expect(sql).toContain("Requires 033");
+    expect(sql).toContain("create or replace function public.approve_gift_card_candidate");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("set search_path = ''");
+    expect(sql).toContain("for update");
+    expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
+    expect(sql).toContain("Publication requires confirmed reviewed evidence");
+    expect(sql).toContain("An expired candidate cannot be approved");
+    expect(sql).toContain("then 'approved-future'");
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("to service_role");
+    expect(sql).toContain("from public, anon, authenticated");
+    expect(sql).not.toMatch(/delete\s+from\s+public\./i);
+
+    // The one addition: validated jsonb purchase limits written on both the
+    // insert and the conflict-update arm; a malformed payload is an explicit
+    // error, never a silently dropped condition.
+    expect(sql).toContain("v_purchase_limits := p_offer->'purchase_limits'");
+    expect(sql).toContain("Structured purchase limits must be an object of named limits");
+    expect(sql).toContain("purchase_limits = excluded.purchase_limits");
+
+    expect(COVERED_MIGRATIONS).toContain(
+      "035_gift_card_purchase_limits_persistence.sql",
+    );
   });
 
   it("forward-corrects occurrence identity and Sydney date semantics", () => {

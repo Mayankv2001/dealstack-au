@@ -426,6 +426,9 @@ export function GiftCardReviewCard({
             <Field label="Face-value cap $" name="cap_dollars" type="number" />
             <Field label="Uses per customer" name="uses_per_customer" type="number" placeholder="1" />
             <Field label="Limit per customer" name="limit_per_customer" defaultValue={candidate.terms.purchaseLimitNote ?? null} />
+            <Field label="Total cards per customer" name="purchase_limit_total" type="number" placeholder="e.g. 5" />
+            <Field label="Fixed-value cards per day" name="purchase_limit_fixed_per_day" type="number" placeholder="e.g. 5" />
+            <Field label="Variable-load cards per day" name="purchase_limit_variable_per_day" type="number" placeholder="e.g. 2" />
             <Field
               label="Denominations"
               name="denomination_note"

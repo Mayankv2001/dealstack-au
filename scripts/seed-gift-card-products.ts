@@ -32,6 +32,16 @@ export interface ProductSeed {
   slug: string;
   brand: string;
   issuer: string | null;
+  /** Cited catalogue facts (migration 028 columns; purchase_fees is 034). */
+  card_network?: "visa" | "mastercard" | "eftpos" | "closed-loop" | "unknown";
+  format?: "digital" | "physical" | "digital-and-physical" | "unknown";
+  variable_load?: boolean;
+  min_denomination?: number;
+  max_denomination?: number;
+  in_store_available?: boolean;
+  denominations?: number[];
+  /** {} = explicitly recorded fee-free; a keyed map = per-denomination fee. */
+  purchase_fees?: Record<string, number>;
   source_evidence: Array<{
     url: string;
     checkedAt: string;
@@ -62,6 +72,46 @@ const reviewedProduct = (
   ],
 });
 
+/** Catalogue-fact capture date for the GCDB 12943/12944 product reviews. */
+const GCDB_CAPTURED_AT = "2026-07-20T00:00:00.000Z";
+
+/**
+ * Reviewed product WITH cited catalogue facts (denominations, per-denomination
+ * purchase fees, load range, availability). Requires migrations 028 (catalogue
+ * columns) and 034 (purchase_fees) in the target database. Every fact listed in
+ * `fields` was verified at the cited URL on the capture date; anything not
+ * listed stays at its database default ("unknown").
+ */
+const reviewedCatalogueProduct = (
+  base: Omit<ProductSeed, "slug" | "source_evidence">,
+  sourceUrl: string,
+  priorEvidence: ProductSeed["source_evidence"] = [],
+): ProductSeed => {
+  const { id, brand, issuer, ...catalogue } = base;
+  return {
+    id,
+    slug: id,
+    brand,
+    issuer,
+    ...catalogue,
+    source_evidence: [
+      ...priorEvidence,
+      {
+        url: sourceUrl,
+        checkedAt: GCDB_CAPTURED_AT,
+        status: "reviewed",
+        fields: [
+          "id",
+          "brand",
+          "slug",
+          ...(issuer ? ["issuer"] : []),
+          ...Object.keys(catalogue),
+        ],
+      },
+    ],
+  };
+};
+
 const ULTIMATE_TERMS = "https://www.ultimategiftcards.com.au/terms-conditions/";
 
 /**
@@ -75,7 +125,24 @@ export const REVIEWED_PRODUCT_SEEDS: readonly ProductSeed[] = [
   reviewedProduct("tcn-good-food", "TCN Good Food", "https://thecardnetwork.com.au/products/the-good-food-gift-card"),
   reviewedProduct("tcn-cinema", "TCN Cinema", "https://thecardnetwork.com.au/products/the-cinema-card"),
   reviewedProduct("tcn-him", "TCN Him", "https://thecardnetwork.com.au/products/the-him-card"),
-  reviewedProduct("tcn-her", "TCN Her", "https://thecardnetwork.com.au/products/the-her-card"),
+  // TCN Her identity was reviewed 2026-07-15 at the issuer page; the
+  // denomination/fee facts were verified 2026-07-20 at the GCDB 12943 offer
+  // page together with the other eligible cards of that promotion. Both
+  // citations are retained.
+  reviewedCatalogueProduct(
+    {
+      id: "tcn-her",
+      brand: "TCN Her",
+      issuer: null,
+      card_network: "closed-loop",
+      format: "physical",
+      in_store_available: true,
+      denominations: [50, 100],
+      purchase_fees: {},
+    },
+    "https://gcdb.com.au/offer/12943/",
+    reviewedProduct("tcn-her", "TCN Her", "https://thecardnetwork.com.au/products/the-her-card").source_evidence,
+  ),
   reviewedProduct("ultimate-kids", "Ultimate Kids", ULTIMATE_TERMS, "Blackhawk Network (Australia) Pty Ltd"),
   reviewedProduct("ultimate-teens", "Ultimate Teens", ULTIMATE_TERMS, "Blackhawk Network (Australia) Pty Ltd"),
   reviewedProduct("ultimate-him", "Ultimate Him", ULTIMATE_TERMS, "Blackhawk Network (Australia) Pty Ltd"),
@@ -94,9 +161,112 @@ export const REVIEWED_PRODUCT_SEEDS: readonly ProductSeed[] = [
   reviewedProduct("ultimate-celebrate", "Ultimate Celebrate", ULTIMATE_TERMS, "Blackhawk Network (Australia) Pty Ltd"),
   reviewedProduct("ultimate-just-for-you", "Ultimate Just For You", ULTIMATE_TERMS, "Blackhawk Network (Australia) Pty Ltd"),
   reviewedProduct("ultimate-thank-you", "Ultimate Thank You", ULTIMATE_TERMS, "Blackhawk Network (Australia) Pty Ltd"),
-  reviewedProduct("restaurant-choice", "Restaurant Choice", "https://restaurantchoice.com.au/"),
+  // Restaurant Choice identity was reviewed 2026-07-15; denomination/fee facts
+  // were verified 2026-07-20 at the GCDB 12944 offer page. Both citations kept.
+  reviewedCatalogueProduct(
+    {
+      id: "restaurant-choice",
+      brand: "Restaurant Choice",
+      issuer: null,
+      card_network: "closed-loop",
+      format: "physical",
+      in_store_available: true,
+      denominations: [50, 100],
+      purchase_fees: {},
+    },
+    "https://gcdb.com.au/offer/12944/",
+    reviewedProduct("restaurant-choice", "Restaurant Choice", "https://restaurantchoice.com.au/").source_evidence,
+  ),
   reviewedProduct("apple-gift-card", "Apple Gift Card", "https://www.apple.com/au/shop/gift-cards"),
   reviewedProduct("myer-gift-card", "Myer Gift Card", "https://www.myer.com.au/content/gift-cards"),
+
+  // ── GCDB 12943 (Coles, TCN) / 12944 (Woolworths, Ultimate-family) eligible
+  // cards, reviewed 2026-07-20 against the cited offer pages. Fee semantics:
+  // {} records a card as explicitly fee-free, distinct from an absent column
+  // (unknown). The eftpos card carries per-denomination purchase fees.
+  reviewedCatalogueProduct(
+    {
+      id: "tcn-party",
+      brand: "TCN Party",
+      issuer: null,
+      card_network: "closed-loop",
+      format: "physical",
+      in_store_available: true,
+      denominations: [25, 40],
+      purchase_fees: {},
+    },
+    "https://gcdb.com.au/offer/12943/",
+  ),
+  reviewedCatalogueProduct(
+    {
+      id: "tcn-teen",
+      brand: "TCN Teen",
+      issuer: null,
+      card_network: "closed-loop",
+      format: "physical",
+      in_store_available: true,
+      denominations: [50],
+      purchase_fees: {},
+    },
+    "https://gcdb.com.au/offer/12943/",
+  ),
+  reviewedCatalogueProduct(
+    {
+      id: "tcn-restaurant",
+      brand: "TCN Restaurant",
+      issuer: null,
+      card_network: "closed-loop",
+      format: "physical",
+      in_store_available: true,
+      denominations: [50, 100],
+      purchase_fees: {},
+    },
+    "https://gcdb.com.au/offer/12943/",
+  ),
+  reviewedCatalogueProduct(
+    {
+      id: "tcn-eftpos",
+      brand: "TCN Eftpos",
+      issuer: null,
+      card_network: "eftpos",
+      format: "physical",
+      in_store_available: true,
+      denominations: [100, 200],
+      purchase_fees: { "100": 5.95, "200": 7.95 },
+    },
+    "https://gcdb.com.au/offer/12943/",
+  ),
+  reviewedCatalogueProduct(
+    {
+      id: "cafe-choice",
+      brand: "Cafe Choice",
+      issuer: null,
+      card_network: "closed-loop",
+      format: "physical",
+      in_store_available: true,
+      denominations: [25, 50, 100],
+      purchase_fees: {},
+    },
+    "https://gcdb.com.au/offer/12944/",
+  ),
+  // "Selected Ultimate gift cards" in the 12944 promotion — an umbrella entry
+  // for the variable-load Ultimate cards eligible in-store, never a merge of
+  // the distinct fixed-value Ultimate products listed above.
+  reviewedCatalogueProduct(
+    {
+      id: "ultimate-selected",
+      brand: "Ultimate (selected)",
+      issuer: "Blackhawk Network (Australia) Pty Ltd",
+      card_network: "closed-loop",
+      format: "physical",
+      in_store_available: true,
+      variable_load: true,
+      min_denomination: 20,
+      max_denomination: 500,
+      purchase_fees: {},
+    },
+    "https://gcdb.com.au/offer/12944/",
+  ),
 ];
 
 export type SeedChange = { id: string; action: "insert" | "skip-existing"; brand: string };

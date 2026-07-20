@@ -136,10 +136,12 @@ interface ApprovedRow {
 
 /**
  * Approves a staged candidate exactly the way the review action does: the
- * reviewer's (pre-filled) form values run through validateGiftCardApproval,
- * and the resulting values map to the same gift_card_offers columns as
+ * reviewer's (pre-filled) form values run through validateGiftCardApproval —
+ * including the structured purchase-limit fields — and the resulting values
+ * map to the same gift_card_offers columns as
  * app/admin/(protected)/gift-cards/review/actions.ts. `purchase_limits` is
- * the migration-034 jsonb column; `limit_per_customer` keeps the prose.
+ * the migration-034 jsonb column persisted by the 035 RPC;
+ * `limit_per_customer` keeps the prose.
  */
 function approve(
   candidate: StagedCandidate,
@@ -151,7 +153,10 @@ function approve(
     brand: string;
     includedProductIds: string[];
     limitProse: string;
-    purchaseLimits: Record<string, number>;
+    /** Raw form values for the three structured limit inputs ("" = blank). */
+    purchaseLimitTotalCards?: string;
+    purchaseLimitFixedPerDay?: string;
+    purchaseLimitVariablePerDay?: string;
     usageNotes: string[];
   },
 ): ApprovedRow {
@@ -181,6 +186,9 @@ function approve(
     minSpend: "",
     capDollars: "",
     usesPerCustomer: "",
+    purchaseLimitTotalCards: reviewer.purchaseLimitTotalCards ?? "",
+    purchaseLimitFixedPerDay: reviewer.purchaseLimitFixedPerDay ?? "",
+    purchaseLimitVariablePerDay: reviewer.purchaseLimitVariablePerDay ?? "",
     sourceUrl: source.url,
     termsUrl: "",
     promoCode: "",
@@ -261,7 +269,7 @@ function approve(
     is_ongoing: v.isOngoing,
     targeted: v.targeted,
     source_suboffer_key: v.subOfferKey,
-    purchase_limits: reviewer.purchaseLimits,
+    purchase_limits: v.purchaseLimits,
     source_last_seen_at: NOW.toISOString(),
   };
 }
@@ -376,7 +384,7 @@ async function runLifecycle() {
       "tcn-eftpos",
     ],
     limitProse: "Limit of five eligible gift cards per Flybuys account",
-    purchaseLimits: { totalCards: 5 },
+    purchaseLimitTotalCards: "5",
     usageNotes: [
       "In-store at Coles only.",
       "No activation required — points are awarded for the purchase itself.",
@@ -388,7 +396,8 @@ async function runLifecycle() {
     brand: "Restaurant Choice, Cafe Choice, Ultimate",
     includedProductIds: ["restaurant-choice", "cafe-choice", "ultimate-selected"],
     limitProse: "Limit of five fixed-value cards and two variable-load cards per day",
-    purchaseLimits: { fixedValueCardsPerDay: 5, variableLoadCardsPerDay: 2 },
+    purchaseLimitFixedPerDay: "5",
+    purchaseLimitVariablePerDay: "2",
     usageNotes: ["In-store at Woolworths only."],
   });
   // last_checked_at is stamped by the approve RPC's audit trail in production.

@@ -40,9 +40,17 @@ also assumes the 021/022/023 candidate, raw-source and detail columns exist.
   rewrite legacy rows, while new/updated reviewed states require confirmed
   confidence. A second forward check requires a positive value for newly
   written fee-waiver mechanics without rewriting legacy records.
-- Replaces public offer RLS with a confirmed, active and Sydney-date-bounded
-  policy. This hides legacy unconfirmed/future/expired inconsistencies without
-  deleting them.
+- Replaces public offer RLS with a confirmed, Sydney-date-bounded policy with
+  two arms: currently-active published offers, and lineage-carrying
+  `approved-future` offers (the public "upcoming" tier — the carousel, grid
+  and detail pages present reviewed future offers with honest "Starts …"
+  labels, while the stack engine keeps excluding them app-side until their
+  start date). The upcoming arm is bounded by expiry rather than lifecycle
+  activation, so public visibility is date-driven even if the lifecycle cron
+  lags. Legacy unconfirmed/expired inconsistencies stay hidden without being
+  deleted. (Revised 2026-07-21, before first apply: the originally authored
+  single-arm policy predated the public upcoming tier shipped in 5cdbe9c and
+  would have made it unreachable in database mode.)
 
 ## Recovery implications
 

@@ -105,7 +105,7 @@ interface ProductRow {
   activation_delay_note?: unknown;
   split_payment?: unknown;
   expiry_or_fees_note?: unknown;
-  // Migration 034 (authored, not yet applied) — maps to null until applied.
+  // Migration 034 jsonb; tolerant of databases where 034 is not yet applied.
   purchase_fees?: unknown;
 }
 

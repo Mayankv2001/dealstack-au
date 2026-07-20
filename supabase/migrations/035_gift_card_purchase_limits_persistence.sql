@@ -1,124 +1,23 @@
--- DealStack AU — gift-card offer approval identity/publication hardening
+-- DealStack AU — persist structured purchase limits through the approval boundary
 --
--- FORWARD-ONLY / NOT APPLIED. Migration 023 is already recorded in production
--- and must not be rewritten as a recovery mechanism. This migration requires
--- 031 (fixed_points convergence) and 032 (Sydney lifecycle + deferred lineage).
--- It replaces only the approval boundary and public-read policy; it does not
--- approve a candidate, publish data, fetch a source, or backfill offer facts.
+-- FORWARD-ONLY. Requires 033 (hardened approve RPC — this file re-issues that
+-- exact function with one addition) and 034 (gift_card_offers.purchase_limits).
+--
+-- Migration 034 added the purchase_limits jsonb column, but the approval RPC
+-- (the only reviewed write path onto gift_card_offers) did not persist it, so
+-- a reviewer's structured limits (total cards per customer, fixed-value cards
+-- per day, variable-load cards per day) silently degraded to prose in
+-- limit_per_customer. This replaces approve_gift_card_candidate with the same
+-- 033 definition plus:
+--   * p_offer->'purchase_limits' is validated (object or absent — a non-object
+--     value is an explicit error, never silently dropped) and written on both
+--     the insert and the conflict-update arm;
+--   * absence of the key maps to NULL ("no structured limits stated"), which
+--     keeps older deployed application code compatible.
+--
+-- Rollback story: re-issue the 033 function definition (in git) in a forward
+-- migration; the column and its data are untouched by that.
 
--- Existing legacy rows remain stored. NOT VALID deliberately avoids rejecting
--- previously-published rows during rollout, while every subsequent insert or
--- update must keep reviewed lifecycle states confirmed. The RLS replacement
--- immediately hides unconfirmed, future, expired, or inconsistent rows.
-alter table public.gift_card_offers
-  drop constraint if exists gift_card_offers_reviewed_lifecycle_check;
-alter table public.gift_card_offers
-  add constraint gift_card_offers_reviewed_lifecycle_check check (
-    lifecycle_state = 'archived'
-    or confidence = 'confirmed'
-  ) not valid;
-
-alter table public.gift_card_offers
-  drop constraint if exists gift_card_offers_fee_waiver_value_check;
-alter table public.gift_card_offers
-  add constraint gift_card_offers_fee_waiver_value_check check (
-    promotion_type <> 'fee-waiver'
-    or fee_waiver_dollars > 0
-  ) not valid;
-
--- Public visibility = confirmed reviewed offers that are either currently
--- active OR approved for a future start ("upcoming"). The upcoming arm exists
--- because the public surfaces deliberately present reviewed future offers
--- with honest "Starts …" labels (homepage carousel upcoming tier, /gift-cards
--- grid, detail pages — see lib/giftcards/currentOffers.ts and
--- tests/giftcards/gcdbAcceptanceLifecycle.test.ts); the stack ENGINE still
--- excludes not-yet-started offers app-side (lib/giftcards/lifecycle.ts).
--- Approved-future rows are is_published=false by the 032 trigger, so the arm
--- keys on lifecycle_state + candidate lineage, and is bounded by expiry, not
--- by cron activation: if lifecycle activation lags the start date the row
--- simply remains visible (dates drive the public labels), and it disappears
--- at expiry regardless.
-drop policy if exists "public read published gift_card_offers"
-  on public.gift_card_offers;
-drop policy if exists "public read current confirmed gift_card_offers"
-  on public.gift_card_offers;
-create policy "public read current confirmed gift_card_offers"
-  on public.gift_card_offers for select to anon, authenticated
-  using (
-    confidence = 'confirmed'
-    and (
-      (
-        is_published = true
-        and lifecycle_state = 'active'
-        and (
-          start_date is null
-          or start_date <= (
-            pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
-          )::date
-        )
-        and (
-          (is_ongoing = true and expiry_date is null)
-          or (
-            is_ongoing = false
-            and expiry_date is not null
-            and expiry_date >= (
-              pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
-            )::date
-          )
-        )
-      )
-      or (
-        lifecycle_state = 'approved-future'
-        and source_candidate_id is not null
-        and is_ongoing = false
-        and expiry_date is not null
-        and expiry_date >= (
-          pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
-        )::date
-      )
-    )
-  );
-
--- Preserve already-visible legacy rows, but do not allow a new/restored public
--- or approved-future state without candidate lineage. The deferred constraint
--- trigger installed by 032 verifies the linked candidate is approved and points
--- back to this exact offer at transaction end.
-create or replace function public.guard_gift_card_offer_publication_lineage()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if (new.is_published or new.lifecycle_state = 'approved-future')
-    and new.source_candidate_id is null then
-    if tg_op = 'UPDATE' then
-      if old.is_published
-        and old.lifecycle_state = 'active'
-        and old.source_candidate_id is null
-        and new.is_published
-        and new.lifecycle_state = 'active' then
-        return new;
-      end if;
-    end if;
-    raise exception 'A new public or approved-future gift-card offer requires reviewed candidate lineage.';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_gc_offer_publication_lineage
-  on public.gift_card_offers;
-create trigger trg_gc_offer_publication_lineage
-  before insert or update of is_published, lifecycle_state, source_candidate_id
-  on public.gift_card_offers
-  for each row execute function public.guard_gift_card_offer_publication_lineage();
-
-revoke all on function public.guard_gift_card_offer_publication_lineage()
-  from public, anon, authenticated;
-
--- Canonical reviewed approval. The candidate and chosen offer identity are
--- serialised together; candidate lineage, mechanic/date rules, canonical
--- upsert, candidate link and audit row commit atomically.
 create or replace function public.approve_gift_card_candidate(
   p_candidate_id uuid,
   p_offer_id text,
@@ -142,6 +41,7 @@ declare
   v_start_date date;
   v_expiry_date date;
   v_is_ongoing boolean;
+  v_purchase_limits jsonb;
   v_today date := (
     pg_catalog.statement_timestamp() at time zone 'Australia/Sydney'
   )::date;
@@ -257,6 +157,18 @@ begin
     raise exception 'Seller is required.';
   end if;
 
+  -- Structured limits are an object or absent; a malformed payload is an
+  -- explicit reviewer-facing error rather than a silently dropped condition.
+  v_purchase_limits := p_offer->'purchase_limits';
+  if v_purchase_limits is not null
+    and pg_catalog.jsonb_typeof(v_purchase_limits) = 'null' then
+    v_purchase_limits := null;
+  end if;
+  if v_purchase_limits is not null
+    and pg_catalog.jsonb_typeof(v_purchase_limits) <> 'object' then
+    raise exception 'Structured purchase limits must be an object of named limits.';
+  end if;
+
   v_start_date := (p_offer->>'start_date')::date;
   v_expiry_date := (p_offer->>'expiry_date')::date;
   v_is_ongoing := coalesce((p_offer->>'is_ongoing')::boolean, false);
@@ -337,7 +249,7 @@ begin
     seller_name, source_id, source_raw_item_id, source_candidate_id,
     source_suboffer_key, reward_destination, fixed_discount_dollars,
     promo_credit_dollars, fee_waiver_dollars, threshold_dollars,
-    is_ongoing, targeted, lifecycle_state
+    is_ongoing, targeted, lifecycle_state, purchase_limits
   ) values (
     v_offer_id, p_offer->>'brand', coalesce((p_offer->>'discount_percent')::numeric, 0),
     coalesce(p_offer->>'channel', 'supermarket-promo'), source_row.name,
@@ -372,7 +284,8 @@ begin
     (p_offer->>'promo_credit_dollars')::numeric,
     (p_offer->>'fee_waiver_dollars')::numeric,
     (p_offer->>'threshold_dollars')::numeric, v_is_ongoing,
-    coalesce((p_offer->>'targeted')::boolean, false), v_lifecycle_state
+    coalesce((p_offer->>'targeted')::boolean, false), v_lifecycle_state,
+    v_purchase_limits
   )
   on conflict (id) do update set
     brand = excluded.brand, discount_percent = excluded.discount_percent,
@@ -415,7 +328,8 @@ begin
     fee_waiver_dollars = excluded.fee_waiver_dollars,
     threshold_dollars = excluded.threshold_dollars,
     is_ongoing = excluded.is_ongoing, targeted = excluded.targeted,
-    lifecycle_state = v_lifecycle_state;
+    lifecycle_state = v_lifecycle_state,
+    purchase_limits = excluded.purchase_limits;
 
   update public.gift_card_offer_candidates
   set review_status = 'approved', reviewer_email = p_reviewer,

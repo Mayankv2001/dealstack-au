@@ -92,7 +92,7 @@ interface GiftCardRow {
   combinable_with_seller_promotions: boolean | null;
   terms_url: string | null;
   included_product_ids: string[];
-  /** Migration 034 (authored, not yet applied) — maps to null until applied. */
+  /** Migration 034 jsonb; tolerant of databases where 034 is not yet applied. */
   purchase_limits?: unknown;
   citations: Citation[];
   confidence: Confidence;
@@ -269,10 +269,11 @@ export interface CurrentReviewedGiftCardOffersOptions {
 /**
  * Public DISPLAY read for the gift-card surfaces (homepage carousel,
  * /gift-cards grid). Unlike `getGiftCardOffers()`, this keeps reviewed offers
- * whose expiry is merely unknown and ranks them LAST behind every dated offer
- * (see lib/giftcards/currentOffers.ts). It never surfaces anything unreviewed —
- * the input is the RLS-published set — and never shows expired or not-yet-started
- * rows. Ordering is deterministic and stable across renders.
+ * whose expiry is merely unknown (ranked LAST behind every dated offer) and
+ * reviewed not-yet-started offers (the labelled "upcoming" tier) — see
+ * lib/giftcards/currentOffers.ts. It never surfaces anything unreviewed —
+ * the input is the RLS-published set — and never shows expired rows.
+ * Ordering is deterministic and stable across renders.
  */
 export async function getCurrentReviewedGiftCardOffers(
   options: CurrentReviewedGiftCardOffersOptions = {},

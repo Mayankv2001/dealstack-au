@@ -70,6 +70,12 @@ export interface RawApprovalInput {
   minSpend: string;
   capDollars: string;
   usesPerCustomer: string;
+  /** Structured purchase limits (migration 034). "" → not stated. Fixed-value
+   * and variable-load daily caps are DIFFERENT conditions and stay distinct;
+   * the prose stays in limit_per_customer. */
+  purchaseLimitTotalCards?: string;
+  purchaseLimitFixedPerDay?: string;
+  purchaseLimitVariablePerDay?: string;
   sourceUrl: string;
   termsUrl: string;
   promoCode: string;
@@ -118,6 +124,12 @@ export interface ParsedApproval {
   minSpend: number | null;
   capDollars: number | null;
   usesPerCustomer: number | null;
+  /** Null when the source stated no structured limits at all. */
+  purchaseLimits: {
+    totalCards: number | null;
+    fixedValueCardsPerDay: number | null;
+    variableLoadCardsPerDay: number | null;
+  } | null;
   sourceUrl: string;
   termsUrl: string | null;
   promoCode: string | null;
@@ -353,6 +365,45 @@ export function validateGiftCardApproval(
     if (usesPerCustomer < 1) return err("Uses per customer must be at least 1.");
   }
 
+  // Structured purchase limits: each is a whole number of cards ≥ 1, or blank
+  // for "not stated". A malformed value is an explicit error so a stated
+  // condition can never silently vanish into prose-only storage.
+  const cardLimit = (
+    raw: string | undefined,
+    label: string
+  ): number | null | string => {
+    const value = nonNegative(raw ?? "", label);
+    if (typeof value === "string" || value == null) return value;
+    if (!Number.isInteger(value)) return `${label} must be a whole number of cards.`;
+    if (value < 1) return `${label} must be at least 1.`;
+    return value;
+  };
+  const limitTotalCards = cardLimit(
+    input.purchaseLimitTotalCards,
+    "Total-cards limit"
+  );
+  if (typeof limitTotalCards === "string") return err(limitTotalCards);
+  const limitFixedPerDay = cardLimit(
+    input.purchaseLimitFixedPerDay,
+    "Fixed-value cards per day"
+  );
+  if (typeof limitFixedPerDay === "string") return err(limitFixedPerDay);
+  const limitVariablePerDay = cardLimit(
+    input.purchaseLimitVariablePerDay,
+    "Variable-load cards per day"
+  );
+  if (typeof limitVariablePerDay === "string") return err(limitVariablePerDay);
+  const purchaseLimits =
+    limitTotalCards == null &&
+    limitFixedPerDay == null &&
+    limitVariablePerDay == null
+      ? null
+      : {
+          totalCards: limitTotalCards,
+          fixedValueCardsPerDay: limitFixedPerDay,
+          variableLoadCardsPerDay: limitVariablePerDay,
+        };
+
   // ── Safeguards: compound campaign · membership signal · spend threshold ──
   // A many-brand source is usually a compound campaign (several sub-offers);
   // require the reviewer to split it or consciously confirm it is one offer.
@@ -422,6 +473,7 @@ export function validateGiftCardApproval(
       minSpend: minSpend ?? null,
       capDollars: capDollars ?? null,
       usesPerCustomer: usesPerCustomer ?? null,
+      purchaseLimits,
       sourceUrl,
       termsUrl,
       promoCode: input.promoCode.trim() || null,

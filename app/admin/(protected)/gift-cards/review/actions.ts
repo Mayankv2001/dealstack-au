@@ -263,6 +263,9 @@ export async function approveCandidate(
     minSpend: text(formData, "min_spend"),
     capDollars: text(formData, "cap_dollars"),
     usesPerCustomer: text(formData, "uses_per_customer"),
+    purchaseLimitTotalCards: text(formData, "purchase_limit_total"),
+    purchaseLimitFixedPerDay: text(formData, "purchase_limit_fixed_per_day"),
+    purchaseLimitVariablePerDay: text(formData, "purchase_limit_variable_per_day"),
     // Source identity is lineage, not reviewer input. Terms may be edited
     // separately, but the original source URL always comes from the stored raw
     // item so a form submission cannot replace or erase its evidence.
@@ -370,6 +373,9 @@ export async function approveCandidate(
     purchase_location: v.seller,
     purchase_method: "unknown",
     limit_per_customer: text(formData, "limit_per_customer").trim() || null,
+    // Structured limits (migration 034 column, persisted by the 035 RPC).
+    // The prose above is the source sentence; these are its typed conditions.
+    purchase_limits: v.purchaseLimits,
     accepted_at: list(formData, "accepted_at"),
     usage_notes: list(formData, "usage_notes"),
     stack_notes: list(formData, "stack_notes"),

@@ -15,8 +15,13 @@ describe("reviewed gift-card product seed", () => {
     expect(ids).toContain("ultimate-thank-you");
     expect(new Set(ids).size).toBe(ids.length);
     REVIEWED_PRODUCT_SEEDS.forEach((product) => {
-      expect(product.source_evidence).toHaveLength(1);
-      expect(product.source_evidence[0].url).toMatch(/^https:\/\//);
+      // One or more citations (identity review + later catalogue-fact review
+      // are separate sittings with separate URLs); every non-null fact must be
+      // cited by at least one of them.
+      expect(product.source_evidence.length).toBeGreaterThanOrEqual(1);
+      for (const evidence of product.source_evidence) {
+        expect(evidence.url).toMatch(/^https:\/\//);
+      }
       const citedFields = new Set(product.source_evidence.flatMap((evidence) => evidence.fields));
       for (const [field, value] of Object.entries(product)) {
         if (field !== "source_evidence" && value != null) {
@@ -25,8 +30,11 @@ describe("reviewed gift-card product seed", () => {
       }
     });
     for (const product of REVIEWED_PRODUCT_SEEDS.filter((row) => row.id.startsWith("tcn-"))) {
-      expect(product.source_evidence[0].url).toContain("/products/");
-      expect(product.source_evidence[0].url).not.toBe("https://www.thecardnetwork.com.au/");
+      // TCN citations stay per-product or per-promotion pages — the family
+      // homepage is never acceptable evidence for a specific card's facts.
+      for (const evidence of product.source_evidence) {
+        expect(evidence.url).toMatch(/\/products\/|gcdb\.com\.au\/offer\//);
+      }
     }
   });
 

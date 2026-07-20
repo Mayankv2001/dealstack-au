@@ -11,7 +11,10 @@ import { bonusEffectiveDiscountPercent, effectiveDiscountPercent } from "./value
 
 // v4: fixed-points awards ("1,000 bonus Flybuys points") extracted as
 // first-class points values — bumping re-extracts previously parsed items.
-export const EXTRACTOR_VERSION = 4;
+// v5: programme-qualified fixed awards without "bonus" ("1,000 Flybuys points
+// on …") and the EDR abbreviation for Everyday Rewards — both observed in the
+// live GCDB feed (offers 12943/12944) but missed by v4's phrasings.
+export const EXTRACTOR_VERSION = 5;
 
 export type PromotionType =
   | "discount"
@@ -95,10 +98,21 @@ export interface ExtractedOffer {
 
 const PROGRAM_PATTERNS: Array<[RegExp, string]> = [
   [/everyday\s+rewards/i, "Everyday Rewards"],
+  // GCDB titles routinely abbreviate Everyday Rewards ("10x EDR points").
+  [/\bedr\b/i, "Everyday Rewards"],
   [/flybuys/i, "Flybuys"],
   [/qantas/i, "Qantas"],
   [/velocity/i, "Velocity"],
 ];
+
+/**
+ * Known programme names as a regex alternation — a number immediately followed
+ * by one of these and "points" is a fixed award even without "bonus"/"per"
+ * phrasing ("1,000 Flybuys points on $25 TCN Party …"). A bare number followed
+ * by just "points" stays unextracted: only a named programme disambiguates a
+ * fixed award from surrounding prose.
+ */
+const PROGRAM_NAMES = /(?:everyday\s+rewards|edr|flybuys|qantas|velocity)/i;
 
 const MEMBERSHIP_PATTERN = /\b(members?|membership|racv|nrma|racq|ract|raa|union\s*shopper)\b/i;
 
@@ -158,7 +172,10 @@ export function hasCompoundMechanics(text: string): boolean {
   if (/\bbonus\s+\d+(?:\.\d+)?\s*%\s+value\b|\d+(?:\.\d+)?\s*%\s+bonus\s+value\b/i.test(text)) {
     mechanics.add("bonus-value");
   }
-  if (/\b\d[\d,]*\s+bonus\s+(?:[A-Za-z][A-Za-z ]{0,24}?\s+)?points?\b/i.test(text)) {
+  if (
+    /\b\d[\d,]*\s+bonus\s+(?:[A-Za-z][A-Za-z ]{0,24}?\s+)?points?\b/i.test(text) ||
+    new RegExp(`\\b\\d[\\d,]*\\s+${PROGRAM_NAMES.source}\\s+points?\\b`, "i").test(text)
+  ) {
     mechanics.add("fixed-points");
   }
   const multipliers = [
@@ -198,6 +215,12 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
       ) ??
       text.replace(/,/g, "").match(
         /\b(\d{2,6})\s+(?:[A-Za-z][A-Za-z ]{0,24}?\s+)?points?\s+(?:per|when|for)\b/i,
+      ) ??
+      text.replace(/,/g, "").match(
+        new RegExp(
+          `\\b(\\d{2,6})\\s+${PROGRAM_NAMES.source}\\s+points?\\b`,
+          "i",
+        ),
       ));
   const fixedPoints = fixedPointsMatch ? Number(fixedPointsMatch[1]) : null;
   const pointsProgram =

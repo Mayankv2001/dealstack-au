@@ -334,3 +334,61 @@ describe("spend-threshold safeguard", () => {
     expect(errorOf(base({ thresholdText: "One use per customer", minSpend: "" }))).toBeNull();
   });
 });
+
+describe("structured purchase limits (migration 034)", () => {
+  it("maps all-blank limit fields to null — no fabricated conditions", () => {
+    const r = validateGiftCardApproval(base());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.values.purchaseLimits).toBeNull();
+  });
+
+  it("keeps fixed-value and variable-load daily caps distinct", () => {
+    const r = validateGiftCardApproval(
+      base({
+        purchaseLimitFixedPerDay: "5",
+        purchaseLimitVariablePerDay: "2",
+      })
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.values.purchaseLimits).toEqual({
+        totalCards: null,
+        fixedValueCardsPerDay: 5,
+        variableLoadCardsPerDay: 2,
+      });
+    }
+  });
+
+  it("records a total-cards limit on its own", () => {
+    const r = validateGiftCardApproval(base({ purchaseLimitTotalCards: "5" }));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.values.purchaseLimits).toEqual({
+        totalCards: 5,
+        fixedValueCardsPerDay: null,
+        variableLoadCardsPerDay: null,
+      });
+    }
+  });
+
+  it("rejects a non-numeric limit instead of silently dropping the condition", () => {
+    expect(errorOf(base({ purchaseLimitTotalCards: "five" }))).toMatch(
+      /Total-cards limit must be a number/i
+    );
+  });
+
+  it("rejects fractional and zero card limits", () => {
+    expect(errorOf(base({ purchaseLimitFixedPerDay: "2.5" }))).toMatch(
+      /whole number of cards/i
+    );
+    expect(errorOf(base({ purchaseLimitVariablePerDay: "0" }))).toMatch(
+      /at least 1/i
+    );
+  });
+
+  it("rejects negative limits", () => {
+    expect(errorOf(base({ purchaseLimitTotalCards: "-1" }))).toMatch(
+      /cannot be negative/i
+    );
+  });
+});
