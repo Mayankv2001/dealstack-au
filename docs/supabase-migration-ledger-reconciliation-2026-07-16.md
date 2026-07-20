@@ -150,6 +150,32 @@ offers.
 - Final dry run lists only `033_gift_card_offer_approval_hardening.sql`.
 - All source and job gates remain disabled.
 
+## 2026-07-21 follow-up apply — 033, 034, 035
+
+Applied to make GCDB offers 12943/12944 real through the canonical pipeline
+(the approve RPC and the public "upcoming" tier both require these). Each was
+applied as its own transaction and recorded in `schema_migrations` under its
+canonical version:
+
+1. 033 — hardened `approve_gift_card_candidate` RPC, the two-arm public RLS
+   policy (active-published + approved-future upcoming tier), the
+   reviewed-lifecycle/fee-waiver `NOT VALID` checks and the publication-lineage
+   trigger. Applied from the 2026-07-21 working-tree revision (the two-arm
+   policy), NOT the originally-gated single-arm draft.
+2. 034 — additive `gift_card_offers.purchase_limits` and
+   `gift_card_products.purchase_fees` jsonb columns with `NOT VALID` object
+   checks.
+3. 035 — re-issue of the 033 RPC that validates and persists
+   `purchase_limits` on both the insert and conflict-update arms.
+
+- `verify:schema`: 35/35 tables match after the apply.
+- **Public-visibility side effect (expected):** the new RLS requires
+  `confidence = 'confirmed'`, so two legacy `needs-verification` active offers
+  (`gc-apple-points`, `gc-coles-group-bonus-points`) are now hidden from public
+  reads. They are NOT deleted — a re-review that raises them to `confirmed`
+  restores them. This is the intended "hide legacy unconfirmed rows" behaviour
+  of 033; the TASK-GC-001 legacy review should reconcile those two offers.
+
 ## Commands that remain prohibited
 
 - `supabase db reset --linked` — destructive remote reset.

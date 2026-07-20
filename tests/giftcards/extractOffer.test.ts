@@ -458,3 +458,71 @@ describe("extractOffer — GCDB 12944 (10x Everyday Rewards, verified 2026-07-20
     expect(Object.values(result).join(" ")).not.toMatch(/bad offer|not recommended/i);
   });
 });
+
+// The two describe blocks above use idealised titles. These pin the extractor
+// against the EXACT titles the LIVE GCDB RSS feed carried on 2026-07-21, where
+// the excerpt is only a bare date range ("22 Jul to 28 Jul 2026") — so every
+// mechanic fact must come from the title alone.
+describe("extractOffer — live GCDB feed titles (regression pins for v5)", () => {
+  it("12943: reads a fixed award from '1,000 Flybuys points on …' (no 'bonus' word)", () => {
+    const result = extractOffer(
+      item({
+        externalId: "12943",
+        canonicalUrl: "https://gcdb.com.au/offer/12943/",
+        title:
+          "1,000 Flybuys points on $25 TCN Party (JB Hi-Fi) and selected other gift cards at Coles",
+        offerType: "points",
+        sellerName: "Coles",
+        giftCardBrands: ["TCN Party", "TCN Teen", "TCN Her", "TCN Restaurant", "TCN Eftpos"],
+        startsAt: "2026-07-22",
+        endsAt: "2026-07-28",
+        excerpt: "22 Jul to 28 Jul 2026",
+      }),
+    );
+    expect(result.promotionType).toBe("points");
+    expect(result.fixedPoints).toBe(1000);
+    expect(result.pointsMultiplier).toBeNull();
+    expect(result.pointsProgram).toBe("Flybuys");
+    expect(result.warnings).toEqual([]);
+    expect(result.confidence).toBe(1);
+  });
+
+  it("12944: reads the 'EDR' abbreviation as Everyday Rewards and ignores the 'Bad offer:' prefix", () => {
+    const result = extractOffer(
+      item({
+        externalId: "12944",
+        canonicalUrl: "https://gcdb.com.au/offer/12944/",
+        title:
+          "Bad offer: 10x EDR points on Restaurant Choice, Cafe Choice and Ultimate gift cards at Woolworths",
+        offerType: "points",
+        sellerName: "Woolworths",
+        giftCardBrands: ["Restaurant Choice", "Cafe Choice", "Ultimate"],
+        startsAt: "2026-07-22",
+        endsAt: "2026-07-28",
+        excerpt: "22 Jul to 28 Jul 2026",
+      }),
+    );
+    expect(result.promotionType).toBe("points");
+    expect(result.pointsMultiplier).toBe(10);
+    expect(result.fixedPoints).toBeNull();
+    expect(result.pointsProgram).toBe("Everyday Rewards");
+    expect(result.warnings).toEqual([]);
+    expect(result.confidence).toBe(1);
+  });
+
+  it("does not fabricate a fixed award from a bare number with no programme name", () => {
+    const result = extractOffer(
+      item({
+        externalId: "generic",
+        canonicalUrl: "https://gcdb.com.au/offer/1/",
+        title: "1,000 members save on 500 gift cards at Coles",
+        offerType: "unknown",
+        sellerName: "Coles",
+        giftCardBrands: ["Some Brand"],
+      }),
+    );
+    // "500 gift cards" and "1,000 members" must never read as a points award.
+    expect(result.fixedPoints).toBeNull();
+    expect(result.promotionType).not.toBe("points");
+  });
+});

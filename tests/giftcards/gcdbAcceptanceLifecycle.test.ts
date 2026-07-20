@@ -19,7 +19,7 @@ import { GC_DEFAULTS, queryGiftCardOffers } from "@/lib/giftcards/publicQuery";
 import { buildTermsRows } from "@/lib/giftcards/termsRows";
 import { buildOfferWorkedExampleRows } from "@/lib/giftcards/offerWorkedExamples";
 import { buildGiftCardOfferCardViewModel } from "@/lib/giftcards/offerCardViewModel";
-import { gcdbFixtureGiftCardProducts } from "@/lib/offers/gcdbFixtureOffers";
+import { sampleGiftCardProducts } from "@/lib/offers/sampleGiftCards";
 import type { DbClient } from "@/lib/supabase/server";
 
 /**
@@ -493,7 +493,7 @@ describe("GCDB 12943 — complete local lifecycle", () => {
 
     const exampleRows = buildOfferWorkedExampleRows(
       offer,
-      gcdbFixtureGiftCardProducts,
+      sampleGiftCardProducts,
     );
     expect(exampleRows).toHaveLength(9);
     const eftpos100 = exampleRows.find(

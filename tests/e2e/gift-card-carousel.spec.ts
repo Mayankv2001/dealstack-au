@@ -2,21 +2,25 @@ import { expect, test, type Page } from "@playwright/test";
 import { addDaysToIsoDate, todayAU } from "../../lib/offers/expiry";
 
 /**
- * GCDB acceptance-fixture carousel + detail-page validation.
+ * Demo-mode carousel + detail-page validation (sample data).
  *
- * The static demo dataset (DATA_SOURCE=static) contains exactly nine
- * displayable gift-card offers: six active samples, the two GCDB fixtures
- * (12943 — 1,000 Flybuys points on TCN cards at Coles; 12944 — 10x Everyday
- * Rewards on Restaurant/Cafe Choice + Ultimate at Woolworths) and one
+ * The static demo dataset (DATA_SOURCE=static, lib/offers/sampleGiftCards.ts)
+ * contains exactly nine displayable gift-card offers: six active manualOffers
+ * samples, two upcoming points samples (a fixed 1,000 Flybuys award on TCN
+ * cards at Coles, and a 10x Everyday Rewards multiplier on Restaurant/Cafe
+ * Choice + Ultimate at Woolworths — the SHAPE of the real GCDB 12943/12944
+ * promotions, so the rich detail-page surfaces have coverage) and one
  * later-starting upcoming sample, plus one EXPIRED sample that must never
- * render. Fixture dates are anchored relative to today (start +2 / end +8
- * days), so the expected labels are computed here with the same helpers the
- * app uses — the assertions never depend on the machine's absolute clock.
+ * render. These are SAMPLE offers (gc-sample-* ids) — the real GCDB offers live
+ * only in the database via the ingest→approve pipeline. Sample dates are
+ * anchored relative to today (start +2 / end +8 days), so the expected labels
+ * are computed here with the same helpers the app uses — the assertions never
+ * depend on the machine's absolute clock.
  */
 
-const ID_12943 = "gc-gcdb-12943-coles-tcn-flybuys";
-const ID_12944 = "gc-gcdb-12944-woolworths-everyday-rewards-10x";
-const EXPIRED_ID = "gc-fixture-expired-sample";
+const ID_FLYBUYS = "gc-sample-coles-tcn-flybuys";
+const ID_EDR = "gc-sample-woolworths-edr-10x";
+const EXPIRED_ID = "gc-sample-expired";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -50,13 +54,13 @@ test("home: nine unique slides, no duplicates, expired fixture excluded", async 
   );
   expect(hrefs).toHaveLength(9);
   expect(new Set(hrefs).size).toBe(9);
-  expect(hrefs).toContain(`/gift-cards/${ID_12943}`);
-  expect(hrefs).toContain(`/gift-cards/${ID_12944}`);
+  expect(hrefs).toContain(`/gift-cards/${ID_FLYBUYS}`);
+  expect(hrefs).toContain(`/gift-cards/${ID_EDR}`);
   expect(hrefs).not.toContain(`/gift-cards/${EXPIRED_ID}`);
   await expect(page.getByText("Expired Sample Card")).toHaveCount(0);
 });
 
-test("home: desktop shows three cards per page and slide three carries 12943 + 12944", async ({
+test("home: desktop shows three cards per page and slide three carries both points samples", async ({
   page,
   isMobile,
 }) => {
@@ -84,7 +88,7 @@ test("home: desktop shows three cards per page and slide three carries 12943 + 1
   // Page 1 shows ACTIVE offers with honest end-date labels, never "Starts".
   await expect(region.getByText(/^Ends /).first()).toBeVisible();
 
-  // Navigate to slide three; both GCDB fixtures are there.
+  // Navigate to slide three; both points samples are there.
   const next = region.getByRole("button", { name: "Next offers" }).first();
   await next.click();
   await expect(region.getByText("2 / 3")).toBeVisible();
@@ -92,28 +96,28 @@ test("home: desktop shows three cards per page and slide three carries 12943 + 1
   await expect(region.getByText("3 / 3")).toBeVisible();
   await expect(next).toBeDisabled();
 
-  const card12943 = region
+  const cardFlybuys = region
     .locator("article")
-    .filter({ has: page.locator(`a[href="/gift-cards/${ID_12943}"]`) });
-  const card12944 = region
+    .filter({ has: page.locator(`a[href="/gift-cards/${ID_FLYBUYS}"]`) });
+  const cardEdr = region
     .locator("article")
-    .filter({ has: page.locator(`a[href="/gift-cards/${ID_12944}"]`) });
-  await expect(card12943).toBeInViewport();
-  await expect(card12944).toBeInViewport();
+    .filter({ has: page.locator(`a[href="/gift-cards/${ID_EDR}"]`) });
+  await expect(cardFlybuys).toBeInViewport();
+  await expect(cardEdr).toBeInViewport();
 
   // Upcoming labels are explicit and computed from controlled fixture dates.
   await expect(
-    card12943.getByText(`Starts ${startDateAU()}`, { exact: false }),
+    cardFlybuys.getByText(`Starts ${startDateAU()}`, { exact: false }),
   ).toBeVisible();
   await expect(
-    card12944.getByText(`Starts ${startDateAU()}`, { exact: false }),
+    cardEdr.getByText(`Starts ${startDateAU()}`, { exact: false }),
   ).toBeVisible();
-  await expect(card12943.getByText("1,000 POINTS")).toBeVisible();
-  await expect(card12944.getByText("10× POINTS")).toBeVisible();
+  await expect(cardFlybuys.getByText("1,000 POINTS")).toBeVisible();
+  await expect(cardEdr.getByText("10× POINTS")).toBeVisible();
   // Points are disclosed as rewards, never as checkout cash — and an
   // upcoming card must carry no active-sounding urgency chip.
-  await expect(card12943.getByText(/rewards, not cash/)).toBeVisible();
-  await expect(card12943.getByText(/^Ends in /)).toHaveCount(0);
+  await expect(cardFlybuys.getByText(/rewards, not cash/)).toBeVisible();
+  await expect(cardFlybuys.getByText(/^Ends in /)).toHaveCount(0);
 });
 
 test("home: a final partial page works at the two-up breakpoint", async ({
@@ -134,11 +138,11 @@ test("home: a final partial page works at the two-up breakpoint", async ({
   await expect(next).toBeDisabled();
   const lastCard = region
     .locator("article")
-    .filter({ has: page.locator('a[href^="/gift-cards/gc-fixture-upcoming"]') });
+    .filter({ has: page.locator('a[href^="/gift-cards/gc-sample-upcoming"]') });
   await expect(lastCard).toBeInViewport();
 });
 
-test("home: mobile paging reaches every offer including both GCDB fixtures", async ({
+test("home: mobile paging reaches every offer including both points samples", async ({
   page,
   isMobile,
 }) => {
@@ -152,10 +156,10 @@ test("home: mobile paging reaches every offer including both GCDB fixtures", asy
     await expect(region.getByText(`${i} / 9`)).toBeVisible();
   }
   await expect(next).toBeDisabled();
-  const card12944 = region
+  const cardEdr = region
     .locator("article")
-    .filter({ has: page.locator(`a[href="/gift-cards/${ID_12944}"]`) });
-  await expect(card12944).toBeInViewport();
+    .filter({ has: page.locator(`a[href="/gift-cards/${ID_EDR}"]`) });
+  await expect(cardEdr).toBeInViewport();
 });
 
 test("home: carousel count and the /gift-cards listing use the same eligible set", async ({
@@ -173,22 +177,22 @@ test("home: carousel count and the /gift-cards listing use the same eligible set
   await expect(page.getByRole("link", { name: "View details" })).toHaveCount(
     liveCount,
   );
-  // The two GCDB fixtures are listed; the expired fixture is not.
+  // The two points samples are listed; the expired sample is not.
   await expect(
-    page.locator(`a[href="/gift-cards/${ID_12943}"]`).first(),
+    page.locator(`a[href="/gift-cards/${ID_FLYBUYS}"]`).first(),
   ).toBeVisible();
   await expect(
-    page.locator(`a[href="/gift-cards/${ID_12944}"]`).first(),
+    page.locator(`a[href="/gift-cards/${ID_EDR}"]`).first(),
   ).toBeVisible();
   await expect(page.locator(`a[href="/gift-cards/${EXPIRED_ID}"]`)).toHaveCount(
     0,
   );
 });
 
-test("gift-cards/12943 detail: points, five-card limit, denominations, eftpos fees, dates", async ({
+test("gift-cards sample /flybuys detail: points, five-card limit, denominations, eftpos fees, dates", async ({
   page,
 }) => {
-  await page.goto(`/gift-cards/${ID_12943}`);
+  await page.goto(`/gift-cards/${ID_FLYBUYS}`);
 
   // Headline facts: fixed points award, programme, seller.
   await expect(
@@ -239,10 +243,10 @@ test("gift-cards/12943 detail: points, five-card limit, denominations, eftpos fe
   await expect(firstRow.getByText("$25").first()).toBeVisible();
 });
 
-test("gift-cards/12944 detail: 10x points, card families, distinct per-day limits, dates", async ({
+test("gift-cards sample /edr detail: 10x points, card families, distinct per-day limits, dates", async ({
   page,
 }) => {
-  await page.goto(`/gift-cards/${ID_12944}`);
+  await page.goto(`/gift-cards/${ID_EDR}`);
 
   await expect(
     page.getByRole("heading", {
@@ -271,24 +275,24 @@ test("gift-cards/12944 detail: 10x points, card families, distinct per-day limit
   await expect(page.getByText(/not cash/i).first()).toBeVisible();
 });
 
-test("home: both GCDB carousel links open their detail pages", async ({
+test("home: both points-sample carousel links open their detail pages", async ({
   page,
 }) => {
   await page.goto("/");
   const region = marquee(page);
-  const link12943 = region.locator(`a[href="/gift-cards/${ID_12943}"]`);
-  await link12943.scrollIntoViewIfNeeded();
-  await link12943.click();
-  await page.waitForURL(`**/gift-cards/${ID_12943}`);
+  const linkFlybuys = region.locator(`a[href="/gift-cards/${ID_FLYBUYS}"]`);
+  await linkFlybuys.scrollIntoViewIfNeeded();
+  await linkFlybuys.click();
+  await page.waitForURL(`**/gift-cards/${ID_FLYBUYS}`);
   await expect(
     page.getByRole("heading", { level: 1, name: /1,000 Flybuys points/ }),
   ).toBeVisible();
 
   await page.goto("/");
-  const link12944 = region.locator(`a[href="/gift-cards/${ID_12944}"]`);
-  await link12944.scrollIntoViewIfNeeded();
-  await link12944.click();
-  await page.waitForURL(`**/gift-cards/${ID_12944}`);
+  const linkEdr = region.locator(`a[href="/gift-cards/${ID_EDR}"]`);
+  await linkEdr.scrollIntoViewIfNeeded();
+  await linkEdr.click();
+  await page.waitForURL(`**/gift-cards/${ID_EDR}`);
   await expect(
     page.getByRole("heading", { level: 1, name: /10× Everyday Rewards points/ }),
   ).toBeVisible();

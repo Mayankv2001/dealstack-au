@@ -2,7 +2,7 @@ import type {
   GiftCardAcceptanceRow,
   GiftCardProduct,
 } from "@/lib/offers/types";
-import { gcdbFixtureGiftCardProducts } from "@/lib/offers/gcdbFixtureOffers";
+import { sampleGiftCardProducts } from "@/lib/offers/sampleGiftCards";
 import { safeHttpsUrl } from "@/lib/security/urlPolicy";
 import { fromDbOrDemo, toNumberOrNull } from "@/lib/supabase/server";
 
@@ -15,8 +15,8 @@ import { fromDbOrDemo, toNumberOrNull } from "@/lib/supabase/server";
  * RLS enforces it, these queries just add the matching filter for clarity.
  * Acceptance rows have deliberately NO demo fallback: absent data renders the
  * honest "not recorded" states on the detail page. Products carry a demo
- * fallback of the explicitly test-only GCDB fixture catalogue
- * (lib/offers/gcdbFixtureOffers.ts) so demo mode can exercise the
+ * fallback of the explicitly test-only sample catalogue
+ * (lib/offers/sampleGiftCards.ts) so demo mode can exercise the
  * per-denomination worked-example surfaces; a configured database never sees
  * that array.
  */
@@ -272,7 +272,7 @@ export async function getGiftCardProducts(
 ): Promise<GiftCardProduct[]> {
   const wanted = [...new Set(ids.filter(Boolean))];
   if (wanted.length === 0) return [];
-  const demoProducts = gcdbFixtureGiftCardProducts.filter((product) =>
+  const demoProducts = sampleGiftCardProducts.filter((product) =>
     wanted.includes(product.id),
   );
   return fromDbOrDemo("gift_card_products", demoProducts, async (db) => {
@@ -288,7 +288,7 @@ export async function getGiftCardProducts(
 
 /** All admin-activated products for the public directory. */
 export async function getAllGiftCardProducts(): Promise<GiftCardProduct[]> {
-  return fromDbOrDemo("gift_card_products", gcdbFixtureGiftCardProducts, async (db) => {
+  return fromDbOrDemo("gift_card_products", sampleGiftCardProducts, async (db) => {
     const { data, error } = await db
       .from("gift_card_products")
       .select("*")

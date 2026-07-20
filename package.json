@@ -17,6 +17,7 @@
     "seed:gift-card-products": "node scripts/require-node.cjs 20 && tsx scripts/seed-gift-card-products.ts",
     "monitor:fixtures": "node scripts/require-node.cjs 20 && tsx scripts/monitor-fixtures.ts",
     "monitor:feeds": "node scripts/require-node.cjs 20 && tsx scripts/monitor-feeds.ts",
+    "gift-card:ingest": "node scripts/require-node.cjs 20 && tsx scripts/gift-card-ingest.ts",
     "cleanup:old-deals": "node scripts/require-node.cjs 20 && tsx scripts/cleanup-old-deals.ts",
     "verify:schema": "node scripts/require-node.cjs 22 && tsx scripts/verify-schema.ts",
     "smoke": "node scripts/require-node.cjs 20 && tsx scripts/smoke-routes.ts",

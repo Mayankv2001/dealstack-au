@@ -5,7 +5,7 @@ import {
   ozBargainSignals as staticSignals,
   pointsOffers as staticPoints,
 } from "@/lib/offers/manualOffers";
-import { gcdbFixtureGiftCardOffers } from "@/lib/offers/gcdbFixtureOffers";
+import { sampleGiftCardOffers } from "@/lib/offers/sampleGiftCards";
 import type {
   CardOfferHistoryEntry,
   CardOffer,
@@ -228,11 +228,12 @@ async function readPublishedGiftCardOfferRows(
 ): Promise<GiftCardOffer[]> {
   return fromDbOrDemo(
     "gift_card_offers",
-    // Demo mode only: the hand-typed samples plus the GCDB acceptance
-    // fixtures (lib/offers/gcdbFixtureOffers.ts). With a configured database
-    // fromDbOrDemo never touches this array, and scripts/seed.ts seeds only
-    // the manualOffers samples — the fixtures can never reach a database.
-    [...staticGiftCards, ...gcdbFixtureGiftCardOffers],
+    // Demo mode only: the hand-typed manualOffers samples plus the demo-only
+    // sample offers (lib/offers/sampleGiftCards.ts, carrying gc-sample-* ids).
+    // With a configured database fromDbOrDemo never touches this array, and
+    // scripts/seed.ts seeds only the manualOffers samples — these can never
+    // reach a database.
+    [...staticGiftCards, ...sampleGiftCardOffers],
     async (db: DbClient) => {
       const { data, error } = await db.from("gift_card_offers").select("*");
       if (error) throw error;
