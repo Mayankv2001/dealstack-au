@@ -37,6 +37,7 @@ function ext(o: Partial<ExtractedOffer> = {}): ExtractedOffer {
     expiresAt: "2026-07-20",
     isOngoing: false,
     sourceMarkedExpired: false,
+    whileStocksLast: false,
     membershipRequired: false,
     activationRequired: false,
     couponRequired: false,

@@ -9,7 +9,7 @@ import { bonusEffectiveDiscountPercent, effectiveDiscountPercent } from "./value
  * invents rates, dates or programmes.
  */
 
-export const EXTRACTOR_VERSION = 2;
+export const EXTRACTOR_VERSION = 3;
 
 export type PromotionType =
   | "discount"
@@ -76,6 +76,8 @@ export interface ExtractedOffer {
   expiresAt: string | null;
   isOngoing: boolean;
   sourceMarkedExpired: boolean;
+  /** Stock-limited availability ("while stocks last") — never a made-up expiry. */
+  whileStocksLast: boolean;
   membershipRequired: boolean;
   activationRequired: boolean;
   couponRequired: boolean;
@@ -223,8 +225,13 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
   else warnings.push("No gift-card brand found in the source item.");
   if (discountPercent || bonusPercent || pointsMultiplier) confidence += 0.25;
   else warnings.push("No promotion value could be extracted.");
+  const whileStocksLast = item.whileStocksLast === true;
   if (item.endsAt) confidence += 0.15;
-  else warnings.push("No end date found — confirm at the source.");
+  else if (whileStocksLast) {
+    warnings.push(
+      "Availability is stock-limited (while stocks last) — no fixed end date at the source."
+    );
+  } else warnings.push("No end date found — confirm at the source.");
   confidence = Math.min(1, Math.round(confidence * 100) / 100);
 
   return {
@@ -255,6 +262,7 @@ function extractSingleOffer(item: GcdbFeedItem): ExtractedOffer {
     expiresAt: item.endsAt,
     isOngoing: item.isOngoing === true,
     sourceMarkedExpired: item.sourceMarkedExpired === true,
+    whileStocksLast,
     membershipRequired,
     activationRequired,
     couponRequired,
@@ -315,6 +323,7 @@ function extractionFromSubOffer(
     expiresAt,
     isOngoing,
     sourceMarkedExpired: item.sourceMarkedExpired === true,
+    whileStocksLast: item.whileStocksLast === true,
     membershipRequired: child.membershipRequired ?? false,
     activationRequired: child.activationRequired ?? false,
     couponRequired: child.couponRequired ?? false,

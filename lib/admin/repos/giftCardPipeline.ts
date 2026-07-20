@@ -448,6 +448,7 @@ export async function stageCandidate(
       thresholdDollars: e.thresholdDollars,
       isOngoing: e.isOngoing,
       sourceMarkedExpired: e.sourceMarkedExpired,
+      whileStocksLast: e.whileStocksLast,
       targeted: e.targeted,
       weeklyFacts: e.weeklyFacts ?? null,
     } as unknown as Json,

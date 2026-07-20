@@ -7,7 +7,7 @@ import {
   type StagedCandidate,
 } from "@/lib/giftcards/runIngest";
 import { extractOffer, extractOffers } from "@/lib/giftcards/extractOffer";
-import { parseGcdbFeed } from "@/lib/giftcards/parseGcdbFeed";
+import { GCDB_PARSER_VERSION, parseGcdbFeed } from "@/lib/giftcards/parseGcdbFeed";
 
 /**
  * The ingest orchestrator with fully injected deps — no network, no DB. Pins
@@ -312,6 +312,80 @@ describe("runGiftCardIngest — compound sub-offers", () => {
   });
 });
 
+describe("runGiftCardIngest — a previously undated item gains dates on refresh", () => {
+  it("stages a CHANGED candidate carrying the newly parsed dates for review", async () => {
+    // Snapshot the item as the OLD parser stored it: same source text, but the
+    // range was missed, so the approved offer carries null dates.
+    const [freshItem] = parseGcdbFeed(
+      feed(offerItem("12676", "10% off Restaurant Choice", "14 Jul 2026"))
+    );
+    const staleItem = { ...freshItem, startsAt: null, endsAt: null };
+    const staleExtraction = extractOffer(staleItem);
+    const existing: RawItemState = {
+      id: "raw-12676",
+      externalId: "12676",
+      contentHash: contentHashOf(staleItem, 2),
+      processingStatus: "parsed",
+      extraction: staleExtraction,
+      extractions: [staleExtraction],
+      openCandidateId: null,
+      approvedOfferId: "gc-restaurant-choice",
+      candidateLinks: [
+        { subOfferKey: "primary", openCandidateId: null, approvedOfferId: "gc-restaurant-choice" },
+      ],
+    };
+    const { deps, rec } = makeDeps(
+      okFetch(feed(offerItem("12676", "10% off Restaurant Choice", "14 Jul 2026"))),
+      [existing]
+    );
+
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 10 }, deps);
+
+    expect(metrics.itemsUpdated).toBe(1);
+    expect(metrics.candidatesChanged).toBe(1);
+    expect(rec.updates).toEqual(["raw-12676"]);
+    expect(rec.staged).toHaveLength(1);
+    const [staged] = rec.staged;
+    expect(staged.reviewStatus).toBe("changed");
+    expect(staged.extraction.expiresAt).toBe("2026-07-14");
+    expect(staged.changedFields).toContain("expiresAt");
+    // The public offer is never touched directly — review decides.
+  });
+
+  it("re-stages every item when only the parser version changes", async () => {
+    // The content hash covers the parser version, so a parser upgrade forces
+    // stale snapshots through extraction again even with identical feed text.
+    const [itemNow] = parseGcdbFeed(
+      feed(offerItem("12677", "20x points on TCN", "14 Jul 2026"))
+    );
+    const priorExtraction = extractOffer(itemNow);
+    const existing: RawItemState = {
+      id: "raw-12677",
+      externalId: "12677",
+      contentHash: contentHashOf(itemNow, 2),
+      processingStatus: "parsed",
+      extraction: priorExtraction,
+      extractions: [priorExtraction],
+      openCandidateId: null,
+      approvedOfferId: null,
+      candidateLinks: [
+        { subOfferKey: "primary", openCandidateId: null, approvedOfferId: null },
+      ],
+    };
+    const { deps, rec } = makeDeps(
+      okFetch(feed(offerItem("12677", "20x points on TCN", "14 Jul 2026"))),
+      [existing]
+    );
+
+    const metrics = await runGiftCardIngest(SOURCE, { maxItems: 10 }, deps);
+
+    expect(metrics.itemsUnchanged).toBe(0);
+    expect(metrics.itemsUpdated).toBe(1);
+    expect(rec.staged).toHaveLength(1);
+    expect(rec.staged[0].reviewStatus).toBe("new");
+  });
+});
+
 describe("runGiftCardIngest — rejection retention", () => {
   it("reports a non-empty response with zero parseable items as a parse error", async () => {
     const { deps, rec } = makeDeps(okFetch("<html>not the approved feed shape</html>"));
@@ -375,7 +449,7 @@ describe("runGiftCardIngest — rejection retention", () => {
       expect.objectContaining({
         sourceId: "gcdb",
         externalId: "999",
-        parserVersion: 2,
+        parserVersion: GCDB_PARSER_VERSION,
         parserError: "No review candidates were extracted from the source item.",
         seenAt: NOW,
         existingRawItemId: null,

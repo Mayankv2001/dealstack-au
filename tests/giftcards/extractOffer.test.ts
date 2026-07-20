@@ -56,6 +56,80 @@ describe("extractOffer — discount", () => {
   });
 });
 
+describe("extractOffer — stock-limited availability", () => {
+  it("propagates while-stocks-last honestly instead of inventing an expiry", () => {
+    const result = extractOffer(
+      item({
+        title: "10% off Ultimate gift cards",
+        offerType: "discount",
+        sellerName: "Giftz.com.au",
+        giftCardBrands: ["Ultimate Everyone"],
+        whileStocksLast: true,
+        excerpt: "Get 10% off, while stocks last.",
+      })
+    );
+    expect(result.whileStocksLast).toBe(true);
+    expect(result.expiresAt).toBeNull();
+    expect(result.isOngoing).toBe(false);
+    expect(result.warnings).toContain(
+      "Availability is stock-limited (while stocks last) — no fixed end date at the source."
+    );
+    expect(result.warnings).not.toContain(
+      "No end date found — confirm at the source."
+    );
+  });
+
+  it("keeps the explicit end date when the offer is also stock-limited", () => {
+    const result = extractOffer(
+      item({
+        title: "10% off Ultimate gift cards",
+        offerType: "discount",
+        sellerName: "Giftz.com.au",
+        giftCardBrands: ["Ultimate Everyone"],
+        whileStocksLast: true,
+        endsAt: "2026-07-09",
+        excerpt: "Get 10% off. Ends 9 Jul 2026, while stocks last.",
+      })
+    );
+    expect(result.expiresAt).toBe("2026-07-09");
+    expect(result.whileStocksLast).toBe(true);
+  });
+});
+
+describe("extractOffer — explicit source date states", () => {
+  it("carries a source-marked-expired item through for review, never as current", () => {
+    const result = extractOffer(
+      item({
+        title: "10% off selected cards",
+        offerType: "discount",
+        sellerName: "Coles",
+        giftCardBrands: ["Restaurant Choice"],
+        endsAt: "2026-07-09",
+        sourceMarkedExpired: true,
+        excerpt: "Expired 9 Jul 2026.",
+      })
+    );
+    expect(result.sourceMarkedExpired).toBe(true);
+    expect(result.expiresAt).toBe("2026-07-09");
+  });
+
+  it("keeps a future-start promotion's dates without altering them", () => {
+    const result = extractOffer(
+      item({
+        title: "20x points on Apple gift cards",
+        offerType: "points",
+        sellerName: "Woolworths",
+        giftCardBrands: ["Apple"],
+        startsAt: "2026-07-15",
+        endsAt: "2026-07-21",
+        excerpt: "20x Everyday Rewards points. 15 Jul to 21 Jul 2026.",
+      })
+    );
+    expect(result.startsAt).toBe("2026-07-15");
+    expect(result.expiresAt).toBe("2026-07-21");
+  });
+});
+
 describe("extractOffer — bonus value is not read as a discount", () => {
   const result = extractOffer(
     item({

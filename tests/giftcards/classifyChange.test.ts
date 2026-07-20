@@ -31,6 +31,7 @@ function offer(overrides: Partial<ExtractedOffer> = {}): ExtractedOffer {
     expiresAt: "2026-07-17",
     isOngoing: false,
     sourceMarkedExpired: false,
+    whileStocksLast: false,
     membershipRequired: false,
     activationRequired: false,
     couponRequired: false,

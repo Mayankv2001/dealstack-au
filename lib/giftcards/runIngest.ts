@@ -134,6 +134,7 @@ export function contentHashOf(
     item.endsAt ?? "",
     item.isOngoing ? "ongoing" : "",
     item.sourceMarkedExpired ? "expired" : "",
+    item.whileStocksLast ? "stock-limited" : "",
     item.excerpt,
     item.weeklyFacts ? JSON.stringify(item.weeklyFacts) : "",
   ].join("");

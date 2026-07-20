@@ -517,6 +517,7 @@ export function extractPointHacksWeeklyOffer(
       expiresAt: facts.endDate,
       isOngoing: false,
       sourceMarkedExpired: false,
+      whileStocksLast: false,
       membershipRequired: Boolean(facts.loyaltyProgramme),
       activationRequired: false,
       couponRequired: false,

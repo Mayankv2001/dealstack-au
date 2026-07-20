@@ -5,6 +5,7 @@ import {
   MAX_EXCERPT_LENGTH,
   parseAuDate,
   parseAuDateRange,
+  parseAuDateWithAnchor,
   parseGcdbFeed,
 } from "@/lib/giftcards/parseGcdbFeed";
 
@@ -123,10 +124,95 @@ describe("parseAuDate", () => {
     expect(parseAuDate("1 September 2026")).toBe("2026-09-01");
   });
 
+  it("parses numeric AU day-first dates", () => {
+    expect(parseAuDate("24/07/2026")).toBe("2026-07-24");
+    expect(parseAuDate("4/7/2026")).toBe("2026-07-04");
+  });
+
+  it("rejects impossible numeric dates instead of wrapping them", () => {
+    expect(parseAuDate("32/07/2026")).toBeNull();
+    expect(parseAuDate("24/13/2026")).toBeNull();
+    expect(parseAuDate("30/02/2026")).toBeNull();
+  });
+
   it("returns null for nonsense or missing dates", () => {
     expect(parseAuDate("sometime soon")).toBeNull();
     expect(parseAuDate(null)).toBeNull();
     expect(parseAuDate("32 Xxx 2026")).toBeNull();
+  });
+
+  it("never guesses a missing or two-digit year", () => {
+    expect(parseAuDate("24 Jul")).toBeNull();
+    expect(parseAuDate("24/07")).toBeNull();
+    expect(parseAuDate("24/07/26")).toBeNull();
+  });
+});
+
+describe("parseAuDateWithAnchor — deterministic year inference", () => {
+  it("keeps the anchor year when the deadline is later the same year", () => {
+    expect(parseAuDateWithAnchor("24 Jul", "2026-07-10", "forward")).toBe(
+      "2026-07-24"
+    );
+    expect(parseAuDateWithAnchor("24/7", "2026-07-10", "forward")).toBe(
+      "2026-07-24"
+    );
+  });
+
+  it("rolls a deadline forward across the year boundary", () => {
+    expect(parseAuDateWithAnchor("5 Jan", "2026-12-28", "forward")).toBe(
+      "2027-01-05"
+    );
+  });
+
+  it("rolls an expired marker backward across the year boundary", () => {
+    expect(parseAuDateWithAnchor("28 Dec", "2027-01-03", "backward")).toBe(
+      "2026-12-28"
+    );
+  });
+
+  it("respects an explicit year over the anchor", () => {
+    expect(parseAuDateWithAnchor("24 Jul 2027", "2026-07-10", "forward")).toBe(
+      "2027-07-24"
+    );
+  });
+
+  it("returns null with no anchor rather than guessing", () => {
+    expect(parseAuDateWithAnchor("24 Jul", null, "forward")).toBeNull();
+  });
+});
+
+describe("parseAuDateRange — formats and year boundaries", () => {
+  it("corrects the start year across a December–January boundary", () => {
+    expect(parseAuDateRange("28 Dec to 3 Jan 2027")).toEqual({
+      startsAt: "2026-12-28",
+      endsAt: "2027-01-03",
+    });
+  });
+
+  it("parses fully numeric AU ranges", () => {
+    expect(parseAuDateRange("8/7/2026 to 14/7/2026")).toEqual({
+      startsAt: "2026-07-08",
+      endsAt: "2026-07-14",
+    });
+    expect(parseAuDateRange("8/7 – 14/7/2026")).toEqual({
+      startsAt: "2026-07-08",
+      endsAt: "2026-07-14",
+    });
+  });
+
+  it("resolves a fully yearless range from the publication anchor", () => {
+    expect(parseAuDateRange("8 Jul to 14 Jul", "2026-07-06")).toEqual({
+      startsAt: "2026-07-08",
+      endsAt: "2026-07-14",
+    });
+  });
+
+  it("rejects a yearless range with no anchor rather than guessing", () => {
+    expect(parseAuDateRange("8 Jul to 14 Jul")).toBeNull();
+  });
+
+  it("rejects an inverted range", () => {
+    expect(parseAuDateRange("14 Jul 2026 to 8 Jul 2026")).toBeNull();
   });
 });
 
@@ -168,6 +254,90 @@ describe("GCDB production date markers", () => {
       startsAt: "2026-07-09",
       endsAt: "2026-07-15",
     });
+  });
+
+  it("marks stock-limited availability without inventing an expiry", () => {
+    const stockItem = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12900/</link>
+      <guid>https://gcdb.com.au/?p=12900</guid>
+      <description>Get 10% off, while stocks last.</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(stockItem));
+    expect(parsed.whileStocksLast).toBe(true);
+    expect(parsed.endsAt).toBeNull();
+    expect(parsed.isOngoing).toBe(false);
+  });
+
+  it("keeps an explicit date even when the offer is also stock-limited", () => {
+    const both = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12901/</link>
+      <guid>https://gcdb.com.au/?p=12901</guid>
+      <description>Ends 17 Jul 2026, until sold out.</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(both));
+    expect(parsed.endsAt).toBe("2026-07-17");
+    expect(parsed.whileStocksLast).toBe(true);
+  });
+
+  it("leaves relative wording as an honestly unknown date", () => {
+    const vague = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12902/</link>
+      <guid>https://gcdb.com.au/?p=12902</guid>
+      <description>Ends Sunday, this week only.</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(vague));
+    expect(parsed.endsAt).toBeNull();
+    expect(parsed.startsAt).toBeNull();
+    expect(parsed.isOngoing).toBe(false);
+  });
+
+  it("infers a yearless deadline from the item's publication date", () => {
+    const yearless = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12903/</link>
+      <guid>https://gcdb.com.au/?p=12903</guid>
+      <pubDate>Fri, 10 Jul 2026 00:00:00 +0000</pubDate>
+      <description>Ends 24 Jul. See Gift Card Database for more info.</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(yearless));
+    expect(parsed.endsAt).toBe("2026-07-24");
+  });
+
+  it("leaves a yearless deadline unknown when the item has no pubDate", () => {
+    const noAnchor = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12904/</link>
+      <guid>https://gcdb.com.au/?p=12904</guid>
+      <description>Ends 24 Jul.</description></item>`;
+    expect(parseGcdbFeed(feed(noAnchor))[0].endsAt).toBeNull();
+  });
+
+  it("infers a yearless Expired marker backward, not forward", () => {
+    const expiredYearless = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12905/</link>
+      <guid>https://gcdb.com.au/?p=12905</guid>
+      <pubDate>Sat, 3 Jan 2026 00:00:00 +0000</pubDate>
+      <description>Expired 28 Dec.</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(expiredYearless));
+    expect(parsed.sourceMarkedExpired).toBe(true);
+    expect(parsed.endsAt).toBe("2025-12-28");
+  });
+
+  it("parses a numeric Expired marker", () => {
+    const numericExpired = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12906/</link>
+      <guid>https://gcdb.com.au/?p=12906</guid>
+      <description>Expired 9/7/2026.</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(numericExpired));
+    expect(parsed.sourceMarkedExpired).toBe(true);
+    expect(parsed.endsAt).toBe("2026-07-09");
+  });
+
+  it("preserves the verbatim date phrase as evidence past excerpt truncation", () => {
+    const padding = "Conditions apply to selected products only. ".repeat(8);
+    const longItem = `<item><title>10% off selected cards</title>
+      <link>https://gcdb.com.au/offer/12907/</link>
+      <guid>https://gcdb.com.au/?p=12907</guid>
+      <description>${padding} Ends 17 Jul 2026.</description></item>`;
+    const [parsed] = parseGcdbFeed(feed(longItem));
+    expect(parsed.excerpt.length).toBeLessThanOrEqual(MAX_EXCERPT_LENGTH);
+    expect(parsed.excerpt).not.toContain("17 Jul 2026");
+    expect(parsed.endsAt).toBe("2026-07-17");
+    expect(parsed.dateEvidence).toContain("Ends 17 Jul 2026");
   });
 });
 

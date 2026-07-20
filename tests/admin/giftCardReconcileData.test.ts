@@ -61,6 +61,7 @@ const offer = (): ExtractedOffer => ({
   expiresAt: "2026-07-21",
   isOngoing: false,
   sourceMarkedExpired: false,
+  whileStocksLast: false,
   membershipRequired: false,
   activationRequired: false,
   couponRequired: false,

@@ -100,6 +100,7 @@ const expiredExtraction: ExtractedOffer = {
   expiresAt: "2026-07-10",
   isOngoing: false,
   sourceMarkedExpired: false,
+  whileStocksLast: false,
   membershipRequired: false,
   activationRequired: false,
   couponRequired: false,

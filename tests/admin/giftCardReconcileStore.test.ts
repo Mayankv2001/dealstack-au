@@ -46,6 +46,7 @@ const extraction = (overrides: Partial<ExtractedOffer> = {}): ExtractedOffer => 
   expiresAt: "2026-07-21",
   isOngoing: false,
   sourceMarkedExpired: false,
+  whileStocksLast: false,
   membershipRequired: false,
   activationRequired: true,
   couponRequired: false,
