@@ -89,6 +89,10 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // RPC-only: re-issues the 033 approve RPC with purchase_limits persistence
   // (the 034 column gains its reviewed write path). No new columns.
   "035_gift_card_purchase_limits_persistence.sql",
+  // Policy-only: adds the Sydney-date expiry bound to the public-read RLS of
+  // cashback/points/weekly_deals/ozbargain_signals (defence in depth). No new
+  // columns; coverage keeps the forward security boundary in the ledger.
+  "036_offer_expiry_read_policies.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */

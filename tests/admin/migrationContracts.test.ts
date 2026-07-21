@@ -85,6 +85,39 @@ describe("production safety migration contracts", () => {
     expect(sql).toContain("from public, anon, authenticated");
   });
 
+  it("archives EVERY time-limited offer type on the Sydney date with an audit row, never deleting", () => {
+    const sql = migration("019_pipeline_lifecycle_retention.sql");
+    // The daily archival cleanup (invoked by the authenticated monitor-feeds
+    // cron) unpublishes each published offer type strictly after its Sydney
+    // expiry day — `expiry_date < p_today`, so an offer is live THROUGH its
+    // expiry day and archived the next day. Every table is covered.
+    for (const table of [
+      "gift_card_offers",
+      "cashback_offers",
+      "points_offers",
+      "weekly_deals",
+    ]) {
+      expect(sql).toMatch(
+        new RegExp(`update public\\.${table} set is_published = false[\\s\\S]*?expiry_date < p_today`),
+      );
+    }
+    // card_offers archive both on expiry and on an overdue review-by date.
+    expect(sql).toMatch(
+      /update public\.card_offers[\s\S]*?is_published = false, is_archived = true[\s\S]*?expiry_date < p_today or review_by_date < p_today/,
+    );
+    // ozbargain signals move to status='expired', never deleted.
+    expect(sql).toMatch(
+      /update public\.ozbargain_signals[\s\S]*?status = 'expired'[\s\S]*?expiry_date < p_today/,
+    );
+    // Scenario 13 — every archival writes an audit_log row (lineage preserved).
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("'auto-archive-expired'");
+    expect(sql).toContain("'auto-archive-card'");
+    // Idempotent + non-destructive: the archival branches only ever UPDATE
+    // publication/status flags; they never DELETE offer rows.
+    expect(sql).not.toMatch(/delete\s+from\s+public\.(gift_card_offers|cashback_offers|points_offers|card_offers|weekly_deals|ozbargain_signals)/i);
+  });
+
   it("archives review items in place only on explicit expired/deleted, never hard-deleting", () => {
     const sql = migration("020_ozb_expiry_recheck.sql");
     // New terminal 'archived' triage state, kept out of the retention purge set.
@@ -362,6 +395,47 @@ describe("production safety migration contracts", () => {
     expect(COVERED_MIGRATIONS).toContain(
       "035_gift_card_purchase_limits_persistence.sql",
     );
+  });
+
+  it("adds a Sydney-inclusive expiry bound to the remaining public-read policies", () => {
+    const sql = migration("036_offer_expiry_read_policies.sql");
+
+    // Policy-only, forward, tightening: no writes, no deletes, no new grants.
+    expect(sql).not.toMatch(/\b(insert|update|delete)\s+(into\s+)?public\./i);
+    expect(sql).not.toMatch(/\bgrant\b/i);
+    expect(sql).not.toMatch(/\bdrop\s+table\b/i);
+
+    // Every remaining public offer table gains the SAME Sydney-date bound as
+    // card_offers (009) and gift_card_offers (033): inclusive on the expiry
+    // day, NULL expiry stays evergreen, DST-correct via Australia/Sydney.
+    for (const table of [
+      "cashback_offers",
+      "points_offers",
+      "weekly_deals",
+      "ozbargain_signals",
+    ]) {
+      expect(sql).toContain(`public read current ${table}`);
+    }
+    // Old publication-only policies are replaced, not left shadowing.
+    expect(sql).toContain('drop policy if exists "public read published cashback_offers"');
+    expect(sql).toContain('drop policy if exists "public read published points_offers"');
+    expect(sql).toContain('drop policy if exists "public read published weekly_deals"');
+    expect(sql).toContain('drop policy if exists "public read approved ozbargain_signals"');
+
+    // Inclusive-on-the-day bound + evergreen NULL, DST-correct.
+    expect(
+      sql.match(/expiry_date >= \(\s*pg_catalog\.statement_timestamp\(\) at time zone 'Australia\/Sydney'\s*\)::date/g)?.length ?? 0
+    ).toBe(4);
+    expect(
+      sql.match(/expiry_date is null/g)?.length ?? 0
+    ).toBeGreaterThanOrEqual(4);
+    // ozbargain keeps its approved gate; the others keep is_published.
+    expect(sql).toContain("status = 'approved'");
+    expect(
+      sql.match(/is_published = true/g)?.length ?? 0
+    ).toBeGreaterThanOrEqual(3);
+
+    expect(COVERED_MIGRATIONS).toContain("036_offer_expiry_read_policies.sql");
   });
 
   it("forward-corrects occurrence identity and Sydney date semantics", () => {
