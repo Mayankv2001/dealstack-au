@@ -6,13 +6,16 @@
  * site origin (from `siteUrl()` in lib/env.ts); schema.org has no
  * `metadataBase` concept, so every URL emitted here must be absolute.
  *
- * DELIBERATELY site-level only: WebSite, Organization and BreadcrumbList — all
- * facts about *our own site*. There is intentionally NO Offer / Product /
- * AggregateOffer markup. Deal data here is third-party, admin-transcribed,
- * expiry-prone and framed sitewide as "verify before you buy"; asserting it as
- * schema.org price/availability facts invites rich results Google treats as
- * spammy structured data (manual-action territory). This is a scope wall, not
- * an oversight — do not add product/offer schema here.
+ * DELIBERATELY navigational only: WebSite, Organization, BreadcrumbList and
+ * ItemList — all facts about *our own site* and how it links together. There is
+ * intentionally NO Offer / Product / AggregateOffer markup. Deal data here is
+ * third-party, admin-transcribed, expiry-prone and framed sitewide as "verify
+ * before you buy"; asserting it as schema.org price/availability facts invites
+ * rich results Google treats as spammy structured data (manual-action
+ * territory). ItemList is safe because it asserts only "this listing page links
+ * to these internal pages in this order" — a name and a URL, never a price,
+ * availability or rating. This is a scope wall, not an oversight — do not add
+ * product/offer schema here.
  */
 
 const SITE_NAME = "DealStack AU";
@@ -124,6 +127,50 @@ export function buildDealBreadcrumbJsonLd(
         item: `${base}${deal.path}`,
       },
     ],
+  };
+}
+
+/**
+ * Absolutise a listing URL under the site origin. Accepts a site-relative path
+ * ("/stores/myer") or an already-absolute http(s) URL; schema.org has no
+ * `metadataBase`, so every emitted `item` must be absolute.
+ */
+function absolutiseUrl(base: string, url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+/**
+ * schema.org ItemList for a listing page (/deals, /stores, /gift-cards).
+ * Navigational structured data ONLY: each element is a ListItem pointing at one
+ * of OUR OWN detail pages by name + absolute URL, in the order the page renders
+ * them. See this file's header — this is NOT the forbidden Offer/Product markup;
+ * no price, availability or rating is asserted.
+ *
+ * Callers pass items already filtered to what the page renders (published,
+ * expiry-filtered) and in render order. Positions are 1-based and contiguous.
+ * Items with an empty name or url are dropped; an empty list returns `null` so
+ * the caller omits the `<script>` entirely rather than emit a hollow ItemList
+ * (which validators flag).
+ */
+export function buildItemListJsonLd(
+  siteUrl: string,
+  items: ReadonlyArray<{ name: string; url: string }>,
+): Record<string, unknown> | null {
+  const base = trimTrailingSlash(siteUrl);
+  const cleaned = items
+    .map((item) => ({ name: item.name.trim(), url: item.url.trim() }))
+    .filter((item) => item.name !== "" && item.url !== "");
+  if (cleaned.length === 0) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: cleaned.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: absolutiseUrl(base, item.url),
+    })),
   };
 }
 

@@ -12,6 +12,7 @@ import {
   Star,
   X,
 } from "lucide-react";
+import { JsonLd } from "@/components/JsonLd";
 import CardSignupSection from "@/components/deals/CardSignupSection";
 import { DealCard, DealGroupCard } from "@/components/deals/DealCard";
 import DealRecommendations from "@/components/deals/DealRecommendations";
@@ -49,7 +50,9 @@ import {
 } from "@/lib/deals/recommend";
 import { getCardOffers } from "@/lib/repos";
 import { formatAUD } from "@/lib/calculateStack";
+import { siteUrl } from "@/lib/env";
 import { BEST_STACK_INITIAL_COUNT, partitionStacks } from "@/lib/stack/present";
+import { buildItemListJsonLd } from "@/lib/structuredData";
 import type { DealListItem } from "@/lib/deals/types";
 
 export const metadata: Metadata = {
@@ -491,6 +494,28 @@ async function Results({
     );
   }
   const result = queryDeals(bundle.deals, params, now);
+  // ItemList only on the canonical, unparameterised listing — a searched or
+  // filtered /deals is query-dependent (like /search) and carries none, so a
+  // crawler never indexes a filter permutation as the page's item set. Built
+  // from the rendered deal items that have an internal detail page, in order,
+  // capped at 20. Navigational only — see structuredData.ts.
+  const isCanonicalListing =
+    !params.q && activeFilterCount(params) === 0 && params.page === 1;
+  const itemListJsonLd = isCanonicalListing
+    ? buildItemListJsonLd(
+        siteUrl(),
+        result.items
+          .filter(
+            (item): item is Extract<DealListItem, { type: "deal" }> =>
+              item.type === "deal" && Boolean(item.deal.detailPath),
+          )
+          .slice(0, 20)
+          .map((item) => ({
+            name: item.deal.title,
+            url: item.deal.detailPath as string,
+          })),
+      )
+    : null;
   const facts = deriveMerchantFacts(bundle.stackRecommendations);
   const intent = hasPurchaseIntent(params);
   const recommendations = intent
@@ -505,6 +530,7 @@ async function Results({
   const cardOffers = intent ? await getCardOffers() : [];
   return (
     <section className="mt-8">
+      {itemListJsonLd ? <JsonLd data={itemListJsonLd} /> : null}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">

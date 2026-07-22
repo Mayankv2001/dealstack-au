@@ -1,7 +1,7 @@
 # TASK-SEO-001 — ItemList structured data on the listing pages
 
 ## Status
-Planned
+Done — 2026-07-22. Added `buildItemListJsonLd(siteUrl, items)` to `lib/structuredData.ts` (1-based contiguous positions, URL absolutisation, empty-list ⇒ null, drops empty entries) with 8 new unit tests (25/25 green in `tests/stack/structuredData.test.ts`). Wired into `/stores` (all stores in grouped render order), `/gift-cards` (published offers, cap 20), and `/deals` (canonical unparameterised listing only — searched/filtered/paged views emit none, mirroring the `/search` exclusion). Verified live on the static preview: `/stores` 9-item, `/gift-cards` 9-item (exactly matches the 9 rendered offer cards), `/deals` 12-item within cap; `/deals?q=tv` correctly emits no ItemList. lint + `tsc --noEmit` + `next build` all green; no console errors.
 
 ## Priority
 P3

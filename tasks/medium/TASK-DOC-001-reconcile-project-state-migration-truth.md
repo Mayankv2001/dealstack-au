@@ -1,7 +1,7 @@
 # TASK-DOC-001 — Make PROJECT_STATE.md tell one truth about migrations 027–033
 
 ## Status
-Planned
+Done — 2026-07-22. Every migration-state statement in `PROJECT_STATE.md` now tells one story, reconciled to **verified current reality** (prod ledger canonical through 035, verified via Supabase `list_migrations`; 036 authored + apply-gated) rather than to the task's original 2026-07-20 prescription, which had itself gone stale (it said "through 032; 033 gated", but 033/034/035 were applied 2026-07-21). Following the task literally would have written a fresh falsehood into the operator-truth doc; per the task's own stop-and-report clause the verified DB state supersedes. Added a single-source-of-truth pointer (live ledger / `verify:schema`) at §5. Passages changed: header banner, §2 build/tests line, §platform, §5, §6 next-task 1, §10 drift note.
 
 ## Priority
 P1

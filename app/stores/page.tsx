@@ -3,14 +3,17 @@ import Link from "next/link";
 import { ArrowRight, SearchX, Store as StoreIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { JsonLd } from "@/components/JsonLd";
 import SearchBar from "@/components/SearchBar";
 import StoreCard from "@/components/StoreCard";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import type { Store } from "@/lib/data";
+import { siteUrl } from "@/lib/env";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
 import { recommendationPresentation } from "@/lib/stack/present";
+import { buildItemListJsonLd } from "@/lib/structuredData";
 
 export const metadata: Metadata = {
   title: "All stores — DealStack AU",
@@ -52,8 +55,18 @@ export default async function StoresIndexPage() {
       recommendationPresentation(recommendation).fullyVerified,
   ).length;
 
+  // ItemList reflects the stores this page renders, in the grouped display
+  // order. Navigational only — see structuredData.ts.
+  const itemList = buildItemListJsonLd(
+    siteUrl(),
+    Array.from(groups.values())
+      .flat()
+      .map((store) => ({ name: store.name, url: `/stores/${store.id}` })),
+  );
+
   return (
     <div className="flex min-h-screen flex-col">
+      {itemList ? <JsonLd data={itemList} /> : null}
       <SiteHeader />
 
       <main className="page-container flex-1 py-8 sm:py-12">

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildItemListJsonLd,
   buildOrganizationJsonLd,
   buildStoreBreadcrumbJsonLd,
   buildWebSiteJsonLd,
@@ -121,6 +122,82 @@ describe("buildStoreBreadcrumbJsonLd", () => {
 
   it("emits no empty properties", () => {
     assertNoEmptyValues(crumb);
+  });
+});
+
+describe("buildItemListJsonLd", () => {
+  it("is an ItemList numbering positions 1..n in the given order", () => {
+    const list = buildItemListJsonLd(SITE, [
+      { name: "Myer", url: "/stores/myer" },
+      { name: "JB Hi-Fi", url: "/stores/jbhifi" },
+      { name: "Coles", url: "/stores/coles" },
+    ]);
+    expect(list).not.toBeNull();
+    expect(list!["@context"]).toBe("https://schema.org");
+    expect(list!["@type"]).toBe("ItemList");
+    const items = list!.itemListElement as Array<Record<string, unknown>>;
+    expect(items.map((i) => i.position)).toEqual([1, 2, 3]);
+    expect(items.map((i) => i.name)).toEqual(["Myer", "JB Hi-Fi", "Coles"]);
+    expect(items.every((i) => i["@type"] === "ListItem")).toBe(true);
+  });
+
+  it("absolutises site-relative paths under the passed origin", () => {
+    const list = buildItemListJsonLd(SITE, [
+      { name: "Myer", url: "/stores/myer" },
+    ])!;
+    const items = list.itemListElement as Array<Record<string, unknown>>;
+    expect(items[0].item).toBe(`${SITE}/stores/myer`);
+  });
+
+  it("leaves an already-absolute URL untouched", () => {
+    const list = buildItemListJsonLd(SITE, [
+      { name: "Deal", url: `${SITE}/deals/x--wk-1` },
+    ])!;
+    const items = list.itemListElement as Array<Record<string, unknown>>;
+    expect(items[0].item).toBe(`${SITE}/deals/x--wk-1`);
+  });
+
+  it("does not double the slash when the site url has a trailing slash", () => {
+    const list = buildItemListJsonLd(`${SITE}/`, [
+      { name: "Myer", url: "/stores/myer" },
+    ])!;
+    const items = list.itemListElement as Array<Record<string, unknown>>;
+    expect(items[0].item).toBe(`${SITE}/stores/myer`);
+  });
+
+  it("returns null for an empty list so the caller omits the script", () => {
+    expect(buildItemListJsonLd(SITE, [])).toBeNull();
+  });
+
+  it("drops empty-name/url items and renumbers the survivors contiguously", () => {
+    const list = buildItemListJsonLd(SITE, [
+      { name: "Myer", url: "/stores/myer" },
+      { name: "", url: "/stores/blank" },
+      { name: "Coles", url: "  " },
+      { name: "JB Hi-Fi", url: "/stores/jbhifi" },
+    ])!;
+    const items = list.itemListElement as Array<Record<string, unknown>>;
+    expect(items.map((i) => i.name)).toEqual(["Myer", "JB Hi-Fi"]);
+    expect(items.map((i) => i.position)).toEqual([1, 2]);
+  });
+
+  it("returns null when every item is empty after trimming", () => {
+    expect(
+      buildItemListJsonLd(SITE, [{ name: "  ", url: "" }]),
+    ).toBeNull();
+  });
+
+  it("emits no empty properties", () => {
+    assertNoEmptyValues(
+      buildItemListJsonLd(SITE, [{ name: "Myer", url: "/stores/myer" }]),
+    );
+  });
+
+  it("round-trips through serializeJsonLd", () => {
+    const list = buildItemListJsonLd(SITE, [
+      { name: "A < B & C", url: "/stores/ab" },
+    ])!;
+    expect(JSON.parse(serializeJsonLd(list))).toEqual(list);
   });
 });
 

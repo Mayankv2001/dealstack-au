@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { JsonLd } from "@/components/JsonLd";
 import { GiftCardsClient } from "@/components/GiftCardsClient";
+import { siteUrl } from "@/lib/env";
 import { getCurrentReviewedGiftCardOffers } from "@/lib/repos";
+import { buildItemListJsonLd } from "@/lib/structuredData";
 
 /**
  * Public gift-card offers route — server component. Loads published offers from
@@ -26,8 +29,18 @@ export default async function GiftCardsPage() {
   // unknown", ranked last) — unlike the strict stack-engine read. See
   // lib/giftcards/currentOffers.ts.
   const offers = await getCurrentReviewedGiftCardOffers();
+  // ItemList reflects exactly the published, expiry-filtered offers this page
+  // renders (cap 20, render order). Navigational only — see structuredData.ts.
+  const itemList = buildItemListJsonLd(
+    siteUrl(),
+    offers.slice(0, 20).map((offer) => ({
+      name: offer.brand,
+      url: `/gift-cards/${offer.id}`,
+    })),
+  );
   return (
     <Suspense fallback={<div className="min-h-screen bg-emerald-500/[0.04]" />}>
+      {itemList ? <JsonLd data={itemList} /> : null}
       <GiftCardsClient offers={offers} />
     </Suspense>
   );
