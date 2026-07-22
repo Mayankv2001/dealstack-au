@@ -4,6 +4,25 @@
 # fire at minute 7 (separate from the minute-0 ingest slots); the endpoint's
 # Sydney-hour and local-calendar-day gates accept exactly one real daily run.
 # This workflow does not enable the endpoint or any source adapter.
+#
+# Exit contract (mirrors monitor-health.yml and schema-drift.yml):
+#   0 = the lifecycle ran cleanly, OR was skipped by a gate that is part of
+#       normal operation (the other DST slot, an already-completed Sydney day,
+#       or a concurrent run holding the migration-030 lock).
+#   1 = the endpoint failed (non-2xx), reported per-offer errors, or skipped for
+#       a reason this workflow does not recognise.
+#   2 = this trigger is BLIND: the repository secret is missing, or the endpoint
+#       is disabled so the job can never do any work. Must be red, never
+#       silently green.
+#
+# Why exit 2 on "environment-disabled": the endpoint answers HTTP 200 with
+# {"ok": true, "ran": false, "skipped": "environment-disabled"} whenever
+# GIFT_CARD_LIFECYCLE_ENABLED is not exactly "true". A plain 2xx check therefore
+# reports SUCCESS forever while the lifecycle never activates an approved-future
+# offer and never seals a history occurrence for an expired one — which is
+# exactly how a disabled job went unnoticed. Expiry archival itself is NOT
+# affected (the always-on daily pipeline covers it; see
+# docs/offer-expiry-semantics.md).
 
 name: Gift-card lifecycle (7am Sydney)
 
@@ -37,15 +56,60 @@ jobs:
             -H "Authorization: Bearer $CRON_SECRET" \
             "https://dealstack-au.vercel.app/api/cron/gift-card-lifecycle")
           echo "HTTP $status"
-          python3 - <<'PY'
-          import json
-          with open("response.json") as f:
-              data = json.load(f)
-          keys = ["ok", "ran", "skipped", "status", "sydneyDate",
-                  "activated", "archived", "historySealed", "errorCount"]
-          print({k: data.get(k) for k in keys if k in data})
-          PY
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
             echo "::error::gift-card lifecycle endpoint returned HTTP $status"
             exit 1
           fi
+          python3 - <<'PY'
+          import json, sys
+
+          # Skips that are part of NORMAL operation, so they stay green:
+          #   outside-run-hour     — this workflow deliberately fires at BOTH UTC
+          #                          slots for 07:00 Sydney; the endpoint's
+          #                          Sydney-hour gate accepts one and skips the other.
+          #   already-ran-local-day — the second slot after the first slot ran.
+          #   already-running      — a concurrent run holds the migration-030 lock.
+          BENIGN_SKIPS = {"outside-run-hour", "already-ran-local-day", "already-running"}
+
+          try:
+              with open("response.json") as f:
+                  data = json.load(f)
+          except (OSError, ValueError) as exc:
+              print(f"::error::gift-card lifecycle returned an unreadable body: {exc}")
+              sys.exit(1)
+
+          # Counts and status only — this repo is public, so run logs are public.
+          keys = ["ok", "ran", "skipped", "status", "sydneyDate",
+                  "activated", "archived", "historySealed", "errorCount"]
+          print({k: data.get(k) for k in keys if k in data})
+
+          skipped = data.get("skipped")
+          error_count = data.get("errorCount") or 0
+
+          if skipped == "environment-disabled":
+              print(
+                  "::error::gift-card lifecycle is DISABLED — GIFT_CARD_LIFECYCLE_ENABLED "
+                  "is not 'true' in Vercel, so the schedule fires but the job never runs: "
+                  "approved-future offers are never activated and expired offers are never "
+                  "history-sealed. Set the flag in Vercel Production and redeploy, or "
+                  "disable this workflow's schedule."
+              )
+              sys.exit(2)
+
+          if skipped:
+              if skipped in BENIGN_SKIPS:
+                  print(f"::notice::gift-card lifecycle skipped as designed ({skipped}).")
+                  sys.exit(0)
+              print(f"::error::gift-card lifecycle skipped unexpectedly: {skipped}")
+              sys.exit(1)
+
+          if data.get("ok") is False or error_count:
+              print(f"::error::gift-card lifecycle completed with {error_count} error(s).")
+              sys.exit(1)
+
+          print(
+              "::notice::gift-card lifecycle ran: "
+              f"activated={data.get('activated')} archived={data.get('archived')} "
+              f"historySealed={data.get('historySealed')}."
+          )
+          PY
