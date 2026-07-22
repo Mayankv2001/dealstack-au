@@ -1,7 +1,7 @@
 # TASK-DB-001 — Apply migration 033 (approval/publication hardening) to production — GATED
 
 ## Status
-Planned — **blocked by TASK-GC-001** (legacy-offer review) and explicit owner approval
+Done — migration 033 confirmed applied in production. Verified 2026-07-22 via Supabase `list_migrations` on project `numgsivlrglflsnqehac` (033/034/035 all present).
 
 ## Priority
 P1

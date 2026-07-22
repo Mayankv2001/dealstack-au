@@ -1,14 +1,14 @@
 # Task Dependency Map
 
-> 2026-07-20. Edges among the 20 open audit tasks. Two edge kinds: **hard** (B needs A's outcome) and **conflict** (same files — never run concurrently, any order).
+> 2026-07-20, reconciled 2026-07-22. Edges among the audit tasks. Two edge kinds: **hard** (B needs A's outcome) and **conflict** (same files — never run concurrently, any order).
+>
+> TASK-TEST-001, TASK-TEST-002, TASK-GC-001, TASK-DB-001 are now Done (see TASK-INDEX.md) — retained below only where they still gate open work.
 
 ## Hard dependencies
 ```
-TASK-DOC-001 ──reads-first──▶ TASK-GC-001 ──human gate──▶ TASK-DB-001
-TASK-TEST-002 ──trustworthy local validation──▶ (every task's validation step; soft but real)
-TASK-TEST-001 ──green CI──▶ (any task that will be pushed after it; fix first)
+TASK-DOC-001 ──reads-first──▶ (GC-001/DB-001, now done)
 TASK-CRON-003 ──production facts──▶ TASK-CRON-002 (catch-up design should know how often windows are actually missed)
-ADR-001 (decision) ──▶ TASK-STACK-001 · ADR-003 ──▶ TASK-CRON-001 · ADR-002 ──▶ TASK-TEST-002
+ADR-001 (decision) ──▶ TASK-STACK-001 · ADR-003 ──▶ TASK-CRON-001
 ```
 
 ## Conflict groups (do not run concurrently within a group)
@@ -23,22 +23,21 @@ ADR-001 (decision) ──▶ TASK-STACK-001 · ADR-003 ──▶ TASK-CRON-001 �
 Note C2∩C3: SEARCH-002 is in both — schedule it so it doesn't overlap either neighbour.
 
 ## Fully independent (safe with anything)
-TASK-DOC-001 · TASK-SEO-001 · TASK-SEO-002 · TASK-PERF-001 (read-only; run on a clean checkout) · TASK-CRON-003 (observation only) · TASK-GC-001 (admin/production review; touches no repo files).
+TASK-DOC-001 · TASK-SEO-001 · TASK-SEO-002 · TASK-PERF-001 (read-only; run on a clean checkout) · TASK-CRON-003 (observation only).
 
 ## Special-requirement flags
 | Requirement | Tasks |
 |---|---|
-| Production observation (read-only) | CRON-003, GC-001, EXP-002 (verify live expired permalink), PERF-001 (optional read-only page loads) |
-| Manual/human approval | DB-001 (migration apply — human at keyboard, MIGRATION-SAFETY runbook, written risk acceptance), GC-001 (review decisions), any un-pause encountered en route |
-| Schema/DB work | DB-001 only. No other open task touches schema |
+| Production observation (read-only) | CRON-003, EXP-002 (verify live expired permalink), PERF-001 (optional read-only page loads) |
+| Schema/DB work | none open — DB-001 (033 apply) is done |
 | New dependency allowed | TEST-003 only (`fast-check`, dev) |
 | Must not weaken | approval boundary, default-off gates, service-role/anon split — all tasks, stated in each file |
 
 ## Suggested lanes for parallel agents
-- **Lane A (truth):** TEST-001 → TEST-002 → DOC-001 → CRON-001 → CRON-002
+- **Lane A (truth):** DOC-001 → CRON-001 → CRON-002
 - **Lane B (stack/C1):** STACK-001 → EXP-001 → TEST-003
 - **Lane C (search+e2e, C2/C3):** SEARCH-001 → SEARCH-002 → A11Y-001 → EXP-002
 - **Lane D (independent):** REL-001 → REL-002 → SEO-001 → SEO-002 → PERF-001
-- **Lane H (human/ops):** CRON-003 ∥ GC-001 → DB-001
+- **Lane H (human/ops):** CRON-003
 
 Lanes are mutually conflict-free; within a lane, order as listed. See MANAGER-WORKER-GUIDE.md for hand-off mechanics.

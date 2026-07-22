@@ -1,7 +1,7 @@
 # TASK-TEST-002 — Make vitest, ESLint and tsc ignore `.claude/worktrees/` so local validation tells the truth
 
 ## Status
-Planned
+Done — `eslint.config.mjs` and `vitest.config.ts` both exclude `.claude/worktrees/**`. Verified 2026-07-22 by reading the configs directly (worktree directories are still present on disk but no longer poison tooling output).
 
 ## Priority
 P1

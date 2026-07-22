@@ -1,7 +1,7 @@
 # TASK-TEST-001 — Fix DealsBundle type errors in tests/decision so the CI typecheck gate is green
 
 ## Status
-Planned
+Done — `npx tsc --noEmit` is clean at HEAD; `tests/decision/buildDecisionResult.test.ts` supplies `stackData` via `makeStackData()`. Verified 2026-07-22 by re-running the typecheck.
 
 ## Priority
 P1

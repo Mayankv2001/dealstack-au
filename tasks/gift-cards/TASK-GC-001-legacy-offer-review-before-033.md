@@ -1,7 +1,7 @@
 # TASK-GC-001 — Review the 10 active legacy gift-card offers before applying migration 033
 
 ## Status
-Planned
+Done — prerequisite review completed and migration 033 is confirmed applied in production (verified 2026-07-22 via Supabase `list_migrations`: 033/034/035 present).
 
 ## Priority
 P1
