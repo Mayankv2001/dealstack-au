@@ -27,7 +27,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatAUD } from "@/lib/calculateStack";
 import { loadDecisionResult } from "@/lib/decision/loadDecisionResult";
 import type { DecisionTarget } from "@/lib/decision/types";
-import { formatDateAU } from "@/lib/sources/normalise";
+import { formatDateAU, suggestNearbyStores } from "@/lib/sources/normalise";
 import { recommendationPresentation } from "@/lib/stack/present";
 import {
   acceptanceEvidenceLabel,
@@ -137,6 +137,9 @@ export default async function SearchPage({
     result.currentGiftCardOffers.length === 0 &&
     result.communityPulse.length === 0 &&
     result.productComparisons.length === 0;
+  const zeroHitSuggestions = noResults
+    ? suggestNearbyStores(query, result.stores, 3)
+    : [];
   const isProductComparison = result.productComparisons.length > 0;
   const isGiftCardDiscovery =
     !isProductComparison &&
@@ -300,6 +303,56 @@ export default async function SearchPage({
                 Apple, or a programme such as Flybuys. New reviewed records
                 appear after approval.
               </p>
+
+              {zeroHitSuggestions.length > 0 ? (
+                <div className="mt-5 w-full">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Did you mean
+                  </p>
+                  <div className="mt-2 flex flex-wrap justify-center gap-2">
+                    {zeroHitSuggestions.map((store) => (
+                      <Link
+                        key={store.id}
+                        href={`/search?q=${encodeURIComponent(store.name)}&spend=${spend}`}
+                        className="rounded-xl border bg-background px-3 py-2 text-sm font-semibold hover:border-emerald-500/40 hover:bg-emerald-500/[0.04]"
+                      >
+                        {store.name}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-6 w-full border-t pt-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Or browse
+                </p>
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  <Link
+                    href="/stores"
+                    className="rounded-xl border bg-background px-3 py-2 text-sm hover:bg-muted"
+                  >
+                    All stores
+                  </Link>
+                  <Link
+                    href="/deals"
+                    className="rounded-xl border bg-background px-3 py-2 text-sm hover:bg-muted"
+                  >
+                    Current deals
+                  </Link>
+                  <Link
+                    href="/gift-cards"
+                    className="rounded-xl border bg-background px-3 py-2 text-sm hover:bg-muted"
+                  >
+                    Gift cards
+                  </Link>
+                </div>
+                <div className="mt-4">
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/search">Clear search</Link>
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         ) : null}

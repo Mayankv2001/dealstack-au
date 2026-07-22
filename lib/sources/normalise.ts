@@ -1,4 +1,5 @@
 import { stores } from "@/lib/data";
+import type { Store } from "@/lib/data";
 import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import type { Confidence, DealSourceResult } from "./types";
 
@@ -122,6 +123,42 @@ export function findMerchantIdInText(text: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Zero-hit "did you mean" suggestions: up to `limit` stores whose name or a
+ * reviewed alias is closest to the query by bounded OSA distance, nearest first.
+ * Deliberately more lenient than the exact-resolve near-match in
+ * `resolveMerchantAlias` (threshold 2, or 3 once the query is ≥ 6 chars), so it
+ * surfaces onward links precisely when auto-resolution declined (too far, or an
+ * ambiguous tie). Built only from the trusted store list, never the raw query.
+ */
+export function suggestNearbyStores(
+  query: string,
+  stores: Array<Pick<Store, "id" | "name" | "aliases">>,
+  limit = 3,
+): Array<{ id: string; name: string }> {
+  const q = normaliseText(query);
+  if (q.length < 4 || q.length > 64) return [];
+  const threshold = q.length >= 6 ? 3 : 2;
+  const scored: Array<{ id: string; name: string; distance: number }> = [];
+  for (const store of stores) {
+    const candidates = [store.name, ...(store.aliases ?? [])]
+      .map(normaliseText)
+      .filter(Boolean);
+    let best = Infinity;
+    for (const candidate of candidates) {
+      const distance = boundedOsaDistance(q, candidate, threshold);
+      if (distance < best) best = distance;
+    }
+    if (best <= threshold) {
+      scored.push({ id: store.id, name: store.name, distance: best });
+    }
+  }
+  scored.sort(
+    (a, b) => a.distance - b.distance || a.name.localeCompare(b.name, "en-AU"),
+  );
+  return scored.slice(0, limit).map(({ id, name }) => ({ id, name }));
 }
 
 export function isExpired(result: DealSourceResult, now: Date): boolean {

@@ -7,6 +7,7 @@ import {
   isExpired,
   matchMerchantId,
   normaliseText,
+  suggestNearbyStores,
 } from "../../lib/sources/normalise";
 import type { DealSourceResult } from "../../lib/sources/types";
 
@@ -52,6 +53,55 @@ describe("boundedOsaDistance", () => {
   it("handles empty strings within and beyond the bound", () => {
     expect(boundedOsaDistance("", "ab", 2)).toBe(2);
     expect(boundedOsaDistance("", "abc", 2)).toBe(3);
+  });
+});
+
+// ── suggestNearbyStores (TASK-SEARCH-002 zero-hit recovery) ──────────────────
+
+describe("suggestNearbyStores", () => {
+  const stores = [
+    { id: "myer", name: "Myer", aliases: [] },
+    { id: "chemist-warehouse", name: "Chemist Warehouse", aliases: [] },
+    { id: "jb-hifi", name: "JB Hi-Fi", aliases: ["JB HiFi"] },
+  ];
+
+  it("suggests a store for a query a couple of edits away", () => {
+    expect(suggestNearbyStores("myerr", stores)).toEqual([
+      { id: "myer", name: "Myer" },
+    ]);
+  });
+
+  it("matches against reviewed aliases, not just the display name", () => {
+    // 'jbhifi' is one insertion from the alias 'jb hifi'.
+    expect(suggestNearbyStores("jbhifi", stores)).toEqual([
+      { id: "jb-hifi", name: "JB Hi-Fi" },
+    ]);
+  });
+
+  it("tolerates longer multi-word typos within the wider threshold", () => {
+    expect(suggestNearbyStores("chemest warehowse", stores)).toEqual([
+      { id: "chemist-warehouse", name: "Chemist Warehouse" },
+    ]);
+  });
+
+  it("returns nearest first and caps at the limit", () => {
+    const near = [
+      { id: "best", name: "Best", aliases: [] },
+      { id: "bost", name: "Bost", aliases: [] }, // exact-ish, distance 0
+      { id: "bxst", name: "Bxst", aliases: [] },
+    ];
+    const result = suggestNearbyStores("bost", near, 2);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ id: "bost", name: "Bost" }); // distance 0 first
+  });
+
+  it("returns nothing for an unrelated query", () => {
+    expect(suggestNearbyStores("zzzzzz", stores)).toEqual([]);
+  });
+
+  it("returns nothing for a query below the minimum length", () => {
+    expect(suggestNearbyStores("abc", stores)).toEqual([]);
+    expect(suggestNearbyStores("", stores)).toEqual([]);
   });
 });
 

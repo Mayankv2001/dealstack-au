@@ -217,6 +217,39 @@ test("decision hub: store search returns a shareable purchase plan", async ({
   await expect(page).toHaveURL(/q=myer&spend=750/);
 });
 
+test("decision hub: the zero-hit state offers recovery links and is axe-clean", async ({
+  page,
+}) => {
+  await page.goto("/search?q=zzzznothing");
+
+  const card = page.getByText("No reviewed match yet");
+  await expect(card).toBeVisible();
+
+  // Browse entry points and a clear-search escape hatch must be present.
+  await expect(page.getByRole("link", { name: "All stores" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Current deals" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Gift cards" }).last()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Clear search" })).toHaveAttribute(
+    "href",
+    "/search",
+  );
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test("decision hub: a near-miss store query is auto-corrected with an honest note", async ({
+  page,
+}) => {
+  // 'myre' is a single transposition from 'Myer' — resolved by the near-match.
+  await page.goto("/search?q=myre&spend=500");
+  await expect(
+    page.getByText(/Showing results for\s+Myer/),
+  ).toBeVisible();
+});
+
 test("decision hub: mobile keeps the current purchase summary within reach", async ({
   page,
 }) => {
