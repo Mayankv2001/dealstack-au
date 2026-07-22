@@ -168,7 +168,7 @@ describe("DecisionResult", () => {
       ],
       acceptance: [],
       giftCardOffers: [],
-    });
+    }, TEST_NOW);
     expect(result.ambiguous).toBe(true);
     expect(result.selectedTarget).toBeNull();
     expect(result.targetGroups.giftCards).toHaveLength(2);
@@ -207,7 +207,7 @@ describe("DecisionResult", () => {
       products: [],
       acceptance: [],
       giftCardOffers: [],
-    });
+    }, TEST_NOW);
     expect(result.bestCashStack).toBe(stackWithPoints);
     expect(result.rewardsStack).toBe(stackWithPoints);
     expect(result.rewardsStack?.pointsEarned).toBe(500);
@@ -295,7 +295,7 @@ describe("DecisionResult", () => {
       giftCardOffers: [ultimate],
       productComparisons: [comparison],
       productMatches: comparison.options,
-    });
+    }, TEST_NOW);
     expect(result.retailerGiftCardPlans).toHaveLength(2);
     expect(result.retailerGiftCardPlans[0]).toMatchObject({
       merchantId: "jb-hifi",

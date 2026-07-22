@@ -2,6 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractedOffer } from "@/lib/giftcards/extractOffer";
 import { reconcileOffers } from "@/lib/giftcards/reconcileOffers";
 
+/**
+ * CONTROLLED CLOCK. These fixtures describe a promotion running 15–21 Jul 2026,
+ * and reconcileOffers() classifies an offer whose Sydney expiry day has passed
+ * as "expired" before any other verdict. Calling it with the default live clock
+ * therefore made every outcome assertion here a time bomb: once the real date
+ * moved past 21 Jul 2026 the suite began reporting "expired" instead of the
+ * change verdict under test. Pin the clock inside the fixture window so these
+ * assertions test reconciliation, not today's date.
+ */
+const RECONCILE_NOW = new Date("2026-07-15T02:00:00.000Z");
+
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   stageCandidate: vi.fn(),
@@ -114,7 +125,7 @@ describe("stored gift-card reconciliation projection", () => {
       after: { sellerName: "Coles", pointsMultiplier: 20 },
       parseFailed: false,
     });
-    expect(reconcileOffers(records.map((record) => record.item)).results[0].outcome)
+    expect(reconcileOffers(records.map((record) => record.item), RECONCILE_NOW).results[0].outcome)
       .toBe("new-offer");
   });
 
@@ -126,7 +137,7 @@ describe("stored gift-card reconciliation projection", () => {
     expect(records).toHaveLength(1);
     expect(records[0].item.before?.pointsMultiplier).toBe(20);
     expect(records[0].item.after?.pointsMultiplier).toBe(30);
-    expect(reconcileOffers(records.map((record) => record.item)).results[0].outcome)
+    expect(reconcileOffers(records.map((record) => record.item), RECONCILE_NOW).results[0].outcome)
       .toBe("changed-points-multiplier");
   });
 
@@ -140,7 +151,7 @@ describe("stored gift-card reconciliation projection", () => {
       after: null,
       withdrawalStated: true,
     });
-    expect(reconcileOffers(records.map((record) => record.item)).results[0].outcome)
+    expect(reconcileOffers(records.map((record) => record.item), RECONCILE_NOW).results[0].outcome)
       .toBe("withdrawn");
   });
 
@@ -155,7 +166,7 @@ describe("stored gift-card reconciliation projection", () => {
       withdrawalStated: false,
       parseFailed: false,
     });
-    expect(reconcileOffers([reviewed!.item]).results[0].outcome).toBe(
+    expect(reconcileOffers([reviewed!.item], RECONCILE_NOW).results[0].outcome).toBe(
       "source-unavailable",
     );
   });
@@ -166,7 +177,7 @@ describe("stored gift-card reconciliation projection", () => {
       [candidate()],
     );
     expect(records[0].item.parseFailed).toBe(true);
-    expect(reconcileOffers(records.map((record) => record.item)).results[0].outcome)
+    expect(reconcileOffers(records.map((record) => record.item), RECONCILE_NOW).results[0].outcome)
       .toBe("parse-failure");
   });
 
@@ -383,7 +394,7 @@ describe("stored gift-card reconciliation apply adapter", () => {
     mocks.stageCandidate.mockResolvedValue(undefined);
     const stored = record();
     const canonicalBefore = structuredClone(stored.item.before);
-    const [result] = reconcileOffers([stored.item]).results;
+    const [result] = reconcileOffers([stored.item], RECONCILE_NOW).results;
 
     await expect(
       stageStoredOfferReconcileResult(
@@ -419,7 +430,7 @@ describe("stored gift-card reconciliation apply adapter", () => {
   it("is idempotent when an open candidate already covers the raw revision", async () => {
     mocks.from.mockReturnValue(mockCandidateLookup({ id: "candidate-open" }));
     const stored = record();
-    const [result] = reconcileOffers([stored.item]).results;
+    const [result] = reconcileOffers([stored.item], RECONCILE_NOW).results;
     await expect(
       stageStoredOfferReconcileResult(stored, result, new Date()),
     ).resolves.toBe("already-staged");
@@ -436,7 +447,7 @@ describe("stored gift-card reconciliation apply adapter", () => {
     mocks.stageCandidate.mockResolvedValue(undefined);
     const stored = record();
     stored.item.after = null;
-    const [result] = reconcileOffers([stored.item]).results;
+    const [result] = reconcileOffers([stored.item], RECONCILE_NOW).results;
     expect(result.outcome).toBe("source-unavailable");
     await stageStoredOfferReconcileResult(stored, result, new Date());
     expect(mocks.stageCandidate).toHaveBeenCalledWith(
@@ -454,7 +465,7 @@ describe("stored gift-card reconciliation apply adapter", () => {
       mockCandidateLookup(null, { code: "PGRST205", message: "not found" }),
     );
     const stored = record();
-    const [result] = reconcileOffers([stored.item]).results;
+    const [result] = reconcileOffers([stored.item], RECONCILE_NOW).results;
     await expect(
       stageStoredOfferReconcileResult(stored, result, new Date()),
     ).resolves.toBe("schema-missing");

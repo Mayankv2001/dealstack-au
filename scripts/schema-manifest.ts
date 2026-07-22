@@ -93,6 +93,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // cashback/points/weekly_deals/ozbargain_signals (defence in depth). No new
   // columns; coverage keeps the forward security boundary in the ledger.
   "036_offer_expiry_read_policies.sql",
+  // Policy-only: re-issues the two card-offer read policies with the
+  // Australia/Sydney bound used everywhere else. No columns, no data change.
+  "037_card_offer_sydney_expiry_bound.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */

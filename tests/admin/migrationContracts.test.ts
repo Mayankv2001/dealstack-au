@@ -438,6 +438,39 @@ describe("production safety migration contracts", () => {
     expect(COVERED_MIGRATIONS).toContain("036_offer_expiry_read_policies.sql");
   });
 
+  it("aligns the card-offer read bound to Australia/Sydney without changing visibility", () => {
+    const sql = migration("037_card_offer_sydney_expiry_bound.sql");
+
+    // Policy-only, forward, visibility-neutral: no writes, deletes or grants.
+    expect(sql).not.toMatch(/\b(insert|update|delete)\s+(into\s+)?public\./i);
+    expect(sql).not.toMatch(/\bgrant\b/i);
+    expect(sql).not.toMatch(/\bdrop\s+table\b/i);
+
+    // The last Australia/Melbourne expression in the schema is retired: both the
+    // offer policy and its history mirror must move to Australia/Sydney. Only
+    // EXECUTABLE SQL matters — the header comment quotes the old expression to
+    // explain the swap, so strip `--` comments before the negative assertions.
+    const executable = sql.replace(/--[^\n]*/g, "");
+    expect(executable).not.toMatch(/at time zone 'Australia\/Melbourne'/);
+    expect(executable).not.toMatch(/\bnow\(\) at time zone\b/);
+
+    expect(sql).toContain('create policy "public read current published card_offers"');
+    expect(sql).toContain('create policy "public read history for published card offers"');
+
+    // Same inclusive-on-the-day semantics as 033/036, DST-correct, and the
+    // per-statement clock rather than transaction-start now().
+    expect(
+      executable.match(/statement_timestamp\(\) at time zone 'Australia\/Sydney'/g)?.length ?? 0,
+    ).toBe(4);
+    expect(sql.match(/expiry_date is null/g)?.length ?? 0).toBe(2);
+    // The non-expiry gates are preserved verbatim, not loosened.
+    expect(sql.match(/is_archived = false/g)?.length ?? 0).toBe(2);
+    expect(sql.match(/confidence = 'confirmed'/g)?.length ?? 0).toBe(2);
+    expect(sql.match(/review_by_date >=/g)?.length ?? 0).toBe(2);
+
+    expect(COVERED_MIGRATIONS).toContain("037_card_offer_sydney_expiry_bound.sql");
+  });
+
   it("forward-corrects occurrence identity and Sydney date semantics", () => {
     const sql = migration("032_gift_card_lifecycle_orchestration.sql");
     expect(sql).toContain("gift_card_offer_occurrences_end_date_sydney_check");
