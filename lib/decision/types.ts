@@ -85,6 +85,12 @@ export interface DecisionResult {
   };
   selectedTarget: DecisionTarget | null;
   ambiguous: boolean;
+  /**
+   * Set when the query resolved to a store only via a bounded typo-tolerant
+   * near-match (not an exact hit), so the UI can honestly show "Showing results
+   * for <resolvedName> (searched '<searched>')". Null for exact/no resolution.
+   */
+  queryCorrection: { searched: string; resolvedName: string } | null;
   stores: Store[];
   productComparisons: SmartStackComparison[];
   bestCashStack: StackRecommendation | null;

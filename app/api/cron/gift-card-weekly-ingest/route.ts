@@ -33,7 +33,7 @@ import {
   runGiftCardIngest,
   type RunIngestDeps,
 } from "@/lib/giftcards/runIngest";
-import { decideSchedule } from "@/lib/giftcards/schedule";
+import { decideWeeklySchedule } from "@/lib/giftcards/schedule";
 import { reportOperationalError } from "@/lib/observability/report-server-error";
 import { isGiftCardJobRunSchemaUnavailable } from "@/lib/admin/repos/giftCardJobRunErrors";
 
@@ -86,7 +86,7 @@ export async function GET(request: Request): Promise<Response> {
 
     const force = new URL(request.url).searchParams.get("force") === "1";
     const lastStart = await lastIngestRunStart(POINT_HACKS_WEEKLY_SOURCE_ID);
-    const schedule = decideSchedule(now, lastStart, { force });
+    const schedule = decideWeeklySchedule(now, lastStart, { force });
     if (!schedule.run)
       return Response.json({ ok: true, ran: false, skipped: schedule.reason });
     const userAgent = pointHacksWeeklyUserAgent();

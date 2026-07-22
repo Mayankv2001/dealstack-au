@@ -477,6 +477,12 @@ export function buildDecisionResult(
   const resolvedStore = merchantResolution?.storeId
     ? bundle.stores.find((store) => store.id === merchantResolution.storeId) ?? null
     : null;
+  // Only surface a correction when a typo-tolerant near-match (not an exact hit)
+  // landed the query on a store — so the user sees "showing results for X".
+  const queryCorrection =
+    resolvedStore && merchantResolution?.method === "near-match"
+      ? { searched: q, resolvedName: resolvedStore.name }
+      : null;
   const selectedTarget = q
     ? (resolvedStore
       ? {
@@ -635,6 +641,7 @@ export function buildDecisionResult(
     },
     selectedTarget,
     ambiguous,
+    queryCorrection,
     stores: bundle.stores,
     productComparisons: inputs.productComparisons ?? [],
     bestCashStack,

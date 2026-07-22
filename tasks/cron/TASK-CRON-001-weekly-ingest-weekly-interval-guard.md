@@ -1,7 +1,7 @@
 # TASK-CRON-001 — Give the Point Hacks weekly ingest a genuinely weekly schedule guard
 
 ## Status
-Planned
+Done — 2026-07-22. Added `decideWeeklySchedule` + `WEEKLY_RUN_INTERVAL_GUARD_HOURS = 150` (interval form; no explicit Wednesday-publication contract exists in `pointHacksWeekly.ts` or `docs/gift-card-source-policy.md`, so per the task guidance the interval guard was chosen over a day-gate). A 150h guard sits above six local days and below seven, so daily double-slot firing yields exactly one real run per 7-day window and never skips a week across DST (proven by a 14-day AEST→AEDT simulation test). Wired into the weekly-ingest route (`force` still bypasses only the run-hour); reason key `weekly-interval-guard`; workflow header comment updated. Added unit + route tests (43 schedule/route tests green). No source/env/DB gate touched.
 
 ## Priority
 P1

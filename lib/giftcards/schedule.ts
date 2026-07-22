@@ -74,6 +74,48 @@ export function decideSchedule(
   return { run: true };
 }
 
+/**
+ * Minimum hours between real runs of a WEEKLY-permissioned source. 150h ≈ 6.25
+ * days — deliberately above six local days and below seven. With the scheduler
+ * firing daily at the two 7am-Sydney slots this admits exactly ONE real run per
+ * 7-day window: the six intervening days (24–144h) fall under the guard, and
+ * the following week's run (~168h, or 167–169h across a 23/25-hour DST week)
+ * clears it, so a week is never skipped. Distinct from
+ * RUN_INTERVAL_GUARD_HOURS, which is the GCDB feed's every-other-day cadence.
+ */
+export const WEEKLY_RUN_INTERVAL_GUARD_HOURS = 150;
+
+export type WeeklyScheduleDecision =
+  | { run: true }
+  | { run: false; reason: "outside-run-hour" | "weekly-interval-guard" };
+
+/**
+ * Decide whether a WEEKLY cron invocation should run. Same 7am-Sydney hour gate
+ * as `decideSchedule`, but the interval backstop is a full week
+ * (`WEEKLY_RUN_INTERVAL_GUARD_HOURS`) rather than 40h, so daily double-slot
+ * firing of a once-per-week-permissioned source (e.g. the Point Hacks weekly
+ * gift-card page) cannot over-fetch it. `lastRunStartedAt` is the most recent
+ * NON-SKIPPED run's start (null = never ran). `force` bypasses only the run
+ * hour, never the interval — matching `decideSchedule`'s convention.
+ */
+export function decideWeeklySchedule(
+  now: Date,
+  lastRunStartedAt: Date | null,
+  options: { force?: boolean } = {},
+): WeeklyScheduleDecision {
+  if (!options.force && !isSydneyRunHour(now)) {
+    return { run: false, reason: "outside-run-hour" };
+  }
+  if (lastRunStartedAt) {
+    const hoursSince =
+      (now.getTime() - lastRunStartedAt.getTime()) / 3_600_000;
+    if (hoursSince < WEEKLY_RUN_INTERVAL_GUARD_HOURS) {
+      return { run: false, reason: "weekly-interval-guard" };
+    }
+  }
+  return { run: true };
+}
+
 export type DailyLifecycleScheduleDecision =
   | { run: true; localDate: string }
   | {

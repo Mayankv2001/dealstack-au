@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   decideDailyLifecycleSchedule,
   decideSchedule,
+  decideWeeklySchedule,
   isSydneyRunHour,
   RUN_INTERVAL_GUARD_HOURS,
   sydneyHour,
   sydneyLocalDate,
+  WEEKLY_RUN_INTERVAL_GUARD_HOURS,
 } from "@/lib/giftcards/schedule";
 
 /**
@@ -203,6 +205,124 @@ describe("interval guard — exact RUN_INTERVAL_GUARD_HOURS boundary", () => {
     expect(
       decideSchedule(now, minutesBefore(RUN_INTERVAL_GUARD_HOURS * 60))
     ).toEqual({ run: true });
+  });
+});
+
+/**
+ * TASK-CRON-001 — the Point Hacks WEEKLY source must not be over-fetched by the
+ * daily double-slot scheduler. Same 7am-Sydney hour gate as decideSchedule, but
+ * the interval backstop is a full week (WEEKLY_RUN_INTERVAL_GUARD_HOURS ≈ 150h),
+ * so at most one real run lands per 7-day window and a week is never skipped.
+ */
+describe("decideWeeklySchedule", () => {
+  const HOUR = 3_600_000;
+
+  it("guard is a genuine week — above six days, below seven", () => {
+    expect(WEEKLY_RUN_INTERVAL_GUARD_HOURS).toBeGreaterThan(6 * 24);
+    expect(WEEKLY_RUN_INTERVAL_GUARD_HOURS).toBeLessThan(7 * 24);
+  });
+
+  it("refuses to run outside the Sydney run hour", () => {
+    expect(
+      decideWeeklySchedule(new Date("2026-07-11T12:00:00Z"), null),
+    ).toEqual({ run: false, reason: "outside-run-hour" });
+  });
+
+  it("runs at the run hour when there is no previous run", () => {
+    expect(decideWeeklySchedule(AEST_7AM, null)).toEqual({ run: true });
+  });
+
+  it("blocks a mid-week second run (3 days ago) that the 40h guard would allow", () => {
+    const threeDaysAgo = new Date(AEST_7AM.getTime() - 3 * 24 * HOUR);
+    // The old every-other-day guard would have permitted this (>40h) — the
+    // bug this task fixes. The weekly guard blocks it.
+    expect(decideSchedule(AEST_7AM, threeDaysAgo)).toEqual({ run: true });
+    expect(decideWeeklySchedule(AEST_7AM, threeDaysAgo)).toEqual({
+      run: false,
+      reason: "weekly-interval-guard",
+    });
+  });
+
+  it("runs again once a full week has elapsed", () => {
+    const eightDaysAgo = new Date(AEST_7AM.getTime() - 8 * 24 * HOUR);
+    expect(decideWeeklySchedule(AEST_7AM, eightDaysAgo)).toEqual({ run: true });
+  });
+
+  it("never skips a week — the next week's ~168h run clears the guard", () => {
+    const weekAgo = new Date(AEST_7AM.getTime() - 7 * 24 * HOUR);
+    expect(decideWeeklySchedule(AEST_7AM, weekAgo)).toEqual({ run: true });
+  });
+
+  it("force bypasses the run-hour gate but NOT the weekly interval", () => {
+    const offHour = new Date("2026-07-11T12:00:00Z");
+    expect(decideWeeklySchedule(offHour, null, { force: true })).toEqual({
+      run: true,
+    });
+    const fourDaysAgo = new Date(offHour.getTime() - 4 * 24 * HOUR);
+    expect(
+      decideWeeklySchedule(offHour, fourDaysAgo, { force: true }),
+    ).toEqual({ run: false, reason: "weekly-interval-guard" });
+  });
+
+  describe("exact WEEKLY_RUN_INTERVAL_GUARD_HOURS boundary", () => {
+    const minutesBefore = (mins: number) =>
+      new Date(AEST_7AM.getTime() - mins * 60_000);
+
+    it("blocks just inside the guard", () => {
+      expect(
+        decideWeeklySchedule(
+          AEST_7AM,
+          minutesBefore(WEEKLY_RUN_INTERVAL_GUARD_HOURS * 60 - 1),
+        ),
+      ).toEqual({ run: false, reason: "weekly-interval-guard" });
+    });
+
+    it("runs at exactly the guard threshold (strict <)", () => {
+      expect(
+        decideWeeklySchedule(
+          AEST_7AM,
+          minutesBefore(WEEKLY_RUN_INTERVAL_GUARD_HOURS * 60),
+        ),
+      ).toEqual({ run: true });
+    });
+  });
+
+  describe("daily double-slot firing over a full week — one run only", () => {
+    // Simulate the scheduler firing at 7am Sydney every day for two weeks and
+    // assert exactly one accepted run per 7-day window, across the AEST→AEDT
+    // spring-forward transition (2026-10-04).
+    it("admits one run per week and neither double-runs nor skips a week", () => {
+      // 7am Sydney instants for 14 consecutive local days spanning the DST change.
+      const days: string[] = [
+        "2026-09-29T21:00:00Z", // AEST 7am (UTC+10)
+        "2026-09-30T21:00:00Z",
+        "2026-10-01T21:00:00Z",
+        "2026-10-02T21:00:00Z",
+        "2026-10-03T20:00:00Z", // AEDT 7am (UTC+11) — 4 Oct spring-forward day
+        "2026-10-04T20:00:00Z",
+        "2026-10-05T20:00:00Z",
+        "2026-10-06T20:00:00Z",
+        "2026-10-07T20:00:00Z",
+        "2026-10-08T20:00:00Z",
+        "2026-10-09T20:00:00Z",
+        "2026-10-10T20:00:00Z",
+        "2026-10-11T20:00:00Z",
+        "2026-10-12T20:00:00Z",
+      ];
+      let lastStart: Date | null = null;
+      const runDays: number[] = [];
+      days.forEach((iso, index) => {
+        const now = new Date(iso);
+        expect(isSydneyRunHour(now)).toBe(true); // every entry is a real 7am slot
+        const decision = decideWeeklySchedule(now, lastStart);
+        if (decision.run) {
+          runDays.push(index);
+          lastStart = now;
+        }
+      });
+      // Day 0 runs; the next run is day 7 (a full week later); day 14 would be next.
+      expect(runDays).toEqual([0, 7]);
+    });
   });
 });
 

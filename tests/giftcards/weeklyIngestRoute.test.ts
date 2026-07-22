@@ -91,6 +91,34 @@ describe("weekly gift-card ingest permission gates", () => {
     expect(mocks.fetchPage).not.toHaveBeenCalled();
   });
 
+  it("skips with the weekly-interval guard when the last run was within the week", async () => {
+    // Fully permitted source; force=1 bypasses only the run-hour, never the
+    // weekly interval — a run three days ago must still be guarded off, so the
+    // daily double-slot scheduler cannot over-fetch this weekly source.
+    mocks.getSource.mockResolvedValue({
+      id: "pointhacks_weekly_gift_cards",
+      feed_url: "https://www.pointhacks.com.au/weekly-gift-card-offers/",
+      enabled: true,
+      automated_fetch_allowed: true,
+      terms_checked_at: "2026-07-01",
+      robots_checked_at: "2026-07-01",
+      etag: null,
+      last_modified: null,
+    });
+    mocks.lastStart.mockResolvedValue(
+      new Date(Date.now() - 3 * 24 * 3_600_000),
+    );
+
+    const response = await GET(request());
+    expect(await response.json()).toMatchObject({
+      ran: false,
+      skipped: "weekly-interval-guard",
+    });
+    // Interval gate sits after the source gates and before the run lock.
+    expect(mocks.startRun).not.toHaveBeenCalled();
+    expect(mocks.fetchPage).not.toHaveBeenCalled();
+  });
+
   it("returns a controlled 503 without an incident when migration 030 is absent", async () => {
     mocks.getSource.mockResolvedValue({
       id: "pointhacks_weekly_gift_cards",

@@ -11,6 +11,57 @@ export function normaliseText(text: string): string {
 }
 
 /**
+ * Optimal String Alignment distance (Levenshtein plus adjacent transpositions),
+ * bounded by `max`: returns `max + 1` immediately when the strings are too far
+ * apart to be within the bound (length gap alone exceeds it) and never reports a
+ * distance greater than `max + 1`. Transposition-aware on purpose — the common
+ * store-name typo is a swap ("myre" for "myer"), which plain Levenshtein scores
+ * as two substitutions but OSA scores as one. Pure and length-bounded, so it is
+ * safe to run over a query against a fixed alias table (no DoS surface). Inputs
+ * are expected pre-normalised and short; callers cap query length before use.
+ */
+export function boundedOsaDistance(a: string, b: string, max: number): number {
+  if (a === b) return 0;
+  const al = a.length;
+  const bl = b.length;
+  if (Math.abs(al - bl) > max) return max + 1;
+  if (al === 0) return bl <= max ? bl : max + 1;
+  if (bl === 0) return al <= max ? al : max + 1;
+
+  let prevPrev = new Array<number>(bl + 1).fill(0);
+  let prev = new Array<number>(bl + 1);
+  let curr = new Array<number>(bl + 1);
+  for (let j = 0; j <= bl; j++) prev[j] = j;
+
+  for (let i = 1; i <= al; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(
+        prev[j] + 1, // deletion
+        curr[j - 1] + 1, // insertion
+        prev[j - 1] + cost, // substitution
+      );
+      if (
+        i > 1 &&
+        j > 1 &&
+        a[i - 1] === b[j - 2] &&
+        a[i - 2] === b[j - 1]
+      ) {
+        v = Math.min(v, prevPrev[j - 2] + 1); // adjacent transposition
+      }
+      curr[j] = v;
+    }
+    // Rotate the three rolling rows (reuse the arrays, no per-row allocation).
+    const spare = prevPrev;
+    prevPrev = prev;
+    prev = curr;
+    curr = spare;
+  }
+  return prev[bl] <= max ? prev[bl] : max + 1;
+}
+
+/**
  * Aliases (normalised form) → Store.id from lib/data.ts.
  * Store names and ids themselves are added automatically below.
  */

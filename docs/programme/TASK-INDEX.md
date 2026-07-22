@@ -4,13 +4,12 @@
 >
 > **2026-07-22 reconciliation:** the task files had drifted from reality — 4 of the 20 were already shipped but still read "Planned". Verified directly (not from memory/docs) and corrected: TASK-TEST-001 (`tsc --noEmit` clean), TASK-TEST-002 (`eslint.config.mjs`/`vitest.config.ts` already exclude `.claude/worktrees/**`), TASK-GC-001 and TASK-DB-001 (migrations 033/034/035 confirmed applied via Supabase `list_migrations` on project `numgsivlrglflsnqehac`). One commit (`baab9f9`) carried a misleading message claiming several other features shipped (search typo-tolerance, zero-hit recovery, SEO ItemList/sitemap, property tests) — its actual diff only added the task doc files themselves; none of that code existed.
 >
-> **2026-07-22 (same day), two more completed for real:** TASK-DOC-001 (PROJECT_STATE.md migration-truth reconciled to the verified ledger — through 035) and TASK-SEO-001 (ItemList JSON-LD builder + tests + wired into /stores, /gift-cards, /deals, browser-verified). Six tasks now Done, 13 open.
+> **2026-07-22 (same day), four more completed for real:** TASK-DOC-001 (PROJECT_STATE.md migration-truth reconciled to the verified ledger — through 035), TASK-SEO-001 (ItemList JSON-LD on /stores, /gift-cards, /deals), TASK-CRON-001 (`decideWeeklySchedule` weekly guard) and TASK-SEARCH-001 (bounded typo-tolerant near-match + honest correction note) — all browser- or test-verified. Eight tasks now Done, 11 open. (Aside: `npm run test:decision` has one pre-existing red — `buildDecisionResult` retailer-plan — unrelated to any audit task; spun off separately.)
 
 ## Open (16)
 
 | ID | Priority | Workstream | File | One-line problem |
 |---|---|---|---|---|
-| TASK-CRON-001 | P1 | CRON | [tasks/cron/TASK-CRON-001-weekly-ingest-weekly-interval-guard.md](../../tasks/cron/TASK-CRON-001-weekly-ingest-weekly-interval-guard.md) | "Weekly" Point Hacks ingest runs on a 40h guard → up to ~3 fetches/week |
 | TASK-CRON-002 | P2 | CRON | [tasks/cron/TASK-CRON-002-missed-run-catchup-window.md](../../tasks/cron/TASK-CRON-002-missed-run-catchup-window.md) | Fully missed Sydney-7am window has no automated catch-up |
 | TASK-CRON-003 | P1 | CRON | [tasks/cron/TASK-CRON-003-verify-actions-secret-and-schedule-liveness.md](../../tasks/cron/TASK-CRON-003-verify-actions-secret-and-schedule-liveness.md) | Whether any scheduled job runs in production is unverified (Actions secret / schedule liveness) |
 | TASK-EXP-001 | P2 | EXP | [tasks/expiry/TASK-EXP-001-warn-never-checked-layers.md](../../tasks/expiry/TASK-EXP-001-warn-never-checked-layers.md) | Never-verified stack layers carry no freshness warning while 22-day-old ones do |
@@ -19,15 +18,14 @@
 | TASK-REL-002 | P2 | REL | [tasks/reliability/TASK-REL-002-health-state-vocabulary.md](../../tasks/reliability/TASK-REL-002-health-state-vocabulary.md) | Health endpoints lack a shared healthy/degraded/stale/paused vocabulary |
 | TASK-TEST-003 | P2 | TEST | [tasks/testing/TASK-TEST-003-stack-engine-property-tests.md](../../tasks/testing/TASK-TEST-003-stack-engine-property-tests.md) | Stack-maths honesty invariants unpinned by property tests |
 | TASK-STACK-001 | P1 | STACK | [tasks/deal-engine/TASK-STACK-001-unify-calculator-maths-or-label-estimate.md](../../tasks/deal-engine/TASK-STACK-001-unify-calculator-maths-or-label-estimate.md) | Calculator and stack engine can show different totals with no explanation |
-| TASK-SEARCH-001 | P2 | SEARCH | [tasks/search/TASK-SEARCH-001-typo-tolerant-matching.md](../../tasks/search/TASK-SEARCH-001-typo-tolerant-matching.md) | One typo zeroes search results; add bounded near-match store resolution |
 | TASK-SEARCH-002 | P2 | SEARCH | [tasks/search/TASK-SEARCH-002-zero-hit-recovery-and-test.md](../../tasks/search/TASK-SEARCH-002-zero-hit-recovery-and-test.md) | Zero-hit search state is honest but a dead end; add recovery + pin with a test |
 | TASK-PERF-001 | P2 | PERF | [tasks/performance/TASK-PERF-001-performance-baseline-and-budgets.md](../../tasks/performance/TASK-PERF-001-performance-baseline-and-budgets.md) | No performance baseline/budgets; measurement before any optimisation |
 | TASK-A11Y-001 | P2 | A11Y | [tasks/accessibility/TASK-A11Y-001-expand-axe-and-interaction-coverage.md](../../tasks/accessibility/TASK-A11Y-001-expand-axe-and-interaction-coverage.md) | Axe covers 7 routes, no detail templates, no keyboard/reduced-motion checks |
 | TASK-SEO-002 | P3 | SEO | [tasks/seo/TASK-SEO-002-sitemap-detail-coverage-lastmodified.md](../../tasks/seo/TASK-SEO-002-sitemap-detail-coverage-lastmodified.md) | Sitemap omits live detail-route families and all lastModified |
 
-**Counts (open):** P0 0 · P1 3 · P2 9 · P3 1 — 13 tasks.
+**Counts (open):** P0 0 · P1 2 · P2 8 · P3 1 — 11 tasks.
 
-## Done (6)
+## Done (8)
 
 | ID | Priority | Workstream | File | Verified |
 |---|---|---|---|---|
@@ -37,6 +35,8 @@
 | TASK-DB-001 | P1 | DB | [tasks/database/TASK-DB-001-apply-migration-033-approval-hardening.md](../../tasks/database/TASK-DB-001-apply-migration-033-approval-hardening.md) | Supabase `list_migrations` shows 033/034/035 applied |
 | TASK-DOC-001 | P1 | DOC | [tasks/medium/TASK-DOC-001-reconcile-project-state-migration-truth.md](../../tasks/medium/TASK-DOC-001-reconcile-project-state-migration-truth.md) | PROJECT_STATE.md reconciled to verified ledger (through 035) 2026-07-22 |
 | TASK-SEO-001 | P3 | SEO | [tasks/seo/TASK-SEO-001-itemlist-structured-data-listings.md](../../tasks/seo/TASK-SEO-001-itemlist-structured-data-listings.md) | ItemList JSON-LD live on /stores, /gift-cards, /deals; 25/25 tests, build green |
+| TASK-CRON-001 | P1 | CRON | [tasks/cron/TASK-CRON-001-weekly-ingest-weekly-interval-guard.md](../../tasks/cron/TASK-CRON-001-weekly-ingest-weekly-interval-guard.md) | `decideWeeklySchedule` (~150h guard) — one real run/week, DST-safe; tests green |
+| TASK-SEARCH-001 | P2 | SEARCH | [tasks/search/TASK-SEARCH-001-typo-tolerant-matching.md](../../tasks/search/TASK-SEARCH-001-typo-tolerant-matching.md) | Bounded OSA near-match in resolveMerchantAlias + honest correction note; browser-verified |
 
 Supporting documents: audits in [docs/audit/](../audit/), decisions ADR-001…003 in [docs/decisions/](../decisions/), runbooks (9) in [docs/runbooks/](../runbooks/), programme files in this folder.
 

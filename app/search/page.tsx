@@ -205,6 +205,19 @@ export default async function SearchPage({
           </p>
         ) : null}
 
+        {result.queryCorrection ? (
+          <p
+            role="status"
+            className="mx-auto mt-5 max-w-3xl rounded-xl border bg-card p-3 text-sm text-muted-foreground"
+          >
+            Showing results for{" "}
+            <span className="font-semibold text-foreground">
+              {result.queryCorrection.resolvedName}
+            </span>{" "}
+            — searched “{result.queryCorrection.searched}”.
+          </p>
+        ) : null}
+
         {!query ? (
           <Card className="mx-auto mt-8 max-w-3xl border-dashed">
             <CardContent className="flex flex-col items-center py-10 text-center">

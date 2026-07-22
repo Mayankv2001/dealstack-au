@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  boundedOsaDistance,
   deriveConfidence,
   findMerchantIdInText,
   formatDateAU,
@@ -16,6 +17,41 @@ describe("normaliseText", () => {
     expect(normaliseText("JB Hi-Fi!  TVs")).toBe("jb hi fi tvs");
     expect(normaliseText("  Coles   ")).toBe("coles");
     expect(normaliseText("")).toBe("");
+  });
+});
+
+// ── boundedOsaDistance ───────────────────────────────────────────────────────
+
+describe("boundedOsaDistance", () => {
+  it("is zero for identical strings", () => {
+    expect(boundedOsaDistance("myer", "myer", 2)).toBe(0);
+  });
+
+  it("scores an adjacent transposition as 1 (OSA, not plain Levenshtein)", () => {
+    // 'myre' -> 'myer' is a swap of the last two letters: Levenshtein = 2,
+    // OSA = 1. This is the flagship store-name typo the near-match must catch.
+    expect(boundedOsaDistance("myre", "myer", 2)).toBe(1);
+  });
+
+  it("counts single insert/delete/substitute as 1", () => {
+    expect(boundedOsaDistance("coles", "coels", 2)).toBe(1); // transpose
+    expect(boundedOsaDistance("myer", "myers", 2)).toBe(1); // insert
+    expect(boundedOsaDistance("myer", "mye", 2)).toBe(1); // delete
+    expect(boundedOsaDistance("myer", "myar", 2)).toBe(1); // substitute
+  });
+
+  it("returns max+1 once the true distance exceeds the bound", () => {
+    // 'niketown' vs 'nike' differ by 4 (append 'town'); bounded at 2 → 3.
+    expect(boundedOsaDistance("niketown", "nike", 2)).toBe(3);
+  });
+
+  it("short-circuits on length gap alone without scanning", () => {
+    expect(boundedOsaDistance("a", "abcdef", 2)).toBe(3);
+  });
+
+  it("handles empty strings within and beyond the bound", () => {
+    expect(boundedOsaDistance("", "ab", 2)).toBe(2);
+    expect(boundedOsaDistance("", "abc", 2)).toBe(3);
   });
 });
 
