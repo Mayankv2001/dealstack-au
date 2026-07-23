@@ -9,11 +9,23 @@
 # calls return a safe machine-readable skip, so this schedule is idempotent by
 # construction.
 #
-# The endpoint itself is quadruple-gated (CRON_SECRET bearer,
-# GCDB_INGEST_ENABLED env flag, gift_card_sources.enabled AND
-# .automated_fetch_allowed) — with any gate closed this workflow reaches a
-# safe no-op response and exits green with "skipped". Only the HTTP status and
-# the machine-readable skip/run summary keys are logged (public repo).
+# The endpoint is quadruple-gated (CRON_SECRET bearer, GCDB_INGEST_ENABLED env
+# flag, gift_card_sources.enabled AND .automated_fetch_allowed) and ships OFF by
+# design (source policy: adapters are enabled only after a recorded review).
+#
+# Exit contract (mirrors monitor-health.yml / gift-card-lifecycle.yml):
+#   0 = ran cleanly, OR skipped by a KNOWN gate — including the deliberate-off
+#       states (environment-disabled, source-missing/-disabled, fetch-not-
+#       permitted, permission-review-incomplete, no-feed-url) and the cadence
+#       gates (outside-run-hour, interval-guard, already-running). A disabled
+#       ingest is the compliance-correct steady state, so it stays green, but
+#       the reason is printed as a ::notice:: — never silently green.
+#   1 = the endpoint failed (non-2xx incl. 401/500/503 schema-unavailable), the
+#       run reported errors (ok:false / status partial|error / errorCount>0), it
+#       skipped for a reason this workflow does not recognise, or the body was
+#       unreadable.
+#   2 = blind: the CRON_SECRET repository secret is missing.
+# Only HTTP status + machine-readable summary keys are logged (public repo).
 #
 # Human setup (once): the CRON_SECRET repository Actions secret (shared with
 # monitor-health.yml) must exist; enablement of the ingest itself happens in
@@ -51,16 +63,44 @@ jobs:
             -H "Authorization: Bearer $CRON_SECRET" \
             "https://dealstack-au.vercel.app/api/cron/gift-card-ingest")
           echo "HTTP $status"
-          # Log only machine-readable summary keys, never the raw body wholesale.
-          python3 - <<'PY'
-          import json
-          with open("response.json") as f:
-              data = json.load(f)
-          keys = ["ok", "ran", "skipped", "status", "itemsSeen", "itemsNew",
-                  "newCandidates", "changedCandidates", "errorCount", "durationMs"]
-          print({k: data.get(k) for k in keys if k in data})
-          PY
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
             echo "::error::gift-card ingest endpoint returned HTTP $status"
             exit 1
           fi
+          python3 - <<'PY'
+          import json, sys
+
+          # KNOWN skips that stay green. Deliberate-off states + cadence gates.
+          # schema-unavailable is deliberately NOT here — it returns 503 (caught
+          # above as non-2xx) and means the job-run tables are missing.
+          BENIGN_SKIPS = {
+              "environment-disabled", "source-missing", "source-disabled",
+              "fetch-not-permitted", "permission-review-incomplete", "no-feed-url",
+              "outside-run-hour", "interval-guard", "already-running",
+          }
+          KEYS = ["ok", "ran", "skipped", "status", "itemsSeen", "itemsNew",
+                  "newCandidates", "changedCandidates", "errorCount", "durationMs"]
+
+          try:
+              with open("response.json") as f:
+                  data = json.load(f)
+          except (OSError, ValueError) as exc:
+              print(f"::error::gift-card ingest returned an unreadable body: {exc}")
+              sys.exit(1)
+
+          print({k: data.get(k) for k in KEYS if k in data})
+
+          skipped = data.get("skipped")
+          if skipped:
+              if skipped in BENIGN_SKIPS:
+                  print(f"::notice::gift-card ingest skipped by a known gate ({skipped}) — no work this run.")
+                  sys.exit(0)
+              print(f"::error::gift-card ingest skipped for an unrecognised reason: {skipped}")
+              sys.exit(1)
+
+          if data.get("ok") is False or (data.get("errorCount") or 0) or data.get("status") in ("partial", "error"):
+              print(f"::error::gift-card ingest completed with errors (status={data.get('status')}, errorCount={data.get('errorCount')}).")
+              sys.exit(1)
+
+          print(f"::notice::gift-card ingest ran: itemsSeen={data.get('itemsSeen')} newCandidates={data.get('newCandidates')} changedCandidates={data.get('changedCandidates')}.")
+          PY

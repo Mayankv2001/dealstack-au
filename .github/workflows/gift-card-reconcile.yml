@@ -6,9 +6,18 @@
 # a duplicate or delayed fire returns a safe machine-readable skip.
 #
 # The endpoint is gated: CRON_SECRET bearer + GIFT_CARD_RECONCILE_ENABLED env
-# flag (default off). With the flag off this workflow reaches a safe no-op
-# ("skipped":"environment-disabled") and exits green. Reconciliation never
-# fetches from a source whose gates are closed — this workflow opens nothing.
+# flag (default off). Reconciliation never fetches from a source whose gates are
+# closed — this workflow opens nothing.
+#
+# Exit contract (mirrors monitor-health.yml / gift-card-lifecycle.yml):
+#   0 = ran cleanly, OR skipped by a KNOWN gate: environment-disabled (the
+#       compliance-correct off state), interval-guard, or already-running. The
+#       reason is printed as a ::notice:: — never silently green.
+#   1 = the endpoint failed (non-2xx incl. 401/500/503 schema-unavailable), the
+#       run reported errors (ok:false / status partial|error), it skipped for a
+#       reason this workflow does not recognise, or the body was unreadable.
+#   2 = blind: the CRON_SECRET repository secret is missing.
+# Only HTTP status + machine-readable summary keys are logged (public repo).
 #
 # Human setup (once): the CRON_SECRET repository Actions secret must exist
 # (shared with the other cron workflows); enablement of reconciliation happens
@@ -46,16 +55,42 @@ jobs:
             -H "Authorization: Bearer $CRON_SECRET" \
             "https://dealstack-au.vercel.app/api/cron/gift-card-reconcile")
           echo "HTTP $status"
-          python3 - <<'PY'
-          import json
-          with open("response.json") as f:
-              data = json.load(f)
-          keys = ["ok", "ran", "skipped", "status", "total", "changedCandidates",
-                  "newOffers", "refreshed", "sourceUnavailable", "expired",
-                  "predictionsProcessed", "predictionsMatched", "errorCount"]
-          print({k: data.get(k) for k in keys if k in data})
-          PY
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
             echo "::error::gift-card reconcile endpoint returned HTTP $status"
             exit 1
           fi
+          python3 - <<'PY'
+          import json, sys
+
+          # KNOWN skips that stay green. schema-unavailable is deliberately NOT
+          # here — it returns 503 (caught above as non-2xx).
+          BENIGN_SKIPS = {"environment-disabled", "interval-guard", "already-running"}
+          KEYS = ["ok", "ran", "skipped", "status", "total", "changedCandidates",
+                  "newOffers", "refreshed", "sourceUnavailable", "expired",
+                  "predictionsProcessed", "predictionsMatched", "errorCount"]
+
+          try:
+              with open("response.json") as f:
+                  data = json.load(f)
+          except (OSError, ValueError) as exc:
+              print(f"::error::gift-card reconcile returned an unreadable body: {exc}")
+              sys.exit(1)
+
+          print({k: data.get(k) for k in KEYS if k in data})
+
+          skipped = data.get("skipped")
+          if skipped:
+              if skipped in BENIGN_SKIPS:
+                  print(f"::notice::gift-card reconcile skipped by a known gate ({skipped}) — no work this run.")
+                  sys.exit(0)
+              print(f"::error::gift-card reconcile skipped for an unrecognised reason: {skipped}")
+              sys.exit(1)
+
+          # Reconcile does not expose errorCount; ok:false and a partial status
+          # are the failure signals (ok = m.status != "error").
+          if data.get("ok") is False or (data.get("errorCount") or 0) or data.get("status") in ("partial", "error"):
+              print(f"::error::gift-card reconcile completed with errors (status={data.get('status')}).")
+              sys.exit(1)
+
+          print(f"::notice::gift-card reconcile ran: total={data.get('total')} changedCandidates={data.get('changedCandidates')} expired={data.get('expired')}.")
+          PY
