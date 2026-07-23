@@ -30,7 +30,12 @@ on:
   schedule:
     - cron: "7 20 * * *" # 07:07 AEDT (UTC+11)
     - cron: "7 21 * * *" # 07:07 AEST (UTC+10)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Bypass the 07:00 Sydney hour gate for an on-demand run. Still same-Sydney-day idempotent (a second forced run the same day returns already-ran-local-day), and never bypasses the auth/env gates."
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -46,15 +51,23 @@ jobs:
       - name: Call the lifecycle endpoint
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Empty on scheduled runs (inputs exist only for workflow_dispatch),
+          # so the 07:00 Sydney hour gate always applies to the daily cron.
+          FORCE: ${{ inputs.force }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "::error::CRON_SECRET repository secret is missing — this trigger is blind."
             exit 2
           fi
+          url="https://dealstack-au.vercel.app/api/cron/gift-card-lifecycle"
+          if [ "$FORCE" = "true" ]; then
+            url="$url?force=1"
+            echo "Forced run: bypassing the 07:00 Sydney hour gate (same-day idempotency still applies)."
+          fi
           status=$(curl -sS -o response.json -w "%{http_code}" \
             --max-time 300 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "https://dealstack-au.vercel.app/api/cron/gift-card-lifecycle")
+            "$url")
           echo "HTTP $status"
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
             echo "::error::gift-card lifecycle endpoint returned HTTP $status"
