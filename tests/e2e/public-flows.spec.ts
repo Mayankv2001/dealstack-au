@@ -632,6 +632,13 @@ test("gift-cards: tabs filter the offers and are shareable via the URL", async (
     ).toBeVisible();
     await page.getByRole("button", { name: "Close filter drawer" }).click();
   } else {
+    // Under 15 offers the desktop filter rail collapses into a "More
+    // filters" disclosure; open it first. Large inventories keep the
+    // always-open rail with no disclosure.
+    const moreFilters = page.locator("summary", { hasText: "More filters" });
+    if (await moreFilters.count()) {
+      await moreFilters.first().click();
+    }
     await expect(
       page.getByLabel("Confirmed current only").first(),
     ).toBeVisible();
