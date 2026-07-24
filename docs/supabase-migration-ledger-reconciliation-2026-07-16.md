@@ -1,8 +1,11 @@
 # Supabase production migration-ledger reconciliation — 2026-07-16
 
-> Investigation, operator runbook and completed apply record. Ledger repair and
-> migrations 027–032 completed 2026-07-17. Migration 033 remains pending. Project:
-> `numgsivlrglflsnqehac`.
+> Investigation, operator runbook and completed apply record. The 2026-07-17
+> ledger repair applied 027–032; the 033–035 (2026-07-21) and 036–037
+> (2026-07-22) follow-up applies are recorded in the dated sections below, so
+> production is now canonical through **037** (`verify:schema`: 37/37). The
+> narrative that follows describes the original 027→032 session; read the
+> follow-up sections for the later applies. Project: `numgsivlrglflsnqehac`.
 
 ## Recovery point and completed gate
 
