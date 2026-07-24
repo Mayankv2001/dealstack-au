@@ -25,6 +25,7 @@ What this audit adds is (a) defects introduced or exposed **after** the 2026-07-
 - **Evidence:** `docs/launch-management/PROJECT_STATE.md` line ~5 and §platform say "027–033 … NOT applied"; the same file's §5 says "ledger canonical through 032"; `docs/gift-card-migration-028-030.md` says applied to production 2026-07-17. Migration 033 is genuinely still gated (`docs/gift-card-migration-033-approval-hardening.md`).
 - **Impact:** The next operator/agent gets a false picture of production schema state — the exact failure mode DS-011 was raised to prevent, recurring.
 - **Classification:** Confirmed defect (documentation) → `tasks/medium/TASK-DOC-001`.
+- **Resolved 2026-07-23:** `PROJECT_STATE.md` was reconciled to the verified ledger — first to 035 (TASK-DOC-001, 2026-07-22), then to 037 (commit `1052eb1`). Header, §platform and §5 now agree (021–037 applied; canonical through 037; `verify:schema` 37/37). No contradiction remains.
 
 ### 4. `monitor-feeds` cron echoes raw internal error text
 - **Evidence:** `app/api/cron/monitor-feeds/route.ts` catch path returns `{ error: errMessage(error) }` and includes `complianceError` verbatim; every other cron route deliberately returns a fixed string ("gift-card ingest failed" etc.) and the recheck route documents "never echo a raw internal message".
@@ -39,6 +40,7 @@ What this audit adds is (a) defects introduced or exposed **after** the 2026-07-
 ### 6. Migration 033 apply is still an open, gated production action
 - **Evidence:** doc trail above; approval-hardening RPC replacement written and reviewed; PROJECT_STATE next-steps also requires "review the 10 active legacy gift-card offers before migration 033".
 - **Classification:** Missing verification / human-gated work → `tasks/gift-cards/TASK-GC-001` + `tasks/database/TASK-DB-001`.
+- **Resolved 2026-07-21:** migration 033 was applied to production in its own transaction — the hardened approve RPC (advisory-lock serialisation, lineage guards, confirmed-only publication) is now live; 034–037 applied since. **Caveat (still open):** the `TASK-GC-001` pre-review of the legacy active offers was NOT completed first, so the confirmed-only RLS now hides two legacy `needs-verification` offers (`gc-apple-points`, `gc-coles-group-bonus-points`) rather than deleting them — that review remains outstanding (see the ledger reconciliation doc's 033–035 side-effect note).
 
 ## Design weaknesses (evidence in per-area audits)
 

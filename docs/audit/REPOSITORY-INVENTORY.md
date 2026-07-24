@@ -71,6 +71,7 @@ Other API: /api/reports/*, /api/card-offers/[id]/report, /api/csp-report, /api/c
 ## Database
 
 - 33 migration files `supabase/migrations/001…033`. Ledger truth (per `docs/gift-card-migration-028-030.md` and `docs/launch-management/PROJECT_STATE.md` §5): **canonical through 032 applied 2026-07-17; 033 written/reviewed, apply still gated**. Note: PROJECT_STATE's header and §"platform" line still say 027–033 unapplied — internally contradictory (see DOC task).
+  - **Resolved 2026-07-23:** production is now canonical through **037** (033–035 applied 2026-07-21; 036–037 2026-07-22; `verify:schema` 37/37 — the repo now holds migration files 001…037). PROJECT_STATE was reconciled (commit `1052eb1`), clearing the contradiction. The 033 legacy-offer pre-review (TASK-GC-001) was not completed before the apply — see the ledger reconciliation doc.
 - Schema manifest: `scripts/schema-manifest.ts`; `npm run verify:schema`; generated types `lib/supabase/database.types.ts`; `schema-drift.yml` CI check.
 
 ## Tests

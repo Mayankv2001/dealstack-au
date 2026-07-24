@@ -31,6 +31,8 @@ Null-expiry published rows, the mis-typed 0%-discount legacy rows, sample prose,
 ### DQ-F4 — Migration 033 approval-hardening not applied *(Human-gated)*
 Until 033 is applied, the approve RPC lacks the advisory-lock serialisation and single-field-update restriction it was designed to add; the legacy-offer pre-review (10 rows) is an explicit prerequisite. → TASK-GC-001, TASK-DB-001.
 
+**Resolved 2026-07-21:** 033 is applied — the advisory-lock serialisation and hardened single-lineage update path are live in production (034–037 applied since; `verify:schema` 37/37). **Still open:** the 10-row legacy pre-review (TASK-GC-001) was NOT done first, so the confirmed-only RLS now hides two legacy `needs-verification` offers instead of deleting them (ledger doc, 033–035 side-effect note).
+
 ### DQ-F5 — Predicted vs confirmed separation *(Verified good)*
 Prediction capture/review is admin-only (`components/admin/Prediction*.tsx`, `/admin/gift-cards/predictions`); public surfaces found rendering predictions: only `/gift-cards/history` (occurrence history, clearly historical). No public surface inspected presents a prediction as a current confirmed offer.
 
