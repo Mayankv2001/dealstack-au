@@ -176,6 +176,32 @@ canonical version:
   restores them. This is the intended "hide legacy unconfirmed rows" behaviour
   of 033; the TASK-GC-001 legacy review should reconcile those two offers.
 
+## 2026-07-22 follow-up apply — 036, 037 (offer-expiry RLS)
+
+Applied to complete the database layer of the Sydney-inclusive expiry model
+(see [`offer-expiry-semantics.md`](offer-expiry-semantics.md)). Both are
+policy-only, forward, visibility-neutral or purely tightening — no columns, no
+data, no grants. Each recorded in `schema_migrations` under its canonical
+version:
+
+1. 036 — adds the `expiry_date IS NULL OR expiry_date >= sydney_today` bound to
+   the public-read policies of `cashback_offers`, `points_offers`,
+   `weekly_deals` and `ozbargain_signals` (previously `is_published`/`status`
+   only). Tightening-only: can only hide an already-expired row; a NULL expiry
+   stays evergreen. Applied from the working-tree file, not a draft.
+2. 037 — re-issues the `card_offers` public-read policy and its history mirror
+   with `Australia/Sydney` + `statement_timestamp()` in place of migration 009's
+   `Australia/Melbourne` + `now()`. Melbourne and Sydney share offset and DST
+   rules, so no row's visibility changes on any date; it removes the last
+   divergent timezone expression.
+
+- `verify:schema`: 37/37 tables match after the apply.
+- Post-apply prod state: **0** `Australia/Melbourne` policies, **10**
+  `Australia/Sydney` policies — every public offer table now enforces the Sydney
+  expiry date at the DB layer.
+- No visibility side effect: service-role callers (the cleanup/lifecycle jobs)
+  bypass RLS, and the app read boundary already excluded expired rows.
+
 ## Commands that remain prohibited
 
 - `supabase db reset --linked` — destructive remote reset.

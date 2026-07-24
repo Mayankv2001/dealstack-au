@@ -88,15 +88,19 @@ date, seals a history occurrence on archival, and audits both transitions.
 Public `SELECT` policies bound visibility by the Sydney expiry date, so even a
 future code path that forgot the read-time filter cannot serve an expired row:
 
-- **`card_offers`** — migration 009 (live).
+- **`card_offers`** — migration 009 (live), with its bound (and its history
+  mirror) aligned from `Australia/Melbourne` to `Australia/Sydney` by migration
+  037 (applied 2026-07-22); Melbourne and Sydney share offset and DST rules, so
+  this changed no row's visibility.
 - **`gift_card_offers`** — migration 033 (applied): a confirmed row is visible
   only if it is currently active **or** a lineage-carrying `approved-future`
   ("upcoming") row, in both cases bounded by `expiry_date >= sydney_today`.
 - **`cashback_offers` / `points_offers` / `weekly_deals` / `ozbargain_signals`**
-  — migration 036 adds the same Sydney-inclusive bound. Authored and
-  apply-gated per [`MIGRATION-SAFETY.md`](runbooks/MIGRATION-SAFETY.md); until
-  applied, layers 1 and 2 already guarantee the behaviour (this layer only
-  removes the theoretical sub-day window before the daily cleanup runs).
+  — migration 036 (applied 2026-07-22) adds the same Sydney-inclusive bound.
+  This layer is belt-and-suspenders: layers 1 and 2 already guarantee the
+  behaviour, so it only removes the theoretical sub-day window before the daily
+  cleanup runs. Every public offer table now enforces the Sydney expiry date in
+  RLS (`verify:schema`: 37/37).
 
 ### 4. Monitoring + audit evidence
 
@@ -133,7 +137,7 @@ active-sounding urgency.
 - [`tests/monitor/dataHealthExpiry.test.ts`](../tests/monitor/dataHealthExpiry.test.ts)
   — the health verdict (any expired-but-published row → alert).
 - Migration contracts for 019 (all-type Sydney archival + audit, no deletes),
-  033 (upcoming arm) and 036 in
+  033 (upcoming arm), 036 and 037 in
   [`tests/admin/migrationContracts.test.ts`](../tests/admin/migrationContracts.test.ts).
 - Existing suites: `tests/stack/expiryGuard.test.ts`,
   `tests/giftcards/lifecycle.test.ts`, `tests/giftcards/lifecycleRoute.test.ts`
