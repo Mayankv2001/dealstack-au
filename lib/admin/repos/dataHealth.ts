@@ -24,13 +24,14 @@ export interface PublishedDataHealth {
   overdueByType: OfferTypeCounts;
   /**
    * Expiry-integrity signal: published/approved rows whose expiry_date is
-   * strictly before the current Australia/Sydney calendar day. In steady state
-   * this is ALWAYS zero — the read boundary hides these immediately and the
-   * daily cleanup archives them within a day. A positive count means the
-   * scheduled expiry job has silently stopped archiving (missed cron, RPC
-   * regression, permissions), which the read filter would otherwise mask. This
-   * is the direct detector for a stale/failed expiry job, independent of the
-   * pipeline run ledger.
+   * strictly before the PREVIOUS Australia/Sydney calendar day (one-day grace
+   * — see expiryIntegrityBoundary). In steady state this is ALWAYS zero: the
+   * read boundary hides expired rows immediately and the daily cleanup
+   * archives them within its documented one-day window. A positive count
+   * means the scheduled expiry job has silently stopped archiving (missed
+   * cron, RPC regression, permissions), which the read filter would otherwise
+   * mask. This is the direct detector for a stale/failed expiry job,
+   * independent of the pipeline run ledger.
    */
   expiredStillPublished: OfferTypeCounts;
   totalExpiredStillPublished: number;
@@ -39,6 +40,21 @@ export interface PublishedDataHealth {
 
 function cutoffIso(now: Date, days: number): string {
   return new Date(now.getTime() - days * 86_400_000).toISOString();
+}
+
+/**
+ * Boundary for the expiry-integrity alert: the PREVIOUS Australia/Sydney
+ * calendar day. Offers expire at Sydney midnight but the daily cleanup cron
+ * fires at 10:00 Sydney, so `expiry_date < today` is legitimately non-zero
+ * every morning between 00:00 and the cleanup run — a probe in that window
+ * red-flagged normal operation (observed 2026-07-25). Alerting on
+ * `expiry_date < today - 1 day` gives the job its documented one-day window:
+ * a row only counts once a full Sydney day has passed WITH a missed cleanup
+ * slot in between. The RLS read boundary hides the row from the public for
+ * the whole interim either way.
+ */
+export function expiryIntegrityBoundary(now: Date): string {
+  return todayAU(new Date(now.getTime() - 86_400_000));
 }
 
 /**
@@ -76,10 +92,11 @@ export async function getPublishedDataHealth(
 ): Promise<PublishedDataHealth> {
   const db = getSupabaseAdmin();
   // Australia/Sydney calendar date — the single expiry boundary used by every
-  // read path (lib/offers/expiry.ts) and the daily cleanup RPC. An offer is
-  // "expired" only once today has moved strictly past its expiry_date, so this
-  // check uses the same `expiry_date < today` (i.e. `lt`) semantics.
+  // read path (lib/offers/expiry.ts) and the daily cleanup RPC.
   const today = todayAU(now);
+  // Integrity alerts use the previous Sydney day so the daily cleanup keeps
+  // its documented one-day window (see expiryIntegrityBoundary).
+  const integrityBoundary = expiryIntegrityBoundary(now);
 
   const count = async (
     query: PromiseLike<{ count: number | null; error: { message: string } | null }>,
@@ -147,35 +164,35 @@ export async function getPublishedDataHealth(
       db.from("cashback_offers").select("*", { count: "exact", head: true })
         .eq("is_published", true)
         .not("expiry_date", "is", null)
-        .lt("expiry_date", today),
+        .lt("expiry_date", integrityBoundary),
       "cashback expiry"
     ),
     count(
       db.from("gift_card_offers").select("*", { count: "exact", head: true })
         .eq("is_published", true)
         .not("expiry_date", "is", null)
-        .lt("expiry_date", today),
+        .lt("expiry_date", integrityBoundary),
       "gift card expiry"
     ),
     count(
       db.from("points_offers").select("*", { count: "exact", head: true })
         .eq("is_published", true)
         .not("expiry_date", "is", null)
-        .lt("expiry_date", today),
+        .lt("expiry_date", integrityBoundary),
       "points expiry"
     ),
     count(
       db.from("ozbargain_signals").select("*", { count: "exact", head: true })
         .eq("status", "approved")
         .not("expiry_date", "is", null)
-        .lt("expiry_date", today),
+        .lt("expiry_date", integrityBoundary),
       "signals expiry"
     ),
     count(
       db.from("weekly_deals").select("*", { count: "exact", head: true })
         .eq("is_published", true)
         .not("expiry_date", "is", null)
-        .lt("expiry_date", today),
+        .lt("expiry_date", integrityBoundary),
       "weekly deals expiry"
     ),
     count(
@@ -183,7 +200,7 @@ export async function getPublishedDataHealth(
         .eq("is_published", true)
         .eq("is_archived", false)
         .not("expiry_date", "is", null)
-        .lt("expiry_date", today),
+        .lt("expiry_date", integrityBoundary),
       "card offers expiry"
     ),
   ]);

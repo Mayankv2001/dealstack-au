@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  expiryIntegrityBoundary,
   summarisePublishedDataHealth,
   type OfferTypeCounts,
 } from "@/lib/admin/repos/dataHealth";
@@ -19,6 +20,37 @@ const ZERO: OfferTypeCounts = {
   weeklyDeals: 0,
   cardOffers: 0,
 };
+
+describe("expiryIntegrityBoundary", () => {
+  // Offers expire at Sydney midnight; the cleanup cron fires at 10:00 Sydney.
+  // The integrity alert must not fire inside that same-day window, only once a
+  // cleanup slot has verifiably been missed (2026-07-25 incident).
+  it("is the previous Sydney day just after Sydney midnight (AEST)", () => {
+    // 2026-07-24T14:16Z = 00:16 on the 25th in Sydney — the incident probe.
+    expect(expiryIntegrityBoundary(new Date("2026-07-24T14:16:00Z"))).toBe(
+      "2026-07-24",
+    );
+    // An offer whose expiry_date is 2026-07-24 is NOT before the boundary, so
+    // the pre-cleanup window stays green; from the 26th Sydney it alerts.
+    expect(expiryIntegrityBoundary(new Date("2026-07-25T14:16:00Z"))).toBe(
+      "2026-07-25",
+    );
+  });
+
+  it("tracks the Sydney calendar across the UTC date line during AEDT", () => {
+    // 2026-01-10T14:00Z = 01:00 on the 11th in Sydney (UTC+11).
+    expect(expiryIntegrityBoundary(new Date("2026-01-10T14:00:00Z"))).toBe(
+      "2026-01-10",
+    );
+  });
+
+  it("stays on the prior day right before Sydney midnight", () => {
+    // 2026-07-24T13:59Z = 23:59 on the 24th in Sydney.
+    expect(expiryIntegrityBoundary(new Date("2026-07-24T13:59:00Z"))).toBe(
+      "2026-07-23",
+    );
+  });
+});
 
 describe("summarisePublishedDataHealth", () => {
   it("is ok only when nothing is overdue AND nothing is expired-but-published", () => {
