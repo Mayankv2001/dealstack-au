@@ -26,6 +26,7 @@ npm run seed:feed-items       # seed OzBargain feed items
 npm run seed:offer-changes    # seed offer change candidates
 npm run monitor:fixtures      # generate test fixtures
 npm run monitor:feeds         # run feed monitor locally
+npm run gift-card:ingest      # manual GCDB ingest (dry-run; --only=<ids>, --write to stage)
 npm run test:admin     # tests for admin rate-limit/db-fallback logic
 npm run cleanup:old-deals  # dry-run unpublish/expire pass (-- --write to apply)
 ```
