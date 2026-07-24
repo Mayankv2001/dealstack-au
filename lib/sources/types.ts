@@ -66,6 +66,27 @@ export interface SourceMeta {
   trustWeight: number;
 }
 
+/**
+ * Stored citation `source` values are not guaranteed to be SourceIds — the
+ * admin evidence-attach path historically wrote human names ("Gift Card
+ * Database"). Map ids, display names and known aliases back to a SourceId;
+ * unknown values return null so callers can drop rather than crash.
+ */
+export function normaliseSourceId(value: unknown): SourceId | null {
+  if (typeof value !== "string") return null;
+  const key = value.trim().toLowerCase();
+  if (key in SOURCE_META) return key as SourceId;
+  const byAlias = SOURCE_ALIASES[key];
+  return byAlias ?? null;
+}
+
+const SOURCE_ALIASES: Record<string, SourceId> = {
+  "gift card database": "gcdb",
+  "point hacks": "pointhacks",
+  "dealstack record": "manual",
+  "dealstack": "manual",
+};
+
 export const SOURCE_META: Record<SourceId, SourceMeta> = {
   ozbargain: {
     displayName: "OzBargain",

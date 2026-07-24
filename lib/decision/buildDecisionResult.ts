@@ -239,7 +239,23 @@ function retailerGiftCardPlans(
     });
   }
 
-  return [...new Map(contexts.map((context) => [context.key, context])).values()].map(
+  // One plan per merchant: the same card list repeated per product option is
+  // pure noise. Prefer the selected-store context (user's spend), then the
+  // first context with a listed price.
+  const byMerchant = new Map<string, (typeof contexts)[number]>();
+  for (const context of contexts) {
+    const existing = byMerchant.get(context.merchantId);
+    if (!existing) {
+      byMerchant.set(context.merchantId, context);
+      continue;
+    }
+    const rank = (c: (typeof contexts)[number]) =>
+      c.key.startsWith("store:") ? 2 : c.listedPrice != null ? 1 : 0;
+    if (rank(context) > rank(existing)) {
+      byMerchant.set(context.merchantId, context);
+    }
+  }
+  return [...byMerchant.values()].map(
     (context) => {
       const faceValue = context.listedPrice ?? spend;
       const componentByOffer = new Map(

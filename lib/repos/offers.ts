@@ -19,7 +19,11 @@ import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
 import { filterConfirmedCurrentOffers } from "@/lib/giftcards/lifecycle";
 import { orderCurrentReviewedGiftCardOffers } from "@/lib/giftcards/currentOffers";
 import { hasPublicOfferValue } from "@/lib/giftcards/valueReadiness";
-import type { Citation, Confidence } from "@/lib/sources/types";
+import {
+  normaliseSourceId,
+  type Citation,
+  type Confidence,
+} from "@/lib/sources/types";
 import { safeHttpsUrl, safePublicHref } from "@/lib/security/urlPolicy";
 import {
   fromDbOrDemo,
@@ -102,7 +106,9 @@ interface GiftCardRow {
 function safeCitations(citations: Citation[] | null | undefined): Citation[] {
   return (citations ?? []).flatMap((citation) => {
     const sourceUrl = safePublicHref(citation.sourceUrl);
-    return sourceUrl ? [{ ...citation, sourceUrl }] : [];
+    // Stored source values may be legacy human names — normalise or drop.
+    const source = normaliseSourceId(citation.source);
+    return sourceUrl && source ? [{ ...citation, source, sourceUrl }] : [];
   });
 }
 

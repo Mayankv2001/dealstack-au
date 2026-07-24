@@ -116,7 +116,8 @@ function publisherFamilyFor(
   fallback: string = "dealstack",
 ): string {
   const source = citations[0]?.source;
-  return source ? SOURCE_META[source].publisherFamily : fallback;
+  // Guarded: stored citations can carry source values outside SOURCE_META.
+  return source ? (SOURCE_META[source]?.publisherFamily ?? fallback) : fallback;
 }
 
 function finalise(

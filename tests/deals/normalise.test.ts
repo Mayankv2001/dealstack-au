@@ -6,7 +6,9 @@ import {
   tidyPriceText,
 } from "@/lib/deals/normalise";
 import { stackableChipLabel } from "@/lib/deals/types";
+import { normaliseSourceId, type SourceId } from "@/lib/sources/types";
 import type { OzBargainSignal } from "@/lib/offers/types";
+import { makeGiftCard } from "../stack/factories";
 
 const signal: OzBargainSignal = {
   id: "sig-1",
@@ -28,6 +30,42 @@ const signal: OzBargainSignal = {
 };
 
 describe("public deal normalisation", () => {
+  it("survives citations whose source is a legacy display name", () => {
+    // Prod regression: admin evidence-attach stored "Gift Card Database"
+    // instead of the "gcdb" SourceId, crashing publisherFamilyFor.
+    const [deal] = buildPublicDeals(
+      {
+        stores: [],
+        signals: [],
+        giftCards: [
+          makeGiftCard({
+            citations: [
+              {
+                source: "Gift Card Database" as unknown as SourceId,
+                sourceUrl: "https://www.gcdb.com.au/offer",
+              },
+            ],
+          }),
+        ],
+        cashback: [],
+        points: [],
+        weekly: [],
+        stackableMerchantIds: new Set(),
+      },
+      new Date("2026-07-12T12:00:00+10:00"),
+    );
+    expect(deal.publisherFamily).toBe("dealstack");
+  });
+
+  it("normalises legacy source names and ids to SourceIds", () => {
+    expect(normaliseSourceId("gcdb")).toBe("gcdb");
+    expect(normaliseSourceId("Gift Card Database")).toBe("gcdb");
+    expect(normaliseSourceId("Point Hacks")).toBe("pointhacks");
+    expect(normaliseSourceId("DealStack record")).toBe("manual");
+    expect(normaliseSourceId("unheard-of blog")).toBeNull();
+    expect(normaliseSourceId(null)).toBeNull();
+  });
+
   it("keeps approved community content honestly community-reported", () => {
     const [deal] = buildPublicDeals(
       {

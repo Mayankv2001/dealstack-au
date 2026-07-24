@@ -162,7 +162,8 @@ export default function RetailerGiftCardPlans({
                             .join(" · ")}
                         </p>
                       ) : null}
-                      {option.engineNote ? (
+                      {option.engineNote &&
+                      option.engineNote !== option.compatibilityReason ? (
                         <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
                           {option.engineNote}
                         </p>

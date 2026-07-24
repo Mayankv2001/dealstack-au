@@ -2,7 +2,11 @@ import { filterLive } from "@/lib/offers/expiry";
 import { weeklyDeals as staticWeeklyDeals } from "@/lib/offers/manualOffers";
 import { sanitisePublicText } from "@/lib/stack/buildStack";
 import type { WeeklyDeal, WeeklyHighlight } from "@/lib/offers/types";
-import type { Citation, Confidence } from "@/lib/sources/types";
+import {
+  normaliseSourceId,
+  type Citation,
+  type Confidence,
+} from "@/lib/sources/types";
 import { fromDbOrDemo, type DbClient } from "@/lib/supabase/server";
 
 /**
@@ -34,7 +38,11 @@ function mapWeeklyDeal(r: WeeklyDealRow): WeeklyDeal {
     summary: sanitisePublicText(r.summary),
     highlight: r.highlight,
     componentIds: r.component_ids ?? [],
-    citations: r.citations ?? [],
+    // Stored source values may be legacy human names — normalise or drop.
+    citations: (r.citations ?? []).flatMap((citation) => {
+      const source = normaliseSourceId(citation.source);
+      return source ? [{ ...citation, source }] : [];
+    }),
     expiryDate: r.expiry_date,
     confidence: r.confidence,
   };

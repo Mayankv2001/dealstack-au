@@ -93,7 +93,9 @@ export function CitationLinks({
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {safeCitations.map((c) => {
-        const meta = SOURCE_META[c.source];
+        const meta = SOURCE_META[c.source] ?? {
+          displayName: c.source,
+        };
         const external = c.sourceUrl.startsWith("http");
         const classes = cn(
           "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",

@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
+import { normaliseSourceId } from "@/lib/sources/types";
 import {
   hasCompoundMechanics,
   type ExtractedOffer,
@@ -597,7 +598,12 @@ export async function attachCandidateEvidenceToOffer(
     ? citations
     : [
         ...citations,
-        { source: context.sourceName.trim(), sourceUrl },
+        // Citations must store SourceIds, not display names — legacy rows
+        // that stored names crashed the public /deals normalisation.
+        {
+          source: normaliseSourceId(context.sourceName) ?? "manual",
+          sourceUrl,
+        },
       ];
   const update = await db
     .from("gift_card_offers")
