@@ -241,27 +241,19 @@ export function HomeSearchSections({
           {heroStack ? (
             <FeaturedPlan recommendation={heroStack} />
           ) : (
-            <div className="border border-foreground/10 bg-card p-5 sm:p-6">
+            // Compact fallback — the four-point explainer duplicated the
+            // planner card's Pay now / Ways to pay / Earn later terms above.
+            <div className="flex flex-col items-start justify-center border border-foreground/10 bg-card p-5 sm:p-6">
               <div className="flex items-center gap-2">
                 <Layers3 aria-hidden className="size-5 text-emerald-700" />
-                <h3 className="font-black">What a purchase plan answers</h3>
+                <h3 className="font-black">Plan one purchase end-to-end</h3>
               </div>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {[
-                  ["Best cash option", "Only compatible savings reduce checkout cost."],
-                  ["Gift-card choices", "See cards that work at each matched retailer."],
-                  ["Rewards separately", "Points, bonus value and future credit stay visible."],
-                  ["Safe order", "Activation, code and payment steps are sequenced."],
-                ].map(([title, text]) => (
-                  <div key={title} className="border-t pt-3">
-                    <p className="text-sm font-bold">{title}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      {text}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <Button asChild className="mt-6 bg-emerald-700 text-white hover:bg-emerald-800">
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Search a store or product to get the best cash option, the
+                gift cards that work there, rewards kept separate, and the
+                safe order to apply each step.
+              </p>
+              <Button asChild className="mt-5 bg-emerald-700 text-white hover:bg-emerald-800">
                 <Link href="/search">
                   Start a purchase plan <ArrowRight aria-hidden />
                 </Link>

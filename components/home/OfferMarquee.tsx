@@ -224,16 +224,25 @@ export function OfferMarquee({
           </p>
         </div>
 
-        <div className="mt-5 grid items-center gap-3 lg:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]">
-          <button
-            type="button"
-            aria-label="Previous offers"
-            disabled={atStart}
-            onClick={() => goToPage(page - 1)}
-            className="hidden size-11 items-center justify-center rounded-full border border-emerald-100/20 transition hover:bg-emerald-100/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"
-          >
-            <ChevronLeft aria-hidden className="size-5" />
-          </button>
+        {/* With one page there is nothing to page through — skip the arrow
+            rail entirely instead of rendering two disabled buttons. */}
+        <div
+          className={cn(
+            "mt-5 grid items-center gap-3",
+            pageCount > 1 && "lg:grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]",
+          )}
+        >
+          {pageCount > 1 ? (
+            <button
+              type="button"
+              aria-label="Previous offers"
+              disabled={atStart}
+              onClick={() => goToPage(page - 1)}
+              className="hidden size-11 items-center justify-center rounded-full border border-emerald-100/20 transition hover:bg-emerald-100/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"
+            >
+              <ChevronLeft aria-hidden className="size-5" />
+            </button>
+          ) : null}
 
           <div
             ref={trackRef}
@@ -252,15 +261,17 @@ export function OfferMarquee({
             ))}
           </div>
 
-          <button
-            type="button"
-            aria-label="Next offers"
-            disabled={atEnd}
-            onClick={() => goToPage(page + 1)}
-            className="hidden size-11 items-center justify-center rounded-full border border-emerald-100/20 transition hover:bg-emerald-100/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"
-          >
-            <ChevronRight aria-hidden className="size-5" />
-          </button>
+          {pageCount > 1 ? (
+            <button
+              type="button"
+              aria-label="Next offers"
+              disabled={atEnd}
+              onClick={() => goToPage(page + 1)}
+              className="hidden size-11 items-center justify-center rounded-full border border-emerald-100/20 transition hover:bg-emerald-100/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"
+            >
+              <ChevronRight aria-hidden className="size-5" />
+            </button>
+          ) : null}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-emerald-100/15 pt-4">

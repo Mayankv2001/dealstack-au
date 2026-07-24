@@ -254,18 +254,41 @@ export function GiftCardsClient({ offers }: { offers: GiftCardOffer[] }) {
           ))}
         </nav>
 
-        <div className="mt-2 hidden items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-sm lg:flex">
-          <SlidersHorizontal className="size-4 shrink-0 text-muted-foreground" />
-          {filterControls}
-          {activeFilters > 0 ? (
-            <button
-              onClick={() => router.replace(pathname, { scroll: false })}
-              className="ml-auto text-xs font-semibold text-emerald-700 hover:underline"
-            >
-              Clear {activeFilters}
-            </button>
-          ) : null}
-        </div>
+        {offers.length >= 15 ? (
+          <div className="mt-2 hidden items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-sm lg:flex">
+            <SlidersHorizontal className="size-4 shrink-0 text-muted-foreground" />
+            {filterControls}
+            {activeFilters > 0 ? (
+              <button
+                onClick={() => router.replace(pathname, { scroll: false })}
+                className="ml-auto text-xs font-semibold text-emerald-700 hover:underline"
+              >
+                Clear {activeFilters}
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          // Small inventories don't warrant a permanent six-control rail —
+          // search, sort and the category tabs above already cover them.
+          <details className="mt-2 hidden rounded-lg border bg-background shadow-sm lg:block">
+            <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground">
+              <SlidersHorizontal className="size-4 shrink-0" />
+              More filters
+              {activeFilters ? ` (${activeFilters} active)` : ""}
+            </summary>
+            <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+              {filterControls}
+              {activeFilters > 0 ? (
+                <button
+                  onClick={() => router.replace(pathname, { scroll: false })}
+                  className="ml-auto text-xs font-semibold text-emerald-700 hover:underline"
+                >
+                  Clear {activeFilters}
+                </button>
+              ) : null}
+            </div>
+          </details>
+        )}
 
         <div className="mt-2 flex items-center justify-between lg:hidden">
           <Button
