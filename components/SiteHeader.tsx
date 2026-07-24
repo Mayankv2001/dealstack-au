@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BadgePercent,
   CircleDollarSign,
+  CreditCard,
   Gift,
   Home,
   Menu,
@@ -28,6 +29,8 @@ const NAV_LINKS = [
   },
   { label: "Points", href: "/rewards", icon: Star },
   { label: "Stores", href: "/stores", icon: Store },
+  // Previously footer/mobile-menu only — desktop users had no path to /cards.
+  { label: "Card offers", href: "/cards", icon: CreditCard },
 ] as const;
 
 const MOBILE_DOCK_LINKS = [
@@ -148,13 +151,6 @@ export function SiteHeader() {
                   </Link>
                 );
               })}
-              <Link
-                href="/cards"
-                onClick={() => setMenuOpen(false)}
-                className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold hover:bg-muted sm:col-span-2"
-              >
-                Card offers
-              </Link>
             </nav>
           </div>
         ) : null}

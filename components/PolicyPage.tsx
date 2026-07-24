@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
-import { Button } from "@/components/ui/button";
+import SiteHeader from "@/components/SiteHeader";
 
 export function PolicyPage({
   title,
@@ -16,12 +13,9 @@ export function PolicyPage({
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Logo />
-          <Button asChild variant="ghost" size="sm"><Link href="/"><ArrowLeft />Home</Link></Button>
-        </div>
-      </header>
+      {/* Full site chrome — the previous logo-plus-Home header stranded
+          policy pages outside the navigation. */}
+      <SiteHeader />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-10 sm:px-6">
         <h1 className="text-3xl font-bold">{title}</h1>
         <p className="mt-2 text-xs text-muted-foreground">Last updated {updated}</p>
