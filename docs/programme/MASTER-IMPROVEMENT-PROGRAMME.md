@@ -10,7 +10,7 @@ The codebase is in unusually good shape: pure dependency-injected engines, timin
 
 What is actually wrong falls into four buckets:
 1. **Local/CI truth is broken:** `tsc --noEmit` red at HEAD (TASK-TEST-001); stale agent worktrees make lint/vitest lie (TASK-TEST-002); PROJECT_STATE contradicts itself about migration state (TASK-DOC-001).
-2. **Production liveness is unverified:** evidence from 2026-07-13 says the GitHub Actions `CRON_SECRET` was missing — if still true, no scheduled ingestion/reconciliation runs at all (TASK-CRON-003), and every "stale data is prevented" claim is unproven (DQ-F3).
+2. **Production liveness is unverified:** evidence from 2026-07-13 says the GitHub Actions `CRON_SECRET` was missing — if still true, no scheduled ingestion/reconciliation runs at all (TASK-CRON-003), and every "stale data is prevented" claim is unproven (DQ-F3). **Update 2026-07-23:** `CRON_SECRET` (and the two Supabase secrets) are in fact present and the watchdogs are green, so the workflows are NOT blind. But the gift-card ingest/reconcile/**lifecycle** jobs are still default-off — the lifecycle cron has never executed — so DQ-F3's core point (no scheduled gift-card job has demonstrably run in prod) still stands.
 3. **Gated production work is parked:** migration 033 approval hardening + its 10-offer pre-review (TASK-DB-001, TASK-GC-001).
 4. **Honesty gaps at the edges:** calculator vs engine divergence (TASK-STACK-001), never-checked layers escaping warnings (TASK-EXP-001), weekly source fetched near-daily (TASK-CRON-001), plus P2/P3 experience, coverage and SEO items.
 

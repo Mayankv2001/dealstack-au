@@ -1851,13 +1851,14 @@ No ticket is P0: the P0 conditions in the priority model (public data exposure, 
 
 ### DS-078 — Ops: confirm Actions secrets exist and drive all four scheduled workflows to green
 
-**Type:** operations · **Priority:** P1 (impact 4 / urgency 3 / confidence 4) · **Effort:** S · **Risk:** low · **Status:** needs-production-evidence
+**Type:** operations · **Priority:** P1 (impact 4 / urgency 3 / confidence 4) · **Effort:** S · **Risk:** low · **Status:** done (verified 2026-07-23)
 **Agent:** human/admin · **Readiness:** Human-gated · **Iteration:** IT-17 · **Production approval:** **yes**
 
 **Problem:** Four scheduled workflows (ci on push, schema-drift weekly, monitor-health 3-hourly, gift-card-ingest daily) depend on repository secrets (CRON_SECRET; NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY for drift) whose existence cannot be verified from the repo — workflows are DESIGNED to run red (exit 2) when blind, and the launch checklist still lists secret creation as open.
 **Why it matters:** Every observability ticket lands on this plumbing; red-by-design becomes alarm fatigue if left unconfigured.
 **Current behaviour:** docs/launch-management/FINAL-LAUNCH-CHECKLIST.md §3 lists the secrets as human setup; run history unverifiable from repo.
 **Desired behaviour:** All secrets confirmed present; one manual dispatch each of schema-drift and monitor-health ends green; failure-notification delivery to the owner confirmed once (a deliberate red).
+**Resolved 2026-07-23:** `gh secret list` confirms all three secrets present — `CRON_SECRET` (2026-07-13), `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (2026-07-10). schema-drift's last scheduled run (2026-07-20) and monitor-health (every 3h) are green. Owner-notification *delivery* is the one part still unconfirmed from here (needs the owner to confirm they receive the failure email). NB: secrets present ≠ the gated gift-card jobs run — the lifecycle cron remains `environment-disabled` and has never executed (see DQ-F3).
 **Evidence:** .github/workflows/*.yml exit-2 blind contracts · FINAL-LAUNCH-CHECKLIST §3-4 open items
 **Likely files/subsystems:** `docs/launch-management/FINAL-LAUNCH-CHECKLIST.md`
 **Out of scope:** cron-job.org alternative (documented option, separate decision).
