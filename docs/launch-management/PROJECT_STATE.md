@@ -2,8 +2,7 @@
 
 > **2026-07-17 gift-card platform update:** since 2026-07-11 the project shipped
 > the full gift-card intelligence platform (see §5 for the authoritative
-> migration-ledger state — production is applied through **035**; migration 036
-> is authored and apply-gated), the OzBargain
+> migration-ledger state — production is applied through **037**), the OzBargain
 > expiry recheck, the automated daily deal pipeline, the rebuilt public deals
 > discovery + purchase planning experience, the redesign usability/trust audit,
 > the Point Hacks weekly ingest configuration (default off), and the homepage
@@ -13,7 +12,7 @@
 
 > Single source of truth for DealStack AU. Maintained so a second Claude account can continue the work safely without losing context.
 >
-> **Last updated:** 2026-07-22 (migration-truth reconciliation — TASK-DOC-001; prod verified through 035) · previously 2026-07-17 · **Branch:** `main`
+> **Last updated:** 2026-07-23 (migration-truth reconciliation — 036/037 offer-expiry RLS applied 2026-07-22; prod verified through 037) · previously 2026-07-22 · **Branch:** `main`
 
 ---
 
@@ -32,7 +31,7 @@ DealStack AU is a **deal-stacking research tool for Australian shoppers**. It co
 - **Card-offer production state:** All 5 rows were checked against current issuer pages on 2026-07-10. Amex Qantas Ultimate is confirmed, has a fixed 2026-07-28 expiry, and is published. NAB, Westpac and ANZ were corrected and confirmed but remain unpublished because the issuer pages provide no fixed expiry; the obsolete CommBank Low Fee Gold promotion remains unpublished. Five `direct-card-offer-verification` audit entries record the user-authorised update.
 - **In progress / partial:** Offer-change detection is wired, tested, and now has both an `/admin/monitor` ops status card **and** a written go-live/rollback runbook (`docs/ozbargain-monitoring.md`) — but is still **behind a default-off flag (staging-only)**, not live in production. The remaining step is a human one: run the precision review on ≥2 days, then flip `OZB_OFFER_DETECT_ENABLED=true` in Vercel.
 - **Recent trust/ops sequence:** public source-result guard (`fbd570a`), final AU expiry unification (`14db2d6`), strict public-content smoke (`e29c1c9`), and audited feed-source emergency stop (`f65c951`) are shipped on `main` after the card readiness gate (`2f2db1d`).
-- **Gift-card platform (2026-07-12 → 2026-07-17):** full pipeline live behind admin review — GCDB + Point Hacks weekly sources (both default-off, quadruple-gated), accuracy model, programmes/rates tables, offer detail fields, occurrence history, predictions, job runs, lifecycle orchestration and approval hardening. Migrations **021–035 are applied to prod**; **036 (offer-expiry read policies) is authored and apply-gated** (see §5). 13 gift-card offers published; public surfaces: `/gift-cards`, `/gift-cards/[id]`, homepage marquee.
+- **Gift-card platform (2026-07-12 → 2026-07-17):** full pipeline live behind admin review — GCDB + Point Hacks weekly sources (both default-off, quadruple-gated), accuracy model, programmes/rates tables, offer detail fields, occurrence history, predictions, job runs, lifecycle orchestration and approval hardening. Migrations **021–037 are applied to prod** (see §5). 13 gift-card offers published; public surfaces: `/gift-cards`, `/gift-cards/[id]`, homepage marquee.
 - **Public UX (2026-07-13 → 2026-07-15):** rebuilt deals discovery, redesigned purchase planning experience, redesign usability/trust audit fixes (`2ae5c83`), DealCard list view, gift-card offer marquee.
 - **Current ranked backlog:** the gated prod-migration runbook is the sole engineering item; the rest is human ops/config. See §5–§6.
 - **Prod hygiene: CLEAN as of 2026-07-11.** The two expired-published gift cards (`gc-tcn-jbhifi`, `gc-woolworths-wish`) were unpublished via `npm run cleanup:old-deals -- --write` (user-authorised, 2 audited `auto-unpublish-expired` rows); re-run dry-run reports 0 candidates.
@@ -95,16 +94,19 @@ Verified from git history and memory. Commit hashes in parentheses.
 history only — do not read it as current) must be reconciled to it, not to each
 other.
 
-As verified 2026-07-22 (`list_migrations` on project `numgsivlrglflsnqehac`), the
-production ledger is canonical through **035**: 027–032 were applied one at a
+As verified 2026-07-23 (`list_migrations` on project `numgsivlrglflsnqehac`), the
+production ledger is canonical through **037**: 027–032 were applied one at a
 time on 2026-07-17, and 033 (approval/publication hardening), 034 (value
 structures) and 035 (purchase-limits persistence) on 2026-07-21 — each in its
-own transaction after a verified logical backup; schema verification is green
-(35/35 tables). Migration **036** (offer-expiry read policies) is authored and
-**apply-gated**: the read-time boundary and daily cleanup already enforce
-Sydney-inclusive expiry, so 036 is a belt-and-suspenders RLS tightening (see
-`docs/offer-expiry-semantics.md`). Product, acceptance and programme tables are
-truthfully empty until separately reviewed data is approved.
+own transaction after a verified logical backup. Migrations **036** (offer-expiry
+read policies) and **037** (`card_offers` realigned Melbourne→Sydney) were
+applied 2026-07-22 — policy-only, tightening/visibility-neutral; schema
+verification is green (**37/37 tables**). 036/037 are the belt-and-suspenders RLS
+layer: the read-time boundary and daily cleanup already enforce Sydney-inclusive
+expiry, and now every public offer table also bounds visibility by the Sydney
+expiry date at the DB layer (see `docs/offer-expiry-semantics.md`). Product,
+acceptance and programme tables are truthfully empty until separately reviewed
+data is approved.
 
 Side effect of 033's stricter RLS (`confidence='confirmed'` required for public
 reads): two legacy `needs-verification` offers (`gc-apple-points`,

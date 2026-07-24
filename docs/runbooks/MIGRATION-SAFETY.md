@@ -2,9 +2,10 @@
 
 Production Supabase has a **hand-applied, historically drifting** migration history. This runbook is the guard rail; the authoritative ledger analysis is `docs/supabase-migration-ledger-reconciliation-2026-07-16.md`.
 
-## Current position (as recorded 2026-07-19 — re-verify, don't trust)
-- Ledger canonical through **032** (027–032 applied 2026-07-17 per `docs/gift-card-migration-028-030.md`).
-- **033** (approval hardening) written and reviewed, apply **gated** on: (a) review of the 10 active legacy gift-card offers (`tasks/gift-cards/TASK-GC-001`), (b) explicit human approval (`tasks/database/TASK-DB-001`).
+## Current position (as recorded 2026-07-22 — re-verify, don't trust)
+- Ledger canonical through **037** (`verify:schema`: 37/37). Apply records in the ledger reconciliation doc: 027–032 on 2026-07-17; 033–035 on 2026-07-21; 036–037 on 2026-07-22.
+- **033** (approval hardening) was APPLIED 2026-07-21. Its documented gate (a) review of the legacy active gift-card offers (`TASK-GC-001`), (b) explicit human approval (`TASK-DB-001`) was **not formally closed first**: the confirmed-only RLS now hides two legacy `needs-verification` offers (`gc-apple-points`, `gc-coles-group-bonus-points`) rather than deleting them. That legacy review is still OUTSTANDING — see the ledger doc's 033–035 side-effect note.
+- **034/035** (purchase-limits columns + RPC) applied 2026-07-21. **036/037** (offer-expiry RLS: Sydney bound on cashback/points/weekly/signals, and card_offers realigned Melbourne→Sydney) applied 2026-07-22 — policy/column only, tightening or visibility-neutral. Every public offer table now bounds visibility by the Sydney expiry date.
 - Backups: PITR has been reported FALSE; treat backups as unproven. Any migration is apply-forward-only until a backup is demonstrated restorable.
 - Known historical trap: prod's 025 predates `fixed_points`, so 031 was extended to the occurrences table — hand-applied history means file-order intuition is unreliable.
 
