@@ -28,6 +28,8 @@ Null-expiry published rows, the mis-typed 0%-discount legacy rows, sample prose,
 ### DQ-F3 — Reconciliation coverage is now implemented but unproven in production *(Missing verification)*
 `runReconcile` + `loadReconcileInputs` handle source-removed, expired (fanned into one lifecycle transaction), predictions and acceptance outcomes — with taxonomy tests. But every gift-card job is default-off and (per 2026-07-13 evidence) the Actions secret was missing, so **none of this has demonstrably run on schedule in production**. → TASK-CRON-003 gates any claim of "stale data is prevented".
 
+**Partially corrected 2026-07-23 — conclusion STILL STANDS.** The "Actions secret was missing" detail is outdated: `gh secret list` confirms `CRON_SECRET` is present (2026-07-13), and the workflows authenticate (the daily `monitor-feeds` pipeline has 8 consecutive green runs). BUT the gift-card ingest/reconcile/**lifecycle** jobs remain default-off — the lifecycle cron has never executed (`gift_card_ingest_runs` has zero `run_kind='activate-archive'` rows) — so the finding's core claim, that no scheduled gift-card reconciliation has demonstrably run in production, is unchanged. Not resolved.
+
 ### DQ-F4 — Migration 033 approval-hardening not applied *(Human-gated)*
 Until 033 is applied, the approve RPC lacks the advisory-lock serialisation and single-field-update restriction it was designed to add; the legacy-offer pre-review (10 rows) is an explicit prerequisite. → TASK-GC-001, TASK-DB-001.
 

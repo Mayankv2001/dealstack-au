@@ -36,6 +36,7 @@ What this audit adds is (a) defects introduced or exposed **after** the 2026-07-
 - **Evidence:** `app/api/cron/gift-card-weekly-ingest/route.ts` calls `decideSchedule` (`lib/giftcards/schedule.ts`, `RUN_INTERVAL_GUARD_HOURS = 40`); the workflow fires daily at both Sydney-7am UTC slots. Result: up to ~3 fetches/week of an editorial page whose content changes weekly (Wednesday per `docs/` and `lib/giftcards/pointHacksWeekly.ts` naming).
 - **Impact:** Over-fetching a manually-permissioned source; also mislabels the operating contract ("weekly").
 - **Classification:** Probable defect (intent unclear; conditional GET may make extra fetches cheap) → `tasks/cron/TASK-CRON-001`.
+- **Resolved 2026-07-23 (commit `8f254ea`):** the weekly route now calls `decideWeeklySchedule` (not `decideSchedule`), with `WEEKLY_RUN_INTERVAL_GUARD_HOURS = 150` (above six local days, below seven). Daily double-slot firing now yields at most one real run per 7-day window, and the new `weekly-interval-guard` skip reason no longer mislabels the contract. (Note: the source is still default-off, so nothing fetches until it is enabled — see DQ-F3.)
 
 ### 6. Migration 033 apply is still an open, gated production action
 - **Evidence:** doc trail above; approval-hardening RPC replacement written and reviewed; PROJECT_STATE next-steps also requires "review the 10 active legacy gift-card offers before migration 033".
