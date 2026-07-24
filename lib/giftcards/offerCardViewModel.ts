@@ -231,8 +231,10 @@ function headline(offer: GiftCardOffer, mechanic: Mechanic): string {
 const COMPAT_LABEL = {
   compatible: "Confirmed compatible",
   "likely-compatible": "Likely compatible",
-  "requires-verification": "Unknown",
-  "insufficient-evidence": "Unknown",
+  // A bare "Unknown" chip next to a "Verified by DealStack" trust label read
+  // as a contradiction — name what is actually unverified.
+  "requires-verification": "Stacking unverified",
+  "insufficient-evidence": "Stacking unverified",
   incompatible: "Conflicting",
 } as const;
 

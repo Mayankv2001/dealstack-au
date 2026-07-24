@@ -30,7 +30,9 @@ const TRUST_BADGE: Record<
       "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   },
   "source-checked": {
-    label: "Specialist source confirmed",
+    // Matches the gift-card card vocabulary ("Source checked") — one term
+    // for the same trust tier everywhere.
+    label: "Source checked",
     icon: BadgeCheck,
     className: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400",
   },

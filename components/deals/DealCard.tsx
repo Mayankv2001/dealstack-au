@@ -24,10 +24,18 @@ import { DealConditionBadges, DealStatusBadge } from "./DealStatusBadge";
 
 function DealPrice({ deal }: { deal: PublicDeal }) {
   if (!deal.priceText && deal.savingPercent == null) {
+    // No recorded value — say what kind of value the offer carries instead
+    // of a filler price line.
+    const fallback =
+      deal.kind === "points"
+        ? "Earn points — cash price unchanged"
+        : deal.kind === "gift-card"
+          ? "See offer for card value"
+          : deal.kind === "cashback"
+            ? "See offer for rate"
+            : "See offer for price";
     return (
-      <p className="text-sm font-semibold text-muted-foreground">
-        See offer for price
-      </p>
+      <p className="text-sm font-semibold text-muted-foreground">{fallback}</p>
     );
   }
   return (

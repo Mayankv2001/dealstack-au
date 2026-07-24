@@ -268,12 +268,12 @@ describe("trust and compatibility", () => {
     expect(vm.compatibilityTone).toBe("positive");
   });
 
-  it("defaults an imported offer with no acceptance evidence to Unknown", () => {
+  it("defaults an imported offer with no acceptance evidence to Stacking unverified", () => {
     const vm = buildGiftCardOfferCardViewModel(
       makeBareOffer({ confidence: "confirmed", expiryDate: "2026-09-30" }),
       NOW,
     );
-    expect(vm.compatibilityLabel).toBe("Unknown");
+    expect(vm.compatibilityLabel).toBe("Stacking unverified");
     expect(vm.compatibilityTone).toBe("warning");
   });
 
@@ -286,7 +286,7 @@ describe("trust and compatibility", () => {
       NOW,
     );
     expect(vm.trustLabel).toBe("Source checked");
-    expect(vm.compatibilityLabel).toBe("Unknown");
+    expect(vm.compatibilityLabel).toBe("Stacking unverified");
     expect(vm.compatibilityTone).toBe("warning");
   });
 });

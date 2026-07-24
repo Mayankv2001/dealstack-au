@@ -131,17 +131,6 @@ export default function RetailerGiftCardPlans({
                           : ""}
                         .
                       </p>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {option.evidenceLabel} ·{" "}
-                        {option.evidenceFreshness === "current"
-                          ? "current evidence"
-                          : option.evidenceFreshness === "stale"
-                            ? "stale evidence"
-                            : "check date not recorded"}
-                        {option.redemptionChannels.length
-                          ? ` · ${option.redemptionChannels.join(", ")}`
-                          : " · redemption channel not recorded"}
-                      </p>
                       {option.estimatedCardCount != null ||
                       option.denominationRequirement ||
                       option.maxUsableAmount != null ? (
@@ -162,36 +151,42 @@ export default function RetailerGiftCardPlans({
                             .join(" · ")}
                         </p>
                       ) : null}
-                      {option.engineNote &&
-                      option.engineNote !== option.compatibilityReason ? (
-                        <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
-                          {option.engineNote}
-                        </p>
-                      ) : null}
-                      <div className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-                        {option.pointsEarned != null ? (
-                          <Sparkles aria-hidden className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
-                        ) : (
-                          <ShieldCheck aria-hidden className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
-                        )}
-                        <p>
-                          <span className="font-semibold text-foreground">
-                            {compatibilityStatusLabel(option.compatibilityStatus)}:
-                          </span>{" "}
+                      {/* Headline stays scannable; every caveat lives in one
+                          collapsible block instead of four stacked paragraphs. */}
+                      <details className="mt-2 text-xs">
+                        <summary className="inline-flex cursor-pointer items-center gap-1.5 font-semibold">
+                          {option.pointsEarned != null ? (
+                            <Sparkles aria-hidden className="size-3.5 shrink-0 text-amber-500" />
+                          ) : (
+                            <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-emerald-600" />
+                          )}
+                          What to check before you buy ·{" "}
+                          {compatibilityStatusLabel(option.compatibilityStatus)}
+                        </summary>
+                        <p className="mt-2 text-muted-foreground">
                           {option.compatibilityReason}
                         </p>
-                      </div>
-                      <Link
-                        href={`/gift-cards/${option.offer.id}`}
-                        className="mt-3 inline-flex text-xs font-semibold text-emerald-700 hover:underline"
-                      >
-                        Check offer conditions
-                      </Link>
-                      <details className="mt-2 text-xs">
-                        <summary className="cursor-pointer font-semibold">
+                        {option.engineNote &&
+                        option.engineNote !== option.compatibilityReason ? (
+                          <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1.5 font-medium text-amber-800 dark:text-amber-300">
+                            {option.engineNote}
+                          </p>
+                        ) : null}
+                        <p className="mt-2 text-muted-foreground">
+                          {option.evidenceLabel} ·{" "}
+                          {option.evidenceFreshness === "current"
+                            ? "current evidence"
+                            : option.evidenceFreshness === "stale"
+                              ? "stale evidence"
+                              : "check date not recorded"}
+                          {option.redemptionChannels.length
+                            ? ` · ${option.redemptionChannels.join(", ")}`
+                            : " · redemption channel not recorded"}
+                        </p>
+                        <p className="mt-2 font-semibold text-foreground">
                           Purchase steps
-                        </summary>
-                        <ol className="mt-2 space-y-1 pl-5 text-muted-foreground">
+                        </p>
+                        <ol className="mt-1 space-y-1 pl-5 text-muted-foreground">
                           {option.orderedSteps.map((step) => (
                             <li key={step} className="list-decimal">
                               {step}
@@ -199,6 +194,12 @@ export default function RetailerGiftCardPlans({
                           ))}
                         </ol>
                       </details>
+                      <Link
+                        href={`/gift-cards/${option.offer.id}`}
+                        className="mt-3 inline-flex text-xs font-semibold text-emerald-700 hover:underline"
+                      >
+                        Check offer conditions
+                      </Link>
                     </article>
                   ))}
                 </div>

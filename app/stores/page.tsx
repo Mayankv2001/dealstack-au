@@ -85,7 +85,10 @@ export default async function StoresIndexPage() {
                 stay clearly separated.
               </p>
               <p className="mt-4 text-xs font-semibold text-muted-foreground">
-                {`${stores.length} listed ${stores.length === 1 ? "store" : "stores"} · ${verifiedStoreCount} with fully verified plans`}
+                {/* Lead with what the page offers; "0 fully verified" as the
+                    hero stat read as "nothing here works". Per-store cards
+                    still show the honest verification state. */}
+                {`${stores.length} ${stores.length === 1 ? "store" : "stores"} tracked · every layer source-linked${verifiedStoreCount > 0 ? ` · ${verifiedStoreCount} fully verified` : ""}`}
               </p>
             </div>
             <div>
