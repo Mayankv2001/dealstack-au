@@ -54,7 +54,7 @@ function deal(over: Partial<PublicDeal> = {}): PublicDeal {
     detailPath: "/deals/signal/1",
     stackable: true,
     productGroup: "macbook-air-m3",
-    sourceNativeId: "ozb:1",
+    sourceNativeId: "ph:1",
     votes: 20,
     comments: 4,
     searchText: "macbook air m3 jb hi-fi laptop",
@@ -150,7 +150,7 @@ describe("buildDealRecommendations", () => {
       merchantName: "Costco",
       priceText: "$1,749",
       priceValue: 1749,
-      sourceNativeId: "ozb:2",
+      sourceNativeId: "ph:2",
       searchText: "macbook air m3 costco laptop",
     });
     const result = buildDealRecommendations(
@@ -216,7 +216,7 @@ describe("buildDealRecommendations", () => {
       id: "community:3",
       merchantId: "kogan",
       merchantName: "Kogan",
-      sourceNativeId: "ozb:3",
+      sourceNativeId: "ph:3",
       searchText: "macbook air m3 kogan laptop",
     });
     const result = buildDealRecommendations(
@@ -239,7 +239,7 @@ describe("buildDealRecommendations", () => {
       priceText: null,
       priceValue: null,
       wasPrice: null,
-      sourceNativeId: "ozb:9",
+      sourceNativeId: "ph:9",
       searchText: "macbook costco",
     });
     const result = buildDealRecommendations(
@@ -264,7 +264,7 @@ describe("buildDealRecommendations", () => {
       merchantName: "Costco",
       priceText: "$1,749",
       priceValue: 1749,
-      sourceNativeId: "ozb:10",
+      sourceNativeId: "ph:10",
       searchText: "macbook costco",
     });
     const result = buildDealRecommendations(

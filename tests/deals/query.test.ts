@@ -44,7 +44,7 @@ function deal(over: Partial<PublicDeal> = {}): PublicDeal {
     detailPath: "/deals/signal/1",
     stackable: true,
     productGroup: null,
-    sourceNativeId: "ozb:1",
+    sourceNativeId: "ph:1",
     votes: 20,
     comments: 4,
     searchText:
@@ -63,7 +63,7 @@ describe("deals query engine", () => {
           id: "community:2",
           title: "TV sale",
           searchText: "tv sale",
-          sourceNativeId: "ozb:2",
+          sourceNativeId: "ph:2",
           couponCode: "SAVE",
           targeted: true,
         }),
@@ -82,7 +82,7 @@ describe("deals query engine", () => {
           deal({ expiryDate: "2026-07-11" }),
           deal({
             id: "community:2",
-            sourceNativeId: "ozb:2",
+            sourceNativeId: "ph:2",
             expiryDate: "2026-07-12",
           }),
         ],
@@ -111,7 +111,7 @@ describe("deals query engine", () => {
       deal({ productGroup: "airpods-4-anc" }),
       deal({
         id: "community:2",
-        sourceNativeId: "ozb:2",
+        sourceNativeId: "ph:2",
         merchantId: "amazon",
         merchantName: "Amazon",
         productGroup: "airpods-4-anc",
@@ -131,7 +131,7 @@ describe("deals query engine", () => {
         type: "deal" as const,
         deal: deal({
           id: "community:2",
-          sourceNativeId: "ozb:2",
+          sourceNativeId: "ph:2",
           priceValue: 10,
         }),
       },
@@ -142,7 +142,7 @@ describe("deals query engine", () => {
     const many = Array.from({ length: PAGE_SIZE + 1 }, (_, index) =>
       deal({
         id: `community:${index}`,
-        sourceNativeId: `ozb:${index}`,
+        sourceNativeId: `ph:${index}`,
         title: `Deal ${index}`,
         searchText: `deal ${index}`,
       }),
