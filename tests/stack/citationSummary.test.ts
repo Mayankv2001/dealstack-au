@@ -7,43 +7,43 @@ import {
 import type { Citation } from "@/lib/sources/types";
 
 describe("summariseCitations", () => {
-  it("collapses many OzBargain citations to a single visible source", () => {
+  it("collapses many Point Hacks citations to a single visible source", () => {
     const citations: Citation[] = [
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900001",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900001",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900002",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900002",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900003",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900003",
       },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ];
     const summary = summariseCitations(citations);
     // One badge per distinct provider, not per record.
-    const ozb = summary.providers.filter((p) => p.source === "ozbargain");
-    expect(ozb).toHaveLength(1);
-    expect(ozb[0].count).toBe(3);
+    const ph = summary.providers.filter((p) => p.source === "pointhacks");
+    expect(ph).toHaveLength(1);
+    expect(ph[0].count).toBe(3);
     expect(summary.providers).toHaveLength(2);
   });
 
   it("dedupes identical source + URL pairs (URL normalised)", () => {
     const citations: Citation[] = [
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900001",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900001",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900001/",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900001/",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900001?ref=x",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900001?ref=x",
       },
     ];
     const summary = summariseCitations(citations);
@@ -55,8 +55,8 @@ describe("summariseCitations", () => {
     const citations: Citation[] = [
       { source: "manual", sourceUrl: "/" },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/1" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/2" },
+      { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au/node/1" },
+      { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au/node/2" },
     ];
     const summary = summariseCitations(citations);
     expect(summary.total).toBe(4);
@@ -70,8 +70,8 @@ describe("summariseCitations", () => {
         sourceUrl: "https://freepoints.com.au/example-offer/",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/1",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/1",
       },
     ]);
 
@@ -88,7 +88,7 @@ describe("summariseCitations", () => {
     const citations: Citation[] = [
       { source: "manual", sourceUrl: "/" },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/1" },
+      { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au/node/1" },
       { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au" },
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ];
@@ -105,8 +105,8 @@ describe("summariseCitations", () => {
 
   it("keeps the full citation list for the accessible disclosure", () => {
     const citations: Citation[] = [
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/1" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/2" },
+      { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au/node/1" },
+      { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au/node/2" },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
     ];
     const summary = summariseCitations(citations);
@@ -118,12 +118,13 @@ describe("summariseCitations", () => {
     const citations: Citation[] = [
       { source: "manual", sourceUrl: "/" },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/1" },
+      { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au/node/1" },
       { source: "pointhacks", sourceUrl: "https://www.pointhacks.com.au" },
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
     ];
+    // Four distinct providers, three visible → a single-provider overflow.
     const label = providerSummaryLabel(summariseCitations(citations));
-    expect(label).toMatch(/\+2$/);
+    expect(label).toMatch(/\+1$/);
     expect(label.startsWith("DealStack record")).toBe(true);
   });
 

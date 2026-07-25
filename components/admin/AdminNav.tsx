@@ -30,15 +30,7 @@ const GROUPS: NavLink[][] = [
     { href: "/admin/card-reports", label: "Corrections" },
     { href: "/admin/weekly-deals", label: "Weekly Deals" },
   ],
-  [
-    { href: "/admin/signals", label: "Signals" },
-    { href: "/admin/review", label: "Review" },
-    { href: "/admin/signals/sources", label: "Feed Sources" },
-    { href: "/admin/offer-changes", label: "Offer Changes" },
-    { href: "/admin/compliance", label: "Compliance" },
-    { href: "/admin/monitor", label: "Monitor" },
-    { href: "/admin/cleanup", label: "Cleanup" },
-  ],
+  [{ href: "/admin/cleanup", label: "Cleanup" }],
   [{ href: "/admin/audit", label: "Audit" }],
 ];
 

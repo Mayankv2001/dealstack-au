@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/JsonLd";
-import TopDealsSection from "@/components/TopDealsSection";
 import SiteHeader from "@/components/SiteHeader";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
 import OfferMarquee from "@/components/home/OfferMarquee";
@@ -12,7 +11,6 @@ import {
 import { siteUrl } from "@/lib/env";
 import { buildMarquee } from "@/lib/giftcards/marquee";
 import { getCurrentReviewedGiftCardOffers } from "@/lib/repos";
-import { getTopDeals } from "@/lib/repos/topDeals";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
 import { isFeaturedStackEligible, partitionStacks } from "@/lib/stack/present";
@@ -43,9 +41,8 @@ export const revalidate = 300;
 
 export default async function Home() {
   const now = new Date();
-  const [data, topDeals, giftCardCarouselOffers] = await Promise.all([
+  const [data, giftCardCarouselOffers] = await Promise.all([
     loadStackData(),
-    getTopDeals(),
     // The carousel keeps reviewed offers whose expiry is merely unknown (ranked
     // last) plus labelled upcoming-soon offers, so it shows the full displayable
     // set — every offer becomes a slide; the carousel pages, never truncates.
@@ -83,9 +80,6 @@ export default async function Home() {
                 slides={marquee.slides}
                 liveCount={marquee.liveCount}
               />
-            }
-            todayFeed={
-              <TopDealsSection key="today-feed" deals={topDeals.slice(0, 5)} />
             }
           />
 

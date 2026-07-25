@@ -1,5 +1,9 @@
 # Cashback Portal Source Policy — ShopBack & TopCashback
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 ## Current state (verified this phase)
 
 `cashback_offers` already fully supports the two permitted cashback portals,
@@ -59,8 +63,8 @@ the codebase correctly documenting that it's excluded.
   full stop, per the platform-wide no-scraping rule.
 - ❌ Any fetcher, cron job, or scheduled task targeting either portal. None
   exists today and none should be added without a full compliance review
-  matching the rigor already applied to the OzBargain feed pipeline
-  (`docs/ozbargain-monitoring.md`) — robots.txt, ToS review, rate ceiling,
+  matching the rigor applied to the gift-card feed pipeline
+  (`docs/gift-card-pipeline.md`) — robots.txt, ToS review, rate ceiling,
   identifying User-Agent, kill switches. **Not proposed or started here.**
 - ❌ Auto-applying a detected rate change. Even if a future OzBargain-post
   detector were built, it would only ever **stage** a proposed change.

@@ -13,7 +13,7 @@
 # flag, gift_card_sources.enabled AND .automated_fetch_allowed) and ships OFF by
 # design (source policy: adapters are enabled only after a recorded review).
 #
-# Exit contract (mirrors monitor-health.yml / gift-card-lifecycle.yml):
+# Exit contract (mirrors gift-card-lifecycle.yml):
 #   0 = ran cleanly, OR skipped by a KNOWN gate — including the deliberate-off
 #       states (environment-disabled, source-missing/-disabled, fetch-not-
 #       permitted, permission-review-incomplete, no-feed-url) and the cadence
@@ -28,8 +28,8 @@
 # Only HTTP status + machine-readable summary keys are logged (public repo).
 #
 # Human setup (once): the CRON_SECRET repository Actions secret (shared with
-# monitor-health.yml) must exist; enablement of the ingest itself happens in
-# Vercel env + the DB source row, never here.
+# the other gift-card workflows) must exist; enablement of the ingest itself
+# happens in Vercel env + the DB source row, never here.
 
 name: Gift-card ingest (7am Sydney, every other day)
 

@@ -160,9 +160,6 @@ export const CATEGORY_KEYWORDS: Record<CategoryShortcut, readonly string[]> = {
   ],
 };
 
-/** Preset ceilings for the visible Price filter (dollars). */
-export const MAX_PRICE_PRESETS = [100, 250, 500, 1000, 2000] as const;
-
 export const TRUST_FILTERS = [
   "verified",
   "source-checked",
@@ -186,8 +183,6 @@ export interface DealsParams {
   sort: DealsSort;
   /** Electronics category shortcut (hero chips + visible Category control). */
   cat: CategoryShortcut | null;
-  /** Visible Price control: only deals priced at or below this (dollars). */
-  maxPrice: number | null;
   merchant: string | null;
   program: Program | null;
   trust: TrustFilter | null;
@@ -211,7 +206,6 @@ export const DEFAULT_PARAMS: DealsParams = {
   view: "discover",
   sort: "recommended",
   cat: null,
-  maxPrice: null,
   merchant: null,
   program: null,
   trust: null,
@@ -281,11 +275,6 @@ export function parseDealsParams(raw: RawSearchParams): DealsParams {
     params.cat = rawCat as CategoryShortcut;
   }
 
-  const maxPrice = Number.parseInt(first(raw.maxPrice), 10);
-  if ((MAX_PRICE_PRESETS as readonly number[]).includes(maxPrice)) {
-    params.maxPrice = maxPrice;
-  }
-
   params.merchant = first(raw.merchant) || first(raw.store) || null;
 
   const rawProgram = first(raw.program);
@@ -347,7 +336,6 @@ export function isDiscoverMode(params: DealsParams): boolean {
     params.view === "discover" &&
     params.q === "" &&
     params.cat == null &&
-    params.maxPrice == null &&
     params.merchant == null &&
     params.program == null &&
     params.trust == null &&
@@ -368,7 +356,6 @@ export function isDiscoverMode(params: DealsParams): boolean {
 export function activeFilterCount(params: DealsParams): number {
   let count = 0;
   if (params.cat) count++;
-  if (params.maxPrice != null) count++;
   if (params.merchant) count++;
   if (params.program) count++;
   if (params.trust) count++;
@@ -401,7 +388,6 @@ export function dealsHref(
   if (merged.view !== "discover") query.set("view", merged.view);
   if (merged.sort !== "recommended") query.set("sort", merged.sort);
   if (merged.cat) query.set("cat", merged.cat);
-  if (merged.maxPrice != null) query.set("maxPrice", String(merged.maxPrice));
   if (merged.merchant) query.set("merchant", merged.merchant);
   if (merged.program) query.set("program", merged.program);
   if (merged.trust) query.set("trust", merged.trust);

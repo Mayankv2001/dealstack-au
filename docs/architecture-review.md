@@ -1,5 +1,9 @@
 # DealStack AU — Architecture Review
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 > **Status note (2026-07-07):** written 2026-06-25, kept as a historical
 > record. Since then: migrations 006 (`admin_rate_limits`) and 007
 > (`card_offers`) shipped and are applied to production, so the "Key tables"

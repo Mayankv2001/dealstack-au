@@ -5,7 +5,6 @@ import type { Citation, Confidence } from "@/lib/sources/types";
 import {
   cashbackOffers as staticCashbackOffers,
   giftCardOffers as staticGiftCardOffers,
-  ozBargainSignals as staticOzBargainSignals,
   pointsOffers as staticPointsOffers,
 } from "@/lib/offers/manualOffers";
 import type {
@@ -14,7 +13,6 @@ import type {
   GiftCardCompatibilityStatus,
   GiftCardOffer,
   GiftCardProduct,
-  OzBargainSignal,
   PointsOffer,
   StackComponent,
   StackKind,
@@ -57,7 +55,6 @@ export interface StackData {
   giftCardOffers: GiftCardOffer[];
   cashbackOffers: CashbackOffer[];
   pointsOffers: PointsOffer[];
-  ozBargainSignals: OzBargainSignal[];
   /** Optional public product facts used to honour denomination/use limits. */
   giftCardProducts?: GiftCardProduct[];
   /** Optional published evidence used by the shared redemption analysis. */
@@ -70,7 +67,6 @@ export const STATIC_STACK_DATA: StackData = {
   giftCardOffers: staticGiftCardOffers,
   cashbackOffers: staticCashbackOffers,
   pointsOffers: staticPointsOffers,
-  ozBargainSignals: staticOzBargainSignals,
   giftCardProducts: [],
   giftCardAcceptance: [],
 };
@@ -81,9 +77,6 @@ export const DEFAULT_SPEND = 500;
 const round = (value: number) => Math.round(value * 100) / 100;
 
 const MANUAL_CITATION: Citation = { source: "manual", sourceUrl: "/" };
-
-/** Most corroborating community citations one stack may carry. */
-export const MAX_SIGNAL_CITATIONS = 3;
 
 /**
  * Development-oriented words that must never reach a public card. Offer sample
@@ -756,19 +749,6 @@ function buildForStore(
 
   // Nothing to stack → no recommendation.
   if (components.filter((c) => !c.optional).length === 0) return null;
-
-  // OzBargain signals contribute corroborating citations, not savings. A busy
-  // merchant can have dozens of approved signals; pushing every one of them
-  // was the root cause of the repeated-source-badge flood, so corroboration is
-  // capped at the few most recently checked REAL signals (samples carry
-  // placeholder URLs and are never cited).
-  const corroborating = data.ozBargainSignals
-    .filter((signal) => signal.merchantId === store.id && !signal.isSample)
-    .sort((a, b) => (b.lastCheckedAt ?? "").localeCompare(a.lastCheckedAt ?? ""))
-    .slice(0, MAX_SIGNAL_CITATIONS);
-  for (const signal of corroborating) {
-    citations.push({ source: "ozbargain", sourceUrl: signal.sourceUrl });
-  }
 
   const effectivePrice = round(running);
   // Cashback reduces the EFFECTIVE price but not the checkout payment — the

@@ -37,10 +37,10 @@ function deal(over: Partial<PublicDeal> = {}): PublicDeal {
     lastCheckedAt: "2026-07-12T02:00:00Z",
     expiryDate: "2026-07-15",
     dateStatus: "confirmed-current",
-    sourceName: "OzBargain",
-    publisherFamily: "ozbargain",
+    sourceName: "Point Hacks",
+    publisherFamily: "pointhacks",
     capturedAt: "2026-07-12T02:00:00Z",
-    sourceUrl: "https://www.ozbargain.com.au/node/1",
+    sourceUrl: "https://www.pointhacks.com.au/guide/1",
     detailPath: "/deals/signal/1",
     stackable: true,
     productGroup: null,
@@ -48,7 +48,7 @@ function deal(over: Partial<PublicDeal> = {}): PublicDeal {
     votes: 20,
     comments: 4,
     searchText:
-      "airpods 4 anc sale current apple earbuds offer jb hi-fi audio apple earbuds ozbargain",
+      "airpods 4 anc sale current apple earbuds offer jb hi-fi audio apple earbuds pointhacks",
     score: 80,
   };
   return { ...base, ...over };

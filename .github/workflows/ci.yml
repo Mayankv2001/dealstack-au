@@ -25,8 +25,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
-      - run: npm run test:monitor
       - run: npm run test:stack
+      - run: npm run test:feeds
       - run: npm run test:admin
       - run: npm run test:giftcards
       - run: npm run test:deals

@@ -1,5 +1,9 @@
 # DealStack AU — Architectural Decision Record
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 > ADR-style log of the load-bearing decisions, distilled 2026-07-12. Operational
 > detail lives in `docs/OPUS-4.8-HANDOFF.md`; this file records *why* things are
 > the way they are so future changes don't accidentally reverse a deliberate

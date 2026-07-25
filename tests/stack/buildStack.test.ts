@@ -10,7 +10,6 @@ import {
   makeGiftCard,
   makeGiftCardProduct,
   makePoints,
-  makeSignal,
   makeStackData,
   makeStore,
 } from "./factories";
@@ -123,56 +122,6 @@ describe("buildStackRecommendations", () => {
     expect(rec.components.some((c) => c.layer === "points")).toBe(true);
   });
 
-  it("carries OzBargain signals through as citations only", () => {
-    const data = makeStackData({
-      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "M" })],
-      ozBargainSignals: [
-        makeSignal({
-          merchantId: "myer",
-          sourceUrl: "https://example.com/s1",
-          isSample: false,
-        }),
-      ],
-    });
-    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
-    expect(rec.citations).toContainEqual({
-      source: "ozbargain",
-      sourceUrl: "https://example.com/s1",
-    });
-  });
-
-  it("caps corroborating signal citations and never cites sample signals", () => {
-    const signals = Array.from({ length: 6 }, (_, i) =>
-      makeSignal({
-        id: `sig-${i}`,
-        merchantId: "myer",
-        sourceUrl: `https://example.com/s${i}`,
-        lastCheckedAt: `2026-06-${10 + i}T00:00:00+10:00`,
-        isSample: false,
-      })
-    );
-    const data = makeStackData({
-      stores: [makeStore({ id: "myer", discountPercent: 10, discountCode: "M" })],
-      ozBargainSignals: [
-        ...signals,
-        makeSignal({
-          id: "sig-sample",
-          merchantId: "myer",
-          sourceUrl: "https://example.com/sample",
-          isSample: true,
-        }),
-      ],
-    });
-    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
-    const ozb = rec.citations.filter((c) => c.source === "ozbargain");
-    expect(ozb).toHaveLength(3);
-    // Most recently checked first; the sample signal is never cited.
-    expect(ozb.map((c) => c.sourceUrl)).toEqual([
-      "https://example.com/s5",
-      "https://example.com/s4",
-      "https://example.com/s3",
-    ]);
-  });
 
   it("drives expiry-soon and stale-data warnings off the injected clock", () => {
     const data = makeStackData({

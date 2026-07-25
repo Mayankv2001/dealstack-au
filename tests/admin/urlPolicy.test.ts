@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   isApprovedFeedUrl,
-  isApprovedOzBargainPostUrl,
   resolveApprovedFeedRedirect,
   safeHttpsUrl,
   safeLogoPath,
@@ -40,8 +39,8 @@ describe("public URL policy", () => {
     expect(safePublicSourceUrl("https://example.com/deal")).toBeNull();
     expect(safePublicSourceUrl("https://seller.example/terms")).toBeNull();
     expect(safePublicHref("https://example.org/source")).toBeNull();
-    expect(safePublicSourceUrl("https://www.ozbargain.com.au/node/1")).toBe(
-      "https://www.ozbargain.com.au/node/1",
+    expect(safePublicSourceUrl("https://www.gcdb.com.au/offer/1")).toBe(
+      "https://www.gcdb.com.au/offer/1",
     );
   });
 
@@ -65,53 +64,39 @@ describe("public URL policy", () => {
   });
 });
 
-describe("monitor URL allowlist", () => {
+describe("feed URL allowlist", () => {
   it.each([
-    "https://ozbargain.com.au/deals/feed",
-    "https://www.ozbargain.com.au/tag/gift-card/feed",
-  ])("allows approved OzBargain host %s", (value) => {
-    expect(isApprovedFeedUrl("ozbargain", value)).toBe(true);
+    "https://gcdb.com.au/feed/",
+    "https://www.gcdb.com.au/category/gift-cards/feed/",
+  ])("allows approved GCDB host %s", (value) => {
+    expect(isApprovedFeedUrl("gcdb", value)).toBe(true);
   });
 
   it.each([
-    "https://evilozbargain.com.au/feed",
-    "https://ozbargain.com.au.attacker.test/feed",
+    "https://evilgcdb.com.au/feed",
+    "https://gcdb.com.au.attacker.test/feed",
     "https://127.0.0.1/feed",
     "https://localhost/feed",
-    "http://www.ozbargain.com.au/feed",
-    "https://www.ozbargain.com.au:8443/feed",
+    "http://www.gcdb.com.au/feed",
+    "https://www.gcdb.com.au:8443/feed",
   ])("rejects unapproved feed target %s", (value) => {
-    expect(isApprovedFeedUrl("ozbargain", value)).toBe(false);
+    expect(isApprovedFeedUrl("gcdb", value)).toBe(false);
   });
 
   it("allows same-host relative redirects only", () => {
-    const current = "https://www.ozbargain.com.au/deals/feed";
-    expect(resolveApprovedFeedRedirect("ozbargain", current, "/feed/new")).toBe(
-      "https://www.ozbargain.com.au/feed/new",
+    const current = "https://www.gcdb.com.au/feed/";
+    expect(resolveApprovedFeedRedirect("gcdb", current, "/feed/new")).toBe(
+      "https://www.gcdb.com.au/feed/new",
     );
     expect(
       resolveApprovedFeedRedirect(
-        "ozbargain",
+        "gcdb",
         current,
-        "https://ozbargain.com.au/feed",
+        "https://gcdb.com.au/feed",
       ),
     ).toBeNull();
     expect(
-      resolveApprovedFeedRedirect("ozbargain", current, "http://localhost"),
+      resolveApprovedFeedRedirect("gcdb", current, "http://localhost"),
     ).toBeNull();
-  });
-
-  it("allows only exact HTTPS OzBargain deal-post URLs for validation", () => {
-    expect(
-      isApprovedOzBargainPostUrl("https://www.ozbargain.com.au/node/123456"),
-    ).toBe(true);
-    expect(
-      isApprovedOzBargainPostUrl(
-        "https://www.ozbargain.com.au/node/123?next=/",
-      ),
-    ).toBe(false);
-    expect(isApprovedOzBargainPostUrl("https://evil.test/node/123456")).toBe(
-      false,
-    );
   });
 });

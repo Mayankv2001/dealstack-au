@@ -5,14 +5,14 @@ import { SOURCE_META, type Citation, type SourceId } from "@/lib/sources/types";
  * Source-citation de-duplication for display.
  *
  * A stack draws citations from every matching offer and every corroborating
- * OzBargain signal, so the same source (especially "OzBargain") appears many
+ * offer citation, so the same source appears many
  * times — once per node URL. Rendering all of them produces the dozens of
  * repeated badges the Best stacks view suffered from.
  *
  * This collapses citations to a compact, honest summary WITHOUT losing
  * traceability:
  *   - `total`     : distinct citations, deduped by source + normalised URL.
- *   - `providers` : one entry per distinct source (OzBargain, GCDB, …), ranked
+ *   - `providers` : one entry per distinct source (GCDB, Point Hacks, …), ranked
  *                   by trust weight, each carrying how many distinct records it
  *                   contributed and a representative link.
  *   - `all`       : every distinct safe citation, for the expandable disclosure.
@@ -163,7 +163,7 @@ export function summariseCitations(
 }
 
 /**
- * Compact one-line label, e.g. "DealStack, GCDB, OzBargain +2".
+ * Compact one-line label, e.g. "DealStack, GCDB, Point Hacks +1".
  * `+N` counts source PROVIDERS beyond the visible set, not individual records.
  */
 export function providerSummaryLabel(summary: CitationSummary): string {

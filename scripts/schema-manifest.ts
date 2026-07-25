@@ -90,8 +90,8 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // (the 034 column gains its reviewed write path). No new columns.
   "035_gift_card_purchase_limits_persistence.sql",
   // Policy-only: adds the Sydney-date expiry bound to the public-read RLS of
-  // cashback/points/weekly_deals/ozbargain_signals (defence in depth). No new
-  // columns; coverage keeps the forward security boundary in the ledger.
+  // cashback/points/weekly_deals (defence in depth). No new columns; coverage
+  // keeps the forward security boundary in the ledger.
   "036_offer_expiry_read_policies.sql",
   // Policy-only: re-issues the two card-offer read policies with the
   // Australia/Sydney bound used everywhere else. No columns, no data change.
@@ -100,6 +100,11 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // migration 012's model (026 had wrongly granted it to anon/authenticated).
   // No tables, columns, policies or function-body changes.
   "038_public_correction_service_role_only.sql",
+  // Removes the OzBargain ingestion subsystem: drops ozbargain_signals,
+  // feed_sources/feed_items/feed_fetch_log, offer_change_candidates,
+  // compliance_reviews, daily_pipeline_runs and ozb_recheck_runs, plus their
+  // routines; re-issues run_daily_cleanup offers-only.
+  "039_remove_ozbargain.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -207,24 +212,6 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "point_value_cents", "mechanism", "expiry_date", "citations", "confidence",
     "last_checked_at", "is_published", "created_at", "updated_at",
   ]),
-  // 001_initial_schema.sql — extended by 014 (product_group).
-  ozbargain_signals: table(
-    "001_initial_schema.sql",
-    [
-      "id", "source_native_id", "merchant_id", "title", "summary",
-      "votes_sample", "comment_count", "sentiment", "deal_kind", "source_url",
-      "merchant_url", "product_url", "posted_at", "expiry_date", "tags",
-      "promo_code", "price_text", "signal_score", "confidence",
-      "last_checked_at", "is_sample", "status", "created_at", "updated_at",
-      "product_group", "archived_at", "archive_reason", "last_validated_at",
-    ],
-    {
-      product_group: "014_signal_product_group.sql",
-      archived_at: "015_daily_deal_pipeline.sql",
-      archive_reason: "015_daily_deal_pipeline.sql",
-      last_validated_at: "015_daily_deal_pipeline.sql",
-    }
-  ),
   weekly_deals: table("001_initial_schema.sql", [
     "id", "week_of", "merchant_id", "title", "summary", "highlight",
     "component_ids", "citations", "expiry_date", "confidence",
@@ -234,75 +221,6 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
   audit_log: table("001_initial_schema.sql", [
     "id", "actor_email", "action", "table_name", "row_id", "diff", "created_at",
   ]),
-  // 002_feed_import_queue.sql — extended by 004 (source_type) and 005
-  // (hidden_from_homepage); the overrides keep drift reports actionable.
-  feed_sources: table(
-    "002_feed_import_queue.sql",
-    [
-      "id", "label", "feed_url", "kind", "merchant_id", "is_enabled", "etag",
-      "last_modified", "last_fetched_at", "last_status", "failure_count",
-      "next_earliest_fetch_at", "created_at", "updated_at", "source_type",
-    ],
-    { source_type: "004_offer_change_candidates.sql" }
-  ),
-  feed_items: table(
-    "002_feed_import_queue.sql",
-    [
-      "id", "feed_source_id", "source_native_id", "link", "raw_title",
-      "raw_summary", "categories", "posted_at", "fetched_at", "content_hash",
-      "review_state", "promoted_signal_id", "created_at", "updated_at",
-      "hidden_from_homepage", "thumbnail_url", "reviewed_at", "reviewed_by",
-      "source_status", "last_source_check_at", "last_validated_at",
-      "last_validation_error", "consecutive_validation_failures",
-      "failure_streak_started_at", "source_expired_at", "archived_at",
-      "archive_reason", "declared_expires_at", "source_marked_expired",
-    ],
-    {
-      hidden_from_homepage: "005_feed_item_homepage_hidden.sql",
-      thumbnail_url: "015_daily_deal_pipeline.sql",
-      reviewed_at: "015_daily_deal_pipeline.sql",
-      reviewed_by: "015_daily_deal_pipeline.sql",
-      source_status: "020_ozb_expiry_recheck.sql",
-      last_source_check_at: "020_ozb_expiry_recheck.sql",
-      last_validated_at: "020_ozb_expiry_recheck.sql",
-      last_validation_error: "020_ozb_expiry_recheck.sql",
-      consecutive_validation_failures: "020_ozb_expiry_recheck.sql",
-      failure_streak_started_at: "020_ozb_expiry_recheck.sql",
-      source_expired_at: "020_ozb_expiry_recheck.sql",
-      archived_at: "020_ozb_expiry_recheck.sql",
-      archive_reason: "020_ozb_expiry_recheck.sql",
-      declared_expires_at: "020_ozb_expiry_recheck.sql",
-      source_marked_expired: "020_ozb_expiry_recheck.sql",
-    }
-  ),
-  feed_fetch_log: table("002_feed_import_queue.sql", [
-    "id", "feed_source_id", "started_at", "finished_at", "http_status",
-    "items_seen", "items_new", "error", "created_at", "items_skipped",
-    "items_updated",
-  ], {
-    items_skipped: "015_daily_deal_pipeline.sql",
-    items_updated: "015_daily_deal_pipeline.sql",
-  }),
-  // 003_compliance_review.sql
-  compliance_reviews: table("003_compliance_review.sql", [
-    "id", "source_name", "robots_txt_checked", "terms_checked",
-    "feed_paths_allowed", "user_agent_recorded", "rate_limit_recorded",
-    "approved_for_monitoring", "reviewer_email", "notes", "reviewed_at",
-    "created_at", "updated_at",
-  ]),
-  // 004_offer_change_candidates.sql — extended by 018 (payload, for card-offer
-  // prefill fields a single detected_rate_or_discount string can't carry).
-  offer_change_candidates: table(
-    "004_offer_change_candidates.sql",
-    [
-      "id", "source_type", "source_name", "merchant_id", "target_id",
-      "detected_title", "detected_rate_or_discount", "detected_url",
-      "previous_value", "proposed_value", "confidence", "raw_summary",
-      "content_hash", "review_state", "reviewed_by", "reviewed_at",
-      "created_at", "updated_at", "payload",
-    ],
-    { payload: "018_card_offer_change_candidates.sql" }
-  ),
   // 006_admin_rate_limits.sql
   admin_rate_limits: table("006_admin_rate_limits.sql", [
     "id", "admin_email", "action_key", "created_at",
@@ -333,30 +251,6 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
   ]),
   correction_report_rate_limits: table("012_card_offer_correction_reports.sql", [
     "id", "request_fingerprint", "created_at",
-  ]),
-  daily_pipeline_runs: table("015_daily_deal_pipeline.sql", [
-    "id", "started_at", "finished_at", "status", "expired_archived",
-    "invalid_archived", "validation_checked", "validation_unknown",
-    "feeds_processed", "items_fetched", "items_new",
-    "items_updated", "items_skipped", "errors", "created_at",
-    "stale_archived", "card_offers_archived", "feed_items_retired",
-    "feed_items_purged", "detection_scanned", "detection_detected",
-    "detection_inserted",
-  ], {
-    stale_archived: "019_pipeline_lifecycle_retention.sql",
-    card_offers_archived: "019_pipeline_lifecycle_retention.sql",
-    feed_items_retired: "019_pipeline_lifecycle_retention.sql",
-    feed_items_purged: "019_pipeline_lifecycle_retention.sql",
-    detection_scanned: "019_pipeline_lifecycle_retention.sql",
-    detection_detected: "019_pipeline_lifecycle_retention.sql",
-    detection_inserted: "019_pipeline_lifecycle_retention.sql",
-  }),
-  // 020_ozb_expiry_recheck.sql — narrowly scoped ledger for the expiry-recheck
-  // cron (independent one-running lock, separate from daily_pipeline_runs).
-  ozb_recheck_runs: table("020_ozb_expiry_recheck.sql", [
-    "id", "started_at", "finished_at", "status", "dry_run", "scanned",
-    "active", "expired", "deleted", "unknown", "fetch_failed", "would_archive",
-    "actually_archived", "skipped", "errors", "created_at",
   ]),
   // 021_gift_card_pipeline.sql — the gift-card sourcing/review pipeline. All
   // staging tables are service-role only (RLS default-deny); nothing here

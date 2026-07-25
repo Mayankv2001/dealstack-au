@@ -86,20 +86,20 @@ function cashRec(over: Partial<StackRecommendation> = {}): StackRecommendation {
       { source: "manual", sourceUrl: "/" },
       { source: "gcdb", sourceUrl: "https://www.gcdb.com.au" },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900001",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900001",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900002",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900002",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900003",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900003",
       },
       {
-        source: "ozbargain",
-        sourceUrl: "https://www.ozbargain.com.au/node/900004",
+        source: "pointhacks",
+        sourceUrl: "https://www.pointhacks.com.au/node/900004",
       },
     ],
     weekOf: "2026-06-15",
@@ -152,12 +152,12 @@ const occurrences = (haystack: string, needle: string) =>
   haystack.split(needle).length - 1;
 
 describe("StackRecommendationCard — cash stack", () => {
-  it("collapses duplicate OzBargain citations to one visible source with an accurate count", () => {
+  it("collapses duplicate Point Hacks citations to one visible source with an accurate count", () => {
     const html = renderToStaticMarkup(
       <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
-    // Four OzBargain records collapse into a single badge that carries the count.
-    expect(html).toContain("OzBargain ×4");
+    // Four Point Hacks records collapse into a single badge that carries the count.
+    expect(html).toContain("Point Hacks ×4");
     // The internal DealStack record is shown neutrally, not counted as a link
     // or independent publisher family.
     expect(html).toContain(
@@ -172,7 +172,7 @@ describe("StackRecommendationCard — cash stack", () => {
       <StackRecommendationCard recommendation={cashRec()} stores={stores} />,
     );
     // Full traceability: the individual node URLs remain in the expandable list.
-    expect(html).toContain("https://www.ozbargain.com.au/node/900004");
+    expect(html).toContain("https://www.pointhacks.com.au/node/900004");
     expect(html).toContain("<details");
   });
 

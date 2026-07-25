@@ -29,94 +29,6 @@ const SAMPLE_CHECKED_AT = `${sampleDate(-1)}T22:00:00+10:00`;
 /** Admin-verified rows are checked on a morning pass. */
 const MANUAL_CHECKED_AT = `${sampleDate(-1)}T09:00:00+10:00`;
 
-// ─── OzBargain — discount code / community deal examples ───────────────
-export const ozbargainResults: DealSourceResult[] = [
-  {
-    id: "ozb-myer-10-code",
-    source: "ozbargain",
-    kind: "discount-code",
-    title: "10% off sitewide at Myer with code",
-    merchant: "Myer",
-    merchantId: "myer",
-    summary:
-      "Sample community-posted code MYER10 for 10% off most full-priced items online. Exclusions apply.",
-    discountPercent: 10,
-    pointsProgram: null,
-    pointsAmount: null,
-    giftCardBrand: null,
-    cardOrProvider: null,
-    expiryDate: sampleDate(97),
-    startDate: sampleDate(-15),
-    sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: sampleDate(-15),
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-    confidence: "confirmed",
-  },
-  {
-    id: "ozb-kogan-10-code",
-    source: "ozbargain",
-    kind: "discount-code",
-    title: "Kogan 10% off code for app users",
-    merchant: "Kogan",
-    merchantId: "kogan",
-    summary:
-      "Sample app-only code KOGAN10 for 10% off selected categories. Short-dated flash promo.",
-    discountPercent: 10,
-    pointsProgram: null,
-    pointsAmount: null,
-    giftCardBrand: null,
-    cardOrProvider: null,
-    expiryDate: sampleDate(88),
-    startDate: sampleDate(-11),
-    sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: sampleDate(-14),
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-    confidence: "confirmed",
-  },
-  {
-    id: "ozb-jbhifi-perks",
-    source: "ozbargain",
-    kind: "discount-code",
-    title: "JB Hi-Fi 5% off for Perks members",
-    merchant: "JB Hi-Fi",
-    merchantId: "jb-hifi",
-    summary:
-      "Sample JB Perks member offer: 5% off selected tech with code PERKS5. Expiry not stated in post.",
-    discountPercent: 5,
-    pointsProgram: null,
-    pointsAmount: null,
-    giftCardBrand: null,
-    cardOrProvider: null,
-    expiryDate: null,
-    startDate: null,
-    sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: sampleDate(-17),
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-    confidence: "needs-verification",
-  },
-  {
-    id: "ozb-goodguys-expired",
-    source: "ozbargain",
-    kind: "discount-code",
-    title: "The Good Guys 5% off June flash sale",
-    merchant: "The Good Guys",
-    merchantId: "the-good-guys",
-    summary:
-      "Sample flash promo GOODGUYS5 for 5% off appliances. Ended at the start of June.",
-    discountPercent: 5,
-    pointsProgram: null,
-    pointsAmount: null,
-    giftCardBrand: null,
-    cardOrProvider: null,
-    expiryDate: sampleDate(-24),
-    startDate: sampleDate(-31),
-    sourceUrl: "https://www.ozbargain.com.au/deals",
-    publishedAt: sampleDate(-31),
-    lastCheckedAt: SAMPLE_CHECKED_AT,
-    confidence: "confirmed",
-  },
-];
-
 // ─── Point Hacks — points / guide examples ──────────────────────────────
 export const pointHacksResults: DealSourceResult[] = [
   {
@@ -321,8 +233,6 @@ export const gcdbResults: DealSourceResult[] = [
 // ─── Manual — DealStack admin-verified examples ─────────────────────────
 export const manualResults: DealSourceResult[] = [
   {
-    // Intentionally overlaps the OzBargain Myer code so the dedupe/merge
-    // path is exercised by real data: same merchant, kind and discount.
     id: "man-myer-10-verified",
     source: "manual",
     kind: "discount-code",
@@ -371,7 +281,6 @@ export const cardResults: DealSourceResult[] = cardOffers.map(cardOfferToSourceR
 
 /** Every static sample result across all sources */
 export const allSourceResults: DealSourceResult[] = [
-  ...ozbargainResults,
   ...pointHacksResults,
   ...freePointsResults,
   ...gcdbResults,

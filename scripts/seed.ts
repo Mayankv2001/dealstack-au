@@ -15,7 +15,7 @@
  *                  unpublish done by cleanup-old-deals on those rows ARE LOST.
  *                  Only use this to deliberately restore the static baseline.
  *
- * NO network calls to OzBargain/ShopBack/TopCashback/GCDB/FreePoints — this only
+ * NO network calls to ShopBack/TopCashback/GCDB/FreePoints — this only
  * talks to your own Supabase project using the service-role key.
  *
  * Required environment variables (put them in .env.local, see .env.example):
@@ -34,17 +34,10 @@ import {
   cardOffers,
   cashbackOffers,
   giftCardOffers,
-  ozBargainSignals,
   pointsOffers,
   weeklyDeals,
 } from "../lib/offers/manualOffers";
 import { supabaseServiceRoleKey, supabaseUrl } from "../lib/env";
-import {
-  filterProductionSignals,
-  filterSeedableSignals,
-  type SignalSeedRow,
-} from "./seed-filters";
-
 // Load .env.local for standalone runs (Next loads it for the app, scripts don't).
 type WithLoadEnv = { loadEnvFile?: (path?: string) => void };
 try {
@@ -212,34 +205,6 @@ const pointsRows: Row[] = pointsOffers.map((o) => ({
   is_published: true,
 }));
 
-const signalRows: (Row & SignalSeedRow)[] = filterProductionSignals(
-  ozBargainSignals
-).map((o) => ({
-  id: o.id,
-  source_native_id: o.sourceNativeId ?? null,
-  merchant_id: o.merchantId ?? null,
-  title: o.title,
-  summary: o.summary,
-  votes_sample: o.votesSample ?? null,
-  comment_count: o.commentCount ?? null,
-  sentiment: o.sentiment,
-  deal_kind: o.dealKind,
-  source_url: o.sourceUrl,
-  merchant_url: o.merchantUrl ?? null,
-  product_url: o.productUrl ?? null,
-  product_group: o.productGroup ?? null,
-  posted_at: o.postedAt ?? null,
-  expiry_date: o.expiryDate ?? null,
-  tags: o.tags ?? [],
-  promo_code: o.promoCode ?? null,
-  price_text: o.priceText ?? null,
-  signal_score: o.signalScore ?? null,
-  confidence: o.confidence,
-  last_checked_at: o.lastCheckedAt,
-  is_sample: o.isSample,
-  status: o.status ?? "approved",
-}));
-
 const weeklyRows: Row[] = weeklyDeals.map((o) => ({
   id: o.id,
   week_of: o.weekOf,
@@ -285,27 +250,6 @@ async function main(): Promise<void> {
   await seedTable(supabase, "gift_card_offers", giftCardRows);
   await seedTable(supabase, "cashback_offers", cashbackRows);
   await seedTable(supabase, "points_offers", pointsRows);
-  // This table also has a unique source_native_id. Pre-filter collisions owned
-  // by a different id; onConflict:id cannot handle that second constraint.
-  const { data: existingSignals, error: existingSignalsError } = await supabase
-    .from("ozbargain_signals")
-    .select("id, source_native_id")
-    .not("source_native_id", "is", null);
-  if (existingSignalsError) {
-    throw new Error(
-      `Failed reading existing signal keys: ${existingSignalsError.message}`
-    );
-  }
-  const { seedable, skipped } = filterSeedableSignals(
-    signalRows,
-    (existingSignals ?? []) as unknown as SignalSeedRow[]
-  );
-  for (const { row, ownedById } of skipped) {
-    console.log(
-      `• ozbargain_signals: skipped "${row.id}" — source_native_id "${row.source_native_id}" already belongs to row "${ownedById}"`
-    );
-  }
-  await seedTable(supabase, "ozbargain_signals", seedable);
   await seedTable(supabase, "weekly_deals", weeklyRows);
 
   // card_offers needs migration 007 applied first (not done automatically —

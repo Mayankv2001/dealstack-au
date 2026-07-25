@@ -16,7 +16,6 @@ describe("recheckTableFor — mapped types", () => {
     expect(recheckTableFor("giftCards")).toBe("gift_card_offers");
     expect(recheckTableFor("points")).toBe("points_offers");
     expect(recheckTableFor("cardOffers")).toBe("card_offers");
-    expect(recheckTableFor("signals")).toBe("ozbargain_signals");
   });
 });
 
@@ -42,12 +41,6 @@ describe("RECHECKABLE_TABLES — compile-time key subset", () => {
     // If a key here ever drifts from RecentItemType, the `satisfies` clause in
     // recheck.ts fails to compile — this runtime assertion just pins the shape.
     const keys = Object.keys(RECHECKABLE_TABLES) as RecheckableType[];
-    expect(keys).toEqual([
-      "cashback",
-      "giftCards",
-      "points",
-      "cardOffers",
-      "signals",
-    ]);
+    expect(keys).toEqual(["cashback", "giftCards", "points", "cardOffers"]);
   });
 });

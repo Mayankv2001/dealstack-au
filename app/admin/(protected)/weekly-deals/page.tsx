@@ -22,7 +22,6 @@ const HIGHLIGHT_LABELS: Record<AdminWeeklyDeal["highlight"], string> = {
   "gift-card": "Gift card",
   points: "Points",
   cashback: "Cashback",
-  signal: "Signal",
   "needs-verification": "Needs verification",
 };
 

@@ -52,7 +52,7 @@ vi.mock("@/lib/admin/repos/giftCardPipeline", () => ({
   stageCandidate: mocks.stageCandidate,
   recordSourceState: mocks.recordSourceState,
 }));
-vi.mock("@/lib/monitor/fetchFeed", () => ({ fetchFeed: mocks.fetchFeed }));
+vi.mock("@/lib/feeds/fetchFeed", () => ({ fetchFeed: mocks.fetchFeed }));
 vi.mock("@/lib/observability/report-server-error", () => ({
   reportOperationalError: mocks.reportOperationalError,
 }));

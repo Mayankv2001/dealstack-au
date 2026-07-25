@@ -8,12 +8,9 @@ import {
 } from "@/lib/admin/rate-limit";
 import { logAudit } from "@/lib/admin/repos/audit";
 import {
-  applyExpireSignal,
-  applyIgnoreStaleFeedItem,
   applyUnpublishExpired,
   auToday,
   listCleanupCandidates,
-  STALE_FEED_DAYS,
   UNPUBLISH_TABLES,
   type UnpublishTable,
 } from "@/lib/admin/repos/cleanup";
@@ -27,20 +24,14 @@ import {
  * admin-rate-limit unit, applies a CONDITIONAL write in the repo (re-checks
  * eligibility), records an audit row, and revalidates the affected pages.
  *
- * These actions ONLY ever flip is_published=false / signal status='expired' /
- * feed review_state='ignored' — the same three changes as the script. They
- * NEVER delete and NEVER publish. Audit action names are prefixed `cleanup-*`
+ * These actions ONLY ever flip is_published=false — the same change as the
+ * script. They NEVER delete and NEVER publish. Audit action names are prefixed `cleanup-*`
  * (vs the script's `auto-*`) so /admin/audit distinguishes a human click from a
  * CLI run. No scraping / fetching / external calls here.
  */
 
 /** Backstop cap on a single bulk apply (mirrors the queue's BULK_IGNORE_MAX). */
 const BULK_APPLY_MAX = 200;
-
-/** ISO cutoff for staged-feed staleness at `now`. */
-function staleCutoffIso(now: Date): string {
-  return new Date(now.getTime() - STALE_FEED_DAYS * 86_400_000).toISOString();
-}
 
 /** Admin surfaces every cleanup change affects. */
 function revalidateAdmin(): void {
@@ -107,62 +98,9 @@ export async function unpublishExpiredAction(
   return { ok: true };
 }
 
-/** Expire one approved/pending signal whose expiry has passed. */
-export async function expireSignalAction(id: string): Promise<AdminActionResult> {
-  const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
-  const today = auToday(new Date());
-  try {
-    await applyExpireSignal(id, today);
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Expire failed." };
-  }
-  await logAudit({
-    actorEmail: email,
-    action: "cleanup-expire-signal",
-    tableName: "ozbargain_signals",
-    rowId: id,
-    diff: { after: { status: "expired" }, today },
-  });
-  revalidateAdmin();
-  revalidatePublicOffers(null);
-  return { ok: true };
-}
-
-/** Ignore one abandoned staged feed item (>STALE_FEED_DAYS, still 'new'). */
-export async function ignoreStaleFeedItemAction(
-  id: string
-): Promise<AdminActionResult> {
-  const { email } = await requireAdmin();
-
-  const rateLimit = await checkAdminRateLimit({ adminEmail: email });
-  if (!rateLimit.success) return { error: rateLimit.error };
-
-  const cutoffIso = staleCutoffIso(new Date());
-  try {
-    await applyIgnoreStaleFeedItem(id, cutoffIso);
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Ignore failed." };
-  }
-  await logAudit({
-    actorEmail: email,
-    action: "cleanup-ignore-stale-feed",
-    tableName: "feed_items",
-    rowId: id,
-    diff: { before: { review_state: "new" }, after: { review_state: "ignored" }, cutoffIso },
-  });
-  revalidateAdmin();
-  // A stale feed item may have been homepage-visible; revalidate / to be safe.
-  revalidatePath("/");
-  return { ok: true };
-}
-
 // ── Bulk (per-section) action ───────────────────────────────────────────────────
 
-export type CleanupSection = "expired-offers" | "expired-signals" | "stale-feed";
+export type CleanupSection = "expired-offers";
 
 /**
  * Apply every currently-qualifying row in a section. Modelled on the queue's
@@ -183,7 +121,6 @@ export async function applySectionAction(
 
   const now = new Date();
   const today = auToday(now);
-  const cutoffIso = staleCutoffIso(now);
   const candidates = await listCleanupCandidates(now);
 
   let applied = 0;
@@ -202,36 +139,11 @@ export async function applySectionAction(
         skipped += 1;
       }
     }
-  } else if (section === "expired-signals") {
-    for (const c of candidates.expiredSignals.slice(0, BULK_APPLY_MAX)) {
-      try {
-        await applyExpireSignal(c.id, today);
-        applied += 1;
-        appliedIds.push(c.id);
-      } catch {
-        skipped += 1;
-      }
-    }
-  } else if (section === "stale-feed") {
-    for (const c of candidates.staleFeedItems.slice(0, BULK_APPLY_MAX)) {
-      try {
-        await applyIgnoreStaleFeedItem(c.id, cutoffIso);
-        applied += 1;
-        appliedIds.push(c.id);
-      } catch {
-        skipped += 1;
-      }
-    }
   } else {
     return { error: "Unknown cleanup section." };
   }
 
-  const auditTable =
-    section === "expired-offers"
-      ? "mixed_offer_tables"
-      : section === "expired-signals"
-        ? "ozbargain_signals"
-        : "feed_items";
+  const auditTable = "mixed_offer_tables";
   await logAudit({
     actorEmail: email,
     action: `cleanup-bulk-${section}`,
@@ -241,13 +153,9 @@ export async function applySectionAction(
   });
 
   revalidateAdmin();
-  if (section === "stale-feed") {
-    revalidatePath("/");
-  } else {
-    revalidatePublicOffers(null);
-    for (const merchantId of affectedMerchants) {
-      revalidatePath(`/stores/${merchantId}`);
-    }
+  revalidatePublicOffers(null);
+  for (const merchantId of affectedMerchants) {
+    revalidatePath(`/stores/${merchantId}`);
   }
   return { ok: true };
 }

@@ -12,7 +12,7 @@ For when public offers look old: ageing `last checked` labels, "needs re-check" 
 
 ## Safe checks (read-only)
 1. Scope: one offer, one source, or everything? One offer ⇒ likely just needs re-verification (admin queue). Everything from one source ⇒ that source's pipeline. Everything ⇒ scheduler/secret problem.
-2. Job ledgers (`/admin/monitor`, gift-card job runs): when did each enabled job last run `ok`?
+2. Job ledgers (gift-card job runs): when did each enabled job last run `ok`?
 3. Actions history: green/red/skip pattern for the relevant workflow (CRON-FAILURE-RECOVERY has the decode table).
 4. Reconcile ledger: the daily gift-card reconcile is what refreshes source-presence conclusions (`runReconcile`); check its last outcome and taxonomy counts.
 5. Source gates: is the source intentionally paused (env flag / DB gate / compliance)? Then staleness is *expected* — the question becomes whether the pause should continue (EMERGENCY-SOURCE-PAUSE).

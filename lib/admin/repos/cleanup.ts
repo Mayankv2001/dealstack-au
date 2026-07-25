@@ -6,9 +6,8 @@ import { findPlaceholderMarkers } from "@/lib/admin/placeholderCopy";
  * Expiry-hygiene cleanup repository — SERVICE-ROLE ONLY.
  *
  * This is the admin-portal twin of `scripts/cleanup-old-deals.ts`: it lists the
- * exact same candidates the script's dry-run prints, and applies the exact same
- * three state flips (`is_published=false`, signal `status='expired'`, feed item
- * `review_state='ignored'`). It NEVER deletes and NEVER publishes.
+ * exact same candidates the script's dry-run prints, and applies the same
+ * state flip (`is_published=false`). It NEVER deletes and NEVER publishes.
  *
  * The duplication with the CLI script is DELIBERATE. The script self-loads
  * `.env.local` and builds its own client so it can run standalone from a laptop;
@@ -51,9 +50,6 @@ export function isExpiredAu(expiry: string | null, todayStr: string): boolean {
   return expiry < todayStr;
 }
 
-/** Staged feed items older than this many days (by posted_at) are abandoned. */
-export const STALE_FEED_DAYS = 60;
-
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 /** The offer tables an "unpublish expired" apply can target (literal union — the
@@ -83,18 +79,7 @@ export interface ExpiredOfferCandidate {
   expiryDate: string;
 }
 
-export interface ExpiredSignalCandidate {
-  id: string;
-  label: string;
-  status: string;
-  expiryDate: string;
-}
 
-export interface StaleFeedCandidate {
-  id: string;
-  label: string;
-  postedAt: string;
-}
 
 /** A report-only row (no action) linking to its edit page. */
 export interface ReportRow {
@@ -107,10 +92,7 @@ export interface ReportRow {
 
 export interface CleanupCandidates {
   today: string;
-  staleFeedDays: number;
   expiredOffers: ExpiredOfferCandidate[];
-  expiredSignals: ExpiredSignalCandidate[];
-  staleFeedItems: StaleFeedCandidate[];
   publishedNoExpiry: ReportRow[];
   placeholderCopy: ReportRow[];
 }
@@ -216,55 +198,7 @@ async function readExpiredOffers(
   return out;
 }
 
-async function readExpiredSignals(
-  db: DbClient,
-  today: string
-): Promise<ExpiredSignalCandidate[]> {
-  const { data, error } = await db
-    .from("ozbargain_signals")
-    .select("id, title, status, expiry_date")
-    .in("status", ["approved", "pending"])
-    .not("expiry_date", "is", null)
-    .lt("expiry_date", today);
-  if (error) {
-    throw new Error(`listCleanupCandidates read ozbargain_signals failed: ${error.message}`);
-  }
-  return ((data ?? []) as {
-    id: string;
-    title: string;
-    status: string;
-    expiry_date: string;
-  }[]).map((r) => ({
-    id: r.id,
-    label: r.title,
-    status: r.status,
-    expiryDate: r.expiry_date,
-  }));
-}
 
-async function readStaleFeedItems(
-  db: DbClient,
-  cutoffIso: string
-): Promise<StaleFeedCandidate[]> {
-  const { data, error } = await db
-    .from("feed_items")
-    .select("id, raw_title, posted_at")
-    .eq("review_state", "new")
-    .not("posted_at", "is", null)
-    .lt("posted_at", cutoffIso);
-  if (error) {
-    throw new Error(`listCleanupCandidates read feed_items failed: ${error.message}`);
-  }
-  return ((data ?? []) as {
-    id: string;
-    raw_title: string;
-    posted_at: string;
-  }[]).map((r) => ({
-    id: r.id,
-    label: r.raw_title,
-    postedAt: r.posted_at,
-  }));
-}
 
 async function readPublishedNoExpiry(db: DbClient): Promise<ReportRow[]> {
   const out: ReportRow[] = [];
@@ -306,30 +240,20 @@ async function readPlaceholderCopy(db: DbClient): Promise<ReportRow[]> {
 
 /**
  * List every cleanup candidate live from the DB — the exact set the script's
- * dry-run prints. `today` is the AU-Sydney calendar date; the stale-feed cutoff
- * is an ISO timestamp `STALE_FEED_DAYS` in the past (feed_items.posted_at is a
- * timestamptz).
+ * dry-run prints. `today` is the AU-Sydney calendar date.
  */
 export async function listCleanupCandidates(now: Date): Promise<CleanupCandidates> {
   const db = getSupabaseAdmin();
   const today = auToday(now);
-  const cutoffIso = new Date(now.getTime() - STALE_FEED_DAYS * 86_400_000).toISOString();
-
-  const [expiredOffers, expiredSignals, staleFeedItems, publishedNoExpiry, placeholderCopy] =
-    await Promise.all([
-      readExpiredOffers(db, today),
-      readExpiredSignals(db, today),
-      readStaleFeedItems(db, cutoffIso),
-      readPublishedNoExpiry(db),
-      readPlaceholderCopy(db),
-    ]);
+  const [expiredOffers, publishedNoExpiry, placeholderCopy] = await Promise.all([
+    readExpiredOffers(db, today),
+    readPublishedNoExpiry(db),
+    readPlaceholderCopy(db),
+  ]);
 
   return {
     today,
-    staleFeedDays: STALE_FEED_DAYS,
     expiredOffers,
-    expiredSignals,
-    staleFeedItems,
     publishedNoExpiry,
     placeholderCopy,
   };
@@ -364,36 +288,4 @@ export async function applyUnpublishExpired(
   }
 }
 
-/** Expire one approved/pending, still-expired signal. Throws if no longer eligible. */
-export async function applyExpireSignal(id: string, todayStr: string): Promise<void> {
-  const db = getSupabaseAdmin();
-  const { data, error } = await db
-    .from("ozbargain_signals")
-    .update({ status: "expired" })
-    .eq("id", id)
-    .in("status", ["approved", "pending"])
-    .not("expiry_date", "is", null)
-    .lt("expiry_date", todayStr)
-    .select("id");
-  if (error) throw new Error(`applyExpireSignal failed: ${error.message}`);
-  if (!data || data.length === 0) {
-    throw new Error("Signal is no longer eligible — it may have been changed since this page loaded.");
-  }
-}
 
-/** Ignore one still-new, still-stale staged feed item. Throws if no longer eligible. */
-export async function applyIgnoreStaleFeedItem(id: string, cutoffIso: string): Promise<void> {
-  const db = getSupabaseAdmin();
-  const { data, error } = await db
-    .from("feed_items")
-    .update({ review_state: "ignored" })
-    .eq("id", id)
-    .eq("review_state", "new")
-    .not("posted_at", "is", null)
-    .lt("posted_at", cutoffIso)
-    .select("id");
-  if (error) throw new Error(`applyIgnoreStaleFeedItem failed: ${error.message}`);
-  if (!data || data.length === 0) {
-    throw new Error("Feed item is no longer eligible — it may have been changed since this page loaded.");
-  }
-}

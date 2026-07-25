@@ -1,6 +1,5 @@
 const RAW_WHITESPACE_OR_CONTROL = /[\u0000-\u0020\u007f]/;
 const APPROVED_FEED_HOSTS: Readonly<Record<string, ReadonlySet<string>>> = {
-  ozbargain: new Set(["ozbargain.com.au", "www.ozbargain.com.au"]),
   gcdb: new Set(["gcdb.com.au", "www.gcdb.com.au"]),
   pointhacks_weekly_gift_cards: new Set([
     "pointhacks.com.au",
@@ -112,19 +111,6 @@ export function isApprovedPointHacksWeeklyUrl(value: string): boolean {
       url.hostname.toLowerCase(),
     ) &&
     url.pathname.replace(/\/+$/, "") === "/weekly-gift-card-offers" &&
-    url.search === "" &&
-    url.hash === ""
-  );
-}
-
-/** Exact OzBargain deal-post URL permitted for status-only HEAD validation. */
-export function isApprovedOzBargainPostUrl(value: string): boolean {
-  const canonical = safeHttpsUrl(value);
-  if (!canonical) return false;
-  const url = new URL(canonical);
-  return (
-    APPROVED_FEED_HOSTS.ozbargain.has(url.hostname.toLowerCase()) &&
-    /^\/node\/\d+\/?$/.test(url.pathname) &&
     url.search === "" &&
     url.hash === ""
   );

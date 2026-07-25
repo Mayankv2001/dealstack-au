@@ -1,5 +1,5 @@
 export type SourceId =
-  "ozbargain" | "pointhacks" | "freepoints" | "gcdb" | "manual";
+  "pointhacks" | "freepoints" | "gcdb" | "manual";
 
 export type DealKind =
   "discount-code" | "cashback" | "gift-card" | "points" | "guide" | "card";
@@ -88,12 +88,6 @@ const SOURCE_ALIASES: Record<string, SourceId> = {
 };
 
 export const SOURCE_META: Record<SourceId, SourceMeta> = {
-  ozbargain: {
-    displayName: "OzBargain",
-    homepage: "https://www.ozbargain.com.au",
-    publisherFamily: "ozbargain",
-    trustWeight: 0.85,
-  },
   pointhacks: {
     displayName: "Point Hacks",
     homepage: "https://www.pointhacks.com.au",

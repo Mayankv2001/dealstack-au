@@ -7,10 +7,6 @@ import {
 } from "@/lib/repos";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
-import {
-  buildSmartStackResults,
-  buildSmartStackView,
-} from "@/lib/stack/smartStack";
 import { buildDecisionResult } from "./buildDecisionResult";
 import type { DecisionResult } from "./types";
 
@@ -40,7 +36,6 @@ export async function loadDecisionResult(
           giftCardOffers: [],
           cashbackOffers: [],
           pointsOffers: [],
-          ozBargainSignals: [],
           giftCardProducts: [],
           giftCardAcceptance: [],
         };
@@ -64,7 +59,6 @@ export async function loadDecisionResult(
   const deals = buildPublicDeals(
     {
       stores: stackData.stores,
-      signals: stackData.ozBargainSignals,
       giftCards: stackData.giftCardOffers,
       cashback: stackData.cashbackOffers,
       points: stackData.pointsOffers,
@@ -80,18 +74,10 @@ export async function loadDecisionResult(
     stackData,
     partial,
   };
-  const productMatches = query.trim()
-    ? buildSmartStackResults(query, stackData, now)
-    : [];
-  const productComparisons = buildSmartStackView(productMatches).flatMap(
-    (item) => (item.kind === "comparison" ? [item] : []),
-  );
   return buildDecisionResult(query, spend, {
     bundle,
     products,
     acceptance,
     giftCardOffers: stackData.giftCardOffers,
-    productComparisons,
-    productMatches,
   }, now);
 }

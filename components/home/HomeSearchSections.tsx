@@ -64,7 +64,6 @@ export function HomeSearchSections({
   heroStack,
   nowIso,
   marquee,
-  todayFeed,
 }: {
   stores: Store[];
   recommendations: StackRecommendation[];
@@ -72,7 +71,6 @@ export function HomeSearchSections({
   nowIso: string;
   /** The gift-card offer marquee, rendered directly after the hero. */
   marquee?: React.ReactNode;
-  todayFeed?: React.ReactNode;
 }) {
   const now = new Date(nowIso);
   const [query, setQuery] = useState("");
@@ -203,8 +201,6 @@ export function HomeSearchSections({
       </section>
 
       {marquee}
-
-      {todayFeed}
 
       <section className="page-container py-10 sm:py-12" aria-labelledby="browse-heading">
         <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-12">

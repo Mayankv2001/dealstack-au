@@ -190,22 +190,6 @@ test("home → store page shows the stack breakdown", async ({ page }) => {
   await expect(page.getByText("DealStack verified")).toHaveCount(0);
 });
 
-test("search: canonical product key compares retailer prices and stacks", async ({
-  page,
-}) => {
-  await page.goto("/search?q=macbook-air-m3");
-
-  await expect(
-    page.getByRole("heading", { name: "Compare current retailers" }),
-  ).toBeVisible();
-  await expect(page.getByText("JB Hi-Fi").first()).toBeVisible();
-  await expect(page.getByText("Costco").first()).toBeVisible();
-  await expect(page.getByText(/^Stack:/).first()).toBeVisible();
-  // JB Hi-Fi's stack-adjusted checkout price undercuts Costco's flat listing.
-  await expect(page.getByText("$1,709.05").first()).toBeVisible();
-  await expect(page.getByText("$1,749.00").first()).toBeVisible();
-});
-
 test("decision hub: store search returns a shareable purchase plan", async ({
   page,
 }) => {
@@ -331,13 +315,10 @@ test("decision hub: Apple search surfaces current reviewed sellers", async ({
   ).toBeVisible();
 });
 
-test("decision hub: product search exposes retailer-compatible gift-card payment options", async ({
+test("decision hub: store search exposes retailer-compatible gift-card payment options", async ({
   page,
 }) => {
-  await page.goto("/search?q=macbook-air-m3&spend=1800");
-  await expect(
-    page.getByRole("heading", { name: "Compare ways to buy “macbook-air-m3”" }),
-  ).toBeVisible();
+  await page.goto("/search?q=jb-hifi&spend=1800");
   await expect(page.getByText(/No reliable plan available/)).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Gift-card ways to pay by retailer" }),
@@ -792,7 +773,7 @@ test("public routes do not overflow the viewport", async ({ page }) => {
     "/search",
     "/search?q=Amazon+AU&spend=500",
     "/search?q=myer",
-    "/search?q=macbook-air-m3",
+    "/search?q=jb-hifi&spend=1800",
     "/resources",
   ]) {
     await page.goto(path);

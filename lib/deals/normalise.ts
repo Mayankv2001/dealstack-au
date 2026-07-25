@@ -1,11 +1,8 @@
 import type { Store } from "@/lib/data";
 import { weeklyDealPath } from "@/lib/offers/dealSlug";
-import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
-import { parsePriceText } from "@/lib/offers/productPrice";
 import type {
   CashbackOffer,
   GiftCardOffer,
-  OzBargainSignal,
   PointsOffer,
   WeeklyDeal,
 } from "@/lib/offers/types";
@@ -15,7 +12,6 @@ import {
   type Confidence,
 } from "@/lib/sources/types";
 import {
-  isApprovedOzBargainPostUrl,
   safePublicSourceUrl,
 } from "@/lib/security/urlPolicy";
 import { sanitisePublicText } from "@/lib/stack/buildStack";
@@ -92,10 +88,6 @@ function trustFromConfidence(
   return kind === "community" ? "community" : "source-checked";
 }
 
-function hasTargetedTag(tags: string[]): boolean {
-  return tags.some((tag) => tag.toLowerCase().includes("targeted"));
-}
-
 function dateStatus(
   expiryDate: string | null | undefined,
   expired: boolean,
@@ -151,80 +143,6 @@ function finalise(
     .join(" ")
     .toLowerCase();
   return { ...partial, searchText, score: scoreDeal(partial, now) };
-}
-
-export function fromSignal(
-  signal: OzBargainSignal,
-  ctx: BuildContext,
-): PublicDeal {
-  const store = signal.merchantId
-    ? (ctx.storeById.get(signal.merchantId) ?? null)
-    : null;
-  const tags = [
-    ...new Set((signal.tags ?? []).map((t) => decodeEntities(t).trim())),
-  ]
-    .filter(Boolean)
-    .slice(0, 8);
-  const title = decodeEntities(signal.title);
-  const priceValue = parsePriceText(signal.priceText);
-  const wasPrice = parseWasPrice(signal.priceText);
-  const today = todayAU(ctx.now);
-  const expired =
-    signal.confidence === "expired-unknown" ||
-    signal.sentiment === "expired" ||
-    isPastExpiry(signal.expiryDate ?? null, today);
-  // Sample rows carry placeholder URLs that must never render as live links.
-  // Community heat must lead to its original discussion, not silently swap in
-  // a merchant/product destination. Sample and non-post URLs remain unlinked.
-  const externalUrl =
-    !signal.isSample && isApprovedOzBargainPostUrl(signal.sourceUrl)
-      ? signal.sourceUrl
-      : null;
-  return finalise(
-    {
-      id: `community:${signal.id}`,
-      kind: "community",
-      title,
-      summary: decodeEntities(signal.summary),
-      merchantId: signal.merchantId,
-      merchantName: store?.name ?? null,
-      category: tags[0] ?? KIND_LABEL.community,
-      tags,
-      priceText: tidyPriceText(signal.priceText),
-      priceValue,
-      wasPrice,
-      savingPercent: deriveSavingPercent(title, priceValue, wasPrice),
-      couponCode: signal.promoCode ?? null,
-      trust: expired
-        ? "expired"
-        : trustFromConfidence(signal.confidence, "community"),
-      // A moderated community signal may be source-confirmed, but it is not a
-      // completed DealStack verification outcome.
-      dealStackVerified: false,
-      membershipRequired: false,
-      activationRequired: false,
-      targeted: hasTargetedTag(tags),
-      channelNote: null,
-      postedAt: signal.postedAt,
-      lastCheckedAt: signal.lastCheckedAt,
-      expiryDate: signal.expiryDate ?? null,
-      dateStatus: dateStatus(signal.expiryDate, expired),
-      sourceName: "OzBargain",
-      publisherFamily: SOURCE_META.ozbargain.publisherFamily,
-      capturedAt: signal.lastCheckedAt,
-      sourceUrl: externalUrl ? safePublicSourceUrl(externalUrl) : null,
-      detailPath: `/deals/signal/${encodeURIComponent(signal.id)}`,
-      stackable:
-        signal.merchantId != null &&
-        ctx.stackableMerchantIds.has(signal.merchantId),
-      productGroup: signal.productGroup ?? null,
-      sourceNativeId: signal.sourceNativeId ?? null,
-      votes: signal.votesSample,
-      comments: signal.commentCount ?? null,
-    },
-    [signal.dealKind],
-    ctx.now,
-  );
 }
 
 const CHANNEL_NOTE: Record<string, string> = {
@@ -485,7 +403,6 @@ export function fromWeeklyDeal(
 
 export interface PublicDealInputs {
   stores: Store[];
-  signals: OzBargainSignal[];
   giftCards: GiftCardOffer[];
   cashback: CashbackOffer[];
   points: PointsOffer[];
@@ -509,6 +426,5 @@ export function buildPublicDeals(
     ...inputs.giftCards.map((o) => fromGiftCard(o, ctx)),
     ...inputs.cashback.map((o) => fromCashback(o, ctx)),
     ...inputs.points.map((o) => fromPoints(o, ctx)),
-    ...inputs.signals.map((s) => fromSignal(s, ctx)),
   ];
 }

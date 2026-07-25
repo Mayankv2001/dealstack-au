@@ -6,14 +6,12 @@ export const REVIEW_INTERVAL_DAYS = {
   cashback: 14,
   giftCards: 30,
   points: 30,
-  signals: 14,
 } as const;
 
 export interface OfferTypeCounts {
   cashback: number;
   giftCards: number;
   points: number;
-  signals: number;
   weeklyDeals: number;
   cardOffers: number;
 }
@@ -111,13 +109,11 @@ export async function getPublishedDataHealth(
     cashback,
     giftCards,
     points,
-    signals,
     weeklyDeals,
     cardOffers,
     cashbackExpired,
     giftCardsExpired,
     pointsExpired,
-    signalsExpired,
     weeklyDealsExpired,
     cardOffersExpired,
   ] = await Promise.all([
@@ -139,12 +135,6 @@ export async function getPublishedDataHealth(
         .eq("is_published", true)
         .lt("last_checked_at", cutoffIso(now, REVIEW_INTERVAL_DAYS.points)),
       "points"
-    ),
-    count(
-      db.from("ozbargain_signals").select("*", { count: "exact", head: true })
-        .eq("status", "approved")
-        .lt("last_checked_at", cutoffIso(now, REVIEW_INTERVAL_DAYS.signals)),
-      "signals"
     ),
     count(
       db.from("weekly_deals").select("*", { count: "exact", head: true })
@@ -182,13 +172,6 @@ export async function getPublishedDataHealth(
       "points expiry"
     ),
     count(
-      db.from("ozbargain_signals").select("*", { count: "exact", head: true })
-        .eq("status", "approved")
-        .not("expiry_date", "is", null)
-        .lt("expiry_date", integrityBoundary),
-      "signals expiry"
-    ),
-    count(
       db.from("weekly_deals").select("*", { count: "exact", head: true })
         .eq("is_published", true)
         .not("expiry_date", "is", null)
@@ -206,12 +189,11 @@ export async function getPublishedDataHealth(
   ]);
 
   return summarisePublishedDataHealth(
-    { cashback, giftCards, points, signals, weeklyDeals, cardOffers },
+    { cashback, giftCards, points, weeklyDeals, cardOffers },
     {
       cashback: cashbackExpired,
       giftCards: giftCardsExpired,
       points: pointsExpired,
-      signals: signalsExpired,
       weeklyDeals: weeklyDealsExpired,
       cardOffers: cardOffersExpired,
     },

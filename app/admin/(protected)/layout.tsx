@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/admin/auth";
 
 /**
  * Protected admin shell. Lives in a (protected) route group so the gate below
- * wraps the dashboard (and future cashback/gift-card/points/signals pages)
+ * wraps the dashboard (and the cashback/gift-card/points/card-offer pages)
  * WITHOUT wrapping /admin/login — a layout that requireAdmin()s its own login
  * page would redirect-loop. login / auth/callback / logout sit outside this
  * group on purpose.

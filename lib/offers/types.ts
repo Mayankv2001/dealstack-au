@@ -1,7 +1,6 @@
 import type {
   Citation,
   Confidence,
-  DealKind,
 } from "@/lib/sources/types";
 
 /**
@@ -32,7 +31,6 @@ export type WeeklyHighlight =
   | "gift-card"
   | "points"
   | "cashback"
-  | "signal"
   | "needs-verification";
 
 // ─── Offer entities ───────────────────────────────────────────────────────
@@ -338,55 +336,6 @@ export interface CardOfferHistoryEntry {
   changedFields: string[];
   checkedAt: string;
   createdAt: string;
-}
-
-export interface OzBargainSignal {
-  id: string;
-  merchantId: string | null;
-  title: string;
-  /** Our own short paraphrase, never copied content. */
-  summary: string;
-  /** Community heat — sample value only. */
-  votesSample: number | null;
-  sentiment: "hot" | "neutral" | "warning" | "expired";
-  dealKind: DealKind;
-  sourceUrl: string;
-  postedAt: string | null;
-  confidence: Confidence;
-  lastCheckedAt: string;
-  /**
-   * True for static/manual MVP examples — `sourceUrl` is a placeholder, not a
-   * real OzBargain post, and must NOT be rendered as a live link. The future
-   * source-monitoring agent emits real signals with `isSample: false`.
-   */
-  isSample: boolean;
-  // ── Optional enrichment (static MVP; populated where known) ──
-  /** Number of comments on the source thread — heat signal only. */
-  commentCount?: number | null;
-  /** Short tag/category labels (our wording). */
-  tags?: string[];
-  /** Community-posted promo code, if cleanly visible. */
-  promoCode?: string | null;
-  /** Short price/discount text, e.g. "$1,799 (was $1,999)". */
-  priceText?: string | null;
-  /** Offer expiry if stated by the post. */
-  expiryDate?: string | null;
-  /** 0–1 heuristic signal score (see scoring plan). */
-  signalScore?: number | null;
-  /** Stable OzBargain node id, for future dedupe. */
-  sourceNativeId?: string | null;
-  /** Moderation status (future use). */
-  status?: "pending" | "approved" | "hidden" | "expired";
-  /** Retailer homepage the post points to, if any. */
-  merchantUrl?: string | null;
-  /** Exact product/category page at the retailer, if the post points to one. */
-  productUrl?: string | null;
-  /**
-   * Admin-assigned key linking signals for the SAME product across retailers
-   * (e.g. "airpods-pro-3"). Search groups shared-key signals into one product
-   * with a retailer price-comparison. Null = ungrouped (renders standalone).
-   */
-  productGroup?: string | null;
 }
 
 export interface WeeklyDeal {

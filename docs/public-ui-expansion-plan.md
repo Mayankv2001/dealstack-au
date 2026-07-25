@@ -1,5 +1,9 @@
 # Public UI Expansion Plan
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 > **Status: the `/cards` surface below has since shipped.** Migration 007
 > is applied to production, `/cards` is live (`app/cards/page.tsx`,
 > `getCardOffers()` in `lib/repos/offers.ts`), and nav links to it exist on

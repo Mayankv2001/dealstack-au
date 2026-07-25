@@ -2,7 +2,6 @@ import {
   cardOffers as staticCardOffers,
   cashbackOffers as staticCashback,
   giftCardOffers as staticGiftCards,
-  ozBargainSignals as staticSignals,
   pointsOffers as staticPoints,
 } from "@/lib/offers/manualOffers";
 import { sampleGiftCardOffers } from "@/lib/offers/sampleGiftCards";
@@ -11,7 +10,6 @@ import type {
   CardOffer,
   CashbackOffer,
   GiftCardOffer,
-  OzBargainSignal,
   PointsOffer,
 } from "@/lib/offers/types";
 import { filterLive, todayAU } from "@/lib/offers/expiry";
@@ -35,7 +33,7 @@ import {
 } from "@/lib/supabase/server";
 
 /**
- * Offers repository (gift cards, cashback, points, OzBargain signals).
+ * Offers repository (gift cards, cashback, points).
  *
  * DB reads go through the anon client, so RLS applies — only published offers
  * and `status = 'approved'` signals are returned. Static arrays are available
@@ -536,75 +534,4 @@ export async function getPointsOffers(): Promise<PointsOffer[]> {
     }
   );
   return filterLive(rows);
-}
-
-// ── OzBargain signals (RLS returns status = 'approved' only) ─────────────────
-interface SignalRow {
-  id: string;
-  source_native_id: string | null;
-  merchant_id: string | null;
-  title: string;
-  summary: string;
-  votes_sample: number | null;
-  comment_count: number | null;
-  sentiment: OzBargainSignal["sentiment"];
-  deal_kind: OzBargainSignal["dealKind"];
-  source_url: string;
-  merchant_url: string | null;
-  product_url: string | null;
-  posted_at: string | null;
-  expiry_date: string | null;
-  tags: string[];
-  promo_code: string | null;
-  price_text: string | null;
-  signal_score: number | string | null;
-  confidence: Confidence;
-  last_checked_at: string;
-  is_sample: boolean;
-  status: NonNullable<OzBargainSignal["status"]>;
-  product_group: string | null;
-}
-
-function mapSignal(r: SignalRow): OzBargainSignal {
-  return {
-    id: r.id,
-    sourceNativeId: r.source_native_id,
-    merchantId: r.merchant_id,
-    title: r.title,
-    summary: r.summary,
-    votesSample: r.votes_sample,
-    commentCount: r.comment_count,
-    sentiment: r.sentiment,
-    dealKind: r.deal_kind,
-    sourceUrl: safeHttpsUrl(r.source_url) ?? "",
-    merchantUrl: r.merchant_url ? safeHttpsUrl(r.merchant_url) : null,
-    productUrl: r.product_url ? safeHttpsUrl(r.product_url) : null,
-    postedAt: r.posted_at,
-    expiryDate: r.expiry_date,
-    tags: r.tags ?? [],
-    promoCode: r.promo_code,
-    priceText: r.price_text,
-    signalScore: toNumberOrNull(r.signal_score),
-    confidence: r.confidence,
-    lastCheckedAt: r.last_checked_at,
-    isSample: r.is_sample,
-    status: r.status,
-    productGroup: r.product_group ?? null,
-  };
-}
-
-export async function getOzBargainSignals(): Promise<OzBargainSignal[]> {
-  const rows = await fromDbOrDemo(
-    "ozbargain_signals",
-    staticSignals,
-    async (db: DbClient) => {
-      const { data, error } = await db
-        .from("ozbargain_signals")
-        .select("*")
-        .order("signal_score", { ascending: false, nullsFirst: false });
-      if (error) throw error;
-      return ((data ?? []) as unknown as SignalRow[]).map(mapSignal);
-    }
-  );
-  return filterLive(rows).filter((signal) => signal.sourceUrl !== "");
 }

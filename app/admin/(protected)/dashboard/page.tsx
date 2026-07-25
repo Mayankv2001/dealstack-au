@@ -33,17 +33,10 @@ import {
   getDataQualityReport,
   getRecentUpdates,
 } from "@/lib/admin/repos/dashboard";
-import { countNewFeedItems } from "@/lib/admin/repos/feedQueue";
-import {
-  isApprovedForFetch,
-  listFeedSources,
-} from "@/lib/admin/repos/feedSources";
-import { getMonitorStatus } from "@/lib/admin/repos/monitorStatus";
-import { recheckTableFor } from "@/lib/admin/repos/recheck";
-import { isMonitorStale, MONITOR_STALE_HOURS } from "@/lib/monitor/staleness";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { cn } from "@/lib/utils";
 import { ActionButton } from "@/components/admin/ActionButton";
+import { recheckTableFor } from "@/lib/admin/repos/recheck";
 import { markRechecked } from "./actions";
 
 export const metadata: Metadata = {
@@ -164,32 +157,11 @@ export default async function AdminDashboardPage({
   // page verifies independently (proxy is only an optimistic check).
   const { email } = await requireAdmin();
   const { dq } = await searchParams;
-  const [counts, recent, feedQueueCount, dataQuality, feedSources, monitor] =
-    await Promise.all([
-      getDashboardCounts(),
-      getRecentUpdates(5),
-      countNewFeedItems(),
-      getDataQualityReport(),
-      listFeedSources(),
-      getMonitorStatus(),
-    ]);
-
-  // Monitor health for the Needs-attention list. Staleness only counts when we
-  // EXPECT fetches: at least one enabled fetch-approved feed AND the env master
-  // switch is on — a deliberately disabled monitor is not an incident.
-  const fetchableEnabledFeedCount = feedSources.filter(
-    (s) => s.isEnabled && isApprovedForFetch(s.sourceType)
-  ).length;
-  const enabledUnfetchableCount = feedSources.filter(
-    (s) => s.isEnabled && !isApprovedForFetch(s.sourceType)
-  ).length;
-  const monitorStale =
-    monitor.envEnabled &&
-    isMonitorStale({
-      fetchableEnabledFeedCount,
-      lastSuccessAt: monitor.lastSuccessLog?.startedAt ?? null,
-      now: new Date(),
-    });
+  const [counts, recent, dataQuality] = await Promise.all([
+    getDashboardCounts(),
+    getRecentUpdates(5),
+    getDataQualityReport(),
+  ]);
 
   // "Show all" via URL query param — server-driven, so no client state needed
   // (the page's only client island is the "Mark re-checked" ActionButton).
@@ -250,16 +222,6 @@ export default async function AdminDashboardPage({
       ],
     },
     {
-      title: "OzBargain Signals",
-      description: "Manually curated community deal signals.",
-      href: "/admin/signals",
-      total: counts.signals.total,
-      stats: [
-        { label: "Approved", value: counts.signals.approved },
-        { label: "Pending", value: counts.signals.pending },
-      ],
-    },
-    {
       title: "Weekly Deals",
       description: "Curated editorial cards referencing existing offer ids.",
       href: "/admin/weekly-deals",
@@ -271,19 +233,9 @@ export default async function AdminDashboardPage({
     },
   ];
 
-  // Derived entirely from the counts above — drafts waiting to publish plus
-  // signals still pending review. Each links to its section list.
+  // Derived entirely from the counts above — drafts waiting to publish. Each
+  // links to its section list.
   const attention = [
-    {
-      label: "Feed items to review",
-      value: feedQueueCount,
-      href: "/admin/review?tab=deals",
-    },
-    {
-      label: "Pending OzBargain signals",
-      value: counts.signals.pending,
-      href: "/admin/signals",
-    },
     {
       label: "Unpublished stores",
       value: counts.stores.unpublished,
@@ -319,20 +271,10 @@ export default async function AdminDashboardPage({
       value: counts.weeklyDeals.unpublished,
       href: "/admin/weekly-deals",
     },
-    {
-      label: `Feed monitor: no successful run in ${MONITOR_STALE_HOURS}h+`,
-      value: monitorStale ? 1 : 0,
-      href: "/admin/monitor",
-    },
-    {
-      label: "Enabled feeds the monitor cannot fetch",
-      value: enabledUnfetchableCount,
-      href: "/admin/signals/sources",
-    },
   ];
   const attentionTotal = attention.reduce((sum, a) => sum + a.value, 0);
 
-  // Read-only data-quality metrics over published offers + approved signals.
+  // Read-only data-quality metrics over published offers.
   // Derived from DQ_TILE_ORDER so the tile labels/explanations stay in sync
   // with the per-item issue chips.
   const dataQualityMetrics = DQ_TILE_ORDER.map(({ code, count }) => ({
@@ -343,14 +285,11 @@ export default async function AdminDashboardPage({
   }));
 
   const quickActions = [
-    { label: "Monitor Status", href: "/admin/monitor" },
-    { label: "Review Feed Queue", href: "/admin/review?tab=deals" },
     { label: "Add Store", href: "/admin/stores/new" },
     { label: "Add Cashback Rate", href: "/admin/cashback/new" },
     { label: "Add Gift Card Offer", href: "/admin/gift-cards/new" },
     { label: "Add Card Offer", href: "/admin/card-offers/new" },
     { label: "Add Points Offer", href: "/admin/points/new" },
-    { label: "Add OzBargain Signal", href: "/admin/signals/new" },
     { label: "Compose Weekly Deal", href: "/admin/weekly-deals/new" },
   ];
 
@@ -365,9 +304,8 @@ export default async function AdminDashboardPage({
 
       <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
         <span className="font-medium text-foreground">Manual review required.</span>{" "}
-        All published deal data is reviewed and approved by an admin. The feed
-        monitor may stage items for review, but nothing is published without an
-        explicit admin action.
+        All published deal data is reviewed and approved by an admin. Nothing is
+        published without an explicit admin action.
       </p>
 
       {/* Overview — existing per-section count cards. */}
@@ -415,7 +353,7 @@ export default async function AdminDashboardPage({
             <CardTitle>Needs attention</CardTitle>
             <CardDescription>
               {attentionTotal === 0
-                ? "All clear — every draft is published and signals are reviewed."
+                ? "All clear — every draft is published."
                 : `${attentionTotal} ${attentionTotal === 1 ? "item" : "items"} waiting on you.`}
             </CardDescription>
           </CardHeader>
@@ -466,13 +404,12 @@ export default async function AdminDashboardPage({
         </Card>
       </div>
 
-      {/* Data quality — issues on published offers / approved signals. */}
+      {/* Data quality — issues on published offers. */}
       <Card id="data-quality" className="scroll-mt-6">
         <CardHeader>
           <CardTitle>Data quality</CardTitle>
           <CardDescription>
-            Checks across published offers and approved signals — the rows the
-            public site can show.
+            Checks across published offers — the rows the public site can show.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -480,13 +417,9 @@ export default async function AdminDashboardPage({
           <p className="rounded-lg border border-dashed bg-muted/40 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
             <span className="font-medium text-foreground">Cleaning up old data.</span>{" "}
             Expired items should be <strong className="font-medium text-foreground">unpublished, not deleted</strong> —
-            use the Edit screen and turn off “Published”. Old staged feed items
-            can be <strong className="font-medium text-foreground">ignored</strong> in the{" "}
-            <Link href="/admin/review?tab=deals" className="underline">
-              feed queue
-            </Link>
-            . Always use admin edits for production data; nothing here is
-            hard-deleted. A dry-run helper (<code className="font-mono">npm run cleanup:old-deals</code>)
+            use the Edit screen and turn off “Published”. Always use admin edits
+            for production data; nothing here is hard-deleted. A dry-run helper
+            (<code className="font-mono">npm run cleanup:old-deals</code>)
             previews these same changes before any are applied.
           </p>
 
@@ -532,10 +465,7 @@ export default async function AdminDashboardPage({
           {dataQuality.flaggedItems === 0 ? (
             <div className="flex items-start gap-2.5 rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              <p>
-                No data-quality issues found on published offers or approved
-                signals.
-              </p>
+              <p>No data-quality issues found on published offers.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -668,12 +598,6 @@ export default async function AdminDashboardPage({
               <span className="text-foreground font-medium">Prefer admin pages for live offer edits.</span>{" "}
               Edit rates, dates, and expiry directly in the admin portal so changes
               persist without a re-seed and go through the normal review flow.
-            </li>
-            <li>
-              <span className="text-foreground font-medium">Re-seeding overwrites sample signal rows.</span>{" "}
-              The ~13 sample <code className="rounded bg-muted px-1 py-0.5 text-xs">ozbargain_signals</code>{" "}
-              seeded from static files are replaced on re-seed. Real imported signals (imported via the
-              queue) are separate rows and are not affected.
             </li>
           </ol>
         </CardContent>

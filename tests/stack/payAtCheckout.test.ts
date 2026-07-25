@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import {
-  buildSmartStackResults,
-  priceReliesOnUnverifiedLayer,
-} from "@/lib/stack/smartStack";
-import {
   TEST_NOW,
   makeCashback,
   makeGiftCard,
   makeGiftCardAcceptance,
   makeGiftCardProduct,
-  makeSignal,
   makeStackData,
   makeStore,
 } from "./factories";
@@ -71,47 +66,5 @@ describe("payAtCheckout / cashbackLater", () => {
     expect(rec.payAtCheckout).toBe(90);
     expect(rec.cashbackLater).toBe(4.5);
     expect(rec.effectivePrice).toBe(85.5);
-  });
-});
-
-describe("Smart Stack verified preference", () => {
-  const priced = (merchantId: string, id: string) =>
-    makeSignal({
-      id,
-      merchantId,
-      title: "Widget deal",
-      priceText: "$100",
-      productGroup: "widget-1",
-      status: "approved",
-      signalScore: 0.5,
-    });
-
-  it("labels prices that rely on an unverified layer", () => {
-    const data = makeStackData({
-      stores: [
-        makeStore({
-          id: "myer",
-          name: "Myer",
-          discountPercent: 5,
-          discountCode: "CODE5",
-        }),
-      ],
-      ozBargainSignals: [priced("myer", "sig-a")],
-    });
-    const [result] = buildSmartStackResults("widget", data, TEST_NOW);
-    // Store discount codes always carry needs-verification confidence.
-    expect(priceReliesOnUnverifiedLayer(result)).toBe(true);
-  });
-
-  it("does not flag a fully verified stack", () => {
-    const data = makeStackData({
-      stores: [makeStore({ id: "myer", name: "Myer" })],
-      cashbackOffers: [
-        makeCashback({ merchantId: "myer", confidence: "confirmed" }),
-      ],
-      ozBargainSignals: [priced("myer", "sig-b")],
-    });
-    const [result] = buildSmartStackResults("widget", data, TEST_NOW);
-    expect(priceReliesOnUnverifiedLayer(result)).toBe(false);
   });
 });

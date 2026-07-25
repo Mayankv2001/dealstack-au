@@ -26,7 +26,6 @@ export const WEEKLY_HIGHLIGHTS: WeeklyHighlight[] = [
   "gift-card",
   "points",
   "cashback",
-  "signal",
   "needs-verification",
 ];
 

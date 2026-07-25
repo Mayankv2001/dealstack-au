@@ -9,7 +9,7 @@ A repeatable, read-only walk to answer "is DealStack AU healthy right now?" in ~
 | `/api/health/monitor` (bearer `CRON_SECRET`) | curl with bearer; `no-store` | 200. Off/paused states return 200 with the reason (intentional pause ≠ failure); 503 = pipeline stalled while enabled (staleness > 30h, `lib/monitor/staleness.ts`) or config error |
 | `/api/health/data` (bearer) | curl with bearer | 200. 503 lists overdue reviews — that is a *work queue* signal, not an outage |
 | GitHub Actions | repo → Actions | All scheduled workflows green in their last window. Exit 2 = Actions `CRON_SECRET` secret missing (nothing was sent). "Scheduled workflows disabled" banner = ~60-day inactivity auto-disable |
-| `/admin/monitor` + gift-card job-run pages | logged-in admin | Ledger rows present for each enabled job's last window, status `ok` (or honest `skipped` reasons) |
+| gift-card job-run pages | logged-in admin | Ledger rows present for each enabled job's last window, status `ok` (or honest `skipped` reasons) |
 | Public spot-check | browser, read-only | See below |
 | Vercel dashboard | project → Deployments/Crons | Latest deploy healthy; both daily crons fired |
 
@@ -39,7 +39,7 @@ Nothing in this runbook mutates anything; it is safe to run entirely. Anything y
 - Do not log in to Supabase and run ad-hoc SQL as a health check; the health endpoints exist so you don't have to.
 
 ## Validation / cadence
-Run after every deploy, after any incident recovery, and when the monitor-health workflow (3-hourly) goes red. Record the result (date, operator, anomalies) in the ops log.
+Run after every deploy and after any incident recovery. Record the result (date, operator, anomalies) in the ops log.
 
 ## Escalation
 On-call/owner: (fill in). Vercel + Supabase status pages for platform-side suspicion.

@@ -8,11 +8,10 @@
  * REVIEW CANDIDATES only. Nothing here publishes — every candidate still awaits
  * admin approval through the hardened approve RPC.
  *
- * Why this exists: the OzBargain monitor has always had a manual runner; the
- * gift-card pipeline did not, so the only way to trigger an ingest was to wait
- * for the cron or invoke the deployed secret route (whose 40h interval guard a
- * manual `?force=1` does not bypass). This closes that parity gap with the same
- * safety posture the cron enforces.
+ * Why this exists: without a manual runner the only way to trigger an ingest
+ * was to wait for the cron or invoke the deployed secret route (whose 40h
+ * interval guard a manual `?force=1` does not bypass). This closes that gap
+ * with the same safety posture the cron enforces.
  *
  * Safety (mirrors the cron gate chain, minus the Sydney-hour/interval cadence
  * which is a scheduling concern, not a safety one — an operator run is
@@ -81,7 +80,7 @@ import {
 } from "../lib/giftcards/runIngest";
 import { runGuardedIngest } from "../lib/giftcards/runGuarded";
 import { parseGcdbFeed } from "../lib/giftcards/parseGcdbFeed";
-import { fetchFeed } from "../lib/monitor/fetchFeed";
+import { fetchFeed } from "../lib/feeds/fetchFeed";
 
 // Load .env.local for standalone runs (Next loads it for the app; scripts don't).
 type WithLoadEnv = { loadEnvFile?: (path?: string) => void };

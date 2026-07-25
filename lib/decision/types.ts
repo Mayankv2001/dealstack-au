@@ -1,4 +1,3 @@
-import type { PublicDeal } from "@/lib/deals/types";
 import type { Store } from "@/lib/data";
 import type {
   GiftCardAcceptanceRow,
@@ -7,7 +6,6 @@ import type {
   GiftCardProduct,
   StackRecommendation,
 } from "@/lib/offers/types";
-import type { SmartStackComparison } from "@/lib/stack/smartStack";
 
 export type DecisionTargetKind = "store" | "gift-card" | "programme";
 
@@ -92,7 +90,6 @@ export interface DecisionResult {
    */
   queryCorrection: { searched: string; resolvedName: string } | null;
   stores: Store[];
-  productComparisons: SmartStackComparison[];
   bestCashStack: StackRecommendation | null;
   rewardsStack: StackRecommendation | null;
   currentGiftCardOffers: GiftCardOffer[];
@@ -100,7 +97,6 @@ export interface DecisionResult {
   retailerGiftCardPlans: RetailerGiftCardPlan[];
   acceptedCards: AcceptedCardResult[];
   alternativeStacks: StackRecommendation[];
-  communityPulse: PublicDeal[];
   warnings: string[];
   freshness: DecisionFreshness;
   rankingExplanation: string[];

@@ -8,16 +8,11 @@ How to stop fetching from an external source immediately, in a way the system re
 ## Pause levers (fastest first)
 
 1. **Environment flag (Vercel env, per job)** — flips the whole job off at the route gate; skip reason `environment-disabled`:
-   - OzBargain monitor: `OZB_MONITOR_ENABLED` → unset/`false`
-   - Offer detection post-step only: `OZB_OFFER_DETECT_ENABLED`; card-offer subset only: `CARD_DETECT_ENABLED`
-   - Expiry recheck probes: `OZB_EXPIRY_RECHECK_ENABLED`
-   - GCDB ingest: `GCDB_INGEST_ENABLED`
+   - GCDB ingest: `GCDB_INGEST_ENABLED` → unset/`false`
    - Point Hacks weekly: `POINTHACKS_WEEKLY_INGEST_ENABLED`
    - Reconcile / lifecycle (no external fetch, but pausable): `GIFT_CARD_RECONCILE_ENABLED`, `GIFT_CARD_LIFECYCLE_ENABLED`
    Env changes need a redeploy to take effect — factor that latency in.
 2. **DB source gate (gift-card sources)** — per-source `enabled` / `automated_fetch_allowed` flags in the sources admin; skip reason distinguishes the gate. Use when only one source of several must stop. `?force=1` cannot bypass these.
-3. **Compliance approval (OzBargain pipeline)** — the monitor checks a compliance approval gate before fetching; revoking it blocks with `blocked-by-compliance`.
-
 Note the deliberate redundancy: for a serious incident set BOTH the env flag and the DB gate, so a later redeploy or env edit cannot silently resume fetching.
 
 ## What a pause does NOT do
@@ -26,7 +21,6 @@ Note the deliberate redundancy: for a serious incident set BOTH the env flag and
 
 ## How the pause reads on dashboards
 - Workflows go green-with-skip (endpoint returns `skipped` + reason) — NOT red.
-- `/api/health/monitor` returns 200 for off/paused states, 503 only for a stalled-while-enabled pipeline. If you see red after pausing, something else is wrong.
 - Record the pause (who/why/when/expected duration) in the ops log and, for gift-card sources, the source notes field — "intentionally paused" must be discoverable later (REL-002 formalises the vocabulary).
 
 ## Un-pause

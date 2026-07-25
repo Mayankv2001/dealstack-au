@@ -12,7 +12,7 @@ For failures in the GCDB daily ingest, Point Hacks weekly ingest, or the downstr
 Red Actions run; ledger row `fail`; review queue suddenly empty (no new candidates) or flooded; parse-error spike; reconcile taxonomy counts anomalous.
 
 ## Safe checks (read-only)
-1. **Ledger first** (`/admin/monitor` gift-card job runs): status, error text, per-stage evidence, duration.
+1. **Ledger first** (gift-card job runs): status, error text, per-stage evidence, duration.
 2. **Skip vs fail:** `skipped` + reason = gate behaviour (often intentional; see EMERGENCY-SOURCE-PAUSE). `fail` = read the error.
 3. **Classify the failure stage:**
    - *Fetch:* HTTP status in the error. Source down, moved, or blocking us. Do NOT retry-storm a source that is refusing us — that's a compliance conversation. Check the URL against `lib/security/urlPolicy.ts` allowlists (a source URL change will fail-closed here by design).

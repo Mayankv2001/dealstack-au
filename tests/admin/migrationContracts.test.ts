@@ -573,4 +573,65 @@ describe("production safety migration contracts", () => {
     );
   });
 
+  it("removes OzBargain without weakening offer-expiry archival", () => {
+    const sql = migration("039_remove_ozbargain.sql");
+
+    // The replacement run_daily_cleanup is created BEFORE the old one is
+    // dropped, so expiry hygiene never lapses mid-migration.
+    const createAt = sql.indexOf("create or replace function public.run_daily_cleanup");
+    const dropAt = sql.indexOf("drop function if exists public.run_daily_cleanup");
+    expect(createAt).toBeGreaterThan(-1);
+    expect(dropAt).toBeGreaterThan(createAt);
+
+    // Every surviving offer type keeps its Sydney-bounded archival + audit row.
+    for (const table of [
+      "gift_card_offers",
+      "cashback_offers",
+      "points_offers",
+      "weekly_deals",
+    ]) {
+      expect(sql).toMatch(
+        new RegExp(`update public\\.${table} set is_published = false[\\s\\S]*?expiry_date < p_today`),
+      );
+    }
+    expect(sql).toMatch(
+      /update public\.card_offers[\s\S]*?is_published = false, is_archived = true[\s\S]*?expiry_date < p_today or review_by_date < p_today/,
+    );
+    expect(sql).toContain("insert into public.audit_log");
+    expect(sql).toContain("'auto-archive-expired'");
+    expect(sql).toContain("'auto-archive-card'");
+
+    // Service-role only, like every other privileged routine.
+    expect(sql).toContain("from public, anon, authenticated");
+    expect(sql).toContain("to service_role");
+
+    // The OzBargain tables go; no surviving offer table is ever dropped.
+    for (const table of [
+      "ozbargain_signals",
+      "feed_items",
+      "feed_sources",
+      "feed_fetch_log",
+      "offer_change_candidates",
+      "compliance_reviews",
+      "daily_pipeline_runs",
+      "ozb_recheck_runs",
+    ]) {
+      expect(sql).toContain(`drop table if exists public.${table} cascade`);
+    }
+    for (const keep of [
+      "gift_card_offers",
+      "cashback_offers",
+      "points_offers",
+      "card_offers",
+      "weekly_deals",
+      "stores",
+      "audit_log",
+      "admins",
+    ]) {
+      expect(sql).not.toMatch(new RegExp(`drop table[^;]*\\b${keep}\\b`, "i"));
+    }
+    // audit_log history for the dropped tables is deliberately retained.
+    expect(sql).not.toMatch(/delete\s+from\s+public\.audit_log/i);
+  });
+
 });

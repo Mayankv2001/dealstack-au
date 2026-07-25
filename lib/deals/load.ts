@@ -29,7 +29,6 @@ const EMPTY_STACK_DATA: StackData = {
   giftCardOffers: [],
   cashbackOffers: [],
   pointsOffers: [],
-  ozBargainSignals: [],
 };
 
 export async function loadDealsBundle(
@@ -56,7 +55,6 @@ export async function loadDealsBundle(
   const deals = buildPublicDeals(
     {
       stores: data.stores,
-      signals: data.ozBargainSignals,
       giftCards: data.giftCardOffers,
       cashback: data.cashbackOffers,
       points: data.pointsOffers,

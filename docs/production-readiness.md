@@ -1,5 +1,9 @@
 # DealStack AU — Production Readiness Checklist
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 > Step-by-step launch and operations guide. Work through each section in order.
 > Check items off as you complete them. Nothing here auto-applies — every step
 > requires a deliberate manual action.

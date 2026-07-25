@@ -22,12 +22,7 @@ const TABLE_OPTIONS = [
   "cashback_offers",
   "gift_card_offers",
   "points_offers",
-  "ozbargain_signals",
   "weekly_deals",
-  "feed_sources",
-  "feed_items",
-  "compliance_reviews",
-  "offer_change_candidates",
   "card_offers",
   "card_offer_correction_reports",
 ];

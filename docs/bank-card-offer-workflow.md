@@ -1,5 +1,9 @@
 # Bank / Credit Card Offer Workflow
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 > **Status: implemented.** This proposal was approved. The actual migration
 > (`supabase/migrations/007_card_offers.sql`) has been created and applied to
 > production, admin CRUD (`/admin/card-offers`) is live, 5 sample rows are

@@ -145,7 +145,6 @@ describe("card offers in the Supabase-backed public source pool", () => {
         giftCards: [],
         points: [],
         cardOffers: [makeCardOfferRow()],
-        signals: [],
       },
       NOW
     );
@@ -162,7 +161,6 @@ describe("card offers in the Supabase-backed public source pool", () => {
         giftCards: [],
         points: [],
         cardOffers: [makeCardOfferRow({ confidence: "needs-verification" })],
-        signals: [],
       },
       NOW
     );
@@ -177,7 +175,6 @@ describe("card offers in the Supabase-backed public source pool", () => {
         giftCards: [],
         points: [],
         cardOffers: [makeCardOfferRow({ expiry_date: "2020-01-01" })],
-        signals: [],
       },
       NOW
     );

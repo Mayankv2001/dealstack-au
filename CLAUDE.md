@@ -3,7 +3,7 @@
 # DealStack AU — Claude Project Instructions
 
 ## Project Overview
-DealStack AU is a deal-stacking platform for Australian shoppers that combines cashback portals, gift cards, points programmes, and OzBargain feed signals into a single research tool. It is deployed on Vercel (Hobby plan) with a Supabase Postgres backend.
+DealStack AU is a deal-stacking platform for Australian shoppers that combines cashback portals, gift cards, and points programmes into a single research tool. It is deployed on Vercel (Hobby plan) with a Supabase Postgres backend.
 
 ## Tech Stack
 - **Framework:** Next.js 16 (App Router, React 19, TypeScript)
@@ -19,13 +19,9 @@ npm run dev            # local dev server
 npm run build          # production build (must pass before committing)
 npm run lint           # ESLint (must pass before committing)
 npm run typecheck      # tsc --noEmit incl. tests — CI runs this; must pass before committing
-npm run test:monitor   # tests for monitor/feed/top-deals/ranking logic
+npm run test:feeds     # tests for the gift-card feed fetcher
 npm run test:stack     # tests for stack/calculation logic
 npm run seed           # seed base data
-npm run seed:feed-items       # seed OzBargain feed items
-npm run seed:offer-changes    # seed offer change candidates
-npm run monitor:fixtures      # generate test fixtures
-npm run monitor:feeds         # run feed monitor locally
 npm run gift-card:ingest      # manual GCDB ingest (dry-run; --only=<ids>, --write to stage)
 npm run test:admin     # tests for admin rate-limit/db-fallback logic
 npm run cleanup:old-deals  # dry-run unpublish/expire pass (-- --write to apply)
@@ -59,17 +55,17 @@ supabase/              Migrations and seed SQL
 - Do not add, log, or commit `.env` values.
 
 ### Data & Publishing
-- All external feed data (OzBargain signals, offer changes) must be staged and reviewed by an admin before public publication.
-- Do not auto-publish, auto-import, or auto-apply any offer/signal changes.
-- Do not write directly to `ozbargain_signals` from monitor/cron code.
+- All external feed data (gift-card ingest candidates) must be staged and reviewed by an admin before public publication.
+- Do not auto-publish, auto-import, or auto-apply any offer changes.
 - Do not update cashback/gift-card/points offers without admin review.
 - No Cashrewards references anywhere.
 
 ### Cron / Monitoring
 - Vercel Hobby plan: one cron per day maximum. Do not change `vercel.json` schedule to sub-daily.
-- An external scheduler (cron-job.org) may call the secret monitor route up to every 3 hours.
-- Do not change monitor gate logic or fetching behaviour unless a phase explicitly requires it.
+- `/api/cron/daily-cleanup` is the only Vercel cron: it unpublishes expired offers and makes no outbound requests. The gift-card jobs run from GitHub Actions.
+- Do not change the gift-card ingest gate logic or fetching behaviour unless a phase explicitly requires it.
 - Do not scrape HTML pages — RSS/Atom feed parsing only.
+- OzBargain has been removed from the product. Do not reintroduce OzBargain ingestion, signals or feed monitoring.
 
 ### Supabase
 - Do not change RLS or security policies unless explicitly needed and explained first.
@@ -93,7 +89,7 @@ Before every commit:
 1. `npm run lint` — must pass
 2. `npm run typecheck` — must pass (`next build` does NOT typecheck `tests/`; CI does)
 3. `npm run build` — must pass
-4. `npm run test:monitor` — if monitor/feed/top-deals/ranking logic changed
+4. `npm run test:feeds` — if the gift-card feed fetcher changed
 5. `npm run test:stack` — if stack/calculation logic changed
 6. `npm run test:admin` — if admin action/rate-limit/fallback logic changed
 7. `git status` — confirm only intended files are staged

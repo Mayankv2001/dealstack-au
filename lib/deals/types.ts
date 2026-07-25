@@ -83,7 +83,7 @@ export interface PublicDeal {
   expiryDate: string | null;
   /** Explicit current/unknown state; null expiry alone never implies ongoing. */
   dateStatus: DealDateStatus;
-  /** Human source name: "OzBargain", "RACV", "ShopBack", a program, … */
+  /** Human source name: "RACV", "ShopBack", a program, … */
   sourceName: string;
   /** Independent publisher family used for corroboration de-duplication. */
   publisherFamily: string;

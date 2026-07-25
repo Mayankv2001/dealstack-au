@@ -3,7 +3,6 @@ import {
   getGiftCardOffers,
   getGiftCardAcceptance,
   getGiftCardProducts,
-  getOzBargainSignals,
   getPointsOffers,
   getStores,
 } from "@/lib/repos";
@@ -23,13 +22,12 @@ import {
 
 /** Load the full StackData bundle using the repositories' DB-or-demo policy. */
 export async function loadStackData(): Promise<StackData> {
-  const [stores, giftCardOffers, cashbackOffers, pointsOffers, ozBargainSignals] =
+  const [stores, giftCardOffers, cashbackOffers, pointsOffers] =
     await Promise.all([
       getStores(),
       getGiftCardOffers(),
       getCashbackOffers(),
       getPointsOffers(),
-      getOzBargainSignals(),
     ]);
   const productIds = [
     ...new Set(
@@ -49,7 +47,6 @@ export async function loadStackData(): Promise<StackData> {
     giftCardOffers,
     cashbackOffers,
     pointsOffers,
-    ozBargainSignals,
     giftCardProducts,
     giftCardAcceptance,
   };

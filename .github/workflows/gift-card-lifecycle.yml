@@ -5,7 +5,7 @@
 # Sydney-hour and local-calendar-day gates accept exactly one real daily run.
 # This workflow does not enable the endpoint or any source adapter.
 #
-# Exit contract (mirrors monitor-health.yml and schema-drift.yml):
+# Exit contract (mirrors schema-drift.yml):
 #   0 = the lifecycle ran cleanly, OR was skipped by a gate that is part of
 #       normal operation (the other DST slot, an already-completed Sydney day,
 #       or a concurrent run holding the migration-030 lock).

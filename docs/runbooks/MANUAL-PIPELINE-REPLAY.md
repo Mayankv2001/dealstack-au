@@ -4,7 +4,7 @@ How to safely re-run a missed or failed scheduled job. All replays go through th
 
 ## When to replay
 - A Sydney-7am gift-card window was fully missed (both UTC fires failed) — the hour gate blocks late organic runs.
-- monitor-feeds missed its daily Vercel fire (Vercel incident).
+- daily-cleanup missed its daily Vercel fire (Vercel incident).
 - A run failed mid-way and the ledger shows `fail` (locks auto-release; a replay is safe).
 
 ## When NOT to replay
@@ -14,18 +14,14 @@ How to safely re-run a missed or failed scheduled job. All replays go through th
 
 ## Replay mechanics
 
-### monitor-feeds (OzBargain daily pipeline)
-- GitHub → Actions → `monitor-feeds-trigger.yml` → Run workflow (manual dispatch). This is the documented backfill path; it prints allowlisted summary keys only.
-- Idempotency: the pipeline stages (archive expired → validate → fetch → detect) are re-runnable; staged writes dedupe on native ids.
-
 ### Gift-card jobs (ingest / weekly-ingest / lifecycle / reconcile)
 - GitHub → Actions → the matching workflow → Run workflow; or call the route with the bearer secret and `?force=1`.
 - **What `force` does:** bypasses the Sydney-run-hour gate ONLY.
 - **What `force` never does:** bypass auth, env flags, DB source gates (enabled + automated_fetch_allowed + terms/robots review), the interval guard's anti-storm intent, the one-running lock, or the lifecycle same-local-day guard (a second lifecycle run on the same Sydney date is a no-op by design — this is what makes replay safe).
 - Order if replaying a whole missed day: ingest → (weekly-ingest if due per ADR-003) → reconcile (which fans into lifecycle). Reconcile/lifecycle are safe to run without a prior ingest — they act on current DB state.
 
-### recheck-ozbargain-expiry
-- No dedicated manual workflow; it self-heals at its next Vercel fire. If urgent, call the route with the bearer; its own interval guard and lock (migration 020) make double-invocation safe.
+### daily-cleanup
+- No dedicated manual workflow; it self-heals at its next Vercel fire. If urgent, call `GET /api/cron/daily-cleanup` with the bearer secret. It is idempotent: already-unpublished rows no longer match its filters.
 
 ## Idempotency guarantees you are relying on
 - One-running locks per source/kind (migration 030) with guaranteed finalisation (`lib/giftcards/runGuarded.ts`).

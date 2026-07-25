@@ -1,5 +1,9 @@
 # DealStack AU — Opus 4.8 Operational Handoff
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 > Written 2026-07-12 by the outgoing agent (Claude Fable 5) as the primary
 > knowledge-transfer document. Every factual claim below was verified against
 > the repository at commit `1d7b87a` and, where marked *(prod-verified)*,

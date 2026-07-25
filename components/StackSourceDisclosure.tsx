@@ -13,13 +13,11 @@ import { cn } from "@/lib/utils";
  * Shows at most three de-duplicated source badges plus an "N sources checked"
  * count, and reveals the complete, traceable citation list inside a native
  * <details> disclosure (keyboard- and screen-reader-accessible, no JS). This
- * replaces the wall of repeated "OzBargain" badges while keeping every source
+ * replaces the wall of repeated per-source badges while keeping every source
  * one interaction away.
  */
 
 const sourceBadgeClasses: Record<SourceId, string> = {
-  ozbargain:
-    "border-orange-500/25 bg-orange-500/10 text-orange-700 dark:text-orange-400",
   pointhacks:
     "border-indigo-500/25 bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
   freepoints:

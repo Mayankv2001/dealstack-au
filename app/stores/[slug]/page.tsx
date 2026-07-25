@@ -263,8 +263,8 @@ export default async function StorePage({
             </div>
             <p className="mt-4 flex items-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
               <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              Results sourced from OzBargain, Point Hacks, FreePoints, GCDB and
-              DealStack records.
+              Results sourced from Point Hacks, FreePoints, GCDB and DealStack
+              records.
             </p>
             <Link
               href={`/search?q=${encodeURIComponent(store.name)}&spend=${SAMPLE_SPEND}`}
@@ -323,7 +323,7 @@ export default async function StorePage({
             </div>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {sourceResults.length === 0
-                ? `What OzBargain, Point Hacks, FreePoints and GCDB list for ${store.name}`
+                ? `What Point Hacks, FreePoints and GCDB list for ${store.name}`
                 : `${sourceResults.length} ${sourceResults.length === 1 ? "listing" : "listings"} mentioning ${store.name} across our checked sources`}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">

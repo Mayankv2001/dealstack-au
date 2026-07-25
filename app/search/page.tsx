@@ -6,14 +6,12 @@ import {
   CheckCircle2,
   Clock3,
   Compass,
-  ExternalLink,
   Gift,
   SearchX,
   ShieldCheck,
   Sparkles,
   Store,
 } from "lucide-react";
-import { DealCard } from "@/components/deals/DealCard";
 import GiftCardOfferCard from "@/components/GiftCardOfferCard";
 import SearchBar from "@/components/SearchBar";
 import ReportProblemForm from "@/components/ReportProblemForm";
@@ -21,7 +19,6 @@ import RetailerGiftCardPlans from "@/components/RetailerGiftCardPlans";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import StackRecommendationCard from "@/components/StackRecommendationCard";
-import SmartStackComparisonCard from "@/components/SmartStackComparisonCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatAUD } from "@/lib/calculateStack";
@@ -134,30 +131,22 @@ export default async function SearchPage({
     !result.ambiguous &&
     !result.bestCashStack &&
     !result.rewardsStack &&
-    result.currentGiftCardOffers.length === 0 &&
-    result.communityPulse.length === 0 &&
-    result.productComparisons.length === 0;
+    result.currentGiftCardOffers.length === 0;
   const zeroHitSuggestions = noResults
     ? suggestNearbyStores(query, result.stores, 3)
     : [];
-  const isProductComparison = result.productComparisons.length > 0;
   const isGiftCardDiscovery =
-    !isProductComparison &&
     !primaryRecommendation &&
     result.currentGiftCardOffers.length > 0;
   const pageHeading = !query
     ? "What are you planning to buy?"
-    : isProductComparison
-      ? `Compare ways to buy “${query}”`
-      : isGiftCardDiscovery
-        ? `Gift-card offers for “${query}”`
+    : isGiftCardDiscovery
+      ? `Gift-card offers for “${query}”`
       : primaryRecommendation
         ? `${presentation.recommendationLabel} for “${query}”`
         : `Results for “${query}”`;
-  const pageDescription = isProductComparison
-    ? "Compare the listed retailer price first, then check the compatible gift-card and saving options for each seller."
-    : isGiftCardDiscovery
-      ? "Compare who sells the card, the exact promotion mechanic and where the card can be used before adding it to a purchase plan."
+  const pageDescription = isGiftCardDiscovery
+    ? "Compare who sells the card, the exact promotion mechanic and where the card can be used before adding it to a purchase plan."
     : "Enter a store, product, gift card or rewards programme. You’ll get a clear plan with cash savings, later rewards and conditions shown separately.";
 
   return (
@@ -270,27 +259,6 @@ export default async function SearchPage({
               />
             </CardContent>
           </Card>
-        ) : null}
-
-        {result.productComparisons.length > 0 ? (
-          <section className="mt-10" aria-labelledby="retailer-comparison">
-            <h2 id="retailer-comparison" className="text-xl font-bold">
-              Compare current retailers
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Same-product listings are grouped only by an approved canonical
-              product key.
-            </p>
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              {result.productComparisons.map((comparison) => (
-                <SmartStackComparisonCard
-                  key={comparison.productGroup}
-                  comparison={comparison}
-                  stores={result.stores}
-                />
-              ))}
-            </div>
-          </section>
         ) : null}
 
         {noResults ? (
@@ -569,32 +537,6 @@ export default async function SearchPage({
               Not recorded never means not accepted. Merchant category coding
               and terminal routing can affect redemption.
             </p>
-          </section>
-        ) : null}
-
-        {result.communityPulse.length > 0 && !result.ambiguous ? (
-          <section className="mt-10" aria-labelledby="community-pulse">
-            <div className="flex items-center gap-2">
-              <ExternalLink aria-hidden className="size-5 text-orange-600" />
-              <h2 id="community-pulse" className="text-xl font-bold">
-                Community pulse
-              </h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Approved activity summaries link to the original discussion. Votes
-              and comments are ranking tie-breakers, not DealStack verification.
-            </p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {result.communityPulse.map((deal) => (
-                <DealCard
-                  key={deal.id}
-                  deal={deal}
-                  stores={result.stores}
-                  now={now}
-                  compact
-                />
-              ))}
-            </div>
           </section>
         ) : null}
 

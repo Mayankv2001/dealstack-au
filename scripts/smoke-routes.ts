@@ -160,7 +160,7 @@ async function expectPublicRoute(path: string, marker: string): Promise<void> {
 
 // ── §7 auth boundaries + §4 cron gate ────────────────────────────────────────
 
-const ADMIN_ROUTES = ["/admin/dashboard", "/admin/card-offers", "/admin/signals/queue"];
+const ADMIN_ROUTES = ["/admin/dashboard", "/admin/card-offers", "/admin/gift-cards"];
 
 async function expectAdminRedirect(path: string): Promise<void> {
   const res = await fetchWithRetry(path);
@@ -174,18 +174,10 @@ async function expectAdminRedirect(path: string): Promise<void> {
 }
 
 async function expectCronGateClosed(): Promise<void> {
-  const res = await fetchWithRetry("/api/cron/monitor-feeds");
+  const res = await fetchWithRetry("/api/cron/daily-cleanup");
   if (res.status === 200) {
     throw new Error("cron gate is open without auth (got 200)");
   }
-  if (res.status !== 401 && res.status !== 503) {
-    throw new Error(`expected 401 or 503, got ${res.status}`);
-  }
-}
-
-async function expectMonitorHealthGateClosed(): Promise<void> {
-  const res = await fetchWithRetry("/api/health/monitor");
-  if (res.status === 200) throw new Error("monitor health gate is open without auth");
   if (res.status !== 401 && res.status !== 503) {
     throw new Error(`expected 401 or 503, got ${res.status}`);
   }
@@ -379,10 +371,9 @@ async function main(): Promise<void> {
     );
   }
 
-  await check("GET /api/cron/monitor-feeds without auth never returns 200", expectCronGateClosed);
   await check(
-    "GET /api/health/monitor without auth never returns 200",
-    expectMonitorHealthGateClosed
+    "GET /api/cron/daily-cleanup without auth never returns 200",
+    expectCronGateClosed
   );
   await check(
     "GET /api/health/data without auth never returns 200",

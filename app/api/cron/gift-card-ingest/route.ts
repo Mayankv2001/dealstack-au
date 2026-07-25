@@ -28,13 +28,12 @@ import {
   type RunIngestDeps,
 } from "@/lib/giftcards/runIngest";
 import { runGuardedIngest } from "@/lib/giftcards/runGuarded";
-import { fetchFeed } from "@/lib/monitor/fetchFeed";
+import { fetchFeed } from "@/lib/feeds/fetchFeed";
 import { reportOperationalError } from "@/lib/observability/report-server-error";
 import { isGiftCardJobRunSchemaUnavailable } from "@/lib/admin/repos/giftCardJobRunErrors";
 
 /**
- * Gift-card ingest cron — SEPARATE from the OzBargain monitor and driven by
- * an external UTC scheduler at BOTH possible UTC equivalents of 7:00 AM
+ * Gift-card ingest cron — driven by an external UTC scheduler at BOTH possible UTC equivalents of 7:00 AM
  * Australia/Sydney (20:00 UTC during AEDT, 21:00 UTC during AEST). The route
  * itself decides, DST-safely, whether to run:
  *   auth → env flag → DB source gates → Sydney 7am hour → 40h interval guard

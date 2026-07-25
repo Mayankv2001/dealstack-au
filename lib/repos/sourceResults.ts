@@ -11,7 +11,6 @@ import {
 import {
   SOURCE_META,
   type Confidence,
-  type DealKind,
   type DealSourceResult,
   type RankedDealResult,
 } from "@/lib/sources/types";
@@ -28,13 +27,13 @@ import { reportOperationalError } from "@/lib/observability/report-server-error"
 /**
  * Source-checks adapter — Supabase-backed "Checked sources" results.
  *
- * Converts the published offers and approved OzBargain signals into the existing
+ * Converts the published offers into the existing
  * `DealSourceResult` shape, then runs them through the SAME dedupe/derive/rank
  * pipeline the static sample pool uses (lib/sources/searchSources.ts). The public
  * search/store pages render the output with the unchanged SourceResultCard.
  *
  * Reads go through the ANON client (getSupabaseServer), so RLS applies — only
- * `is_published = true` offers and `status = 'approved'` signals come back
+ * `is_published = true` offers come back
  * (requirement: only approved/published records show publicly).
  *
  * Trust boundary (same contract as lib/repos/offers.ts):
@@ -58,20 +57,6 @@ const CASHBACK_PROVIDER_HOMEPAGE: Record<string, string> = {
   ShopBack: "https://www.shopback.com.au",
   TopCashback: "https://www.topcashback.com.au",
 };
-
-const DEAL_KINDS: DealKind[] = [
-  "discount-code",
-  "cashback",
-  "gift-card",
-  "points",
-  "guide",
-];
-
-function asDealKind(value: string): DealKind {
-  return (DEAL_KINDS as string[]).includes(value)
-    ? (value as DealKind)
-    : "guide";
-}
 
 // ── Row shapes (only the columns the source cards need) ──────────────────────
 export interface StoreNameRow {
@@ -130,21 +115,6 @@ export interface CardOfferResultRow {
   confidence: Confidence;
 }
 
-export interface SignalResultRow {
-  id: string;
-  merchant_id: string | null;
-  title: string;
-  summary: string;
-  deal_kind: string;
-  source_url: string;
-  posted_at: string | null;
-  expiry_date: string | null;
-  last_checked_at: string;
-  confidence: Confidence;
-  is_sample: boolean;
-  price_text: string | null;
-}
-
 type NameOf = (id: string | null) => string | null;
 
 function buildNameMap(rows: StoreNameRow[]): NameOf {
@@ -152,7 +122,7 @@ function buildNameMap(rows: StoreNameRow[]): NameOf {
   return (id) => (id ? map.get(id) ?? null : null);
 }
 
-// ── Offer/signal → DealSourceResult mappers ──────────────────────────────────
+// ── Offer → DealSourceResult mappers ─────────────────────────────────────────
 
 function cashbackToResult(r: CashbackResultRow, nameOf: NameOf): DealSourceResult {
   const merchant = nameOf(r.merchant_id);
@@ -288,33 +258,6 @@ function cardOfferRowIsPublicReady(
   ).ready;
 }
 
-function signalToResult(r: SignalResultRow, nameOf: NameOf): DealSourceResult {
-  return {
-    id: `sig:${r.id}`,
-    source: "ozbargain",
-    kind: asDealKind(r.deal_kind),
-    title: r.title,
-    merchant: nameOf(r.merchant_id),
-    merchantId: r.merchant_id,
-    // Keep sample signals clearly labelled wherever they surface.
-    summary: r.is_sample ? `Sample signal — ${r.summary}` : r.summary,
-    discountPercent: null,
-    pointsProgram: null,
-    pointsAmount: r.price_text || null,
-    giftCardBrand: null,
-    cardOrProvider: null,
-    expiryDate: r.expiry_date,
-    startDate: null,
-    // Sample signals carry placeholder source URLs that must never be linked as
-    // live posts — point them at the OzBargain homepage. Real signals keep their
-    // canonical source_url.
-    sourceUrl: r.is_sample ? SOURCE_META.ozbargain.homepage : r.source_url,
-    publishedAt: r.posted_at,
-    lastCheckedAt: r.last_checked_at,
-    confidence: r.confidence,
-  };
-}
-
 // ── DB reads (anon client → RLS-filtered to published/approved) ──────────────
 
 async function queryStoreNames(db: DbClient): Promise<StoreNameRow[]> {
@@ -363,23 +306,12 @@ async function queryCardOffers(db: DbClient): Promise<CardOfferResultRow[]> {
   return (data ?? []) as unknown as CardOfferResultRow[];
 }
 
-async function querySignals(db: DbClient): Promise<SignalResultRow[]> {
-  const { data, error } = await db
-    .from("ozbargain_signals")
-    .select(
-      "id, merchant_id, title, summary, deal_kind, source_url, posted_at, expiry_date, last_checked_at, confidence, is_sample, price_text"
-    );
-  if (error) throw error;
-  return (data ?? []) as unknown as SignalResultRow[];
-}
-
 export interface SourceResultRows {
   stores: StoreNameRow[];
   cashback: CashbackResultRow[];
   giftCards: GiftCardResultRow[];
   points: PointsResultRow[];
   cardOffers: CardOfferResultRow[];
-  signals: SignalResultRow[];
 }
 
 /**
@@ -412,13 +344,6 @@ export function buildSourceResultPool(
     ...rows.cardOffers
       .filter((r) => notExpired(r.expiry_date) && cardOfferRowIsPublicReady(r, today))
       .map((r) => cardOfferToSourceResult(cardOfferRowToInput(r))),
-    ...rows.signals
-      .filter(
-        (r) =>
-          notExpired(r.expiry_date) &&
-          (r.is_sample || safeHttpsUrl(r.source_url) !== null)
-      )
-      .map((r) => signalToResult(r, nameOf)),
   ];
 
   return results.filter((r) => notExpired(r.expiryDate));
@@ -437,14 +362,13 @@ export async function loadDbSourceResults(): Promise<DealSourceResult[] | null> 
   if (!db) return null;
 
   try {
-    const [storeRows, cashback, giftCards, points, cardOffers, signals] =
+    const [storeRows, cashback, giftCards, points, cardOffers] =
       await Promise.all([
         queryStoreNames(db),
         queryCashback(db),
         queryGiftCards(db),
         queryPoints(db),
         queryCardOffers(db),
-        querySignals(db),
       ]);
     return buildSourceResultPool({
       stores: storeRows,
@@ -452,7 +376,6 @@ export async function loadDbSourceResults(): Promise<DealSourceResult[] | null> 
       giftCards,
       points,
       cardOffers,
-      signals,
     });
   } catch (err) {
     await reportOperationalError("source-results-read", err);

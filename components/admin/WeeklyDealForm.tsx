@@ -32,7 +32,6 @@ const HIGHLIGHT_OPTIONS: { value: string; label: string }[] = [
   { value: "gift-card", label: "Gift card" },
   { value: "points", label: "Points" },
   { value: "cashback", label: "Cashback" },
-  { value: "signal", label: "Signal" },
   { value: "needs-verification", label: "Needs verification" },
 ];
 

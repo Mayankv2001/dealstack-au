@@ -250,12 +250,6 @@ function ActiveFilters({ params }: { params: DealsParams }) {
   const filters: Array<[string, string, Partial<DealsParams>]> = [];
   if (params.cat)
     filters.push(["cat", CATEGORY_LABEL[params.cat], { cat: null }]);
-  if (params.maxPrice != null)
-    filters.push([
-      "maxPrice",
-      `Up to $${params.maxPrice.toLocaleString("en-AU")}`,
-      { maxPrice: null },
-    ]);
   if (params.merchant)
     filters.push([
       "merchant",
@@ -557,9 +551,6 @@ async function Results({
           <input type="hidden" name="view" value={params.view} />
           {params.cat ? (
             <input type="hidden" name="cat" value={params.cat} />
-          ) : null}
-          {params.maxPrice != null ? (
-            <input type="hidden" name="maxPrice" value={params.maxPrice} />
           ) : null}
           {params.merchant ? (
             <input type="hidden" name="merchant" value={params.merchant} />

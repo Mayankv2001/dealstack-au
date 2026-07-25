@@ -1,5 +1,9 @@
 # Public Deals discovery
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 `/deals` is DealStack AU's focused public discovery surface. It replaces the
 former long, client-filtered Weekly Deals feed with a server-rendered route that
 helps a shopper find a current deal or compatible stack quickly.

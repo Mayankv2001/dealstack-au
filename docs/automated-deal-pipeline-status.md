@@ -1,5 +1,9 @@
 # Automated deal pipeline status
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 This document is the implementation record for the 2026-07-11 master plan.
 The code path deliberately extends the existing authenticated
 `/api/cron/monitor-feeds` route instead of adding a second cron endpoint. That

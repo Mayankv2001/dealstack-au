@@ -9,7 +9,6 @@ import {
 import type {
   CashbackOffer,
   GiftCardOffer,
-  OzBargainSignal,
   PointsOffer,
   WeeklyDeal,
   WeeklyHighlight,
@@ -78,23 +77,6 @@ function points(over: Partial<PointsOffer> = {}): PointsOffer {
   };
 }
 
-function signal(over: Partial<OzBargainSignal> = {}): OzBargainSignal {
-  return {
-    id: "sig-1",
-    merchantId: "jb-hifi",
-    title: "Sample deal",
-    summary: "Our own short paraphrase.",
-    votesSample: null,
-    sentiment: "neutral",
-    dealKind: "gift-card",
-    sourceUrl: "https://www.ozbargain.com.au/node/900001",
-    postedAt: null,
-    confidence: "needs-verification",
-    lastCheckedAt: "2026-06-12T00:00:00+10:00",
-    isSample: true,
-    ...over,
-  };
-}
 
 function weeklyDeal(over: Partial<WeeklyDeal> = {}): WeeklyDeal {
   return {
@@ -117,7 +99,6 @@ function lookups(over: Partial<WeeklyPickLookups> = {}): WeeklyPickLookups {
     giftCards: [],
     cashback: [],
     points: [],
-    signals: [],
     storeNameById: () => null,
     ...over,
   };
@@ -129,7 +110,6 @@ describe("highlightMeta", () => {
     ["gift-card", "gift-card", "violet"],
     ["points", "points", "amber"],
     ["cashback", "cashback", "rose"],
-    ["signal", "guide", "orange"],
     ["needs-verification", "guide", "sky"],
   ];
 
@@ -185,14 +165,6 @@ describe("resolveComponentLabels", () => {
     expect(labels).toEqual([]);
   });
 
-  it("silently drops a signal id (signals never become labels)", () => {
-    const labels = resolveComponentLabels(["sig-1"], {
-      giftCards: [],
-      cashback: [],
-      points: [],
-    });
-    expect(labels).toEqual([]);
-  });
 });
 
 describe("buildWeeklyPickCard", () => {
@@ -221,78 +193,6 @@ describe("buildWeeklyPickCard", () => {
     );
     expect(card.highlight).toBeUndefined();
     expect(card.title).toBe("Best stack: sample pick");
-  });
-
-  it("does not add a citation for a sample signal", () => {
-    const card = buildWeeklyPickCard(
-      weeklyDeal({ componentIds: ["sig-1"], citations: [] }),
-      lookups({ signals: [signal({ id: "sig-1", isSample: true })] }),
-      NOW
-    );
-    expect(card.citations).toEqual([]);
-  });
-
-  it("adds exactly one citation for a real (non-sample) signal", () => {
-    const card = buildWeeklyPickCard(
-      weeklyDeal({ componentIds: ["sig-1"], citations: [] }),
-      lookups({
-        signals: [
-          signal({
-            id: "sig-1",
-            isSample: false,
-            sourceUrl: "https://www.ozbargain.com.au/node/900001",
-          }),
-        ],
-      }),
-      NOW
-    );
-    expect(card.citations).toEqual([
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001" },
-    ]);
-  });
-
-  it("dedupes a signal citation that duplicates an existing deal citation", () => {
-    const card = buildWeeklyPickCard(
-      weeklyDeal({
-        componentIds: ["sig-1"],
-        citations: [
-          { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001" },
-        ],
-      }),
-      lookups({
-        signals: [
-          signal({
-            id: "sig-1",
-            isSample: false,
-            sourceUrl: "https://www.ozbargain.com.au/node/900001",
-          }),
-        ],
-      }),
-      NOW
-    );
-    expect(card.citations).toEqual([
-      { source: "ozbargain", sourceUrl: "https://www.ozbargain.com.au/node/900001" },
-    ]);
-  });
-
-  it("drops unsafe persisted and signal citations", () => {
-    const card = buildWeeklyPickCard(
-      weeklyDeal({
-        componentIds: ["sig-1"],
-        citations: [{ source: "manual", sourceUrl: "javascript:alert(1)" }],
-      }),
-      lookups({
-        signals: [
-          signal({
-            id: "sig-1",
-            isSample: false,
-            sourceUrl: "https://user:secret@www.ozbargain.com.au/node/1",
-          }),
-        ],
-      }),
-      NOW
-    );
-    expect(card.citations).toEqual([]);
   });
 
   it("marks expiringSoon true within the window and false outside it", () => {

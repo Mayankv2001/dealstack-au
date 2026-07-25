@@ -3,7 +3,6 @@ import {
   auToday,
   isExpiredAu,
   labelFor,
-  STALE_FEED_DAYS,
 } from "@/lib/admin/repos/cleanup";
 
 /**
@@ -81,8 +80,3 @@ describe("labelFor — per-table label shape mirrors the CLI script", () => {
   });
 });
 
-describe("STALE_FEED_DAYS", () => {
-  it("matches the CLI script default of 60 days", () => {
-    expect(STALE_FEED_DAYS).toBe(60);
-  });
-});

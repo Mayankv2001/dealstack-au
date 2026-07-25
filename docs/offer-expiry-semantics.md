@@ -54,7 +54,6 @@ any job has run:
 | Cashback / points | `getCashbackOffers`, `getPointsOffers` | `filterLive` |
 | Card offers | `getCardOffers` | `filterLive` |
 | Weekly deals + sitemap | `getWeeklyDeals` | `filterLive` |
-| Top-deals / signals | `getTopDeals`, `getOzBargainSignals` | `expiry_date >= today` (query) / `filterLive` |
 | Public counts | derived from the already-filtered pools | — |
 
 The sitemap lists no individual offer detail routes, so it can never advertise
@@ -62,19 +61,16 @@ an expired permalink.
 
 ### 2. Scheduled archival (durable state)
 
-[`run_daily_cleanup`](../supabase/migrations/019_pipeline_lifecycle_retention.sql)
-runs every day via the `monitor-feeds` Vercel cron (`0 0 * * *`). It flips the
-publication flag on every published/approved row whose `expiry_date < today`
-(Sydney) — gift-card, cashback, points, weekly-deal and card offers, plus
-OzBargain signals (`status = 'expired'`). It:
+[`run_daily_cleanup`](../supabase/migrations/039_remove_ozbargain.sql)
+runs every day via the `daily-cleanup` Vercel cron (`0 12 * * *`). It flips the
+publication flag on every published row whose `expiry_date < today` (Sydney) —
+gift-card, cashback, points, weekly-deal and card offers. It:
 
-- runs **unconditionally**, *before* the OzBargain monitor/compliance gate, so
-  archival still happens when monitoring is paused;
+- makes **no outbound requests** — it talks only to our own Supabase project;
 - is **idempotent** — the `where is_published = true and expiry_date < today`
   filter excludes already-archived rows, so a second run finds nothing;
-- is **concurrency-safe** — the migration-016 one-running lock plus the
-  lifecycle advisory lock serialise runs;
-- **never deletes** — it only sets `is_published = false` / `status = 'expired'`;
+- **never deletes** — it only sets `is_published = false` (and archives card
+  offers);
 - writes an **`audit_log`** row for every change (`auto-archive-expired`,
   `auto-archive-card`), preserving lineage and history.
 
@@ -95,8 +91,8 @@ future code path that forgot the read-time filter cannot serve an expired row:
 - **`gift_card_offers`** — migration 033 (applied): a confirmed row is visible
   only if it is currently active **or** a lineage-carrying `approved-future`
   ("upcoming") row, in both cases bounded by `expiry_date >= sydney_today`.
-- **`cashback_offers` / `points_offers` / `weekly_deals` / `ozbargain_signals`**
-  — migration 036 (applied 2026-07-22) adds the same Sydney-inclusive bound.
+- **`cashback_offers` / `points_offers` / `weekly_deals`** — migration 036
+  (applied 2026-07-22) adds the same Sydney-inclusive bound.
   This layer is belt-and-suspenders: layers 1 and 2 already guarantee the
   behaviour, so it only removes the theoretical sub-day window before the daily
   cleanup runs. Every public offer table now enforces the Sydney expiry date in
@@ -104,10 +100,6 @@ future code path that forgot the read-time filter cannot serve an expired row:
 
 ### 4. Monitoring + audit evidence
 
-- [`/api/health/monitor`](../app/api/health/monitor/route.ts) fails (503) if the
-  daily pipeline — which carries the archival — is stale (>26h), stuck or
-  finished `error`/`partial`. `pipelineExpected` is always on, so this holds
-  even when OzBargain monitoring is disabled.
 - [`/api/health/data`](../app/api/health/data/route.ts) now reports, per type, a
   count of **published/approved rows past their Sydney expiry day**
   (`expiredStillPublished`). In steady state this is always zero; a positive
@@ -134,10 +126,10 @@ active-sounding urgency.
   midnight-after, AEDT/AEST transitions, unknown expiry, ongoing,
   already-archived, repeated + concurrent runs, public filtering with no cron
   run, cross-surface consistency, mutual state consistency).
-- [`tests/monitor/dataHealthExpiry.test.ts`](../tests/monitor/dataHealthExpiry.test.ts)
+- [`tests/admin/dataHealthExpiry.test.ts`](../tests/admin/dataHealthExpiry.test.ts)
   — the health verdict (any expired-but-published row → alert).
-- Migration contracts for 019 (all-type Sydney archival + audit, no deletes),
-  033 (upcoming arm), 036 and 037 in
+- Migration contracts for 019/039 (all-type Sydney archival + audit, no
+  deletes), 033 (upcoming arm), 036 and 037 in
   [`tests/admin/migrationContracts.test.ts`](../tests/admin/migrationContracts.test.ts).
 - Existing suites: `tests/stack/expiryGuard.test.ts`,
   `tests/giftcards/lifecycle.test.ts`, `tests/giftcards/lifecycleRoute.test.ts`

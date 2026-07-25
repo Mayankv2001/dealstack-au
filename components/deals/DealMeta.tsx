@@ -19,8 +19,6 @@ import { cn } from "@/lib/utils";
 
 /** Subtle per-source tints so citations are recognisable at a glance. */
 const sourceBadgeClasses: Record<SourceId, string> = {
-  ozbargain:
-    "border-orange-500/25 bg-orange-500/10 text-orange-700 dark:text-orange-400",
   pointhacks:
     "border-indigo-500/25 bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
   freepoints:

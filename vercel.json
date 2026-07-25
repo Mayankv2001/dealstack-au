@@ -2,11 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/cron/monitor-feeds",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/recheck-ozbargain-expiry",
+      "path": "/api/cron/daily-cleanup",
       "schedule": "0 12 * * *"
     }
   ]

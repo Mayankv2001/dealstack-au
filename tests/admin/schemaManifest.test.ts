@@ -58,18 +58,18 @@ describe("per-column migration ownership", () => {
   });
 
   it("post-creation columns point at the migration that actually added them", () => {
-    // A drift report must say "apply 004/005", not "reapply 002" — these two
-    // columns are the documented prod-drift precedent (005 was missing for
-    // weeks because table-level ownership hid it).
-    expect(EXPECTED_SCHEMA.feed_sources.columns.source_type).toBe(
-      "004_offer_change_candidates.sql"
+    // A drift report must name the migration that actually added the column,
+    // not the one that created the table — table-level ownership once hid a
+    // missing migration in production for weeks.
+    expect(EXPECTED_SCHEMA.gift_card_offers.columns.promotion_type).toBe(
+      "021_gift_card_pipeline.sql"
     );
-    expect(EXPECTED_SCHEMA.feed_items.columns.hidden_from_homepage).toBe(
-      "005_feed_item_homepage_hidden.sql"
+    expect(EXPECTED_SCHEMA.gift_card_offers.columns.purchase_limits).toBe(
+      "034_gift_card_value_structures.sql"
     );
     // Non-extended columns inherit their table's creation migration.
-    expect(EXPECTED_SCHEMA.feed_items.columns.raw_title).toBe(
-      "002_feed_import_queue.sql"
+    expect(EXPECTED_SCHEMA.gift_card_offers.columns.brand).toBe(
+      "001_initial_schema.sql"
     );
   });
 });

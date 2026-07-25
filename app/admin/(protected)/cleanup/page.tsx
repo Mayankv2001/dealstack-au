@@ -17,8 +17,6 @@ import {
 import { ActionButton } from "@/components/admin/ActionButton";
 import {
   applySectionAction,
-  expireSignalAction,
-  ignoreStaleFeedItemAction,
   unpublishExpiredAction,
 } from "./actions";
 
@@ -110,10 +108,7 @@ export default async function CleanupPage() {
 
   const {
     today,
-    staleFeedDays,
     expiredOffers,
-    expiredSignals,
-    staleFeedItems,
     publishedNoExpiry,
     placeholderCopy,
   } = data;
@@ -123,8 +118,8 @@ export default async function CleanupPage() {
       <header className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold">Cleanup</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Nothing here deletes or publishes. Actions unpublish, expire, or ignore
-          — the same changes as{" "}
+          Nothing here deletes or publishes. Actions only unpublish — the same
+          change as{" "}
           <code className="text-xs">npm run cleanup:old-deals -- --write</code>,
           with an audit trail. Every apply re-checks the row still qualifies, so
           acting on a stale list is safe. Dates use the Australia/Sydney calendar
@@ -136,8 +131,7 @@ export default async function CleanupPage() {
         <Info className="mt-0.5 size-4 shrink-0" />
         <p>
           AU today: <span className="font-medium text-foreground tabular-nums">{today}</span>.
-          Stale staged-item window: {staleFeedDays} days. Applied changes are
-          recorded on{" "}
+          Applied changes are recorded on{" "}
           <Link href="/admin/audit" className="underline">
             Audit
           </Link>{" "}
@@ -180,90 +174,6 @@ export default async function CleanupPage() {
                     confirm={`Unpublish "${c.label}"? It disappears from public listings. Nothing is deleted.`}
                   >
                     Unpublish
-                  </ActionButton>
-                }
-              />
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Expired signals → status='expired'. */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-lg">
-              Expired signals ({expiredSignals.length})
-            </CardTitle>
-            {expiredSignals.length > 0 ? (
-              <ActionButton
-                run={() => applySectionAction("expired-signals")}
-                confirm={`Mark all ${expiredSignals.length} expired signal${
-                  expiredSignals.length === 1 ? "" : "s"
-                } as expired?`}
-              >
-                Apply all ({expiredSignals.length})
-              </ActionButton>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-1.5">
-          {expiredSignals.length === 0 ? (
-            <EmptyNote />
-          ) : (
-            expiredSignals.map((c) => (
-              <CandidateRow
-                key={c.id}
-                label={c.label}
-                meta={`[${c.status}] expired ${c.expiryDate}`}
-                action={
-                  <ActionButton
-                    run={() => expireSignalAction(c.id)}
-                    confirm={`Mark "${c.label}" as expired? It stops appearing as a live signal.`}
-                  >
-                    Expire
-                  </ActionButton>
-                }
-              />
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Abandoned staged feed items → ignored. */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-lg">
-              Abandoned staged feed items ({staleFeedItems.length})
-            </CardTitle>
-            {staleFeedItems.length > 0 ? (
-              <ActionButton
-                run={() => applySectionAction("stale-feed")}
-                confirm={`Ignore all ${staleFeedItems.length} staged feed item${
-                  staleFeedItems.length === 1 ? "" : "s"
-                } older than ${staleFeedDays} days?`}
-              >
-                Apply all ({staleFeedItems.length})
-              </ActionButton>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-1.5">
-          {staleFeedItems.length === 0 ? (
-            <EmptyNote />
-          ) : (
-            staleFeedItems.map((c) => (
-              <CandidateRow
-                key={c.id}
-                label={c.label}
-                meta={`posted ${c.postedAt.slice(0, 10)}`}
-                action={
-                  <ActionButton
-                    run={() => ignoreStaleFeedItemAction(c.id)}
-                    confirm={`Ignore "${c.label}"? It is removed from the review queue (kept for audit).`}
-                  >
-                    Ignore
                   </ActionButton>
                 }
               />

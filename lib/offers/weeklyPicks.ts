@@ -5,7 +5,6 @@ import { isExpiringSoonAU } from "./expiry";
 import type {
   CashbackOffer,
   GiftCardOffer,
-  OzBargainSignal,
   PointsOffer,
   WeeklyDeal,
   WeeklyHighlight,
@@ -48,7 +47,6 @@ export interface WeeklyPickLookups {
   giftCards: GiftCardOffer[];
   cashback: CashbackOffer[];
   points: PointsOffer[];
-  signals: OzBargainSignal[];
   storeNameById: (id: string | null) => string | null;
 }
 
@@ -60,8 +58,7 @@ export interface WeeklyPickCard {
 
 const MAX_PICKS = 6;
 
-/** kind/tone for the default-variant icon + accent, by highlight. There is no
- * "signal" DealKind — it maps to "guide" (the neutral Store icon). */
+/** kind/tone for the default-variant icon + accent, by highlight. */
 export function highlightMeta(
   h: WeeklyHighlight
 ): { kind: DealKind; tone: WeeklyDealTone } {
@@ -74,17 +71,13 @@ export function highlightMeta(
       return { kind: "points", tone: "amber" };
     case "cashback":
       return { kind: "cashback", tone: "rose" };
-    case "signal":
-      return { kind: "guide", tone: "orange" };
     case "needs-verification":
       return { kind: "guide", tone: "sky" };
   }
 }
 
 /** Resolve componentIds to human labels against the gift-card/cashback/points
- * pools, by id. Signal ids never become labels (see resolveSignalCitations) —
- * their titles are too long for the highlight strip. Unknown ids are skipped
- * silently — no error, no placeholder. */
+ * pools, by id. Unknown ids are skipped silently — no error, no placeholder. */
 export function resolveComponentLabels(
   componentIds: string[],
   lookups: Pick<WeeklyPickLookups, "giftCards" | "cashback" | "points">
@@ -110,27 +103,9 @@ export function resolveComponentLabels(
       const rate = points.earnRateDisplay || `${points.earnMultiple}x`;
       labels.push(`${rate} (${points.program})`);
     }
-    // Unmatched (unknown id, or a signal id — handled separately): skipped.
+    // Unmatched (unknown id): skipped.
   }
   return labels;
-}
-
-/** Signal components contribute a citation, never a label — but only when the
- * signal is not a sample (sample sourceUrls are placeholders that must never
- * render as live links, same rule signalToResult applies). */
-function resolveSignalCitations(
-  componentIds: string[],
-  signals: OzBargainSignal[]
-): Citation[] {
-  const citations: Citation[] = [];
-  for (const id of componentIds) {
-    const signal = signals.find((s) => s.id === id);
-    const sourceUrl = signal ? safePublicHref(signal.sourceUrl) : null;
-    if (signal && !signal.isSample && sourceUrl) {
-      citations.push({ source: "ozbargain", sourceUrl });
-    }
-  }
-  return citations;
 }
 
 function dedupeCitations(citations: Citation[]): Citation[] {
@@ -155,7 +130,6 @@ export function buildWeeklyPickCard(
 ): WeeklyPickCardData {
   const { kind, tone } = highlightMeta(deal.highlight);
   const labels = resolveComponentLabels(deal.componentIds, lookups);
-  const signalCitations = resolveSignalCitations(deal.componentIds, lookups.signals);
 
   return {
     variant: "default",
@@ -171,7 +145,7 @@ export function buildWeeklyPickCard(
     expiryDate: deal.expiryDate,
     expiringSoon: isExpiringSoonAU(deal.expiryDate, now),
     lastCheckedAt: null, // weekly_deals has no such column
-    citations: dedupeCitations([...deal.citations, ...signalCitations]),
+    citations: dedupeCitations(deal.citations),
   };
 }
 

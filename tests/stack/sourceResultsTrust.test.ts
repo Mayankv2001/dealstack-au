@@ -5,7 +5,6 @@ import {
   type CashbackResultRow,
   type GiftCardResultRow,
   type PointsResultRow,
-  type SignalResultRow,
   type SourceResultRows,
 } from "../../lib/repos/sourceResults";
 
@@ -27,7 +26,6 @@ function emptyRows(): SourceResultRows {
     giftCards: [],
     points: [],
     cardOffers: [],
-    signals: [],
   };
 }
 
@@ -73,23 +71,6 @@ function makePoints(over: Partial<PointsResultRow> = {}): PointsResultRow {
   };
 }
 
-function makeSignal(over: Partial<SignalResultRow> = {}): SignalResultRow {
-  return {
-    id: "sig-1",
-    merchant_id: "myer",
-    title: "Myer sale",
-    summary: "20% off",
-    deal_kind: "discount-code",
-    source_url: "https://www.ozbargain.com.au/node/1",
-    posted_at: "2026-07-01T00:00:00+10:00",
-    expiry_date: null,
-    last_checked_at: "2026-07-01T00:00:00+10:00",
-    confidence: "confirmed",
-    is_sample: false,
-    price_text: null,
-    ...over,
-  };
-}
 
 function makeReadyCardOffer(
   over: Partial<CardOfferResultRow> = {}
@@ -146,11 +127,6 @@ describe("buildSourceResultPool — expiry filtering", () => {
     expect(buildSourceResultPool(rows, NOW)).toEqual([]);
   });
 
-  it("drops an expired signal row", () => {
-    const rows = emptyRows();
-    rows.signals = [makeSignal({ expiry_date: "2026-01-01" })];
-    expect(buildSourceResultPool(rows, NOW)).toEqual([]);
-  });
 });
 
 describe("buildSourceResultPool — card offer readiness gate", () => {
@@ -216,19 +192,12 @@ describe("buildSourceResultPool — empty pool", () => {
       giftCards: [makeGiftCard({ expiry_date: "2020-01-01" })],
       points: [makePoints({ expiry_date: "2020-01-01" })],
       cardOffers: [makeReadyCardOffer({ confidence: "needs-verification" })],
-      signals: [makeSignal({ expiry_date: "2020-01-01" })],
     };
     expect(buildSourceResultPool(rows, NOW)).toEqual([]);
   });
 });
 
 describe("buildSourceResultPool — URL trust", () => {
-  it("excludes a real signal whose required source URL is unsafe", () => {
-    const rows = emptyRows();
-    rows.signals = [makeSignal({ source_url: "javascript:alert(1)" })];
-    expect(buildSourceResultPool(rows, NOW)).toEqual([]);
-  });
-
   it("keeps a gift-card result but replaces an unsafe optional detail URL", () => {
     const rows = emptyRows();
     rows.giftCards = [

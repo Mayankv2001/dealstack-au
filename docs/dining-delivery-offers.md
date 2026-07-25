@@ -1,5 +1,9 @@
 # Dining Delivery Offers (Uber Eats / DoorDash) — Support Plan
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 ## Decision: existing `ozbargain_signals` is enough for now
 
 Phase 1 research judged `weekly_deals` a poor fit for a one-off dining-delivery

@@ -3,21 +3,18 @@ import type { DbClient, PublicTable } from "@/lib/supabase/server";
 import { weekMondayAU } from "@/lib/admin/dateHelpers";
 import { findPlaceholderMarkers } from "@/lib/admin/placeholderCopy";
 import {
-  isApprovedFeedUrl,
-  safeHttpsUrl,
   safeLogoPath,
   safePublicHref,
 } from "@/lib/security/urlPolicy";
-import { isApprovedForFetch } from "@/lib/monitor/offerChanges";
 
 /**
  * Admin dashboard counts — SERVICE-ROLE ONLY.
  *
  * Reads aggregate row counts straight from Supabase with the service-role client
- * so the dashboard reflects EVERY row, including unpublished drafts and
- * pending/hidden signals that the public anon client (RLS) can never see. Like
- * the other admin repos, this must only run on the server behind requireAdmin();
- * the browser guard inside getSupabaseAdmin() is the backstop.
+ * so the dashboard reflects EVERY row, including unpublished drafts that the
+ * public anon client (RLS) can never see. Like the other admin repos, this must
+ * only run on the server behind requireAdmin(); the browser guard inside
+ * getSupabaseAdmin() is the backstop.
  *
  * Counts use head:true exact counts, so no row data crosses the wire — just the
  * numbers. No scraping / agents / external source calls live here — it talks
@@ -31,19 +28,11 @@ export interface PublishCount {
   unpublished: number;
 }
 
-/** Counts for the moderated signals section (status-based, not is_published). */
-export interface SignalCount {
-  total: number;
-  approved: number;
-  pending: number;
-}
-
 export interface DashboardCounts {
   stores: PublishCount;
   cashback: PublishCount;
   giftCards: PublishCount;
   points: PublishCount;
-  signals: SignalCount;
   weeklyDeals: PublishCount;
   cardOffers: PublishCount;
 }
@@ -90,41 +79,17 @@ async function publishCount(
 export async function getDashboardCounts(): Promise<DashboardCounts> {
   const db = getSupabaseAdmin();
 
-  const [
-    stores,
-    cashback,
-    giftCards,
-    points,
-    weeklyDeals,
-    cardOffers,
-    signalsTotal,
-    signalsApproved,
-    signalsPending,
-  ] = await Promise.all([
-    publishCount(db, "stores"),
-    publishCount(db, "cashback_offers"),
-    publishCount(db, "gift_card_offers"),
-    publishCount(db, "points_offers"),
-    publishCount(db, "weekly_deals"),
-    publishCount(db, "card_offers"),
-    countAll(db, "ozbargain_signals"),
-    countWhere(db, "ozbargain_signals", "status", "approved"),
-    countWhere(db, "ozbargain_signals", "status", "pending"),
-  ]);
+  const [stores, cashback, giftCards, points, weeklyDeals, cardOffers] =
+    await Promise.all([
+      publishCount(db, "stores"),
+      publishCount(db, "cashback_offers"),
+      publishCount(db, "gift_card_offers"),
+      publishCount(db, "points_offers"),
+      publishCount(db, "weekly_deals"),
+      publishCount(db, "card_offers"),
+    ]);
 
-  return {
-    stores,
-    cashback,
-    giftCards,
-    points,
-    weeklyDeals,
-    cardOffers,
-    signals: {
-      total: signalsTotal,
-      approved: signalsApproved,
-      pending: signalsPending,
-    },
-  };
+  return { stores, cashback, giftCards, points, weeklyDeals, cardOffers };
 }
 
 // ── Recent updates feed ──────────────────────────────────────────────────────
@@ -135,10 +100,8 @@ export type RecentItemType =
   | "cashback"
   | "giftCards"
   | "points"
-  | "signals"
   | "weeklyDeals"
-  | "cardOffers"
-  | "feedSources";
+  | "cardOffers";
 
 /** One row in the "Recent updates" feed, normalised across every table. */
 export interface RecentItem {
@@ -148,7 +111,7 @@ export interface RecentItem {
   id: string;
   /** Title / name to display. */
   title: string;
-  /** Status text ("Published" / "Draft", or the signal status). */
+  /** Status text ("Published" / "Draft"). */
   status: string;
   /** Whether the row is live (published / approved) — drives the badge tone. */
   isLive: boolean;
@@ -220,13 +183,6 @@ interface PointsRecentRow {
   store: { name: string } | { name: string }[] | null;
 }
 
-interface SignalRecentRow {
-  id: string;
-  title: string;
-  status: string;
-  updated_at: string;
-}
-
 interface WeeklyDealRecentRow {
   id: string;
   title: string;
@@ -243,15 +199,15 @@ interface CardOfferRecentRow {
 }
 
 /**
- * Latest `limit` changed items across cashback, gift cards, points, signals and
- * weekly deals. Pulls the newest `limit` rows from each table (so the merged
+ * Latest `limit` changed items across cashback, gift cards, points, card offers
+ * and weekly deals. Pulls the newest `limit` rows from each table (so the merged
  * top-`limit` is always correct), then sorts by updated_at and trims. Edit links
  * point at the per-section admin route.
  */
 export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
   const db = getSupabaseAdmin();
 
-  const [stores, cashback, giftCards, points, signals, weeklyDeals, cardOffers] =
+  const [stores, cashback, giftCards, points, weeklyDeals, cardOffers] =
     await Promise.all([
       queryRecent<StoreRecentRow>(
         db,
@@ -275,12 +231,6 @@ export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
         db,
         "points_offers",
         "id, program, merchant_id, is_published, updated_at, store:stores(name)",
-        limit
-      ),
-      queryRecent<SignalRecentRow>(
-        db,
-        "ozbargain_signals",
-        "id, title, status, updated_at",
         limit
       ),
       queryRecent<WeeklyDealRecentRow>(
@@ -335,16 +285,6 @@ export async function getRecentUpdates(limit = 5): Promise<RecentItem[]> {
       ...publishStatus(r.is_published),
       updatedAt: r.updated_at,
       editHref: `/admin/points/${r.id}/edit`,
-    })),
-    ...signals.map((r) => ({
-      type: "signals" as const,
-      typeLabel: "Signal",
-      id: r.id,
-      title: r.title,
-      status: r.status.charAt(0).toUpperCase() + r.status.slice(1),
-      isLive: r.status === "approved",
-      updatedAt: r.updated_at,
-      editHref: `/admin/signals/${r.id}/edit`,
     })),
     ...weeklyDeals.map((r) => ({
       type: "weeklyDeals" as const,
@@ -491,16 +431,6 @@ interface PointsDqRow {
   store: { name: string } | { name: string }[] | null;
   earn_rate_display: string | null;
 }
-interface SignalDqRow {
-  id: string;
-  title: string;
-  expiry_date: string | null;
-  last_checked_at: string | null;
-  source_url: string;
-  merchant_url: string | null;
-  product_url: string | null;
-}
-
 interface WeeklyDealDqRow {
   id: string;
   title: string;
@@ -527,16 +457,9 @@ interface StoreDqRow {
   logo_path: string | null;
 }
 
-interface FeedSourceDqRow {
-  id: string;
-  label: string;
-  feed_url: string;
-  source_type: string;
-}
-
 /**
- * Read-only data-quality scan of PUBLISHED offers + APPROVED signals (i.e. the
- * rows the public site can actually show). Surfaces:
+ * Read-only data-quality scan of PUBLISHED offers (i.e. the rows the public
+ * site can actually show). Surfaces:
  *   - expired-but-still-live rows (high),
  *   - published offers with no cited source URL (medium),
  *   - rows not re-checked in over STALE_DAYS (medium),
@@ -553,16 +476,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
   const reviewSoonStr = DQ_DAY_FMT.format(reviewSoonDate);
   const staleBeforeMs = now.getTime() - STALE_DAYS * 86_400_000;
 
-  const [
-    cashback,
-    giftCards,
-    points,
-    signals,
-    weeklyDeals,
-    cardOffers,
-    stores,
-    feedSources,
-  ] =
+  const [cashback, giftCards, points, weeklyDeals, cardOffers, stores] =
     await Promise.all([
       db
         .from("cashback_offers")
@@ -583,10 +497,6 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         )
         .eq("is_published", true),
       db
-        .from("ozbargain_signals")
-        .select("id, title, expiry_date, last_checked_at, source_url, merchant_url, product_url")
-        .eq("status", "approved"),
-      db
         .from("weekly_deals")
         .select("id, title, week_of, summary, citations")
         .eq("is_published", true),
@@ -600,18 +510,15 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         .from("stores")
         .select("id, name, logo_path")
         .eq("is_published", true),
-      db.from("feed_sources").select("id, label, feed_url, source_type"),
     ]);
 
   for (const res of [
     cashback,
     giftCards,
     points,
-    signals,
     weeklyDeals,
     cardOffers,
     stores,
-    feedSources,
   ]) {
     if (res.error) {
       throw new Error(`data quality read failed: ${res.error.message}`);
@@ -637,10 +544,8 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     cashback: 0,
     giftCards: 0,
     points: 0,
-    signals: 0,
     weeklyDeals: 0,
     cardOffers: 0,
-    feedSources: 0,
   };
 
   /** Classify one row, tallying counts and (for high/medium) adding a flag. */
@@ -654,7 +559,7 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
     citations?: unknown;
     lastChecked: string | null;
     reviewByDate?: string | null;
-    /** Offers cite sources + should have an expiry; signals do neither here. */
+    /** Whether this row is required to cite a source URL. */
     checkSource: boolean;
     checkMissingExpiry: boolean;
     /** Text columns to scan for demo/illustrative wording (undefined = skip). */
@@ -801,26 +706,6 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
       placeholderTexts: [r.earn_rate_display],
     });
   }
-  for (const r of signals.data as unknown as SignalDqRow[]) {
-    consider({
-      type: "signals",
-      typeLabel: "Signal",
-      id: r.id,
-      title: r.title,
-      editHref: `/admin/signals/${r.id}/edit`,
-      expiryDate: r.expiry_date,
-      lastChecked: r.last_checked_at,
-      // source_url is NOT NULL for signals; expiry is often legitimately absent.
-      checkSource: false,
-      checkMissingExpiry: false,
-      urls: [r.source_url, r.merchant_url, r.product_url],
-      // Sample signals are marked by the structured is_sample column and are
-      // rendered with an explicit "Sample signal —" label everywhere public
-      // (lib/repos/sourceResults.ts:259); the launch checklist explicitly
-      // allows "clearly labelled samples". Text-sniffing them would only add
-      // noise, so signals are deliberately excluded from this check.
-    });
-  }
   for (const r of cardOffers.data as unknown as CardOfferDqRow[]) {
     consider({
       type: "cardOffers",
@@ -855,32 +740,6 @@ export async function getDataQualityReport(): Promise<DataQualityReport> {
         issues: [{ code: "unsafe-url", label: "Unsafe store logo path" }],
         severity: "high",
         editHref: `/admin/stores/${r.id}/edit`,
-        expiryDate: null,
-        lastCheckedAt: null,
-      });
-    }
-  }
-
-  for (const r of feedSources.data as unknown as FeedSourceDqRow[]) {
-    if (
-      !safeHttpsUrl(r.feed_url) ||
-      (isApprovedForFetch(r.source_type) &&
-        !isApprovedFeedUrl(r.source_type, r.feed_url))
-    ) {
-      counts.unsafeUrl += 1;
-      flags.push({
-        type: "feedSources",
-        typeLabel: "Feed source",
-        id: r.id,
-        title: r.label,
-        issues: [
-          {
-            code: "unsafe-url",
-            label: "Feed URL is not approved for its source type",
-          },
-        ],
-        severity: "high",
-        editHref: `/admin/signals/sources/${r.id}/edit`,
         expiryDate: null,
         lastCheckedAt: null,
       });

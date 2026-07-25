@@ -1,5 +1,9 @@
 # Source & Content Expansion Strategy
 
+> **Superseded in part:** OzBargain was removed from DealStack AU on 2026-07-25.
+> Sections below that describe OzBargain ingestion, signals or feed monitoring no
+> longer reflect the codebase — see [ozbargain-removal.md](ozbargain-removal.md).
+
 > **Planning document only.** No schema changes, no new fetchers, and no admin
 > UI changes ship in this document. It records what the *current* data model
 > can already do for nine candidate content types, what (if anything) is

@@ -55,12 +55,6 @@ function matchesFilters(
     }
   }
   if (
-    params.maxPrice != null &&
-    (deal.priceValue == null || deal.priceValue > params.maxPrice)
-  ) {
-    return false;
-  }
-  if (
     params.program &&
     !deal.searchText.includes(PROGRAM_MATCH[params.program])
   ) {

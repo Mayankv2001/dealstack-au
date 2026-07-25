@@ -4,7 +4,6 @@ import type {
   GiftCardAcceptanceRow,
   GiftCardOffer,
   GiftCardProduct,
-  OzBargainSignal,
   PointsOffer,
 } from "@/lib/offers/types";
 import type { StackData } from "@/lib/stack/buildStack";
@@ -169,31 +168,12 @@ export function makePoints(over: Partial<PointsOffer> = {}): PointsOffer {
   };
 }
 
-export function makeSignal(over: Partial<OzBargainSignal> = {}): OzBargainSignal {
-  return {
-    id: "sig-1",
-    merchantId: "myer",
-    title: "Sample deal",
-    summary: "Our own short paraphrase.",
-    votesSample: null,
-    sentiment: "neutral",
-    dealKind: "discount-code",
-    sourceUrl: "https://example.com/signal",
-    postedAt: null,
-    confidence: "needs-verification",
-    lastCheckedAt: "2026-06-12T00:00:00+10:00",
-    isSample: true,
-    ...over,
-  };
-}
-
 export function makeStackData(over: Partial<StackData> = {}): StackData {
   return {
     stores: [],
     giftCardOffers: [],
     cashbackOffers: [],
     pointsOffers: [],
-    ozBargainSignals: [],
     ...over,
   };
 }

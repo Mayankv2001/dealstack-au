@@ -26,10 +26,6 @@ import { giftCardDateState } from "@/lib/giftcards/dateState";
 import type { Citation } from "@/lib/sources/types";
 import { summariseCitations } from "@/lib/stack/citationSummary";
 import type {
-  SmartStackComparison,
-  SmartStackResult,
-} from "@/lib/stack/smartStack";
-import type {
   DecisionResult,
   DecisionTarget,
   RetailerGiftCardOption,
@@ -42,9 +38,6 @@ export interface DecisionInputs {
   acceptance: GiftCardAcceptanceRow[];
   /** Already-public offers from the same anon/RLS-backed stack-data load. */
   giftCardOffers: GiftCardOffer[];
-  productComparisons?: SmartStackComparison[];
-  /** All approved product matches, including single-retailer results. */
-  productMatches?: SmartStackResult[];
 }
 
 const normalise = (value: string) =>
@@ -207,38 +200,6 @@ function retailerGiftCardPlans(
       });
     }
   }
-  for (const comparison of inputs.productComparisons ?? []) {
-    for (const option of comparison.options) {
-      const merchantId =
-        option.recommendation?.merchantId ?? option.signal.merchantId;
-      if (!merchantId) continue;
-      const store = inputs.bundle.stores.find((item) => item.id === merchantId);
-      contexts.push({
-        key: `${comparison.productGroup}:${merchantId}`,
-        merchantId,
-        merchantName:
-          option.recommendation?.merchantName ?? store?.name ?? "Retailer",
-        productTitle: comparison.title,
-        listedPrice: option.signalPrice,
-        recommendation: option.recommendation,
-      });
-    }
-  }
-  for (const option of inputs.productMatches ?? []) {
-    const merchantId = option.recommendation?.merchantId ?? option.signal.merchantId;
-    if (!merchantId) continue;
-    const store = inputs.bundle.stores.find((item) => item.id === merchantId);
-    contexts.push({
-      key: `${option.signal.productGroup ?? option.signal.id}:${merchantId}`,
-      merchantId,
-      merchantName:
-        option.recommendation?.merchantName ?? store?.name ?? "Retailer",
-      productTitle: option.signal.title,
-      listedPrice: option.signalPrice,
-      recommendation: option.recommendation,
-    });
-  }
-
   // One plan per merchant: the same card list repeated per product option is
   // pure noise. Prefer the selected-store context (user's spend), then the
   // first context with a listed price.
@@ -602,19 +563,6 @@ export function buildDecisionResult(
     return [{ product, acceptance: row }];
   });
 
-  const communityPulse = bundle.deals
-    .filter(
-      (deal) =>
-        q.length > 0 &&
-        deal.kind === "community" &&
-        deal.sourceUrl != null &&
-        (selectedStoreId
-          ? deal.merchantId === selectedStoreId
-          : !q || matches(deal.searchText, q)),
-    )
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
-
   const alternativeStacks = bundle.stackRecommendations
     .filter((stack) => stack !== bestCashStack && stack !== rewardsStack)
     .filter(
@@ -639,12 +587,10 @@ export function buildDecisionResult(
       )
       .map((provider) => provider.publisherFamily),
   );
-  communityPulse.forEach((deal) => publisherFamilies.add(deal.publisherFamily));
   const checkedDates = [
     bestCashStack?.checkedAsOf,
     rewardsStack?.checkedAsOf,
     ...filteredOffers.map((offer) => offer.lastCheckedAt),
-    ...communityPulse.map((deal) => deal.capturedAt),
   ].filter((value): value is string => Boolean(value));
 
   return {
@@ -659,18 +605,16 @@ export function buildDecisionResult(
     ambiguous,
     queryCorrection,
     stores: bundle.stores,
-    productComparisons: inputs.productComparisons ?? [],
     bestCashStack,
     rewardsStack,
     currentGiftCardOffers: filteredOffers,
     retailerGiftCardPlans: retailerPlans,
     acceptedCards,
     alternativeStacks,
-    communityPulse,
     warnings,
     freshness: {
       sourceFamilyCount: publisherFamilies.size,
-      sourceLinkCount: citationSummary.linkCount + communityPulse.length,
+      sourceLinkCount: citationSummary.linkCount,
       oldestVerificationDate: checkedDates.length
         ? [...checkedDates].sort()[0]
         : null,

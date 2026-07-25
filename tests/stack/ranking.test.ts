@@ -100,32 +100,32 @@ describe("scoreResult", () => {
     expect(at25).toBe(above25);
   });
 
-  it("gives a higher trust score to manual (trustWeight 1) than ozbargain (0.85)", () => {
+  it("gives a higher trust score to manual (trustWeight 1) than pointhacks (0.8)", () => {
     const manual = scoreResult(result({ source: "manual" }), {
       queryMerchantId: null,
       now: NOW,
     });
-    const ozb = scoreResult(result({ source: "ozbargain" }), {
+    const ph = scoreResult(result({ source: "pointhacks" }), {
       queryMerchantId: null,
       now: NOW,
     });
-    expect(manual).toBeGreaterThan(ozb);
+    expect(manual).toBeGreaterThan(ph);
   });
 
   it("adds a small corroboration bonus for each extra citation (up to 0.2)", () => {
-    // Use ozbargain (trustWeight 0.85) so corroboration has room to boost the score.
+    // Use pointhacks (trustWeight 0.8) so corroboration has room to boost the score.
     const single = scoreResult(
       result({
-        source: "ozbargain",
-        citations: [{ source: "ozbargain", sourceUrl: "https://a.com" }],
+        source: "pointhacks",
+        citations: [{ source: "pointhacks", sourceUrl: "https://a.com" }],
       }),
       { queryMerchantId: null, now: NOW }
     );
     const corroborated = scoreResult(
       result({
-        source: "ozbargain",
+        source: "pointhacks",
         citations: [
-          { source: "ozbargain", sourceUrl: "https://a.com" },
+          { source: "pointhacks", sourceUrl: "https://a.com" },
           { source: "pointhacks", sourceUrl: "https://b.com" },
           { source: "freepoints", sourceUrl: "https://c.com" },
         ],

@@ -9,7 +9,6 @@ import {
   CATEGORY_SHORTCUTS,
   DEAL_KIND_FILTERS,
   DEAL_KIND_LABEL,
-  MAX_PRICE_PRESETS,
   PROGRAMS,
   PROGRAM_LABEL,
   TRUST_FILTERS,
@@ -20,8 +19,8 @@ import {
 } from "@/lib/deals/params";
 
 /**
- * Purchase-first filter bar: exactly four visible controls — Category, Store,
- * Price and "Stackable only" — updating results on change with no separate
+ * Purchase-first filter bar: three visible controls — Category, Store and
+ * "Stackable only" — updating results on change with no separate
  * Apply button. Everything else lives in one "All filters" drawer. Selected
  * filters render as removable chips above the results (ActiveFilters in
  * app/deals/page.tsx).
@@ -29,7 +28,6 @@ import {
 
 const clearOverrides: Partial<DealsParams> = {
   cat: null,
-  maxPrice: null,
   merchant: null,
   kind: null,
   program: null,
@@ -68,9 +66,6 @@ function HiddenState({
       ) : null}
       {keep("cat") && params.cat ? (
         <input type="hidden" name="cat" value={params.cat} />
-      ) : null}
-      {keep("maxPrice") && params.maxPrice != null ? (
-        <input type="hidden" name="maxPrice" value={params.maxPrice} />
       ) : null}
       {keep("merchant") && params.merchant ? (
         <input type="hidden" name="merchant" value={params.merchant} />
@@ -271,10 +266,7 @@ export function DealsFilters({
           action="/deals"
           className="flex min-w-0 flex-wrap items-end gap-3"
         >
-          <HiddenState
-            params={params}
-            omit={["cat", "merchant", "maxPrice"]}
-          />
+          <HiddenState params={params} omit={["cat", "merchant"]} />
           <FilterSelect
             id="deal-cat"
             label="Category"
@@ -298,19 +290,6 @@ export function DealsFilters({
             {stores.map((store) => (
               <option key={store.id} value={store.id}>
                 {store.name}
-              </option>
-            ))}
-          </FilterSelect>
-          <FilterSelect
-            id="deal-max-price"
-            label="Price"
-            name="maxPrice"
-            defaultValue={params.maxPrice ?? ""}
-          >
-            <option value="">Any price</option>
-            {MAX_PRICE_PRESETS.map((preset) => (
-              <option key={preset} value={preset}>
-                Up to ${preset.toLocaleString("en-AU")}
               </option>
             ))}
           </FilterSelect>

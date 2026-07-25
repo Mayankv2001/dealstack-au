@@ -9,7 +9,7 @@
 # flag (default off). Reconciliation never fetches from a source whose gates are
 # closed — this workflow opens nothing.
 #
-# Exit contract (mirrors monitor-health.yml / gift-card-lifecycle.yml):
+# Exit contract (mirrors gift-card-lifecycle.yml):
 #   0 = ran cleanly, OR skipped by a KNOWN gate: environment-disabled (the
 #       compliance-correct off state), interval-guard, or already-running. The
 #       reason is printed as a ::notice:: — never silently green.
