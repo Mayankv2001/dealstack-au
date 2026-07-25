@@ -96,6 +96,10 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Policy-only: re-issues the two card-offer read policies with the
   // Australia/Sydney bound used everywhere else. No columns, no data change.
   "037_card_offer_sydney_expiry_bound.sql",
+  // Grant-only: narrows submit_public_correction to service_role, matching
+  // migration 012's model (026 had wrongly granted it to anon/authenticated).
+  // No tables, columns, policies or function-body changes.
+  "038_public_correction_service_role_only.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */

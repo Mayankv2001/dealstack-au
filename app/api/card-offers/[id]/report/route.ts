@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
-import { cronSecret } from "@/lib/env";
+import { dailyRequestFingerprint } from "@/lib/security/requestFingerprint";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -9,12 +8,7 @@ const MAX_BODY_BYTES = 3 * 1024;
 const REASONS = new Set(["terms", "fee", "bonus", "expiry", "eligibility", "other"]);
 
 function fingerprint(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const userAgent = request.headers.get("user-agent")?.slice(0, 200) ?? "unknown";
-  const day = new Date().toISOString().slice(0, 10);
-  return createHash("sha256")
-    .update(`${cronSecret() ?? "dealstack-correction-v1"}|${day}|${forwarded}|${userAgent}`)
-    .digest("hex");
+  return dailyRequestFingerprint(request.headers, "dealstack-correction-v1");
 }
 
 export async function POST(

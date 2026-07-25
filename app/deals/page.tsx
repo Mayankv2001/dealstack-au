@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -101,7 +102,10 @@ function SearchBox({ params }: { params: DealsParams }) {
             inputMode="numeric"
             min={MIN_SPEND}
             max={MAX_SPEND}
-            step={10}
+            // step must divide every whole-dollar amount evenly; step={10} with
+            // min={50} made real prices like 499 a stepMismatch, silently
+            // blocking submit (same trap fixed in components/SearchBar.tsx).
+            step={1}
             defaultValue={
               params.spend !== DEFAULT_PARAMS.spend ? params.spend : undefined
             }
@@ -365,7 +369,8 @@ function SpendSelector({ params }: { params: DealsParams }) {
           inputMode="numeric"
           min={MIN_SPEND}
           max={MAX_SPEND}
-          step={10}
+          // See the deal-spend input above: step={10} rejects prices like 499.
+          step={1}
           placeholder="Custom"
           defaultValue={
             SPEND_PRESETS.includes(
@@ -719,14 +724,45 @@ function EmptyState({
   );
 }
 
+/** Streams in under the Suspense boundary in DealsPage. */
+async function DealsResults({ params }: { params: DealsParams }) {
+  const now = new Date();
+  const bundle = await loadDealsBundle(now, params.spend);
+  return (
+    <>
+      {bundle.partial ? (
+        <div
+          role="status"
+          className="mt-6 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"
+        >
+          <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" /> Some
+          deal sources could not be loaded. Available results are shown and may
+          be incomplete.
+        </div>
+      ) : null}
+      <Results bundle={bundle} params={params} now={now} />
+    </>
+  );
+}
+
+function ResultsSkeleton() {
+  return (
+    <div className="mt-6 animate-pulse" aria-label="Loading deals">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} className="h-64 rounded-xl bg-muted" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default async function DealsPage({
   searchParams,
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
   const params = parseDealsParams(await searchParams);
-  const now = new Date();
-  const bundle = await loadDealsBundle(now, params.spend);
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
@@ -747,17 +783,9 @@ export default async function DealsPage({
           <SearchBox params={params} />
           <PrimaryNav params={params} />
         </header>
-        {bundle.partial ? (
-          <div
-            role="status"
-            className="mt-6 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"
-          >
-            <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />{" "}
-            Some deal sources could not be loaded. Available results are shown
-            and may be incomplete.
-          </div>
-        ) : null}
-        <Results bundle={bundle} params={params} now={now} />
+        <Suspense fallback={<ResultsSkeleton />}>
+          <DealsResults params={params} />
+        </Suspense>
         <aside className="mt-12 rounded-xl border bg-card p-5 sm:flex sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold">How DealStack checks offers</h2>

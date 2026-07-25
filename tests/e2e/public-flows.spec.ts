@@ -714,6 +714,17 @@ test("gift-cards: an unknown offer id is a 404, not a stale page", async ({
   expect(res?.status()).toBe(404);
 });
 
+// Regression guard: a loading.tsx at the /deals segment sits above this
+// route's notFound() and pins the response at 200, so unknown deal slugs
+// soft-404 and get indexed. Keep the skeleton as an in-page <Suspense>
+// boundary instead of a segment loading file.
+test("deals: an unknown deal slug is a 404, not a soft 200", async ({
+  page,
+}) => {
+  const res = await page.goto("/deals/definitely-not-a-real-deal");
+  expect(res?.status()).toBe(404);
+});
+
 test("admin: the gift-card review queue is behind the auth gate", async ({
   page,
 }) => {
