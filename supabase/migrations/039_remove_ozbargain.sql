@@ -113,7 +113,6 @@ drop function if exists public.approve_feed_item(uuid, text, text, text, text, t
 drop function if exists public.archive_recheck_feed_item(uuid, text, text, text, uuid, timestamptz, text);
 drop function if exists public.archive_invalid_signal(text, text, timestamptz);
 drop function if exists public.archive_expired_deals(date, timestamptz);
-drop function if exists public.audit_system_offer_change_insert();
 
 -- ── 3. Drop the tables ──────────────────────────────────────────────────────
 -- cascade clears the RLS policies, indexes, triggers and FKs that hang off
@@ -127,6 +126,10 @@ drop table if exists public.compliance_reviews cascade;
 drop table if exists public.ozb_recheck_runs cascade;
 drop table if exists public.daily_pipeline_runs cascade;
 drop table if exists public.ozbargain_signals cascade;
+
+-- Dropped only now: its trigger lived on offer_change_candidates, so the
+-- function still had a dependent until that table went.
+drop function if exists public.audit_system_offer_change_insert();
 
 -- ── 4. Retire the 'signal' weekly-deal highlight ────────────────────────────
 -- No production row uses it (verified before writing this migration).

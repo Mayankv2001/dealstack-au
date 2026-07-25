@@ -1075,6 +1075,7 @@ export type Database = {
           promo_code: string | null
           promo_credit_dollars: number | null
           promotion_type: string
+          purchase_limits: Json | null
           purchase_location: string | null
           purchase_method: string | null
           reward_destination: string | null
@@ -1139,6 +1140,7 @@ export type Database = {
           promo_code?: string | null
           promo_credit_dollars?: number | null
           promotion_type?: string
+          purchase_limits?: Json | null
           purchase_location?: string | null
           purchase_method?: string | null
           reward_destination?: string | null
@@ -1203,6 +1205,7 @@ export type Database = {
           promo_code?: string | null
           promo_credit_dollars?: number | null
           promotion_type?: string
+          purchase_limits?: Json | null
           purchase_location?: string | null
           purchase_method?: string | null
           reward_destination?: string | null
@@ -1277,6 +1280,7 @@ export type Database = {
           mobile_wallet: string
           official_product_page: string | null
           online_available: boolean | null
+          purchase_fees: Json | null
           redemption_notes: string | null
           slug: string
           source_evidence: Json
@@ -1306,6 +1310,7 @@ export type Database = {
           mobile_wallet?: string
           official_product_page?: string | null
           online_available?: boolean | null
+          purchase_fees?: Json | null
           redemption_notes?: string | null
           slug: string
           source_evidence?: Json
@@ -1335,6 +1340,7 @@ export type Database = {
           mobile_wallet?: string
           official_product_page?: string | null
           online_available?: boolean | null
+          purchase_fees?: Json | null
           redemption_notes?: string | null
           slug?: string
           source_evidence?: Json
@@ -1983,10 +1989,7 @@ export type Database = {
         Returns: string
       }
       run_daily_cleanup: {
-        Args: {
-          p_archived_at: string
-          p_today: string
-        }
+        Args: { p_archived_at: string; p_today: string }
         Returns: Json
       }
       submit_card_offer_correction: {

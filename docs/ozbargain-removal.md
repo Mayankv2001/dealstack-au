@@ -55,18 +55,27 @@ signature from four arguments to two.
 See [offer-expiry-semantics.md](offer-expiry-semantics.md) for the full
 four-layer expiry model.
 
-## Outstanding: apply migration 039
+## Migration 039 — APPLIED 2026-07-25
 
-`supabase/migrations/039_remove_ozbargain.sql` is written but **not applied**.
-Until it runs, the tables still exist in production holding their data; nothing
-reads or writes them.
+`supabase/migrations/039_remove_ozbargain.sql` has been **applied to
+production**. All eight tables and their routines are gone; verified afterwards
+as 0 OzBargain tables, 0 OzBargain functions, and every surviving table
+(stores 9, gift cards 18, cashback 2, points 4, card offers 5, weekly deals 4,
+audit_log 176, admins 1) unchanged from the pre-flight snapshot.
 
-The migration drops eight tables and their routines. At the time it was written
-production held 215 approved signals, 824 feed items, 5 feed sources, 57
-fetch-log rows, 2 compliance reviews, 14 pipeline runs and 8 recheck runs.
+The project is on the Supabase **free plan, so there is no point-in-time
+recovery**. A JSON backup of all 1,125 rows was taken immediately beforehand and
+verified (row counts matched production exactly):
 
-**Take a backup, or confirm PITR covers the window, before applying it.** There
-is no down-migration.
+    ~/dealstack-ozbargain-backup-2026-07-25/
+
+Keep that directory until you are certain nothing is needed from it. There is no
+down-migration.
+
+**First attempt failed and rolled back cleanly** — `audit_system_offer_change_insert()`
+was dropped before `offer_change_candidates`, but its trigger lived on that
+table. The function drop now sits after the table drops. Worth remembering for
+any future teardown migration: drop trigger-owning tables before their functions.
 
 Order matters and is encoded in the file: `run_daily_cleanup` is replaced first
 so expiry hygiene never lapses, then the feed/signal routines are dropped, then
