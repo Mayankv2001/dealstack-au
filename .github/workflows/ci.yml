@@ -31,6 +31,7 @@ jobs:
       - run: npm run test:giftcards
       - run: npm run test:deals
       - run: npm run test:decision
+      - run: npm run test:text
       - run: npm run build
       - name: Smoke test the production build
         # `next start` is a production runtime and the data-source boundary

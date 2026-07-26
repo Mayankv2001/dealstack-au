@@ -26,6 +26,7 @@
     "test:admin": "node scripts/require-node.cjs 20 && vitest run tests/admin",
     "test:giftcards": "node scripts/require-node.cjs 20 && vitest run tests/giftcards",
     "test:decision": "node scripts/require-node.cjs 20 && vitest run tests/decision",
+  "test:text": "node scripts/require-node.cjs 20 && vitest run tests/text",
     "test:e2e": "node scripts/require-node.cjs 20 && playwright test"
   },
   "dependencies": {

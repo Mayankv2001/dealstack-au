@@ -25,6 +25,7 @@ npm run test:admin     # admin rate-limit/db-fallback logic AND the schema manif
 npm run test:giftcards # gift-card lifecycle, value and ingest logic
 npm run test:deals     # deals listing, ranking and weekly-pick logic
 npm run test:decision  # decision-surface guarantees
+npm run test:text      # shared text/copy helpers (pluralisation)
 npm run test:e2e       # Playwright browser flows (needs a static-mode build first)
 npm run smoke          # HTTP smoke test against a running production build
 npm run seed           # seed base data
@@ -101,7 +102,8 @@ Before every commit:
 7. `npm run test:giftcards` — if gift-card lifecycle/value/ingest logic changed
 8. `npm run test:deals` — if deals listing, ranking or weekly-pick logic changed
 9. `npm run test:decision` — if a decision surface changed
-10. `git status` — confirm only intended files are staged
+10. `npm run test:text` — if shared text/copy helpers changed
+11. `git status` — confirm only intended files are staged
 
 ### A new migration is not just a migration
 `scripts/schema-manifest.ts` fails closed on any migration file it does not
@@ -112,7 +114,7 @@ add one, register it in `COVERED_MIGRATIONS` and declare its tables/columns in
 
 ### When in doubt, run what CI runs
 CI's `quality` job (`.github/workflows/ci.yml`) is the real gate: lint, `tsc
---noEmit`, all six unit suites, `build`, `smoke`, then Playwright `test:e2e`.
+--noEmit`, all seven unit suites, `build`, `smoke`, then Playwright `test:e2e`.
 The per-change rules above are a fast path, not a substitute — if a change is
 broad, or you are unsure which suite covers it, run the whole sequence rather
 than guessing. `build`, `smoke` and `test:e2e` need `DATA_SOURCE=static` and

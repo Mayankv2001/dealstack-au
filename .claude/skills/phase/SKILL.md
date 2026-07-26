@@ -79,8 +79,15 @@ Then the suites the phase actually touched:
 7. `npm run test:giftcards` — gift-card lifecycle, value or ingest logic
 8. `npm run test:deals` — deals listing, ranking or weekly-pick logic
 9. `npm run test:decision` — a decision surface
+10. `npm run test:text` — shared text/copy helpers
 
 There is no `test:monitor` script; the suites above are the complete set.
+
+**A new `tests/<name>/` directory needs a script.** The suite scripts name one
+directory each, so a new directory runs only once `test:<name>` exists in
+package.json AND the quality job calls it. `scripts/test-suite-manifest.ts`
+fails closed on both (via `test:admin`) — that is what turns the next
+orphaned directory into a red build instead of years of silence.
 
 **A migration is never just a migration.** `scripts/schema-manifest.ts` fails
 closed on any migration file it does not know about, and that check runs
@@ -90,7 +97,7 @@ its tables/columns in `EXPECTED_SCHEMA` in the SAME commit.
 
 **When the phase is broad, or you are unsure which suite covers it, run the
 whole CI sequence** (`.github/workflows/ci.yml` `quality`): lint, `tsc
---noEmit`, all six unit suites, `build`, `npm run smoke`, `npm run test:e2e`.
+--noEmit`, all seven unit suites, `build`, `npm run smoke`, `npm run test:e2e`.
 The per-change rules are a fast path, not a substitute — a green subset is not
 evidence that CI is green. `build`, `smoke` and `test:e2e` need
 `DATA_SOURCE=static` and
