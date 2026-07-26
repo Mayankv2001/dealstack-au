@@ -6,16 +6,22 @@ import RewardsCalculator from "@/components/RewardsCalculator";
 import RewardsSubnav from "@/components/RewardsSubnav";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
+import PointsOfferCard from "@/components/rewards/PointsOfferCard";
+import TransferBonusCallout from "@/components/rewards/TransferBonusCallout";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   findRewardsProgramme,
+  transferRatioLabel,
   REWARDS_PROGRAMMES,
+  TRANSFER_BONUS_NOTE,
 } from "@/lib/rewards/programmes";
-import { offersForProgramme } from "@/lib/rewards/offerCounts";
-import { getGiftCardOffers, getPointsOffers } from "@/lib/repos";
-import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
-import { formatDateAU } from "@/lib/sources/normalise";
-import { SOURCE_META } from "@/lib/sources/types";
+import { feederOffersFor, offersForProgramme } from "@/lib/rewards/offerCounts";
+import { bonusesInto } from "@/lib/rewards/transferBonus";
+import {
+  getGiftCardOffers,
+  getPointsOffers,
+  getTransferBonuses,
+} from "@/lib/repos";
 
 export function generateStaticParams() {
   return REWARDS_PROGRAMMES.map((programme) => ({ slug: programme.slug }));
@@ -44,13 +50,19 @@ export default async function RewardsDetailPage({
 }) {
   const programme = findRewardsProgramme((await params).slug);
   if (!programme) notFound();
-  const [pointsOffers, giftCardOffers] = await Promise.all([
+  const [pointsOffers, giftCardOffers, transferBonuses] = await Promise.all([
     getPointsOffers(),
     getGiftCardOffers(),
+    getTransferBonuses(),
   ]);
   // Shared with the /rewards hub so the two can never disagree on the count.
   const { points: activePoints, giftCards: activeGiftCards } =
     offersForProgramme(programme, pointsOffers, giftCardOffers);
+  // Offers that reach this programme via a transfer rather than directly, and
+  // the bonuses running on that transfer right now. Both are empty for a
+  // supermarket programme, which is the bottom of the chain.
+  const feederGroups = feederOffersFor(programme, pointsOffers, giftCardOffers);
+  const liveBonuses = bonusesInto(programme.slug, transferBonuses);
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
       <SiteHeader />
@@ -74,6 +86,14 @@ export default async function RewardsDetailPage({
           >
             Weekly supermarket gift-card offers
           </Link>
+        ) : null}
+        {liveBonuses.length > 0 ? (
+          <section className="mt-6">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              Transfer bonus running now
+            </h2>
+            <TransferBonusCallout bonuses={liveBonuses} className="mt-2" />
+          </section>
         ) : null}
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <RewardsCalculator
@@ -111,62 +131,48 @@ export default async function RewardsDetailPage({
               {activePoints.length > 0 ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {activePoints.map((offer) => (
-                    <Card key={offer.id}>
-                      <CardContent className="p-4">
-                        <h3 className="font-semibold">
-                          {offer.earnRateDisplay}
-                        </h3>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {offer.mechanism.replaceAll("-", " ")} · points are
-                          estimated, not cash
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span>
-                            Checked{" "}
-                            {formatDateAU(offer.lastCheckedAt.slice(0, 10))}
-                          </span>
-                          {offer.expiryDate ? (
-                            <span>Ends {formatDateAU(offer.expiryDate)}</span>
-                          ) : null}
-                        </div>
-                        {offer.citations.length ? (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {offer.citations.flatMap((citation) => {
-                              const href = safePublicSourceUrl(
-                                citation.sourceUrl,
-                              );
-                              return href
-                                ? [
-                                    <a
-                                      key={`${citation.source}-${href}`}
-                                      href={href}
-                                      target="_blank"
-                                      rel="nofollow noopener noreferrer"
-                                      className="text-xs font-semibold text-emerald-700 hover:underline"
-                                    >
-                                      Current{" "}
-                                      {SOURCE_META[citation.source]
-                                        ?.displayName ?? citation.source}{" "}
-                                      evidence
-                                    </a>,
-                                  ]
-                                : [];
-                            })}
-                          </div>
-                        ) : (
-                          <p className="mt-3 text-xs text-amber-700">
-                            Current public source link is not recorded; verify
-                            before relying on this offer.
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
+                    <PointsOfferCard key={offer.id} offer={offer} />
                   ))}
                 </div>
               ) : null}
             </>
           )}
         </section>
+        {feederGroups.map(({ programme: feeder, offers }) => (
+          <section key={feeder.slug} className="mt-10">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 className="text-xl font-bold">
+                Earn {feeder.shortName}, transfer to {programme.shortName}
+              </h2>
+              <Link
+                href={`/rewards/${feeder.slug}`}
+                className="text-sm font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+              >
+                All {feeder.shortName} offers
+              </Link>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+              These offers earn {feeder.name} points, not {programme.shortName}{" "}
+              points directly.{" "}
+              {transferRatioLabel(feeder)
+                ? `${transferRatioLabel(feeder)} at the base rate. `
+                : ""}
+              {TRANSFER_BONUS_NOTE}
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {offers.giftCards.map((offer) => (
+                <GiftCardOfferCard key={offer.id} offer={offer} />
+              ))}
+            </div>
+            {offers.points.length > 0 ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {offers.points.map((offer) => (
+                  <PointsOfferCard key={offer.id} offer={offer} />
+                ))}
+              </div>
+            ) : null}
+          </section>
+        ))}
         <section className="mt-10 rounded-2xl border bg-card p-5">
           <h2 className="font-semibold">How to use this programme safely</h2>
           <ol className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">

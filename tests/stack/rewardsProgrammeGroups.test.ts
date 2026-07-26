@@ -9,6 +9,7 @@ import {
 } from "@/lib/rewards/programmes";
 import {
   countForProgramme,
+  feederOffersFor,
   offersForProgramme,
 } from "@/lib/rewards/offerCounts";
 import {
@@ -139,6 +140,52 @@ describe("offer counts", () => {
     expect(result.total).toBe(0);
     expect(result.points).toEqual([]);
     expect(result.giftCards).toEqual([]);
+  });
+});
+
+describe("feeder offer roll-up", () => {
+  const velocity = REWARDS_PROGRAMMES.find(
+    (p) => p.slug === "velocity-frequent-flyer",
+  )!;
+  const flybuys = REWARDS_PROGRAMMES.find((p) => p.slug === "flybuys")!;
+
+  it("lists a feeder's offers under the airline programme they transfer into", () => {
+    // The Coles boost says "Flybuys", so the Velocity page only reaches it
+    // through the transfer link — this is the whole point of the roll-up.
+    const pool = [
+      points({ id: "coles", program: "Flybuys" }),
+      points({ id: "direct", program: "Velocity" }),
+    ];
+    const groups = feederOffersFor(velocity, pool, []);
+    expect(groups.map((g) => g.programme.slug)).toEqual(["flybuys"]);
+    expect(groups[0].offers.points.map((o) => o.id)).toEqual(["coles"]);
+  });
+
+  it("does not double-count the programme's own offers as feeder offers", () => {
+    const pool = [points({ id: "direct", program: "Velocity" })];
+    expect(feederOffersFor(velocity, pool, [])).toEqual([]);
+  });
+
+  it("drops a feeder with nothing current rather than showing an empty heading", () => {
+    const pool = [points({ id: "ev", program: "Everyday Rewards" })];
+    expect(feederOffersFor(velocity, pool, [])).toEqual([]);
+  });
+
+  it("gives a supermarket programme no feeders — it is the bottom of the chain", () => {
+    const pool = [points({ id: "coles", program: "Flybuys" })];
+    expect(feederOffersFor(flybuys, pool, [])).toEqual([]);
+  });
+
+  it("rolls up gift-card offers alongside points offers", () => {
+    const cards = [
+      makeGiftCard({
+        id: "gc-flybuys",
+        pointsOnPurchase: { program: "Flybuys", earnNote: "1 point per $1" },
+      }),
+    ];
+    const groups = feederOffersFor(velocity, [], cards);
+    expect(groups[0].offers.giftCards.map((o) => o.id)).toEqual(["gc-flybuys"]);
+    expect(groups[0].offers.total).toBe(1);
   });
 });
 

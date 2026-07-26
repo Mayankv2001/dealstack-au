@@ -1,5 +1,5 @@
 import type { GiftCardOffer, PointsOffer } from "@/lib/offers/types";
-import type { RewardsProgramme } from "@/lib/rewards/programmes";
+import { feedersFor, type RewardsProgramme } from "@/lib/rewards/programmes";
 
 /**
  * How many reviewed offers a programme currently has.
@@ -46,6 +46,37 @@ export function offersForProgramme(
     )
   );
   return { points, giftCards, total: points.length + giftCards.length };
+}
+
+export interface FeederOffers {
+  programme: RewardsProgramme;
+  offers: ProgrammeOffers;
+}
+
+/**
+ * Offers that earn into `programme` INDIRECTLY — a supermarket programme's own
+ * offers, listed under the airline programme its points transfer to.
+ *
+ * The `program` column names the programme where the points land first
+ * ("Flybuys"), so a Coles boost never matches "Velocity" and the Velocity page
+ * used to omit the biggest reason to earn Flybuys at all. Feeders come from the
+ * editorial `transfer` links in programmes.ts, not from the offer text.
+ *
+ * Feeders with nothing current are dropped: an empty programme heading reads as
+ * a broken section, and the count is already on the /rewards hub. Returns an
+ * empty array for supermarket programmes, which have no feeders of their own.
+ */
+export function feederOffersFor(
+  programme: RewardsProgramme,
+  pointsOffers: PointsOffer[],
+  giftCardOffers: GiftCardOffer[]
+): FeederOffers[] {
+  return feedersFor(programme.slug)
+    .map((feeder) => ({
+      programme: feeder,
+      offers: offersForProgramme(feeder, pointsOffers, giftCardOffers),
+    }))
+    .filter((group) => group.offers.total > 0);
 }
 
 /** Convenience for the card chrome — just the number. */
