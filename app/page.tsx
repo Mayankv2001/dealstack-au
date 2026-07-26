@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { JsonLd } from "@/components/JsonLd";
 import SiteHeader from "@/components/SiteHeader";
+import HomeProgrammeOffers from "@/components/home/HomeProgrammeOffers";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
 import OfferMarquee from "@/components/home/OfferMarquee";
-import ProgrammeGroups from "@/components/rewards/ProgrammeGroups";
 import {
   CalculatorSection,
   HomeFooter,
@@ -15,6 +13,7 @@ import { siteUrl } from "@/lib/env";
 import { buildMarquee } from "@/lib/giftcards/marquee";
 import {
   getCurrentReviewedGiftCardOffers,
+  getCurrentReviewedPointsOffers,
   getTransferBonuses,
 } from "@/lib/repos";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
@@ -47,15 +46,22 @@ export const revalidate = 300;
 
 export default async function Home() {
   const now = new Date();
-  const [data, giftCardCarouselOffers, transferBonuses] = await Promise.all([
-    loadStackData(),
-    // The carousel keeps reviewed offers whose expiry is merely unknown (ranked
-    // last) plus labelled upcoming-soon offers, so it shows the full displayable
-    // set — every offer becomes a slide; the carousel pages, never truncates.
-    // See getCurrentReviewedGiftCardOffers / lib/giftcards/currentOffers.ts.
-    getCurrentReviewedGiftCardOffers({ orderBy: "ending-soonest" }),
-    getTransferBonuses(),
-  ]);
+  const [data, giftCardCarouselOffers, pointsOffers, transferBonuses] =
+    await Promise.all([
+      loadStackData(),
+      // The carousel keeps reviewed offers whose expiry is merely unknown
+      // (ranked last) plus labelled upcoming-soon offers, so it shows the full
+      // displayable set — every offer becomes a slide; the carousel pages,
+      // never truncates. See lib/giftcards/currentOffers.ts.
+      getCurrentReviewedGiftCardOffers({ orderBy: "ending-soonest" }),
+      // NOT data.pointsOffers: that is the stack-engine read, unordered and
+      // carrying not-yet-started rows without the display tiering. A block
+      // that renders offers rather than counting them needs the display read,
+      // the same one /rewards uses, or the two pages disagree on order and on
+      // how a future offer is presented.
+      getCurrentReviewedPointsOffers(),
+      getTransferBonuses(),
+    ]);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const { best } = partitionStacks(recommendations);
   const featured =
@@ -76,6 +82,14 @@ export default async function Home() {
       <div className="min-h-screen bg-background">
         <SiteHeader />
         <main>
+          {/* Leads the page: every current Qantas and Velocity offer, ahead of
+              the purchase planner. */}
+          <HomeProgrammeOffers
+            pointsOffers={pointsOffers}
+            giftCardOffers={data.giftCardOffers}
+            transferBonuses={transferBonuses}
+          />
+
           <HomeSearchSections
             stores={data.stores}
             recommendations={recommendations}
@@ -89,44 +103,6 @@ export default async function Home() {
               />
             }
           />
-
-          {/* Points grouped by the airline programme they redeem through —
-              supermarket points nested under where they transfer. Reuses the
-              pools already loaded for the stack engine, so no extra queries. */}
-          <section
-            className="page-container py-10 sm:py-12"
-            aria-labelledby="rewards-groups-heading"
-          >
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="eyebrow">Points and rewards</p>
-                <h2
-                  id="rewards-groups-heading"
-                  className="section-title mt-2"
-                >
-                  Where the points land
-                </h2>
-              </div>
-              <Link
-                href="/rewards"
-                className="inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-400"
-              >
-                All programmes <ArrowRight aria-hidden className="size-4" />
-              </Link>
-            </div>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Supermarket points sit under the airline programme they transfer
-              into. Rewards stay separate from today’s cash price.
-            </p>
-            <div className="mt-5">
-              <ProgrammeGroups
-                pointsOffers={data.pointsOffers}
-                giftCardOffers={data.giftCardOffers}
-                transferBonuses={transferBonuses}
-                variant="compact"
-              />
-            </div>
-          </section>
 
           <SavingsLayersSection />
           <CalculatorSection recommendations={recommendations} />

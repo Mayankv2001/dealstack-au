@@ -1,19 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import GiftCardOfferCard from "@/components/GiftCardOfferCard";
 import RewardsCalculator from "@/components/RewardsCalculator";
 import RewardsSubnav from "@/components/RewardsSubnav";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
-import PointsOfferCard from "@/components/rewards/PointsOfferCard";
-import TransferBonusCallout from "@/components/rewards/TransferBonusCallout";
+import ProgrammeOfferList from "@/components/rewards/ProgrammeOfferList";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   findRewardsProgramme,
-  transferRatioLabel,
   REWARDS_PROGRAMMES,
-  TRANSFER_BONUS_NOTE,
 } from "@/lib/rewards/programmes";
 import { feederOffersFor, offersForProgramme } from "@/lib/rewards/offerCounts";
 import { bonusesInto } from "@/lib/rewards/transferBonus";
@@ -56,8 +52,7 @@ export default async function RewardsDetailPage({
     getTransferBonuses(),
   ]);
   // Shared with the /rewards hub so the two can never disagree on the count.
-  const { points: activePoints, giftCards: activeGiftCards } =
-    offersForProgramme(programme, pointsOffers, giftCardOffers);
+  const ownOffers = offersForProgramme(programme, pointsOffers, giftCardOffers);
   // Offers that reach this programme via a transfer rather than directly, and
   // the bonuses running on that transfer right now. Both are empty for a
   // supermarket programme, which is the bottom of the chain.
@@ -87,14 +82,6 @@ export default async function RewardsDetailPage({
             Weekly supermarket gift-card offers
           </Link>
         ) : null}
-        {liveBonuses.length > 0 ? (
-          <section className="mt-6">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-              Transfer bonus running now
-            </h2>
-            <TransferBonusCallout bonuses={liveBonuses} className="mt-2" />
-          </section>
-        ) : null}
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <RewardsCalculator
             programme={programme.name}
@@ -114,65 +101,12 @@ export default async function RewardsDetailPage({
             </CardContent>
           </Card>
         </div>
-        <section className="mt-10">
-          <h2 className="text-xl font-bold">Current reviewed offers</h2>
-          {activePoints.length + activeGiftCards.length === 0 ? (
-            <p className="mt-3 rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-              No current reviewed {programme.shortName} offers. New offers
-              appear only after approval.
-            </p>
-          ) : (
-            <>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {activeGiftCards.map((offer) => (
-                  <GiftCardOfferCard key={offer.id} offer={offer} />
-                ))}
-              </div>
-              {activePoints.length > 0 ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {activePoints.map((offer) => (
-                    <PointsOfferCard key={offer.id} offer={offer} />
-                  ))}
-                </div>
-              ) : null}
-            </>
-          )}
-        </section>
-        {feederGroups.map(({ programme: feeder, offers }) => (
-          <section key={feeder.slug} className="mt-10">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="text-xl font-bold">
-                Earn {feeder.shortName}, transfer to {programme.shortName}
-              </h2>
-              <Link
-                href={`/rewards/${feeder.slug}`}
-                className="text-sm font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
-              >
-                All {feeder.shortName} offers
-              </Link>
-            </div>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              These offers earn {feeder.name} points, not {programme.shortName}{" "}
-              points directly.{" "}
-              {transferRatioLabel(feeder)
-                ? `${transferRatioLabel(feeder)} at the base rate. `
-                : ""}
-              {TRANSFER_BONUS_NOTE}
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {offers.giftCards.map((offer) => (
-                <GiftCardOfferCard key={offer.id} offer={offer} />
-              ))}
-            </div>
-            {offers.points.length > 0 ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {offers.points.map((offer) => (
-                  <PointsOfferCard key={offer.id} offer={offer} />
-                ))}
-              </div>
-            ) : null}
-          </section>
-        ))}
+        <ProgrammeOfferList
+          programme={programme}
+          offers={ownOffers}
+          feederGroups={feederGroups}
+          bonuses={liveBonuses}
+        />
         <section className="mt-10 rounded-2xl border bg-card p-5">
           <h2 className="font-semibold">How to use this programme safely</h2>
           <ol className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
