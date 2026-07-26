@@ -113,6 +113,10 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Trigger-only: gives points_transfer_bonuses the transactional admin-audit
   // trigger 040 omitted. No columns, no data change.
   "041_transfer_bonus_admin_audit.sql",
+  // Adds points_offers.starts_on (plus a start-before-expiry check and a
+  // partial index) so a promotion with a future start is representable
+  // instead of being held back as a draft.
+  "042_points_offer_start_date.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -215,11 +219,16 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
     "expiry_date", "citations", "confidence", "last_checked_at",
     "is_published", "created_at", "updated_at",
   ]),
-  points_offers: table("001_initial_schema.sql", [
-    "id", "merchant_id", "program", "earn_rate_display", "earn_multiple",
-    "point_value_cents", "mechanism", "expiry_date", "citations", "confidence",
-    "last_checked_at", "is_published", "created_at", "updated_at",
-  ]),
+  points_offers: table(
+    "001_initial_schema.sql",
+    [
+      "id", "merchant_id", "program", "earn_rate_display", "earn_multiple",
+      "point_value_cents", "mechanism", "expiry_date", "citations", "confidence",
+      "last_checked_at", "is_published", "created_at", "updated_at",
+      "starts_on",
+    ],
+    { starts_on: "042_points_offer_start_date.sql" }
+  ),
   weekly_deals: table("001_initial_schema.sql", [
     "id", "week_of", "merchant_id", "title", "summary", "highlight",
     "component_ids", "citations", "expiry_date", "confidence",
