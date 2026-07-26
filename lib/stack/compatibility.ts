@@ -2,6 +2,7 @@ import {
   EXPIRY_SOON_DAYS,
   expiryUrgencyLabelAU,
   isExpiringSoonAU,
+  todayAU,
 } from "@/lib/offers/expiry";
 import { formatDateAU } from "@/lib/sources/normalise";
 import type { Confidence } from "@/lib/sources/types";
@@ -62,6 +63,28 @@ export function cashbackConflictsWithGiftCard(
 }
 
 // ─── Warning builders (return a StackWarning or null) ───────────────────────
+
+/**
+ * Flags an offer the engine has counted that has NOT STARTED yet.
+ *
+ * The engine deliberately includes future offers so a plan can be made around
+ * one (lib/repos/offers.ts getPointsOffers). This warning is what keeps that
+ * honest: it is "risk", not "caution", because unlike a stale or
+ * soon-expiring offer this one CANNOT be claimed today at all — the estimate
+ * it contributes to is for a future purchase, not this one.
+ */
+export function notStartedWarning(
+  startsOn: string | null,
+  now: Date,
+  label: string
+): StackWarning | null {
+  if (!startsOn || startsOn <= todayAU(now)) return null;
+  return {
+    level: "risk",
+    code: "offer-not-started",
+    message: `${label} does not start until ${formatDateAU(startsOn)} — it cannot be claimed on a purchase made today.`,
+  };
+}
 
 /** Flags an expiry within EXPIRY_SOON_DAYS AU-local calendar days of `now` (and not past). */
 export function expirySoonWarning(

@@ -1,6 +1,6 @@
 import { stores as staticStores, type Store } from "@/lib/data";
 import { weekMondayAU } from "@/lib/admin/dateHelpers";
-import { findMerchantIdInText } from "@/lib/sources/normalise";
+import { findMerchantIdInText, formatDateAU } from "@/lib/sources/normalise";
 import type { Citation, Confidence } from "@/lib/sources/types";
 import {
   cashbackOffers as staticCashbackOffers,
@@ -25,6 +25,7 @@ import {
   expirySoonWarning,
   giftCardCashbackConflictWarning,
   needsVerificationWarning,
+  notStartedWarning,
   staleDataWarning,
   worstConfidence,
 } from "./compatibility";
@@ -715,6 +716,17 @@ function buildForStore(
   }
 
   const points = bestPoints(data.pointsOffers, store.id);
+  // A future offer is counted (the repo deliberately supplies it) but must
+  // announce itself: the label, the component note and a risk-level warning
+  // all carry the start date, so a plan-ahead number is never mistaken for
+  // something claimable at the till today.
+  const pointsNotStarted = points
+    ? notStartedWarning(
+        points.startsOn,
+        now,
+        `The ${points.program} points offer`
+      )
+    : null;
   if (points && points.earnMultiple) {
     const earned = Math.round(checkoutPrice * points.earnMultiple);
     const estimatedValue = round(
@@ -724,16 +736,21 @@ function buildForStore(
     pointsValueDollars = round(pointsValueDollars + estimatedValue);
     components.push({
       layer: "points",
-      label: `${points.earnRateDisplay} on ${points.program}`,
+      label: pointsNotStarted
+        ? `${points.earnRateDisplay} on ${points.program} (from ${formatDateAU(points.startsOn)})`
+        : `${points.earnRateDisplay} on ${points.program}`,
       pointsEarned: earned,
       valueDollars: estimatedValue,
       optional: false,
       citation: points.citations[0] ?? MANUAL_CITATION,
       confidence: points.confidence,
-      note: "Points value is indicative and is not subtracted from the cash price.",
+      note: pointsNotStarted
+        ? `Starts ${formatDateAU(points.startsOn)} — counted here for planning ahead, not claimable today. Points value is indicative and is not subtracted from the cash price.`
+        : "Points value is indicative and is not subtracted from the cash price.",
     });
     citations.push(...points.citations);
     confidences.push(points.confidence);
+    if (pointsNotStarted) warnings.push(pointsNotStarted);
     const ptExpiry = expirySoonWarning(
       points.expiryDate,
       now,

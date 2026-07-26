@@ -1,6 +1,5 @@
 import type { PointsOffer } from "@/lib/offers/types";
-import { addDaysToIsoDate, isPastExpiry, todayAU } from "@/lib/offers/expiry";
-import { UPCOMING_DISPLAY_WINDOW_DAYS } from "@/lib/giftcards/currentOffers";
+import { isPastExpiry, todayAU } from "@/lib/offers/expiry";
 import { formatDateAU } from "@/lib/sources/normalise";
 
 /**
@@ -8,13 +7,15 @@ import { formatDateAU } from "@/lib/sources/normalise";
  * clock explicitly, so the AU-midnight boundary is testable rather than
  * incidental.
  *
- * Deliberately IDENTICAL to the gift-card policy in
- * lib/giftcards/currentOffers.ts, down to sharing its window constant: an
- * offer that has not started is never an active earn rate, but one starting
- * within UPCOMING_DISPLAY_WINDOW_DAYS may be SHOWN after every active offer,
- * always carrying an explicit "Starts …" label and never active-sounding
- * urgency. Rows starting beyond the window stay hidden. Two surfaces answering
- * "is this live?" differently is the bug this shape exists to prevent.
+ * A reviewed future offer is ALWAYS shown, however far out its start date is:
+ * a promotion worth planning around is worth knowing about early, and hiding
+ * it until the week before is the behaviour this deliberately drops. It is
+ * ranked after every active offer and always carries an explicit "Starts …"
+ * label, never active-sounding urgency.
+ *
+ * This is where points DIVERGE from gift cards: lib/giftcards/currentOffers.ts
+ * still hides anything starting beyond UPCOMING_DISPLAY_WINDOW_DAYS. The two
+ * are separate editorial calls, not an oversight.
  *
  * Dates are compared as YYYY-MM-DD strings against todayAU(), never via Date
  * parsing — that is UTC-relative and lands a day out around AU midnight.
@@ -39,21 +40,15 @@ export function pointsOfferDateState(
 }
 
 /**
- * True for a reviewed future offer inside the display window — it may be
- * SHOWN (labelled "Starts …"), never presented as active.
+ * True for a reviewed offer that has not started yet. No distance limit — it
+ * is SHOWN (labelled "Starts …") however far out, but never presented as
+ * active.
  */
-export function isUpcomingSoonPointsOffer(
+export function isUpcomingPointsOffer(
   offer: Pick<PointsOffer, "startsOn" | "expiryDate">,
   now: Date = new Date()
 ): boolean {
-  if (pointsOfferDateState(offer, now) !== "future" || !offer.startsOn) {
-    return false;
-  }
-  const lastVisibleStart = addDaysToIsoDate(
-    todayAU(now),
-    UPCOMING_DISPLAY_WINDOW_DAYS
-  );
-  return offer.startsOn <= lastVisibleStart;
+  return pointsOfferDateState(offer, now) === "future";
 }
 
 /**
@@ -105,8 +100,9 @@ export function compareUpcomingPointsOffers(
 }
 
 /**
- * The public DISPLAY list: every active offer (ending soonest), then
- * upcoming-soon offers (starting soonest). Never truncates.
+ * The public DISPLAY list: every active offer (ending soonest), then every
+ * future offer (starting soonest), however distant. Expired rows are the only
+ * thing dropped. Never truncates.
  */
 export function orderCurrentReviewedPointsOffers(
   offers: readonly PointsOffer[],
@@ -116,7 +112,7 @@ export function orderCurrentReviewedPointsOffers(
     .slice()
     .sort(compareCurrentPointsOffers);
   const upcoming = offers
-    .filter((offer) => isUpcomingSoonPointsOffer(offer, now))
+    .filter((offer) => isUpcomingPointsOffer(offer, now))
     .sort(compareUpcomingPointsOffers);
   return [...active, ...upcoming];
 }

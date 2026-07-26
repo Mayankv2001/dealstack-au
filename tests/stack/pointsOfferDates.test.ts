@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PointsOffer } from "@/lib/offers/types";
 import {
-  isUpcomingSoonPointsOffer,
+  isUpcomingPointsOffer,
   orderCurrentReviewedPointsOffers,
   pointsOfferDateLabels,
   pointsOfferDateState,
@@ -60,7 +60,7 @@ describe("date state", () => {
   it("lets expiry win over a start date — an expired row is never upcoming", () => {
     const offer = points({ startsOn: "2026-07-29", expiryDate: "2026-07-25" });
     expect(pointsOfferDateState(offer, NOW)).toBe("expired");
-    expect(isUpcomingSoonPointsOffer(offer, NOW)).toBe(false);
+    expect(isUpcomingPointsOffer(offer, NOW)).toBe(false);
   });
 });
 
@@ -80,24 +80,15 @@ describe("the AU midnight boundary", () => {
   });
 });
 
-describe("the upcoming display window", () => {
-  it("shows an offer starting inside the 7-day window", () => {
-    expect(
-      isUpcomingSoonPointsOffer(points({ startsOn: "2026-07-29" }), NOW),
-    ).toBe(true);
-  });
-
-  it("includes the last day of the window and excludes the day after", () => {
-    expect(
-      isUpcomingSoonPointsOffer(points({ startsOn: "2026-08-02" }), NOW),
-    ).toBe(true);
-    expect(
-      isUpcomingSoonPointsOffer(points({ startsOn: "2026-08-03" }), NOW),
-    ).toBe(false);
+describe("upcoming offers are shown however far out", () => {
+  it("flags a start date days, weeks or months away alike", () => {
+    for (const startsOn of ["2026-07-29", "2026-08-20", "2027-03-01"]) {
+      expect(isUpcomingPointsOffer(points({ startsOn }), NOW)).toBe(true);
+    }
   });
 
   it("never calls an already-running offer upcoming", () => {
-    expect(isUpcomingSoonPointsOffer(points(), NOW)).toBe(false);
+    expect(isUpcomingPointsOffer(points(), NOW)).toBe(false);
   });
 });
 
@@ -118,7 +109,7 @@ describe("the active set the stack engine sees", () => {
 describe("display ordering", () => {
   it("puts active offers first (ending soonest), then upcoming ones", () => {
     const pool = [
-      points({ id: "upcoming-late", startsOn: "2026-08-01" }),
+      points({ id: "upcoming-late", startsOn: "2026-11-01" }),
       points({ id: "no-end" }),
       points({ id: "ends-later", expiryDate: "2026-09-30" }),
       points({ id: "upcoming-soon", startsOn: "2026-07-29" }),
@@ -135,8 +126,19 @@ describe("display ordering", () => {
     );
   });
 
-  it("hides a far-future offer from the display list entirely", () => {
-    const pool = [points({ id: "far", startsOn: "2026-12-01" })];
+  it("keeps a far-future offer in the display list, ranked last", () => {
+    const pool = [
+      points({ id: "far", startsOn: "2026-12-01" }),
+      points({ id: "running" }),
+    ];
+    expect(orderCurrentReviewedPointsOffers(pool, NOW).map((o) => o.id)).toEqual([
+      "running",
+      "far",
+    ]);
+  });
+
+  it("still drops an expired offer from the display list", () => {
+    const pool = [points({ id: "gone", expiryDate: "2026-07-25" })];
     expect(orderCurrentReviewedPointsOffers(pool, NOW)).toEqual([]);
   });
 

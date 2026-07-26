@@ -17,10 +17,7 @@ import { filterLive, todayAU } from "@/lib/offers/expiry";
 import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
 import { filterConfirmedCurrentOffers } from "@/lib/giftcards/lifecycle";
 import { orderCurrentReviewedGiftCardOffers } from "@/lib/giftcards/currentOffers";
-import {
-  orderCurrentReviewedPointsOffers,
-  selectActivePointsOffers,
-} from "@/lib/rewards/pointsOfferDates";
+import { orderCurrentReviewedPointsOffers } from "@/lib/rewards/pointsOfferDates";
 import { hasPublicOfferValue } from "@/lib/giftcards/valueReadiness";
 import {
   normaliseSourceId,
@@ -539,19 +536,24 @@ function readPointsOffers(): Promise<PointsOffer[]> {
 }
 
 /**
- * STRICT read — the set that may count as an earn rate. Drops expired rows and
- * not-yet-started ones alike, because RLS bounds only the expiry side and
- * cannot hide a reviewed future row. This is what the stack ENGINE consumes
- * (lib/stack/loadStack.ts); the same split getGiftCardOffers() makes above.
+ * Read for the stack ENGINE (lib/stack/loadStack.ts). Drops expired rows only.
+ *
+ * Not-yet-started rows are DELIBERATELY included, so a shopper planning a
+ * purchase sees a promotion that begins next week rather than a store that
+ * looks like it has nothing. The engine is then responsible for saying so:
+ * buildStack attaches an "offer-not-started" warning naming the start date to
+ * any future offer it uses, so the timing is never silently folded into a
+ * total. Changing this to hide them again would remove that signal, not add
+ * safety — the warning is the honest half of this decision.
  */
 export async function getPointsOffers(now: Date = new Date()): Promise<PointsOffer[]> {
-  return selectActivePointsOffers(await readPointsOffers(), now);
+  return filterLive(await readPointsOffers(), todayAU(now));
 }
 
 /**
- * Public DISPLAY read for the rewards surfaces. Unlike getPointsOffers() it
- * also keeps reviewed offers starting within the next few days, ranked LAST
- * and labelled "Starts …" by the card — visible, never counted as active.
+ * Public DISPLAY read for the rewards surfaces. Same rows, ordered: active
+ * offers first, then every future offer ranked LAST and labelled "Starts …"
+ * by the card — visible, never counted as active.
  */
 export async function getCurrentReviewedPointsOffers(
   now: Date = new Date()

@@ -456,6 +456,7 @@ export type StackWarningCode =
   | "stale-data"
   | "needs-verification"
   | "expiry-soon"
+  | "offer-not-started"
   | "conflicting-terms"
   | "cap-reached";
 

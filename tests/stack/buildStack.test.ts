@@ -122,6 +122,53 @@ describe("buildStackRecommendations", () => {
     expect(rec.components.some((c) => c.layer === "points")).toBe(true);
   });
 
+  it("counts a not-yet-started points offer but says so on every surface", () => {
+    // The repo deliberately supplies future offers so a purchase can be
+    // planned around one. The engine's job is to make the timing impossible
+    // to miss, not to hide the offer.
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 0 })],
+      pointsOffers: [
+        makePoints({
+          earnMultiple: 2,
+          pointValueCents: 1,
+          merchantId: "myer",
+          program: "Flybuys",
+          startsOn: "2026-07-01", // TEST_NOW is 15 Jun 2026
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+
+    expect(rec.pointsEarned).toBe(1000);
+    const points = rec.components.find((c) => c.layer === "points")!;
+    expect(points.label).toContain("from 1 Jul 2026");
+    expect(points.note).toContain("Starts 1 Jul 2026");
+    expect(points.note).toContain("not claimable today");
+
+    const warning = rec.warnings.find((w) => w.code === "offer-not-started")!;
+    expect(warning.level).toBe("risk");
+    expect(warning.message).toContain("1 Jul 2026");
+  });
+
+  it("leaves an already-running points offer unlabelled and unwarned", () => {
+    const data = makeStackData({
+      stores: [makeStore({ id: "myer", discountPercent: 0 })],
+      pointsOffers: [
+        makePoints({
+          earnMultiple: 2,
+          pointValueCents: 1,
+          merchantId: "myer",
+          startsOn: "2026-06-01", // already begun at TEST_NOW
+        }),
+      ],
+    });
+    const [rec] = buildStackRecommendations(undefined, 500, data, TEST_NOW);
+    const points = rec.components.find((c) => c.layer === "points")!;
+    expect(points.label).not.toContain("from");
+    expect(rec.warnings.some((w) => w.code === "offer-not-started")).toBe(false);
+  });
+
 
   it("drives expiry-soon and stale-data warnings off the injected clock", () => {
     const data = makeStackData({
