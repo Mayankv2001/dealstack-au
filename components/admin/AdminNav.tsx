@@ -26,6 +26,7 @@ const GROUPS: NavLink[][] = [
     { href: "/admin/gift-cards/predictions", label: "GC predictions" },
     { href: "/admin/gift-card-intelligence", label: "GC intelligence" },
     { href: "/admin/points", label: "Points" },
+    { href: "/admin/transfer-bonuses", label: "Transfer bonuses" },
     { href: "/admin/card-offers", label: "Card Offers" },
     { href: "/admin/card-reports", label: "Corrections" },
     { href: "/admin/weekly-deals", label: "Weekly Deals" },

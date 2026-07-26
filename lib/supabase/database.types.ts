@@ -1748,6 +1748,57 @@ export type Database = {
           },
         ]
       }
+      points_transfer_bonuses: {
+        Row: {
+          bonus_percent_max: number
+          bonus_percent_min: number
+          citations: Json
+          conditions_note: string | null
+          confidence: string
+          created_at: string
+          expiry_date: string | null
+          from_programme: string
+          id: string
+          is_published: boolean
+          last_checked_at: string
+          starts_on: string | null
+          to_programme: string
+          updated_at: string
+        }
+        Insert: {
+          bonus_percent_max: number
+          bonus_percent_min: number
+          citations?: Json
+          conditions_note?: string | null
+          confidence?: string
+          created_at?: string
+          expiry_date?: string | null
+          from_programme: string
+          id: string
+          is_published?: boolean
+          last_checked_at?: string
+          starts_on?: string | null
+          to_programme: string
+          updated_at?: string
+        }
+        Update: {
+          bonus_percent_max?: number
+          bonus_percent_min?: number
+          citations?: Json
+          conditions_note?: string | null
+          confidence?: string
+          created_at?: string
+          expiry_date?: string | null
+          from_programme?: string
+          id?: string
+          is_published?: boolean
+          last_checked_at?: string
+          starts_on?: string | null
+          to_programme?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       public_correction_reports: {
         Row: {
           created_at: string

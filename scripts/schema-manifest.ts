@@ -105,6 +105,11 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // compliance_reviews, daily_pipeline_runs and ozb_recheck_runs, plus their
   // routines; re-issues run_daily_cleanup offers-only.
   "039_remove_ozbargain.sql",
+  // Adds points_transfer_bonuses (transfer promotions between two programmes)
+  // and widens the points_offers mechanism check with 'signup-bonus' so one-off
+  // acquisition awards fit the existing table. Re-issues run_daily_cleanup with
+  // the transfer-bonus archival loop.
+  "040_points_transfer_and_signup_bonuses.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -220,6 +225,12 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
   admins: table("001_initial_schema.sql", ["email", "role", "created_at"]),
   audit_log: table("001_initial_schema.sql", [
     "id", "actor_email", "action", "table_name", "row_id", "diff", "created_at",
+  ]),
+  points_transfer_bonuses: table("040_points_transfer_and_signup_bonuses.sql", [
+    "id", "from_programme", "to_programme", "bonus_percent_min",
+    "bonus_percent_max", "starts_on", "expiry_date", "conditions_note",
+    "citations", "confidence", "last_checked_at", "is_published",
+    "created_at", "updated_at",
   ]),
   // 006_admin_rate_limits.sql
   admin_rate_limits: table("006_admin_rate_limits.sql", [

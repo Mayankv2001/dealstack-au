@@ -5,7 +5,11 @@ import SiteHeader from "@/components/SiteHeader";
 import RewardsSubnav from "@/components/RewardsSubnav";
 import SavingsValueComparison from "@/components/SavingsValueComparison";
 import ProgrammeGroups from "@/components/rewards/ProgrammeGroups";
-import { getGiftCardOffers, getPointsOffers } from "@/lib/repos";
+import {
+  getGiftCardOffers,
+  getPointsOffers,
+  getTransferBonuses,
+} from "@/lib/repos";
 
 export const metadata: Metadata = {
   title: "Points and rewards | DealStack AU",
@@ -16,9 +20,10 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function RewardsPage() {
-  const [pointsOffers, giftCardOffers] = await Promise.all([
+  const [pointsOffers, giftCardOffers, transferBonuses] = await Promise.all([
     getPointsOffers(),
     getGiftCardOffers(),
+    getTransferBonuses(),
   ]);
   return (
     <div className="flex min-h-screen flex-col">
@@ -63,6 +68,7 @@ export default async function RewardsPage() {
           <ProgrammeGroups
             pointsOffers={pointsOffers}
             giftCardOffers={giftCardOffers}
+            transferBonuses={transferBonuses}
           />
         </div>
         <SavingsValueComparison />

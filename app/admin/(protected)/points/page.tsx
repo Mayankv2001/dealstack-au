@@ -22,6 +22,7 @@ const MECHANISM_LABELS: Record<AdminPointsOffer["mechanism"], string> = {
   "card-linked": "Card-linked",
   "shopping-portal": "Shopping portal",
   "base-earn": "Base earn",
+  "signup-bonus": "Sign-up bonus",
 };
 
 const COLUMNS: AdminColumn[] = [

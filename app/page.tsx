@@ -13,7 +13,10 @@ import {
 } from "@/components/home/HomeStaticSections";
 import { siteUrl } from "@/lib/env";
 import { buildMarquee } from "@/lib/giftcards/marquee";
-import { getCurrentReviewedGiftCardOffers } from "@/lib/repos";
+import {
+  getCurrentReviewedGiftCardOffers,
+  getTransferBonuses,
+} from "@/lib/repos";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
 import { isFeaturedStackEligible, partitionStacks } from "@/lib/stack/present";
@@ -44,13 +47,14 @@ export const revalidate = 300;
 
 export default async function Home() {
   const now = new Date();
-  const [data, giftCardCarouselOffers] = await Promise.all([
+  const [data, giftCardCarouselOffers, transferBonuses] = await Promise.all([
     loadStackData(),
     // The carousel keeps reviewed offers whose expiry is merely unknown (ranked
     // last) plus labelled upcoming-soon offers, so it shows the full displayable
     // set — every offer becomes a slide; the carousel pages, never truncates.
     // See getCurrentReviewedGiftCardOffers / lib/giftcards/currentOffers.ts.
     getCurrentReviewedGiftCardOffers({ orderBy: "ending-soonest" }),
+    getTransferBonuses(),
   ]);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const { best } = partitionStacks(recommendations);
@@ -118,6 +122,7 @@ export default async function Home() {
               <ProgrammeGroups
                 pointsOffers={data.pointsOffers}
                 giftCardOffers={data.giftCardOffers}
+                transferBonuses={transferBonuses}
                 variant="compact"
               />
             </div>

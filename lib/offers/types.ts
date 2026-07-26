@@ -284,8 +284,42 @@ export interface PointsOffer {
   earnMultiple: number | null;
   /** Assumed value of one point in cents, for effective-price estimates. */
   pointValueCents: number | null;
-  mechanism: "in-store-boost" | "card-linked" | "shopping-portal" | "base-earn";
+  /**
+   * `signup-bonus` covers one-off acquisition awards (insurance, utilities,
+   * app links) — these have no merchant and no per-dollar rate, so
+   * `merchantId` is null and `earnRateDisplay` carries the award itself
+   * ("20,000 points"). Migration 040.
+   */
+  mechanism:
+    | "in-store-boost"
+    | "card-linked"
+    | "shopping-portal"
+    | "base-earn"
+    | "signup-bonus";
   expiryDate: string | null;
+  citations: Citation[];
+  confidence: Confidence;
+  lastCheckedAt: string;
+}
+
+/**
+ * A promotion on MOVING points between two programmes, e.g. "bonus 5–15%
+ * transferring Flybuys → Velocity until 28 Jul". Not an earn opportunity at a
+ * merchant, which is why it is its own shape rather than a PointsOffer.
+ *
+ * Programme fields are slugs from lib/rewards/programmes.ts. A flat bonus sets
+ * min and max to the same value; a tiered one carries the advertised range.
+ */
+export interface PointsTransferBonus {
+  id: string;
+  fromProgramme: string;
+  toProgramme: string;
+  bonusPercentMin: number;
+  bonusPercentMax: number;
+  startsOn: string | null;
+  expiryDate: string | null;
+  /** Our own short note on the conditions — never copied source prose. */
+  conditionsNote: string | null;
   citations: Citation[];
   confidence: Confidence;
   lastCheckedAt: string;

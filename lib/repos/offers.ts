@@ -11,6 +11,7 @@ import type {
   CashbackOffer,
   GiftCardOffer,
   PointsOffer,
+  PointsTransferBonus,
 } from "@/lib/offers/types";
 import { filterLive, todayAU } from "@/lib/offers/expiry";
 import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
@@ -531,6 +532,59 @@ export async function getPointsOffers(): Promise<PointsOffer[]> {
       const { data, error } = await db.from("points_offers").select("*");
       if (error) throw error;
       return ((data ?? []) as unknown as PointsRow[]).map(mapPoints);
+    }
+  );
+  return filterLive(rows);
+}
+
+// ── Points transfer bonuses (RLS: published + Sydney-inclusive expiry) ───────
+interface TransferBonusRow {
+  id: string;
+  from_programme: string;
+  to_programme: string;
+  bonus_percent_min: number | string;
+  bonus_percent_max: number | string;
+  starts_on: string | null;
+  expiry_date: string | null;
+  conditions_note: string | null;
+  citations: Citation[];
+  confidence: Confidence;
+  last_checked_at: string;
+}
+
+function mapTransferBonus(r: TransferBonusRow): PointsTransferBonus {
+  return {
+    id: r.id,
+    fromProgramme: r.from_programme,
+    toProgramme: r.to_programme,
+    bonusPercentMin: toNumberOrNull(r.bonus_percent_min) ?? 0,
+    bonusPercentMax: toNumberOrNull(r.bonus_percent_max) ?? 0,
+    startsOn: r.starts_on,
+    expiryDate: r.expiry_date,
+    conditionsNote: r.conditions_note,
+    citations: safeCitations(r.citations),
+    confidence: r.confidence,
+    lastCheckedAt: r.last_checked_at,
+  };
+}
+
+/**
+ * Live transfer bonuses. There is no static demo fixture: an invented transfer
+ * bonus would be a fabricated promotion about a real programme, so demo mode
+ * correctly shows none.
+ */
+export async function getTransferBonuses(): Promise<PointsTransferBonus[]> {
+  const rows = await fromDbOrDemo(
+    "points_transfer_bonuses",
+    [] as PointsTransferBonus[],
+    async (db: DbClient) => {
+      const { data, error } = await db
+        .from("points_transfer_bonuses")
+        .select("*");
+      if (error) throw error;
+      return ((data ?? []) as unknown as TransferBonusRow[]).map(
+        mapTransferBonus
+      );
     }
   );
   return filterLive(rows);

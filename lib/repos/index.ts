@@ -18,6 +18,7 @@ export {
   getCurrentReviewedGiftCardOffers,
   getCashbackOffers,
   getPointsOffers,
+  getTransferBonuses,
 } from "./offers";
 export { getWeeklyDeals } from "./weeklyDeals";
 export {

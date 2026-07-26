@@ -66,7 +66,8 @@ runs every day via the `daily-cleanup` Vercel cron (`0 0 * * *` UTC =
 10:00 AEST / 11:00 AEDT Sydney — the same slot the OzBargain monitor cron used
 to carry it from). It flips the
 publication flag on every published row whose `expiry_date < today` (Sydney) —
-gift-card, cashback, points, weekly-deal and card offers. It:
+gift-card, cashback, points, weekly-deal, card and points-transfer-bonus
+offers. It:
 
 - makes **no outbound requests** — it talks only to our own Supabase project;
 - is **idempotent** — the `where is_published = true and expiry_date < today`

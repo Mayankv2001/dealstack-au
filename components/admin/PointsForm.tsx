@@ -32,6 +32,7 @@ const MECHANISM_OPTIONS: { value: string; label: string }[] = [
   { value: "card-linked", label: "Card-linked" },
   { value: "shopping-portal", label: "Shopping portal" },
   { value: "base-earn", label: "Base earn" },
+  { value: "signup-bonus", label: "Sign-up bonus (one-off, no merchant)" },
 ];
 
 const CONFIDENCE_OPTIONS: { value: string; label: string }[] = [

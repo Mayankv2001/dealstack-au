@@ -26,6 +26,9 @@ export const POINTS_MECHANISMS = [
   "card-linked",
   "shopping-portal",
   "base-earn",
+  // One-off acquisition award (insurance, utility, app link). No merchant and
+  // no per-dollar rate — earn_rate_display carries the award. Migration 040.
+  "signup-bonus",
 ] as const;
 export type PointsMechanism = (typeof POINTS_MECHANISMS)[number];
 

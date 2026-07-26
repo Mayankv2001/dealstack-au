@@ -11,8 +11,13 @@ import {
   countForProgramme,
   offersForProgramme,
 } from "@/lib/rewards/offerCounts";
+import {
+  bonusHeadline,
+  bonusPercentLabel,
+  bonusesInto,
+} from "@/lib/rewards/transferBonus";
 import { makeGiftCard } from "./factories";
-import type { PointsOffer } from "@/lib/offers/types";
+import type { PointsOffer, PointsTransferBonus } from "@/lib/offers/types";
 
 /**
  * The airline/supermarket grouping: which programme leads, what feeds it, and
@@ -134,5 +139,61 @@ describe("offer counts", () => {
     expect(result.total).toBe(0);
     expect(result.points).toEqual([]);
     expect(result.giftCards).toEqual([]);
+  });
+});
+
+describe("transfer bonuses", () => {
+  const bonus = (over: Partial<PointsTransferBonus> = {}): PointsTransferBonus => ({
+    id: "xfer-1",
+    fromProgramme: "flybuys",
+    toProgramme: "velocity-frequent-flyer",
+    bonusPercentMin: 5,
+    bonusPercentMax: 15,
+    startsOn: null,
+    expiryDate: "2026-07-28",
+    conditionsNote: null,
+    citations: [{ source: "freepoints", sourceUrl: "https://www.freepoints.com.au/x" }],
+    confidence: "confirmed",
+    lastCheckedAt: "2026-07-26T00:00:00+10:00",
+    ...over,
+  });
+
+  it("labels a range and a flat bonus differently", () => {
+    expect(bonusPercentLabel(bonus())).toBe("5–15%");
+    expect(
+      bonusPercentLabel(bonus({ bonusPercentMin: 15, bonusPercentMax: 15 })),
+    ).toBe("15%");
+  });
+
+  it("names the source programme in the headline", () => {
+    expect(bonusHeadline(bonus())).toBe("Bonus 5–15% transferring from Flybuys");
+  });
+
+  it("degrades to the raw slug rather than throwing on an unknown programme", () => {
+    expect(bonusHeadline(bonus({ fromProgramme: "mystery-points" }))).toContain(
+      "mystery-points",
+    );
+  });
+
+  it("routes a bonus to its destination programme only", () => {
+    const all = [bonus(), bonus({ id: "xfer-2", toProgramme: "qantas-frequent-flyer" })];
+    expect(bonusesInto("velocity-frequent-flyer", all).map((b) => b.id)).toEqual([
+      "xfer-1",
+    ]);
+    expect(bonusesInto("qantas-frequent-flyer", all).map((b) => b.id)).toEqual([
+      "xfer-2",
+    ]);
+    expect(bonusesInto("flybuys", all)).toEqual([]);
+  });
+
+  it("ranks the biggest bonus first", () => {
+    const all = [
+      bonus({ id: "small", bonusPercentMax: 10 }),
+      bonus({ id: "big", bonusPercentMax: 30 }),
+    ];
+    expect(bonusesInto("velocity-frequent-flyer", all).map((b) => b.id)).toEqual([
+      "big",
+      "small",
+    ]);
   });
 });
