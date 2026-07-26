@@ -67,9 +67,34 @@ Node matters in this repo: the shell defaults to an old Node, so run
 Required before every commit:
 
 1. `npm run lint`
-2. `npm run build`
-3. `npm run test:monitor` — only if monitor/feed/top-deals/ranking logic changed
-4. `npm run test:stack` — only if stack/calculation logic changed
+2. `npm run typecheck` — `next build` does NOT typecheck `tests/`; CI does
+3. `npm run build`
+
+Then the suites the phase actually touched:
+
+4. `npm run test:stack` — stack/calculation logic, or anything in `lib/rewards/`
+5. `npm run test:feeds` — the gift-card feed fetcher
+6. `npm run test:admin` — admin action/rate-limit/fallback logic, **or any
+   new or changed file under `supabase/migrations/`** (see below)
+7. `npm run test:giftcards` — gift-card lifecycle, value or ingest logic
+8. `npm run test:deals` — deals listing, ranking or weekly-pick logic
+9. `npm run test:decision` — a decision surface
+
+There is no `test:monitor` script; the suites above are the complete set.
+
+**A migration is never just a migration.** `scripts/schema-manifest.ts` fails
+closed on any migration file it does not know about, and that check runs
+inside `test:admin` — so adding a file under `supabase/migrations/` reddens a
+suite that looks unrelated. Register it in `COVERED_MIGRATIONS` and declare
+its tables/columns in `EXPECTED_SCHEMA` in the SAME commit.
+
+**When the phase is broad, or you are unsure which suite covers it, run the
+whole CI sequence** (`.github/workflows/ci.yml` `quality`): lint, `tsc
+--noEmit`, all six unit suites, `build`, `npm run smoke`, `npm run test:e2e`.
+The per-change rules are a fast path, not a substitute — a green subset is not
+evidence that CI is green. `build`, `smoke` and `test:e2e` need
+`DATA_SOURCE=static` and
+`DATA_SOURCE_STATIC_PREVIEW_ACK=serve-demo-data-not-production`.
 
 If any of these fail, fix the failure as part of the phase. Never commit on
 a failing build or lint, and never report the phase complete with a
@@ -92,8 +117,9 @@ End with a summary the user can read in under a minute:
 
 - **Shipped:** one sentence on what the phase did.
 - **Files changed:** the list, with one clause each on why.
-- **Checks:** which of lint/build/test:monitor/test:stack ran and their
-  results.
+- **Checks:** which commands from §4 actually ran, and their results. Name
+  the suites you did NOT run and why — "a green subset" read as "CI is
+  green" is exactly how a red quality job ships.
 - **Noticed but not touched:** adjacent issues found during the phase, as
   candidates for the next phase.
 

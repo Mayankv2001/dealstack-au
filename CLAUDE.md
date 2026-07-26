@@ -21,9 +21,14 @@ npm run lint           # ESLint (must pass before committing)
 npm run typecheck      # tsc --noEmit incl. tests — CI runs this; must pass before committing
 npm run test:feeds     # tests for the gift-card feed fetcher
 npm run test:stack     # tests for stack/calculation logic
+npm run test:admin     # admin rate-limit/db-fallback logic AND the schema manifest
+npm run test:giftcards # gift-card lifecycle, value and ingest logic
+npm run test:deals     # deals listing, ranking and weekly-pick logic
+npm run test:decision  # decision-surface guarantees
+npm run test:e2e       # Playwright browser flows (needs a static-mode build first)
+npm run smoke          # HTTP smoke test against a running production build
 npm run seed           # seed base data
 npm run gift-card:ingest      # manual GCDB ingest (dry-run; --only=<ids>, --write to stage)
-npm run test:admin     # tests for admin rate-limit/db-fallback logic
 npm run cleanup:old-deals  # dry-run unpublish/expire pass (-- --write to apply)
 ```
 
@@ -91,5 +96,24 @@ Before every commit:
 3. `npm run build` — must pass
 4. `npm run test:feeds` — if the gift-card feed fetcher changed
 5. `npm run test:stack` — if stack/calculation logic changed
-6. `npm run test:admin` — if admin action/rate-limit/fallback logic changed
-7. `git status` — confirm only intended files are staged
+6. `npm run test:admin` — if admin action/rate-limit/fallback logic changed,
+   **or if anything under `supabase/migrations/` changed**
+7. `npm run test:giftcards` — if gift-card lifecycle/value/ingest logic changed
+8. `npm run test:deals` — if deals listing, ranking or weekly-pick logic changed
+9. `npm run test:decision` — if a decision surface changed
+10. `git status` — confirm only intended files are staged
+
+### A new migration is not just a migration
+`scripts/schema-manifest.ts` fails closed on any migration file it does not
+know about, and that check lives in `test:admin` — so adding a file under
+`supabase/migrations/` breaks a suite that looks unrelated to it. Whenever you
+add one, register it in `COVERED_MIGRATIONS` and declare its tables/columns in
+`EXPECTED_SCHEMA` **in the same commit**, then run `test:admin`.
+
+### When in doubt, run what CI runs
+CI's `quality` job (`.github/workflows/ci.yml`) is the real gate: lint, `tsc
+--noEmit`, all six unit suites, `build`, `smoke`, then Playwright `test:e2e`.
+The per-change rules above are a fast path, not a substitute — if a change is
+broad, or you are unsure which suite covers it, run the whole sequence rather
+than guessing. `build`, `smoke` and `test:e2e` need `DATA_SOURCE=static` and
+`DATA_SOURCE_STATIC_PREVIEW_ACK=serve-demo-data-not-production`.
