@@ -11,6 +11,7 @@ import {
   findRewardsProgramme,
   REWARDS_PROGRAMMES,
 } from "@/lib/rewards/programmes";
+import { offersForProgramme } from "@/lib/rewards/offerCounts";
 import { getGiftCardOffers, getPointsOffers } from "@/lib/repos";
 import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import { formatDateAU } from "@/lib/sources/normalise";
@@ -47,15 +48,9 @@ export default async function RewardsDetailPage({
     getPointsOffers(),
     getGiftCardOffers(),
   ]);
-  const needle = programme.shortName.toLowerCase();
-  const activePoints = pointsOffers.filter((offer) =>
-    offer.program.toLowerCase().includes(needle),
-  );
-  const activeGiftCards = giftCardOffers.filter((offer) =>
-    `${offer.pointsProgram ?? ""} ${offer.pointsOnPurchase?.program ?? ""}`
-      .toLowerCase()
-      .includes(needle),
-  );
+  // Shared with the /rewards hub so the two can never disagree on the count.
+  const { points: activePoints, giftCards: activeGiftCards } =
+    offersForProgramme(programme, pointsOffers, giftCardOffers);
   return (
     <div className="flex min-h-screen flex-col bg-emerald-500/[0.04]">
       <SiteHeader />

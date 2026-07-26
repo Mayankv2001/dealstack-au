@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { JsonLd } from "@/components/JsonLd";
 import SiteHeader from "@/components/SiteHeader";
 import HomeSearchSections from "@/components/home/HomeSearchSections";
 import OfferMarquee from "@/components/home/OfferMarquee";
+import ProgrammeGroups from "@/components/rewards/ProgrammeGroups";
 import {
   CalculatorSection,
   HomeFooter,
@@ -82,6 +85,43 @@ export default async function Home() {
               />
             }
           />
+
+          {/* Points grouped by the airline programme they redeem through —
+              supermarket points nested under where they transfer. Reuses the
+              pools already loaded for the stack engine, so no extra queries. */}
+          <section
+            className="page-container py-10 sm:py-12"
+            aria-labelledby="rewards-groups-heading"
+          >
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="eyebrow">Points and rewards</p>
+                <h2
+                  id="rewards-groups-heading"
+                  className="section-title mt-2"
+                >
+                  Where the points land
+                </h2>
+              </div>
+              <Link
+                href="/rewards"
+                className="inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-400"
+              >
+                All programmes <ArrowRight aria-hidden className="size-4" />
+              </Link>
+            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Supermarket points sit under the airline programme they transfer
+              into. Rewards stay separate from today’s cash price.
+            </p>
+            <div className="mt-5">
+              <ProgrammeGroups
+                pointsOffers={data.pointsOffers}
+                giftCardOffers={data.giftCardOffers}
+                variant="compact"
+              />
+            </div>
+          </section>
 
           <SavingsLayersSection />
           <CalculatorSection recommendations={recommendations} />
