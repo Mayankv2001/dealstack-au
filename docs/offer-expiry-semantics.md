@@ -62,7 +62,9 @@ an expired permalink.
 ### 2. Scheduled archival (durable state)
 
 [`run_daily_cleanup`](../supabase/migrations/039_remove_ozbargain.sql)
-runs every day via the `daily-cleanup` Vercel cron (`0 12 * * *`). It flips the
+runs every day via the `daily-cleanup` Vercel cron (`0 0 * * *` UTC =
+10:00 AEST / 11:00 AEDT Sydney — the same slot the OzBargain monitor cron used
+to carry it from). It flips the
 publication flag on every published row whose `expiry_date < today` (Sydney) —
 gift-card, cashback, points, weekly-deal and card offers. It:
 

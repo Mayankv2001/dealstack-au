@@ -46,8 +46,9 @@ rows and archives card offers past their expiry or review-by date. It was only
 ever invoked by the OzBargain monitor cron, so removing that cron would have
 silently stopped offer-expiry hygiene for the *surviving* catalogue.
 
-It is now its own job: **`GET /api/cron/daily-cleanup`**, scheduled daily in
-`vercel.json`, authenticated with `CRON_SECRET`. It makes no outbound requests —
+It is now its own job: **`GET /api/cron/daily-cleanup`**, scheduled in
+`vercel.json` at `0 0 * * *` UTC (10:00 AEST / 11:00 AEDT Sydney — the slot the
+monitor cron used to carry it from), authenticated with `CRON_SECRET`. It makes no outbound requests —
 it talks only to our own Supabase project. Migration 039 re-issues
 `run_daily_cleanup` with the signal/feed branches stripped, which changes its
 signature from four arguments to two.
