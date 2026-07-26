@@ -18,8 +18,8 @@ import {
 import { feederOffersFor, offersForProgramme } from "@/lib/rewards/offerCounts";
 import { bonusesInto } from "@/lib/rewards/transferBonus";
 import {
+  getCurrentReviewedPointsOffers,
   getGiftCardOffers,
-  getPointsOffers,
   getTransferBonuses,
 } from "@/lib/repos";
 
@@ -51,7 +51,7 @@ export default async function RewardsDetailPage({
   const programme = findRewardsProgramme((await params).slug);
   if (!programme) notFound();
   const [pointsOffers, giftCardOffers, transferBonuses] = await Promise.all([
-    getPointsOffers(),
+    getCurrentReviewedPointsOffers(),
     getGiftCardOffers(),
     getTransferBonuses(),
   ]);

@@ -69,6 +69,7 @@ function points(over: Partial<PointsOffer> = {}): PointsOffer {
     earnMultiple: 20,
     pointValueCents: 0.5,
     mechanism: "in-store-boost",
+    startsOn: null,
     expiryDate: null,
     citations: [{ source: "freepoints", sourceUrl: "https://www.freepoints.com.au" }],
     confidence: "confirmed",

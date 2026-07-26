@@ -17,6 +17,10 @@ import { filterLive, todayAU } from "@/lib/offers/expiry";
 import { isPublicReadyCardOffer } from "@/lib/offers/cardReadiness";
 import { filterConfirmedCurrentOffers } from "@/lib/giftcards/lifecycle";
 import { orderCurrentReviewedGiftCardOffers } from "@/lib/giftcards/currentOffers";
+import {
+  orderCurrentReviewedPointsOffers,
+  selectActivePointsOffers,
+} from "@/lib/rewards/pointsOfferDates";
 import { hasPublicOfferValue } from "@/lib/giftcards/valueReadiness";
 import {
   normaliseSourceId,
@@ -502,6 +506,7 @@ interface PointsRow {
   earn_multiple: number | string | null;
   point_value_cents: number | string | null;
   mechanism: PointsOffer["mechanism"];
+  starts_on: string | null;
   expiry_date: string | null;
   citations: Citation[];
   confidence: Confidence;
@@ -517,6 +522,7 @@ function mapPoints(r: PointsRow): PointsOffer {
     earnMultiple: toNumberOrNull(r.earn_multiple),
     pointValueCents: toNumberOrNull(r.point_value_cents),
     mechanism: r.mechanism,
+    startsOn: r.starts_on ?? null,
     expiryDate: r.expiry_date,
     citations: safeCitations(r.citations),
     confidence: r.confidence,
@@ -524,17 +530,33 @@ function mapPoints(r: PointsRow): PointsOffer {
   };
 }
 
-export async function getPointsOffers(): Promise<PointsOffer[]> {
-  const rows = await fromDbOrDemo(
-    "points_offers",
-    staticPoints,
-    async (db: DbClient) => {
-      const { data, error } = await db.from("points_offers").select("*");
-      if (error) throw error;
-      return ((data ?? []) as unknown as PointsRow[]).map(mapPoints);
-    }
-  );
-  return filterLive(rows);
+function readPointsOffers(): Promise<PointsOffer[]> {
+  return fromDbOrDemo("points_offers", staticPoints, async (db: DbClient) => {
+    const { data, error } = await db.from("points_offers").select("*");
+    if (error) throw error;
+    return ((data ?? []) as unknown as PointsRow[]).map(mapPoints);
+  });
+}
+
+/**
+ * STRICT read — the set that may count as an earn rate. Drops expired rows and
+ * not-yet-started ones alike, because RLS bounds only the expiry side and
+ * cannot hide a reviewed future row. This is what the stack ENGINE consumes
+ * (lib/stack/loadStack.ts); the same split getGiftCardOffers() makes above.
+ */
+export async function getPointsOffers(now: Date = new Date()): Promise<PointsOffer[]> {
+  return selectActivePointsOffers(await readPointsOffers(), now);
+}
+
+/**
+ * Public DISPLAY read for the rewards surfaces. Unlike getPointsOffers() it
+ * also keeps reviewed offers starting within the next few days, ranked LAST
+ * and labelled "Starts …" by the card — visible, never counted as active.
+ */
+export async function getCurrentReviewedPointsOffers(
+  now: Date = new Date()
+): Promise<PointsOffer[]> {
+  return orderCurrentReviewedPointsOffers(await readPointsOffers(), now);
 }
 
 // ── Points transfer bonuses (RLS: published + Sydney-inclusive expiry) ───────

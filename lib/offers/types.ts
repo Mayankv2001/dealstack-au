@@ -296,6 +296,12 @@ export interface PointsOffer {
     | "shopping-portal"
     | "base-earn"
     | "signup-bonus";
+  /**
+   * Date the offer begins (AU calendar). Null = already running. A row that has
+   * not started is never an active earn rate; within the display window it may
+   * be SHOWN, always labelled "Starts …". Migration 042.
+   */
+  startsOn: string | null;
   expiryDate: string | null;
   citations: Citation[];
   confidence: Confidence;

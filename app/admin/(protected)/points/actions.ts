@@ -83,8 +83,17 @@ function parsePointsForm(formData: FormData): ParseResult {
     return { ok: false, error: "Point value (cents) must be a non-negative number." };
   }
 
+  const startsRaw = String(formData.get("starts_on") ?? "").trim();
+  const startsOn = startsRaw === "" ? null : startsRaw;
+
   const expiryRaw = String(formData.get("expiry_date") ?? "").trim();
   const expiryDate = expiryRaw === "" ? null : expiryRaw;
+
+  // The DB enforces this too (migration 042); catching it here turns a raw
+  // constraint violation into something the reviewer can act on.
+  if (startsOn && expiryDate && startsOn > expiryDate) {
+    return { ok: false, error: "Start date must be on or before the expiry date." };
+  }
 
   // A single source URL is stored as a manual citation (matches the cashback /
   // gift-card admins and what the public site renders). Blank → no citation.
@@ -107,6 +116,7 @@ function parsePointsForm(formData: FormData): ParseResult {
       earnMultiple: earnMultiple.value,
       pointValueCents: pointValueCents.value,
       mechanism: mechanism as PointsMechanism,
+      startsOn,
       expiryDate,
       confidence: confidence as Confidence,
       citations,

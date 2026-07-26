@@ -1704,6 +1704,7 @@ export type Database = {
           merchant_id: string | null
           point_value_cents: number | null
           program: string
+          starts_on: string | null
           updated_at: string
         }
         Insert: {
@@ -1720,6 +1721,7 @@ export type Database = {
           merchant_id?: string | null
           point_value_cents?: number | null
           program: string
+          starts_on?: string | null
           updated_at?: string
         }
         Update: {
@@ -1736,6 +1738,7 @@ export type Database = {
           merchant_id?: string | null
           point_value_cents?: number | null
           program?: string
+          starts_on?: string | null
           updated_at?: string
         }
         Relationships: [

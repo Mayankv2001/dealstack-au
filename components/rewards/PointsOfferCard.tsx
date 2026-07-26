@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import type { PointsOffer } from "@/lib/offers/types";
+import { pointsOfferDateLabels } from "@/lib/rewards/pointsOfferDates";
 import { safePublicSourceUrl } from "@/lib/security/urlPolicy";
 import { formatDateAU } from "@/lib/sources/normalise";
 import { SOURCE_META } from "@/lib/sources/types";
@@ -13,7 +14,14 @@ import { SOURCE_META } from "@/lib/sources/types";
  * PRESENTATIONAL. Estimated points are never netted off the cash price, and an
  * offer with no usable public source says so rather than staying silent.
  */
-export function PointsOfferCard({ offer }: { offer: PointsOffer }) {
+export function PointsOfferCard({
+  offer,
+  now,
+}: {
+  offer: PointsOffer;
+  now?: Date;
+}) {
+  const dateLabels = pointsOfferDateLabels(offer, now ?? new Date());
   return (
     <Card>
       <CardContent className="p-4">
@@ -23,9 +31,9 @@ export function PointsOfferCard({ offer }: { offer: PointsOffer }) {
         </p>
         <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>Checked {formatDateAU(offer.lastCheckedAt.slice(0, 10))}</span>
-          {offer.expiryDate ? (
-            <span>Ends {formatDateAU(offer.expiryDate)}</span>
-          ) : null}
+          {dateLabels.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
         </div>
         {offer.citations.length ? (
           <div className="mt-3 flex flex-wrap gap-2">

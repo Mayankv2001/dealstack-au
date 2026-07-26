@@ -17,6 +17,7 @@ export {
   getGiftCardOffers,
   getCurrentReviewedGiftCardOffers,
   getCashbackOffers,
+  getCurrentReviewedPointsOffers,
   getPointsOffers,
   getTransferBonuses,
 } from "./offers";

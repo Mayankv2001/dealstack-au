@@ -6,8 +6,8 @@ import RewardsSubnav from "@/components/RewardsSubnav";
 import SavingsValueComparison from "@/components/SavingsValueComparison";
 import ProgrammeGroups from "@/components/rewards/ProgrammeGroups";
 import {
+  getCurrentReviewedPointsOffers,
   getGiftCardOffers,
-  getPointsOffers,
   getTransferBonuses,
 } from "@/lib/repos";
 
@@ -21,7 +21,7 @@ export const revalidate = 300;
 
 export default async function RewardsPage() {
   const [pointsOffers, giftCardOffers, transferBonuses] = await Promise.all([
-    getPointsOffers(),
+    getCurrentReviewedPointsOffers(),
     getGiftCardOffers(),
     getTransferBonuses(),
   ]);

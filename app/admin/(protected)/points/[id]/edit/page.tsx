@@ -46,6 +46,7 @@ export default async function EditPointsPage({
           earnMultiple: offer.earnMultiple,
           pointValueCents: offer.pointValueCents,
           mechanism: offer.mechanism,
+          startsOn: offer.startsOn,
           expiryDate: offer.expiryDate,
           sourceUrl: offer.citations[0]?.sourceUrl ?? "",
           confidence: offer.confidence,

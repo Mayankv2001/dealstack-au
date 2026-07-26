@@ -53,6 +53,7 @@ export interface PointsFormDefaults {
   earnMultiple?: number | null;
   pointValueCents?: number | null;
   mechanism?: string;
+  startsOn?: string | null;
   expiryDate?: string | null;
   sourceUrl?: string;
   confidence?: string;
@@ -229,6 +230,20 @@ export function PointsForm({
                 inputMode="decimal"
                 defaultValue={defaultValues?.pointValueCents ?? ""}
                 className="max-w-xs"
+              />
+            </Field>
+
+            <Field
+              label="Starts on"
+              htmlFor="starts_on"
+              hint="Optional — leave blank if it is already running. A future offer is shown as “Starts …” within 7 days of its start and never counted as an active earn rate."
+            >
+              <Input
+                id="starts_on"
+                name="starts_on"
+                type="date"
+                defaultValue={defaultValues?.startsOn ?? ""}
+                className="max-w-[200px]"
               />
             </Field>
 

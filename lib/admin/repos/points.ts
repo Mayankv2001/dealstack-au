@@ -60,6 +60,7 @@ export interface PointsOfferInput {
   earnMultiple: number | null;
   pointValueCents: number | null;
   mechanism: PointsMechanism;
+  startsOn: string | null;
   expiryDate: string | null;
   confidence: Confidence;
   citations: Citation[];
@@ -75,6 +76,7 @@ interface AdminPointsRow {
   earn_multiple: number | string | null;
   point_value_cents: number | string | null;
   mechanism: PointsMechanism;
+  starts_on: string | null;
   expiry_date: string | null;
   citations: Citation[];
   confidence: Confidence;
@@ -95,6 +97,7 @@ function mapAdminPoints(r: AdminPointsRow): AdminPointsOffer {
     earnMultiple: toNumberOrNull(r.earn_multiple),
     pointValueCents: toNumberOrNull(r.point_value_cents),
     mechanism: r.mechanism,
+    startsOn: r.starts_on ?? null,
     expiryDate: r.expiry_date,
     citations: r.citations ?? [],
     confidence: r.confidence,
@@ -114,6 +117,7 @@ function toRow(input: PointsOfferInput) {
     earn_multiple: input.earnMultiple,
     point_value_cents: input.pointValueCents,
     mechanism: input.mechanism,
+    starts_on: input.startsOn,
     expiry_date: input.expiryDate,
     citations: input.citations as unknown as Json,
     confidence: input.confidence,
