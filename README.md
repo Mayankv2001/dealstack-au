@@ -80,11 +80,8 @@ npm run cleanup:old-deals  # dry-run expiry cleanup (add -- --write to apply)
 
 ### Tests
 ```bash
-npm run test:feeds     # gift-card feed fetcher
-npm run test:stack     # deal-stacking calculations
-npm run test:deals     # deal discovery model, URL state and query logic
-npm run test:admin     # admin rate-limit & DB-fallback logic
-npm run test:giftcards # gift-card pipeline, valuation and presentation
+npm run test           # every Vitest suite in tests/ (one whole-tree run)
+npm run test:e2e       # Playwright browser flows (needs a static-mode build)
 npm run lint           # ESLint
 npm run build          # production build
 npm run validate:all   # lint + typecheck + all Vitest + build + diff check

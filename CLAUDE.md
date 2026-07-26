@@ -19,13 +19,7 @@ npm run dev            # local dev server
 npm run build          # production build (must pass before committing)
 npm run lint           # ESLint (must pass before committing)
 npm run typecheck      # tsc --noEmit incl. tests — CI runs this; must pass before committing
-npm run test:feeds     # tests for the gift-card feed fetcher
-npm run test:stack     # tests for stack/calculation logic
-npm run test:admin     # admin rate-limit/db-fallback logic AND the schema manifest
-npm run test:giftcards # gift-card lifecycle, value and ingest logic
-npm run test:deals     # deals listing, ranking and weekly-pick logic
-npm run test:decision  # decision-surface guarantees
-npm run test:text      # shared text/copy helpers (pluralisation)
+npm run test           # every Vitest suite in tests/ (one whole-tree run)
 npm run test:e2e       # Playwright browser flows (needs a static-mode build first)
 npm run smoke          # HTTP smoke test against a running production build
 npm run seed           # seed base data
@@ -36,19 +30,22 @@ npm run cleanup:old-deals  # dry-run unpublish/expire pass (-- --write to apply)
 ## Architecture
 ```
 app/                   Next.js App Router pages & API routes
-  (public)/            Public pages: homepage, deals, stores, search
-  admin/(protected)/   Admin portal: signals queue, offer changes, monitor, audit, data quality
-  api/                 API routes including cron trigger endpoint
+                       Public pages sit at the root: deals, stores, search,
+                       gift-cards, cashback, cards, rewards
+  admin/(protected)/   Admin portal: gift cards, cashback, points, transfer
+                       bonuses, card offers, weekly deals, audit, cleanup
+  api/                 API routes: cron, health, reports, client-error, csp-report
 components/            Shared React components
 lib/
   repos/               Supabase data-access functions (server-side only)
   admin/repos/         Admin-only data-access (service-role isolated)
-  monitor/             Feed monitor logic (pure, testable)
+  giftcards/           Gift-card lifecycle, value and acceptance logic
+  rewards/             Points programmes, transfer bonuses, offer dates
   stack/               Deal-stacking calculation logic
 scripts/               One-off seed / fixture scripts
-tests/
-  monitor/             Vitest tests for monitor/ranking/top-deals logic
-  stack/               Vitest tests for stacking calculations
+tests/                 Vitest suites, one directory per area (admin, deals,
+                       decision, feeds, giftcards, stack, text) plus e2e/
+                       (Playwright) and fixtures/ (support files)
 docs/                  Architecture and monitoring documentation
 supabase/              Migrations and seed SQL
 ```
@@ -95,27 +92,26 @@ Before every commit:
 1. `npm run lint` — must pass
 2. `npm run typecheck` — must pass (`next build` does NOT typecheck `tests/`; CI does)
 3. `npm run build` — must pass
-4. `npm run test:feeds` — if the gift-card feed fetcher changed
-5. `npm run test:stack` — if stack/calculation logic changed
-6. `npm run test:admin` — if admin action/rate-limit/fallback logic changed,
-   **or if anything under `supabase/migrations/` changed**
-7. `npm run test:giftcards` — if gift-card lifecycle/value/ingest logic changed
-8. `npm run test:deals` — if deals listing, ranking or weekly-pick logic changed
-9. `npm run test:decision` — if a decision surface changed
-10. `npm run test:text` — if shared text/copy helpers changed
-11. `git status` — confirm only intended files are staged
+4. `npm run test` — must pass; one run covers every Vitest suite, so there is
+   no longer a judgement call about which suites a change touches
+5. `git status` — confirm only intended files are staged
 
 ### A new migration is not just a migration
 `scripts/schema-manifest.ts` fails closed on any migration file it does not
 know about, and that check lives in `test:admin` — so adding a file under
-`supabase/migrations/` breaks a suite that looks unrelated to it. Whenever you
+`supabase/migrations/` breaks a test that looks unrelated to it. Whenever you
 add one, register it in `COVERED_MIGRATIONS` and declare its tables/columns in
-`EXPECTED_SCHEMA` **in the same commit**, then run `test:admin`.
+`EXPECTED_SCHEMA` **in the same commit**.
 
 ### When in doubt, run what CI runs
 CI's `quality` job (`.github/workflows/ci.yml`) is the real gate: lint, `tsc
---noEmit`, all seven unit suites, `build`, `smoke`, then Playwright `test:e2e`.
-The per-change rules above are a fast path, not a substitute — if a change is
-broad, or you are unsure which suite covers it, run the whole sequence rather
-than guessing. `build`, `smoke` and `test:e2e` need `DATA_SOURCE=static` and
+--noEmit`, `test`, `build`, `smoke`, then Playwright `test:e2e`. The checklist
+above covers everything except `smoke` and `test:e2e`, so run those two as
+well before anything that touches routing, rendering or the production build.
+`build`, `smoke` and `test:e2e` need `DATA_SOURCE=static` and
 `DATA_SOURCE_STATIC_PREVIEW_ACK=serve-demo-data-not-production`.
+
+A new `tests/<name>/` directory needs no registration — `npm run test` runs
+the whole tree. `scripts/test-suite-manifest.ts` guards that property: it
+fails if the scripts are ever narrowed back to per-directory runs, or if a
+test script exists that CI never calls.

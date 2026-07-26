@@ -20,13 +20,7 @@
     "types:gen": "node scripts/require-node.cjs 20 && tsx scripts/generate-types.ts",
     "migration:rollout": "node scripts/require-node.cjs 20 && tsx scripts/migration-rollout.ts",
     "validate:all": "node scripts/require-node.cjs 20 && tsx scripts/validate-all.ts",
-    "test:stack": "node scripts/require-node.cjs 20 && vitest run tests/stack",
-    "test:feeds": "node scripts/require-node.cjs 20 && vitest run tests/feeds",
-    "test:deals": "node scripts/require-node.cjs 20 && vitest run tests/deals",
-    "test:admin": "node scripts/require-node.cjs 20 && vitest run tests/admin",
-    "test:giftcards": "node scripts/require-node.cjs 20 && vitest run tests/giftcards",
-    "test:decision": "node scripts/require-node.cjs 20 && vitest run tests/decision",
-  "test:text": "node scripts/require-node.cjs 20 && vitest run tests/text",
+  "test": "node scripts/require-node.cjs 20 && vitest run tests",
     "test:e2e": "node scripts/require-node.cjs 20 && playwright test"
   },
   "dependencies": {

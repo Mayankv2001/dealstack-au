@@ -69,37 +69,31 @@ Required before every commit:
 1. `npm run lint`
 2. `npm run typecheck` — `next build` does NOT typecheck `tests/`; CI does
 3. `npm run build`
+4. `npm run test` — one whole-tree Vitest run covering every suite
 
-Then the suites the phase actually touched:
+There are no per-directory `test:*` scripts any more, and no `test:monitor`;
+`test` plus the Playwright `test:e2e` are the complete set. Run a slice
+locally with `npx vitest run tests/<dir>`, but `npm run test` is what gates
+the commit — there is no judgement call about which suites a change touches.
 
-4. `npm run test:stack` — stack/calculation logic, or anything in `lib/rewards/`
-5. `npm run test:feeds` — the gift-card feed fetcher
-6. `npm run test:admin` — admin action/rate-limit/fallback logic, **or any
-   new or changed file under `supabase/migrations/`** (see below)
-7. `npm run test:giftcards` — gift-card lifecycle, value or ingest logic
-8. `npm run test:deals` — deals listing, ranking or weekly-pick logic
-9. `npm run test:decision` — a decision surface
-10. `npm run test:text` — shared text/copy helpers
-
-There is no `test:monitor` script; the suites above are the complete set.
-
-**A new `tests/<name>/` directory needs a script.** The suite scripts name one
-directory each, so a new directory runs only once `test:<name>` exists in
-package.json AND the quality job calls it. `scripts/test-suite-manifest.ts`
-fails closed on both (via `test:admin`) — that is what turns the next
-orphaned directory into a red build instead of years of silence.
+**A new `tests/<name>/` directory needs no registration** — the whole-tree run
+picks it up. `scripts/test-suite-manifest.ts` defends that: it fails if the
+scripts are ever narrowed back to per-directory runs, or if a test script
+exists that CI never calls. Those are the two ways `tests/text` went
+unexecuted for twelve days.
 
 **A migration is never just a migration.** `scripts/schema-manifest.ts` fails
 closed on any migration file it does not know about, and that check runs
-inside `test:admin` — so adding a file under `supabase/migrations/` reddens a
-suite that looks unrelated. Register it in `COVERED_MIGRATIONS` and declare
+inside `npm run test` — so adding a file under `supabase/migrations/` reddens a
+test that looks unrelated. Register it in `COVERED_MIGRATIONS` and declare
 its tables/columns in `EXPECTED_SCHEMA` in the SAME commit.
 
 **When the phase is broad, or you are unsure which suite covers it, run the
 whole CI sequence** (`.github/workflows/ci.yml` `quality`): lint, `tsc
---noEmit`, all seven unit suites, `build`, `npm run smoke`, `npm run test:e2e`.
-The per-change rules are a fast path, not a substitute — a green subset is not
-evidence that CI is green. `build`, `smoke` and `test:e2e` need
+--noEmit`, `npm run test`, `build`, `npm run smoke`, `npm run test:e2e`. The
+list above covers everything except `smoke` and `test:e2e` — run those two as
+well for anything touching routing, rendering or the production build. A green
+subset is not evidence that CI is green. `build`, `smoke` and `test:e2e` need
 `DATA_SOURCE=static` and
 `DATA_SOURCE_STATIC_PREVIEW_ACK=serve-demo-data-not-production`.
 

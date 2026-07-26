@@ -22,11 +22,7 @@ All of these must pass locally:
 ```bash
 npm run lint           # ESLint
 npm run build          # production build
-npm run test:monitor   # if you touched monitor/feed/top-deals/ranking logic
-npm run test:stack     # if you touched stack/calculation logic
-npm run test:deals     # if you touched deal discovery/URL state/query logic
-npm run test:admin     # if you touched admin rate-limit/fallback logic
-npm run test:giftcards # if you touched the gift-card pipeline
+npm run test           # every Vitest suite — no judgement call about which
 ```
 
 `npm run validate:all` runs the full gate (lint + typecheck + all Vitest suites + build) in one command.

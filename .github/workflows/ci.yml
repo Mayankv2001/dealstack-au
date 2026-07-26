@@ -25,13 +25,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
-      - run: npm run test:stack
-      - run: npm run test:feeds
-      - run: npm run test:admin
-      - run: npm run test:giftcards
-      - run: npm run test:deals
-      - run: npm run test:decision
-      - run: npm run test:text
+      # One whole-tree vitest run (tests/e2e is excluded in vitest.config.ts).
+      # Replaced seven per-directory steps: a directory could only run if
+      # somebody remembered to add a script for it, which is how
+      # tests/text sat unexecuted for twelve days.
+      - run: npm run test
       - run: npm run build
       - name: Smoke test the production build
         # `next start` is a production runtime and the data-source boundary
