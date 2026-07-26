@@ -6,9 +6,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+# On a PR, only the newest push matters: group by ref and cancel superseded
+# runs. On main, every commit must get its own COMPLETED run — a commit that
+# lands without CI finishing is a commit nothing ever verified, which is how
+# 9851194 and 0db3159 reached main with no result. Grouping main by SHA gives
+# each commit an isolated group, so nothing cancels or queues behind anything
+# else. Sharing one group with cancel-in-progress:false would NOT be enough:
+# GitHub keeps only one pending run per group, so a third rapid push cancels
+# the second's queued run and that commit still goes unverified.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
