@@ -3,8 +3,6 @@
 ## Status
 Done — 2026-07-22. Added a bounded, dependency-free OSA (transposition-aware) `boundedOsaDistance` to `lib/sources/normalise.ts` and a near-match fallback in `lib/giftcards/resolveMerchantAlias.ts` — the live search's actual resolver (the task's original `searchSources.ts`/`rankSourceResults` reference predates the decision-pipeline redesign). Near-match runs ONLY when exact resolution finds nothing, resolves ONLY a unique store at the single smallest in-threshold distance (edit ≤1, or ≤2 once either side ≥6 chars; min length 4; query capped 64), and ties across different stores fall through to zero-hit. Threaded a `queryCorrection` onto `DecisionResult` and render an honest "Showing results for <store> — searched '<query>'" note on `/search`. Exact hits (`method:"exact"`) always win; general `terms.every` matching untouched. Browser-verified: `myre`→Myer with note, `myer` exact (no note), `zzzzzz`→zero-hit card. Unit tests: 6 distance + 9 resolver cases; test:monitor 315/315, test:giftcards 622/622, lint + tsc + build green.
 
-Note: `npm run test:decision` has one PRE-EXISTING failing test (`buildDecisionResult` retailer gift-card plan) that is red on `main` independent of this work — flagged separately, not caused here.
-
 ## Priority
 P2
 
