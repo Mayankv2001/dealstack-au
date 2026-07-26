@@ -110,6 +110,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // acquisition awards fit the existing table. Re-issues run_daily_cleanup with
   // the transfer-bonus archival loop.
   "040_points_transfer_and_signup_bonuses.sql",
+  // Trigger-only: gives points_transfer_bonuses the transactional admin-audit
+  // trigger 040 omitted. No columns, no data change.
+  "041_transfer_bonus_admin_audit.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
