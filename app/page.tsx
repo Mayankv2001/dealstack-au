@@ -16,6 +16,10 @@ import {
   getCurrentReviewedPointsOffers,
   getTransferBonuses,
 } from "@/lib/repos";
+import {
+  PROGRAMME_TAB_PARAM,
+  parseProgrammeTab,
+} from "@/lib/rewards/programmeTabs";
 import { buildStackRecommendations } from "@/lib/stack/buildStack";
 import { loadStackData } from "@/lib/stack/loadStack";
 import { isFeaturedStackEligible, partitionStacks } from "@/lib/stack/present";
@@ -44,8 +48,17 @@ export const metadata: Metadata = {
 // the /deals route's cadence.
 export const revalidate = 300;
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const now = new Date();
+  // Which programme tab to show. Anything unrecognised falls back to the
+  // default rather than rendering an empty tab, so a stale link still works.
+  const activeProgramme = parseProgrammeTab(
+    (await searchParams)[PROGRAMME_TAB_PARAM]
+  );
   const [data, giftCardCarouselOffers, pointsOffers, transferBonuses] =
     await Promise.all([
       loadStackData(),
@@ -88,6 +101,7 @@ export default async function Home() {
             pointsOffers={pointsOffers}
             giftCardOffers={data.giftCardOffers}
             transferBonuses={transferBonuses}
+            active={activeProgramme}
           />
 
           <HomeSearchSections
