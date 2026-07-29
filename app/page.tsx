@@ -11,7 +11,10 @@ import {
 } from "@/components/home/HomeStaticSections";
 import { siteUrl } from "@/lib/env";
 import { buildMarquee } from "@/lib/giftcards/marquee";
+import { isExpiringSoonAU } from "@/lib/offers/expiry";
+import { formatDateAU } from "@/lib/sources/normalise";
 import {
+  getCardOffers,
   getCurrentReviewedGiftCardOffers,
   getCurrentReviewedPointsOffers,
   getTransferBonuses,
@@ -29,7 +32,7 @@ import {
 } from "@/lib/structuredData";
 
 export const metadata: Metadata = {
-  title: "DealStack AU — Plan the cheapest way to buy",
+  title: "DealStack AU — Every offer, human-checked",
   description:
     "Enter an Australian store and expected spend to compare compatible codes, gift cards, cashback and points in the safest order.",
 };
@@ -59,7 +62,7 @@ export default async function Home({
   const activeProgramme = parseProgrammeTab(
     (await searchParams)[PROGRAMME_TAB_PARAM]
   );
-  const [data, giftCardCarouselOffers, pointsOffers, transferBonuses] =
+  const [data, giftCardCarouselOffers, pointsOffers, transferBonuses, cardOffers] =
     await Promise.all([
       loadStackData(),
       // The carousel keeps reviewed offers whose expiry is merely unknown
@@ -74,6 +77,7 @@ export default async function Home({
       // how a future offer is presented.
       getCurrentReviewedPointsOffers(),
       getTransferBonuses(),
+      getCardOffers(),
     ]);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const { best } = partitionStacks(recommendations);
@@ -86,6 +90,26 @@ export default async function Home({
   // soonest first (unknown-expiry last), derived from the same published
   // offers the /gift-cards grid uses.
   const marquee = buildMarquee(giftCardCarouselOffers, now);
+  // Review-freshness stamp for the hero: real figures from the same reviewed
+  // pools the page already renders, never the mock's sample numbers.
+  const stampPool = [
+    ...data.giftCardOffers,
+    ...data.cashbackOffers,
+    ...pointsOffers,
+    ...transferBonuses,
+    ...cardOffers,
+  ];
+  const lastCheckedIso = stampPool.reduce(
+    (max, offer) => (offer.lastCheckedAt > max ? offer.lastCheckedAt : max),
+    "",
+  );
+  const checkStamp = {
+    lastChecked: formatDateAU(lastCheckedIso.slice(0, 10)) ?? "recently",
+    liveCount: stampPool.length,
+    endingSoon: stampPool.filter((offer) =>
+      isExpiringSoonAU(offer.expiryDate, now),
+    ).length,
+  };
   const site = siteUrl();
 
   return (
@@ -109,6 +133,7 @@ export default async function Home({
             recommendations={recommendations}
             heroStack={heroStack}
             nowIso={now.toISOString()}
+            checkStamp={checkStamp}
             marquee={
               <OfferMarquee
                 key="offer-marquee"

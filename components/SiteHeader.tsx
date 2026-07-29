@@ -55,9 +55,9 @@ export function SiteHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-foreground/10 bg-background/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0e1512]/95 text-[#f7f5f0] backdrop-blur-xl">
         <div className="page-container flex h-16 items-center gap-3">
-          <Logo />
+          <Logo tone="dark" />
 
           <nav
             className="ml-auto hidden items-center gap-1 lg:flex"
@@ -72,12 +72,12 @@ export function SiteHeader() {
                   href={href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                    "rounded-full px-3.5 py-2 text-sm font-semibold transition-colors",
                     primary
-                      ? "bg-emerald-700 text-white shadow-sm hover:bg-emerald-800"
+                      ? "bg-[#f7f5f0] text-[#0e1512] shadow-sm hover:bg-[#e4e0d6]"
                       : active
-                        ? "bg-foreground text-background"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "bg-white/15 text-white"
+                        : "text-[#f7f5f0]/80 hover:bg-white/10 hover:text-white",
                   )}
                 >
                   {label}
@@ -88,7 +88,7 @@ export function SiteHeader() {
 
           <Link
             href="/search"
-            className="ml-auto hidden h-10 items-center gap-2 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 sm:inline-flex lg:hidden"
+            className="ml-auto hidden h-10 items-center gap-2 rounded-full bg-[#f7f5f0] px-4 text-sm font-bold text-[#0e1512] shadow-sm transition hover:bg-[#e4e0d6] sm:inline-flex lg:hidden"
           >
             <Search aria-hidden className="size-4" />
             Plan purchase
@@ -96,7 +96,7 @@ export function SiteHeader() {
 
           <Link
             href="/search"
-            className="ml-auto inline-flex size-10 items-center justify-center rounded-lg border bg-background sm:hidden"
+            className="ml-auto inline-flex size-10 items-center justify-center rounded-full border border-white/20 sm:hidden"
             aria-label="Search and plan a purchase"
           >
             <Search aria-hidden className="size-4" />
@@ -104,7 +104,7 @@ export function SiteHeader() {
 
           <button
             type="button"
-            className="inline-flex size-10 items-center justify-center rounded-lg border bg-background lg:hidden"
+            className="inline-flex size-10 items-center justify-center rounded-full border border-white/20 lg:hidden"
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
             aria-controls="mobile-navigation"
@@ -121,7 +121,7 @@ export function SiteHeader() {
         {menuOpen ? (
           <div
             id="mobile-navigation"
-            className="border-t bg-background lg:hidden"
+            className="border-t border-white/10 bg-[#0e1512] lg:hidden"
           >
             <nav
               aria-label="Mobile navigation"
@@ -140,10 +140,10 @@ export function SiteHeader() {
                     className={cn(
                       "flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold",
                       primary
-                        ? "bg-emerald-700 text-white"
+                        ? "bg-[#f7f5f0] text-[#0e1512]"
                         : active
-                        ? "bg-emerald-950 text-white dark:bg-emerald-200 dark:text-emerald-950"
-                        : "hover:bg-muted",
+                        ? "bg-white/15 text-white"
+                        : "hover:bg-white/10",
                     )}
                   >
                     <Icon aria-hidden className="size-4" />

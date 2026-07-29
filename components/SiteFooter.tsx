@@ -34,7 +34,7 @@ function FooterLinks({
 }) {
   return (
     <nav aria-label={title}>
-      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-foreground">
+      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#f7f5f0]">
         {title}
       </h2>
       <ul className="mt-3 grid gap-2.5 text-sm">
@@ -42,7 +42,7 @@ function FooterLinks({
           <li key={href}>
             <Link
               href={href}
-              className="text-muted-foreground transition-colors hover:text-emerald-700"
+              className="text-[#b9bdb8] transition-colors hover:text-[#f7f5f0]"
             >
               {label}
             </Link>
@@ -55,19 +55,19 @@ function FooterLinks({
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-foreground/10 bg-card/80">
+    <footer className="mt-auto bg-[#0e1512] text-[#b9bdb8]">
       <div className="page-container pb-28 pt-10 sm:py-14 lg:pb-14">
         <div className="grid gap-9 lg:grid-cols-[1.35fr_0.65fr_0.65fr]">
           <div className="max-w-lg">
-            <Logo />
-            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+            <Logo tone="dark" />
+            <p className="mt-4 text-sm leading-relaxed">
               A clearer way to plan an Australian purchase. DealStack keeps
               checkout savings, later cashback and points separate, then shows
               the evidence behind each layer.
             </p>
             <Link
               href="/search"
-              className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-emerald-700 px-5 text-sm font-bold text-white transition hover:bg-emerald-800"
+              className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-[#f7f5f0] px-5 text-sm font-bold text-[#0e1512] transition hover:bg-[#e4e0d6]"
             >
               <Search aria-hidden className="size-4" />
               Plan a purchase
@@ -80,14 +80,14 @@ export function SiteFooter() {
           </div>
           <div>
             <FooterLinks title="About" links={POLICY_LINKS} />
-            <p className="mt-6 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-              <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+            <p className="mt-6 flex items-start gap-2 text-xs leading-relaxed">
+              <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-[#f7f5f0]/70" />
               Reviewed information, not financial advice. Always verify current
               terms with the retailer, provider or issuer before acting.
             </p>
           </div>
         </div>
-        <div className="mt-10 flex flex-col gap-2 border-t pt-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-2 border-t border-white/10 pt-5 text-xs sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} DealStack AU</p>
           <p>Independent from listed retailers, banks and rewards programmes.</p>
         </div>

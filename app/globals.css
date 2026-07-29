@@ -4,12 +4,69 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/archivo-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/archivo-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/archivo-800.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2");
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: "Instrument Sans", var(--font-geist-sans), sans-serif;
+  --font-mono: "IBM Plex Mono", var(--font-geist-mono), monospace;
+  --font-heading: "Archivo", var(--font-sans);
   --font-serif: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -47,27 +104,33 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Design accent #116149: retints the emerald-* utilities already used
+     across components, so one ramp change restyles them all. */
+  --color-emerald-600: #147253;
+  --color-emerald-700: #116149;
+  --color-emerald-800: #0b4433;
 }
 
 :root {
-  --background: oklch(0.982 0.004 95);
-  --foreground: oklch(0.18 0.018 155);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.025 160);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.47 0.13 158);
-  --primary-foreground: oklch(0.99 0.004 160);
-  --secondary: oklch(0.95 0.022 160);
-  --secondary-foreground: oklch(0.25 0.05 160);
-  --muted: oklch(0.954 0.006 110);
-  --muted-foreground: oklch(0.46 0.02 155);
-  --accent: oklch(0.945 0.028 153);
-  --accent-foreground: oklch(0.28 0.07 158);
+  /* "Website front page redesign" palette: warm cream, ink, deep green. */
+  --background: #f7f5f0;
+  --foreground: #1a1d1b;
+  --card: #fdfcf9;
+  --card-foreground: #1a1d1b;
+  --popover: #fdfcf9;
+  --popover-foreground: #1a1d1b;
+  --primary: #116149;
+  --primary-foreground: #f7f5f0;
+  --secondary: #eef4f0;
+  --secondary-foreground: #0b4433;
+  --muted: #f4f1e9;
+  --muted-foreground: #4a4f4b;
+  --accent: #eef4f0;
+  --accent-foreground: #0b4433;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.89 0.01 135);
-  --input: oklch(0.89 0.01 135);
-  --ring: oklch(0.55 0.13 158);
+  --border: #e4e0d6;
+  --input: #e4e0d6;
+  --ring: #116149;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -134,6 +197,10 @@
   html {
     @apply font-sans;
     scroll-padding-top: 5.5rem;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
   }
   ::selection {
     background: color-mix(in oklab, var(--primary) 24%, transparent);

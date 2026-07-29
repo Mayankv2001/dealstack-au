@@ -64,6 +64,7 @@ export function HomeSearchSections({
   heroStack,
   nowIso,
   marquee,
+  checkStamp,
 }: {
   stores: Store[];
   recommendations: StackRecommendation[];
@@ -71,6 +72,8 @@ export function HomeSearchSections({
   nowIso: string;
   /** The gift-card offer marquee, rendered directly after the hero. */
   marquee?: React.ReactNode;
+  /** Real review-freshness figures, computed server-side in app/page.tsx. */
+  checkStamp: { lastChecked: string; liveCount: number; endingSoon: number };
 }) {
   const now = new Date(nowIso);
   const [query, setQuery] = useState("");
@@ -92,14 +95,27 @@ export function HomeSearchSections({
           <div className="grid gap-8 lg:grid-cols-[minmax(0,0.86fr)_minmax(34rem,1.14fr)] lg:items-center lg:gap-14">
             <div>
               <p className="eyebrow">Make one purchase decision</p>
-              <h1 className="mt-3 max-w-2xl text-4xl font-black leading-[1.02] tracking-[-0.05em] sm:text-5xl lg:text-[3.55rem]">
-                Plan the cheapest way to buy
+              <h1 className="mt-3 max-w-2xl text-4xl font-black leading-[1.05] tracking-[-0.025em] sm:text-5xl lg:text-[3.4rem]">
+                Every offer, human-checked.
               </h1>
               <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Search a product or store. We compare the retailer, compatible
-                gift cards, codes, cashback and points—then put them in the
-                right order.
+                Reviewed points, cashback and card offers for Australia — with
+                the evidence linked, so you never chase a dead deal.
               </p>
+
+              <div className="mt-6 inline-flex flex-col gap-1.5 rounded-xl border border-dashed border-[#c9c4b6] bg-card px-4 py-3 font-mono text-[13px] text-muted-foreground">
+                <span>
+                  <span
+                    aria-hidden
+                    className="mr-2 inline-block size-2 rounded-full bg-primary"
+                  />
+                  Last checked: {checkStamp.lastChecked}
+                </span>
+                <span>
+                  {checkStamp.liveCount} live offers · {checkStamp.endingSoon}{" "}
+                  ending this week
+                </span>
+              </div>
 
               <div className="mt-6 flex flex-wrap items-center gap-2">
                 <span className="mr-1 text-xs font-bold text-muted-foreground">

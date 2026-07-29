@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 /** A compact, code-native mark: the bars are the saving layers in a stack. */
-export function Logo() {
+export function Logo({ tone = "light" }: { tone?: "light" | "dark" }) {
   return (
     <Link
       href="/"
@@ -15,9 +15,21 @@ export function Logo() {
           <span className="block h-[3px] w-[11px] rounded-full bg-white/70" />
         </span>
       </span>
-      <span className="text-lg font-black tracking-[-0.04em] sm:text-xl">
+      <span
+        className={`font-heading text-lg font-black tracking-[-0.04em] sm:text-xl ${
+          tone === "dark" ? "text-[#f7f5f0]" : ""
+        }`}
+      >
         DealStack{" "}
-        <span className="text-emerald-700 dark:text-emerald-300">AU</span>
+        <span
+          className={
+            tone === "dark"
+              ? "text-[#f7f5f0]/60"
+              : "text-emerald-700 dark:text-emerald-300"
+          }
+        >
+          AU
+        </span>
       </span>
     </Link>
   );

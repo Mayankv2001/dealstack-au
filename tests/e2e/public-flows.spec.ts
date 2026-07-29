@@ -11,7 +11,7 @@ import AxeBuilder from "@axe-core/playwright";
 test("home: hero search live-filters the stores grid", async ({ page }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Plan the cheapest way to buy" }),
+    page.getByRole("heading", { name: "Every offer, human-checked." }),
   ).toBeVisible();
 
   await page
