@@ -3,9 +3,8 @@ import type { PublicDeal } from "@/lib/deals/types";
 import { formatDateAU } from "@/lib/sources/normalise";
 
 /**
- * The redesign's remaining front-page sections: category tiles, ending-soon
- * row, latest-reviewed feed, ink programme cards and the "How we review"
- * band. Server-rendered, no client JS; every figure comes from the live
+ * The redesign's front-page sections: category tiles, ending-soon row,
+ * latest-reviewed feed and the "How we review" band. Server-rendered, no client JS; every figure comes from the live
  * PublicDeal pool or counts computed in app/page.tsx — never sample data.
  */
 
@@ -129,51 +128,6 @@ export function LatestReviewedSection({ deals }: { deals: PublicDeal[] }) {
               ✓ checked {formatDateAU(deal.lastCheckedAt?.slice(0, 10) ?? null)}
             </span>
           </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-const INK_CARDS = [
-  {
-    href: "/rewards/qantas-frequent-flyer",
-    title: "Qantas Frequent Flyer",
-    desc: "Sign-up bonuses, shopping boosts and transfer promos — reviewed with the evidence linked.",
-    cta: "Every Qantas offer →",
-  },
-  {
-    href: "/rewards/velocity-frequent-flyer",
-    title: "Velocity Frequent Flyer",
-    desc: "Direct Velocity offers plus Flybuys transfers, with the base rate and bonus caveat spelled out.",
-    cta: "Every Velocity offer →",
-  },
-  {
-    href: "/cards",
-    title: "Credit card offers",
-    desc: "Card sign-up bonuses with the annual fee, spend requirement and timing stated up front.",
-    cta: "Every card offer →",
-  },
-] as const;
-
-export function ProgrammeInkCards() {
-  return (
-    <section className="page-container pt-11" aria-label="Programmes">
-      <div className="grid gap-3.5 lg:grid-cols-3">
-        {INK_CARDS.map((card) => (
-          <div
-            key={card.href}
-            className="flex flex-col gap-3.5 rounded-xl bg-[#0e1512] p-7 text-[#f7f5f0]"
-          >
-            <h2 className="font-heading text-xl font-bold">{card.title}</h2>
-            <p className="text-sm leading-relaxed text-[#b9bdb8]">{card.desc}</p>
-            <Link
-              href={card.href}
-              className="mt-auto text-sm font-semibold text-[#f7f5f0] hover:underline"
-            >
-              {card.cta}
-            </Link>
-          </div>
         ))}
       </div>
     </section>

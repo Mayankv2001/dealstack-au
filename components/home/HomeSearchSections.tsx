@@ -33,14 +33,17 @@ export function HomeSearchSections({
   heroStack,
   nowIso,
   marquee,
+  tiles,
   checkStamp,
 }: {
   stores: Store[];
   recommendations: StackRecommendation[];
   heroStack: StackRecommendation | null;
   nowIso: string;
-  /** The gift-card offer marquee, rendered directly after the hero. */
+  /** The gift-card offer marquee, rendered after the category tiles. */
   marquee?: React.ReactNode;
+  /** Category tiles, rendered DIRECTLY under the hero (design order). */
+  tiles?: React.ReactNode;
   /** Real review-freshness figures, computed server-side in app/page.tsx. */
   checkStamp: { lastChecked: string; liveCount: number; endingSoon: number };
 }) {
@@ -184,6 +187,8 @@ export function HomeSearchSections({
           </ol>
         </div>
       </section>
+
+      {tiles}
 
       {marquee}
 

@@ -27,7 +27,6 @@ import {
   EndingSoonSection,
   HowWeReview,
   LatestReviewedSection,
-  ProgrammeInkCards,
 } from "@/components/home/FrontPageSections";
 import { countForProgramme } from "@/lib/rewards/offerCounts";
 import { airlineProgrammes } from "@/lib/rewards/programmes";
@@ -179,21 +178,13 @@ export default async function Home({
       <div className="min-h-screen bg-background">
         <SiteHeader />
         <main>
-          {/* Leads the page: every current Qantas and Velocity offer, ahead of
-              the purchase planner. */}
-          <HomeProgrammeOffers
-            pointsOffers={pointsOffers}
-            giftCardOffers={data.giftCardOffers}
-            transferBonuses={transferBonuses}
-            active={activeProgramme}
-          />
-
           <HomeSearchSections
             stores={data.stores}
             recommendations={recommendations}
             heroStack={heroStack}
             nowIso={now.toISOString()}
             checkStamp={checkStamp}
+            tiles={<CategoryTiles tiles={categoryTiles} />}
             marquee={
               <OfferMarquee
                 key="offer-marquee"
@@ -203,10 +194,17 @@ export default async function Home({
             }
           />
 
-          <CategoryTiles tiles={categoryTiles} />
           <EndingSoonSection deals={endingSoonDeals(publicDeals, now)} />
           <LatestReviewedSection deals={latestReviewedDeals(publicDeals)} />
-          <ProgrammeInkCards />
+
+          {/* The full tabbed offer lists stand in for the mock's ink
+              programme cards — same destinations, with the offers inline. */}
+          <HomeProgrammeOffers
+            pointsOffers={pointsOffers}
+            giftCardOffers={data.giftCardOffers}
+            transferBonuses={transferBonuses}
+            active={activeProgramme}
+          />
           <HowWeReview />
 
           <SavingsLayersSection />
