@@ -31,23 +31,94 @@ import {
  */
 type HeadingLevel = "h2" | "h3" | "h4";
 
-function OfferGrids({ offers }: { offers: ProgrammeOffers }) {
+/** How many offers each grid shows before the rest go behind a disclosure. */
+export interface OfferCap {
+  giftCards: number;
+  points: number;
+}
+
+/**
+ * Chosen against the grid columns below so the visible set is WHOLE ROWS at
+ * every breakpoint, not a ragged half-row:
+ *   gift cards — sm:grid-cols-2 lg:grid-cols-3 → 6 is 3×2 and 2×3
+ *   points     — sm:grid-cols-2               → 4 is 2×2
+ */
+export const HOME_OFFER_CAP: OfferCap = { giftCards: 6, points: 4 };
+
+/**
+ * Below this many hidden, the disclosure costs the reader more than the
+ * length it saves — one card behind a "Show 1 more" toggle is worse than one
+ * extra card. Those grids render in full instead, ragged final row and all.
+ */
+const MIN_WORTH_COLLAPSING = 2;
+
+function CappedGrid<T extends { id: string }>({
+  items,
+  cap,
+  gridClassName,
+  label,
+  render,
+}: {
+  items: T[];
+  /** Undefined means show everything — the default for /rewards/[slug]. */
+  cap: number | undefined;
+  gridClassName: string;
+  /** Names what is hidden, e.g. "Velocity" → "Show 6 more Velocity offers". */
+  label: string;
+  render: (item: T) => React.ReactNode;
+}) {
+  if (items.length === 0) return null;
+
+  const hiddenCount = cap === undefined ? 0 : items.length - cap;
+  const collapse = hiddenCount >= MIN_WORTH_COLLAPSING;
+  const visible = collapse ? items.slice(0, cap) : items;
+  const hidden = collapse ? items.slice(cap) : [];
+
   return (
     <>
-      {offers.giftCards.length > 0 ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {offers.giftCards.map((offer) => (
-            <GiftCardOfferCard key={offer.id} offer={offer} />
-          ))}
-        </div>
+      <div className={gridClassName}>{visible.map(render)}</div>
+      {hidden.length > 0 ? (
+        // Native <details>: no hydration, works with JS off, keyboard
+        // accessible for free, and every offer stays in the server-rendered
+        // HTML. The grid sits INSIDE the details rather than being one, so
+        // the disclosure cannot disturb the grid's own layout.
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-400">
+            Show {hidden.length} more {label}{" "}
+            {hidden.length === 1 ? "offer" : "offers"}
+          </summary>
+          <div className={`${gridClassName} mt-3`}>{hidden.map(render)}</div>
+        </details>
       ) : null}
-      {offers.points.length > 0 ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {offers.points.map((offer) => (
-            <PointsOfferCard key={offer.id} offer={offer} />
-          ))}
-        </div>
-      ) : null}
+    </>
+  );
+}
+
+function OfferGrids({
+  offers,
+  cap,
+  label,
+}: {
+  offers: ProgrammeOffers;
+  cap?: OfferCap;
+  label: string;
+}) {
+  return (
+    <>
+      <CappedGrid
+        items={offers.giftCards}
+        cap={cap?.giftCards}
+        gridClassName="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        label={label}
+        render={(offer) => <GiftCardOfferCard key={offer.id} offer={offer} />}
+      />
+      <CappedGrid
+        items={offers.points}
+        cap={cap?.points}
+        gridClassName="mt-4 grid gap-3 sm:grid-cols-2"
+        label={label}
+        render={(offer) => <PointsOfferCard key={offer.id} offer={offer} />}
+      />
     </>
   );
 }
@@ -59,6 +130,7 @@ export function ProgrammeOfferList({
   bonuses,
   headingLevel = "h2",
   ownOffersHeading = "Current reviewed offers",
+  cap,
 }: {
   programme: RewardsProgramme;
   /** The programme's OWN offers — already filtered and ordered. */
@@ -69,6 +141,13 @@ export function ProgrammeOfferList({
   bonuses: PointsTransferBonus[];
   headingLevel?: HeadingLevel;
   ownOffersHeading?: string;
+  /**
+   * Show only this many per grid, rest behind a disclosure. OPT-IN: omitting
+   * it shows everything, which is what /rewards/[slug] needs — it is the
+   * destination the capped homepage links to, so capping it too would leave
+   * nowhere to read the full list.
+   */
+  cap?: OfferCap;
 }) {
   const Heading = headingLevel;
 
@@ -91,7 +170,11 @@ export function ProgrammeOfferList({
             only after approval.
           </p>
         ) : (
-          <OfferGrids offers={offers} />
+          <OfferGrids
+            offers={offers}
+            cap={cap}
+            label={programme.shortName}
+          />
         )}
       </section>
 
@@ -116,7 +199,11 @@ export function ProgrammeOfferList({
               : ""}
             {TRANSFER_BONUS_NOTE}
           </p>
-          <OfferGrids offers={feederOffers} />
+          <OfferGrids
+            offers={feederOffers}
+            cap={cap}
+            label={feeder.shortName}
+          />
         </section>
       ))}
     </>

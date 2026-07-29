@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, Plane } from "lucide-react";
-import ProgrammeOfferList from "@/components/rewards/ProgrammeOfferList";
+import ProgrammeOfferList, {
+  HOME_OFFER_CAP,
+} from "@/components/rewards/ProgrammeOfferList";
 import type {
   GiftCardOffer,
   PointsOffer,
@@ -22,7 +24,9 @@ import { bonusesInto } from "@/lib/rewards/transferBonus";
  *
  * Rendering is delegated to ProgrammeOfferList, the same component
  * /rewards/[slug] uses, so the homepage cannot drift from the detail page it
- * links to.
+ * links to. Here it is CAPPED — the uncapped page ran to ~5,800px, nearly all
+ * of it the Velocity list — with the remainder one keystroke away behind a
+ * native disclosure that names how many it is hiding.
  */
 export function HomeProgrammeOffers({
   pointsOffers,
@@ -92,6 +96,7 @@ export function HomeProgrammeOffers({
                 bonuses={bonuses}
                 headingLevel="h4"
                 ownOffersHeading={`${programme.shortName} offers`}
+                cap={HOME_OFFER_CAP}
               />
             </div>
           );
