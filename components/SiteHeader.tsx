@@ -33,6 +33,19 @@ const NAV_LINKS = [
   { label: "Card offers", href: "/cards", icon: CreditCard },
 ] as const;
 
+/**
+ * The design's top bar: four destinations, then the Plan-a-purchase pill.
+ * Deliberately narrower than NAV_LINKS — Gift cards, Cashback, Points and
+ * Stores stay one tap away in the mobile menu and in the footer's Explore
+ * column, so nothing here removes a route from the site.
+ */
+const DESKTOP_NAV_LINKS = [
+  { label: "Qantas", href: "/rewards/qantas-frequent-flyer" },
+  { label: "Velocity", href: "/rewards/velocity-frequent-flyer" },
+  { label: "Deals", href: "/deals" },
+  { label: "Credit cards", href: "/cards" },
+] as const;
+
 const MOBILE_DOCK_LINKS = [
   { label: "Home", href: "/", icon: Home },
   { label: "Deals", href: "/deals", icon: BadgePercent },
@@ -63,9 +76,8 @@ export function SiteHeader() {
             className="ml-auto hidden items-center gap-1 lg:flex"
             aria-label="Primary navigation"
           >
-            {NAV_LINKS.map(({ label, href, ...item }) => {
+            {DESKTOP_NAV_LINKS.map(({ label, href }) => {
               const active = isActive(pathname, href);
-              const primary = "primary" in item && item.primary;
               return (
                 <Link
                   key={href}
@@ -73,17 +85,21 @@ export function SiteHeader() {
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3.5 py-2 text-sm font-semibold transition-colors",
-                    primary
-                      ? "bg-[#f7f5f0] text-[#0e1512] shadow-sm hover:bg-[#e4e0d6]"
-                      : active
-                        ? "bg-white/15 text-white"
-                        : "text-[#f7f5f0]/80 hover:bg-white/10 hover:text-white",
+                    active
+                      ? "bg-white/15 text-white"
+                      : "text-[#f7f5f0]/80 hover:bg-white/10 hover:text-white",
                   )}
                 >
                   {label}
                 </Link>
               );
             })}
+            <Link
+              href="/search"
+              className="ml-2 rounded-full bg-[#f7f5f0] px-4 py-2 text-sm font-bold text-[#0e1512] shadow-sm transition-colors hover:bg-[#e4e0d6]"
+            >
+              Plan a purchase
+            </Link>
           </nav>
 
           <Link

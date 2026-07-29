@@ -90,19 +90,24 @@ test("public navigation keeps the purchase planner and core tasks easy to reach"
     tiles.getByRole("link", { name: /Credit cards/ }),
   ).toHaveAttribute("href", "/cards");
 
-  await page.goto("/gift-cards");
+  await page.goto("/deals");
   const header = page.getByRole("banner");
   await expect(
-    header.getByRole("link", { name: "Gift cards", exact: true }),
+    header.getByRole("link", { name: "Deals", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
     header.getByRole("link", { name: "Plan a purchase" }),
   ).toHaveAttribute("href", "/search");
 
-  await page.goto("/cashback");
+  // Sibling programme routes must not both read as current.
+  await page.goto("/rewards/velocity-frequent-flyer");
+  const rewardsHeader = page.getByRole("banner");
   await expect(
-    page.getByRole("banner").getByRole("link", { name: "Cashback" }),
+    rewardsHeader.getByRole("link", { name: "Velocity", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(
+    rewardsHeader.getByRole("link", { name: "Qantas", exact: true }),
+  ).not.toHaveAttribute("aria-current", "page");
 });
 
 test("mobile navigation exposes labelled destinations without horizontal overflow", async ({
