@@ -1,4 +1,13 @@
 {
+  "extraKnownMarketplaces": {
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail",
+        "ref": "v4.8.4"
+      }
+    }
+  },
   "enabledPlugins": {
     "ponytail@ponytail": true
   }
