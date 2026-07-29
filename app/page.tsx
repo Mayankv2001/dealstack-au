@@ -18,7 +18,19 @@ import {
   getCurrentReviewedGiftCardOffers,
   getCurrentReviewedPointsOffers,
   getTransferBonuses,
+  getWeeklyDeals,
 } from "@/lib/repos";
+import { buildPublicDeals } from "@/lib/deals/normalise";
+import { endingSoonDeals, latestReviewedDeals } from "@/lib/deals/highlights";
+import {
+  CategoryTiles,
+  EndingSoonSection,
+  HowWeReview,
+  LatestReviewedSection,
+  ProgrammeInkCards,
+} from "@/components/home/FrontPageSections";
+import { countForProgramme } from "@/lib/rewards/offerCounts";
+import { airlineProgrammes } from "@/lib/rewards/programmes";
 import {
   PROGRAMME_TAB_PARAM,
   parseProgrammeTab,
@@ -62,8 +74,14 @@ export default async function Home({
   const activeProgramme = parseProgrammeTab(
     (await searchParams)[PROGRAMME_TAB_PARAM]
   );
-  const [data, giftCardCarouselOffers, pointsOffers, transferBonuses, cardOffers] =
-    await Promise.all([
+  const [
+    data,
+    giftCardCarouselOffers,
+    pointsOffers,
+    transferBonuses,
+    cardOffers,
+    weeklyDeals,
+  ] = await Promise.all([
       loadStackData(),
       // The carousel keeps reviewed offers whose expiry is merely unknown
       // (ranked last) plus labelled upcoming-soon offers, so it shows the full
@@ -78,6 +96,7 @@ export default async function Home({
       getCurrentReviewedPointsOffers(),
       getTransferBonuses(),
       getCardOffers(),
+      getWeeklyDeals(),
     ]);
   const recommendations = buildStackRecommendations(undefined, 500, data, now);
   const { best } = partitionStacks(recommendations);
@@ -103,6 +122,47 @@ export default async function Home({
     (max, offer) => (offer.lastCheckedAt > max ? offer.lastCheckedAt : max),
     "",
   );
+  // The same normalised pool /deals queries, so the front-page highlight
+  // sections can never disagree with the deals page about titles or dates.
+  const publicDeals = buildPublicDeals(
+    {
+      stores: data.stores,
+      giftCards: data.giftCardOffers,
+      cashback: data.cashbackOffers,
+      points: data.pointsOffers,
+      weekly: weeklyDeals,
+      stackableMerchantIds: new Set(recommendations.map((r) => r.merchantId)),
+    },
+    now,
+  );
+  const liveDeals = publicDeals.filter((d) => d.dateStatus !== "expired");
+  const [qantas, velocity] = airlineProgrammes();
+  const categoryTiles = [
+    {
+      name: "Qantas",
+      count: countForProgramme(qantas, pointsOffers, data.giftCardOffers),
+      desc: "Frequent Flyer bonuses, shopping boosts and transfer promos.",
+      href: "/rewards/qantas-frequent-flyer",
+    },
+    {
+      name: "Velocity",
+      count: countForProgramme(velocity, pointsOffers, data.giftCardOffers),
+      desc: "Velocity offers plus Flybuys transfers at the base rate.",
+      href: "/rewards/velocity-frequent-flyer",
+    },
+    {
+      name: "Deals",
+      count: liveDeals.length,
+      desc: "Cashback, gift card discounts and stackable store offers.",
+      href: "/deals",
+    },
+    {
+      name: "Credit cards",
+      count: cardOffers.length,
+      desc: "Sign-up bonuses with fees and spend requirements up front.",
+      href: "/cards",
+    },
+  ];
   const checkStamp = {
     lastChecked: formatDateAU(lastCheckedIso.slice(0, 10)) ?? "recently",
     liveCount: stampPool.length,
@@ -142,6 +202,12 @@ export default async function Home({
               />
             }
           />
+
+          <CategoryTiles tiles={categoryTiles} />
+          <EndingSoonSection deals={endingSoonDeals(publicDeals, now)} />
+          <LatestReviewedSection deals={latestReviewedDeals(publicDeals)} />
+          <ProgrammeInkCards />
+          <HowWeReview />
 
           <SavingsLayersSection />
           <CalculatorSection recommendations={recommendations} />
