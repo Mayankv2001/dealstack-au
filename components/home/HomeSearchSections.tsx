@@ -4,14 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgePercent,
   Check,
-  CircleDollarSign,
   Clock3,
-  Gift,
   Layers3,
   Search,
-  Sparkles,
   Store as StoreIcon,
 } from "lucide-react";
 import SearchBar from "@/components/SearchBar";
@@ -24,33 +20,6 @@ import { summariseStackOutcome } from "@/lib/stack/outcome";
 import { buildStackSteps } from "@/lib/stack/present";
 
 const POPULAR_STARTS = ["Apple", "JB Hi-Fi", "Woolworths", "Myer"] as const;
-
-const QUICK_PATHS = [
-  {
-    title: "Browse current deals",
-    text: "Verified, latest and expiring offers",
-    href: "/deals",
-    icon: BadgePercent,
-  },
-  {
-    title: "Find the right gift card",
-    text: "Offers, sellers and where cards work",
-    href: "/gift-cards",
-    icon: Gift,
-  },
-  {
-    title: "Compare points offers",
-    text: "Qantas, Velocity, Flybuys and Everyday Rewards",
-    href: "/rewards",
-    icon: Sparkles,
-  },
-  {
-    title: "Check cashback conditions",
-    text: "Rates, caps and gift-card conflicts",
-    href: "/cashback",
-    icon: CircleDollarSign,
-  },
-] as const;
 
 const PLAN_OUTPUTS = [
   ["Pay now", "Cash price after compatible checkout savings"],
@@ -218,61 +187,29 @@ export function HomeSearchSections({
 
       {marquee}
 
-      <section className="page-container py-10 sm:py-12" aria-labelledby="browse-heading">
-        <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-12">
-          <div>
-            <p className="eyebrow">Go straight to the answer</p>
-            <h2 id="browse-heading" className="section-title mt-2">
-              Browse by what you need
-            </h2>
-            <div className="mt-5 divide-y border-y">
-              {QUICK_PATHS.map(({ title, text, href, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="group flex items-center gap-3 py-4"
-                >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-800">
-                    <Icon aria-hidden className="size-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-bold">{title}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {text}
-                    </span>
-                  </span>
-                  <ArrowRight
-                    aria-hidden
-                    className="size-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-emerald-700"
-                  />
-                </Link>
-              ))}
+      {/* The category tiles below now carry the browse role; this section
+          keeps only the featured plan. */}
+      <section className="page-container py-10 sm:py-12" aria-label="Featured plan">
+        {heroStack ? (
+          <FeaturedPlan recommendation={heroStack} />
+        ) : (
+          <div className="flex flex-col items-start justify-center border border-foreground/10 bg-card p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <Layers3 aria-hidden className="size-5 text-emerald-700" />
+              <h3 className="font-black">Plan one purchase end-to-end</h3>
             </div>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Search a store or product to get the best cash option, the
+              gift cards that work there, rewards kept separate, and the
+              safe order to apply each step.
+            </p>
+            <Button asChild className="mt-5 bg-emerald-700 text-white hover:bg-emerald-800">
+              <Link href="/search">
+                Start a purchase plan <ArrowRight aria-hidden />
+              </Link>
+            </Button>
           </div>
-
-          {heroStack ? (
-            <FeaturedPlan recommendation={heroStack} />
-          ) : (
-            // Compact fallback — the four-point explainer duplicated the
-            // planner card's Pay now / Ways to pay / Earn later terms above.
-            <div className="flex flex-col items-start justify-center border border-foreground/10 bg-card p-5 sm:p-6">
-              <div className="flex items-center gap-2">
-                <Layers3 aria-hidden className="size-5 text-emerald-700" />
-                <h3 className="font-black">Plan one purchase end-to-end</h3>
-              </div>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Search a store or product to get the best cash option, the
-                gift cards that work there, rewards kept separate, and the
-                safe order to apply each step.
-              </p>
-              <Button asChild className="mt-5 bg-emerald-700 text-white hover:bg-emerald-800">
-                <Link href="/search">
-                  Start a purchase plan <ArrowRight aria-hidden />
-                </Link>
-              </Button>
-            </div>
-          )}
-        </div>
+        )}
       </section>
 
       <section

@@ -76,18 +76,19 @@ test("public navigation keeps the purchase planner and core tasks easy to reach"
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
+  const tiles = page.locator("section[aria-label='Browse by category']");
   await expect(
-    page.getByRole("link", { name: "Browse current deals" }),
+    tiles.getByRole("link", { name: /Qantas/ }),
+  ).toHaveAttribute("href", "/rewards/qantas-frequent-flyer");
+  await expect(
+    tiles.getByRole("link", { name: /Velocity/ }),
+  ).toHaveAttribute("href", "/rewards/velocity-frequent-flyer");
+  await expect(
+    tiles.getByRole("link", { name: /Deals/ }),
   ).toHaveAttribute("href", "/deals");
   await expect(
-    page.getByRole("link", { name: "Find the right gift card" }),
-  ).toHaveAttribute("href", "/gift-cards");
-  await expect(
-    page.getByRole("link", { name: "Compare points offers" }),
-  ).toHaveAttribute("href", "/rewards");
-  await expect(
-    page.getByRole("link", { name: "Check cashback conditions" }),
-  ).toHaveAttribute("href", "/cashback");
+    tiles.getByRole("link", { name: /Credit cards/ }),
+  ).toHaveAttribute("href", "/cards");
 
   await page.goto("/gift-cards");
   const header = page.getByRole("banner");
