@@ -26,10 +26,28 @@
 
 name: Gift-card lifecycle (7am Sydney)
 
+# SCHEDULE DISABLED 2026-07-30, at the owner's request.
+#
+# GIFT_CARD_LIFECYCLE_ENABLED is not "true" in Vercel, so the endpoint answers
+# `skipped: "environment-disabled"` and this workflow exits 2 every morning —
+# working exactly as designed, but a daily red X for a job that has never done
+# any work. CRON_SECRET is NOT the problem: the ingest and weekly-ingest
+# workflows read the same secret and both pass.
+#
+# What stays off while this is disabled (unchanged from the status quo, since
+# the endpoint was already disabled):
+#   - approved-future offers are never auto-activated
+#   - expired offers are never history-sealed for /gift-cards/history
+# Expiry ARCHIVAL is unaffected — the always-on daily pipeline covers it
+# (docs/offer-expiry-semantics.md).
+#
+# To re-enable: set GIFT_CARD_LIFECYCLE_ENABLED=true in Vercel Production,
+# redeploy, then uncomment the two cron lines below. workflow_dispatch is
+# deliberately left active so the endpoint can still be exercised on demand.
 on:
-  schedule:
-    - cron: "7 20 * * *" # 07:07 AEDT (UTC+11)
-    - cron: "7 21 * * *" # 07:07 AEST (UTC+10)
+  # schedule:
+  #   - cron: "7 20 * * *" # 07:07 AEDT (UTC+11)
+  #   - cron: "7 21 * * *" # 07:07 AEST (UTC+10)
   workflow_dispatch:
     inputs:
       force:
