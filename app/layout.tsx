@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { Geist, Geist_Mono } from "next/font/google";
 import { siteUrl } from "@/lib/env";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 // Site-wide defaults; routes that export their own metadata override these.
 export const metadata: Metadata = {
@@ -35,11 +24,11 @@ export default async function RootLayout({
   // Nonce-based CSP requires request-time rendering so Next can attach the
   // proxy-generated nonce to framework scripts.
   await connection();
+  // Fonts are self-hosted woff2 declared in globals.css (@font-face): CSP is
+  // font-src 'self', so next/font's CDN loaders are deliberately not used and
+  // no font CSS variable is set here.
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
