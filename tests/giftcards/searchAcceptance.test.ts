@@ -63,11 +63,16 @@ const acceptance: GiftCardAcceptanceRow[] = [
 ];
 
 describe("bidirectional gift-card acceptance search", () => {
+  // Fixed clock: the fixtures were checked 2026-07-12 and this asserts
+  // freshness "current", which STALE_DATA_DAYS flips 21 days later. Omitting
+  // `now` here meant the case was timed to start failing on 2026-08-02.
+  const AT = new Date("2026-07-15T00:00:00Z");
+
   it("finds the card from a merchant query and the merchant from a card query", () => {
-    expect(searchGiftCardAcceptance(products, acceptance, "JB Hi-Fi")).toEqual([
+    expect(searchGiftCardAcceptance(products, acceptance, "JB Hi-Fi", AT)).toEqual([
       { product: products[0], row: acceptance[0], freshness: "current" },
     ]);
-    expect(searchGiftCardAcceptance(products, acceptance, "Ultimate")).toEqual([
+    expect(searchGiftCardAcceptance(products, acceptance, "Ultimate", AT)).toEqual([
       { product: products[0], row: acceptance[0], freshness: "current" },
     ]);
   });
