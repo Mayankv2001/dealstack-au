@@ -83,6 +83,9 @@ function parsePointsForm(formData: FormData): ParseResult {
     return { ok: false, error: "Point value (cents) must be a non-negative number." };
   }
 
+  const conditionsNote =
+    String(formData.get("conditions_note") ?? "").trim() || null;
+
   const startsRaw = String(formData.get("starts_on") ?? "").trim();
   const startsOn = startsRaw === "" ? null : startsRaw;
 
@@ -118,6 +121,7 @@ function parsePointsForm(formData: FormData): ParseResult {
       mechanism: mechanism as PointsMechanism,
       startsOn,
       expiryDate,
+      conditionsNote,
       confidence: confidence as Confidence,
       citations,
       isPublished: parseBool(formData, "is_published"),

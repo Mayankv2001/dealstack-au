@@ -48,6 +48,7 @@ export default async function EditPointsPage({
           mechanism: offer.mechanism,
           startsOn: offer.startsOn,
           expiryDate: offer.expiryDate,
+          conditionsNote: offer.conditionsNote,
           sourceUrl: offer.citations[0]?.sourceUrl ?? "",
           confidence: offer.confidence,
           isPublished: offer.isPublished,

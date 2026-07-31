@@ -29,6 +29,13 @@ export function PointsOfferCard({
         <p className="mt-1 text-sm text-muted-foreground">
           {offer.mechanism.replaceAll("-", " ")} · points are estimated, not cash
         </p>
+        {offer.conditionsNote ? (
+          // Clamped: these cards sit in a 2-up grid, and one long note would
+          // otherwise set the row height for every card beside it.
+          <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-muted-foreground">
+            {offer.conditionsNote}
+          </p>
+        ) : null}
         <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>Checked {formatDateAU(offer.lastCheckedAt.slice(0, 10))}</span>
           {dateLabels.map((label) => (

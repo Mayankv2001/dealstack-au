@@ -117,6 +117,9 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // partial index) so a promotion with a future start is representable
   // instead of being held back as a draft.
   "042_points_offer_start_date.sql",
+  // Adds points_offers.conditions_note — limits, fees, channel, activation and
+  // crediting time, in our own words. Column only, no constraints or RLS.
+  "043_points_offer_conditions_note.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -225,9 +228,12 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "id", "merchant_id", "program", "earn_rate_display", "earn_multiple",
       "point_value_cents", "mechanism", "expiry_date", "citations", "confidence",
       "last_checked_at", "is_published", "created_at", "updated_at",
-      "starts_on",
+      "starts_on", "conditions_note",
     ],
-    { starts_on: "042_points_offer_start_date.sql" }
+    {
+      starts_on: "042_points_offer_start_date.sql",
+      conditions_note: "043_points_offer_conditions_note.sql",
+    }
   ),
   weekly_deals: table("001_initial_schema.sql", [
     "id", "week_of", "merchant_id", "title", "summary", "highlight",

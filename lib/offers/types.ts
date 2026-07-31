@@ -303,6 +303,11 @@ export interface PointsOffer {
    */
   startsOn: string | null;
   expiryDate: string | null;
+  /**
+   * Our own short note on the conditions — limits, fees, channel, activation,
+   * crediting time. Never copied source prose. Null = none recorded.
+   */
+  conditionsNote: string | null;
   citations: Citation[];
   confidence: Confidence;
   lastCheckedAt: string;

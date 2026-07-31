@@ -505,6 +505,7 @@ interface PointsRow {
   mechanism: PointsOffer["mechanism"];
   starts_on: string | null;
   expiry_date: string | null;
+  conditions_note: string | null;
   citations: Citation[];
   confidence: Confidence;
   last_checked_at: string;
@@ -521,6 +522,7 @@ function mapPoints(r: PointsRow): PointsOffer {
     mechanism: r.mechanism,
     startsOn: r.starts_on ?? null,
     expiryDate: r.expiry_date,
+    conditionsNote: r.conditions_note ?? null,
     citations: safeCitations(r.citations),
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,

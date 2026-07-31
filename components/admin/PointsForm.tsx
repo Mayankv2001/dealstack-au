@@ -55,6 +55,7 @@ export interface PointsFormDefaults {
   mechanism?: string;
   startsOn?: string | null;
   expiryDate?: string | null;
+  conditionsNote?: string | null;
   sourceUrl?: string;
   confidence?: string;
   isPublished?: boolean;
@@ -287,6 +288,20 @@ export function PointsForm({
               rows={2}
               defaultValue={defaultValues?.earnRateDisplay ?? ""}
               className={cn(controlClass, "min-h-16")}
+            />
+          </Field>
+
+          <Field
+            label="Conditions"
+            htmlFor="conditions_note"
+            hint="Optional. Our own short note — limits, fees, in-store/online, activation, when points credit. Never paste the source's wording."
+          >
+            <textarea
+              id="conditions_note"
+              name="conditions_note"
+              rows={3}
+              defaultValue={defaultValues?.conditionsNote ?? ""}
+              className={cn(controlClass, "min-h-20")}
             />
           </Field>
 

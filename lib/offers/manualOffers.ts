@@ -315,6 +315,7 @@ export const pointsOffers: PointsOffer[] = [
     pointValueCents: 0.5, // ~2,000 pts ≈ $10 in sample terms
     mechanism: "in-store-boost",
     startsOn: null,
+    conditionsNote: null,
     expiryDate: sampleDate(22),
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
@@ -331,6 +332,7 @@ export const pointsOffers: PointsOffer[] = [
     pointValueCents: 0.5,
     mechanism: "base-earn",
     startsOn: null,
+    conditionsNote: null,
     expiryDate: null,
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
@@ -347,6 +349,7 @@ export const pointsOffers: PointsOffer[] = [
     pointValueCents: 1, // ~1c/pt sample valuation
     mechanism: "shopping-portal",
     startsOn: null,
+    conditionsNote: null,
     expiryDate: sampleDate(97),
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },
@@ -363,6 +366,7 @@ export const pointsOffers: PointsOffer[] = [
     pointValueCents: 1,
     mechanism: "shopping-portal",
     startsOn: null,
+    conditionsNote: null,
     expiryDate: sampleDate(33),
     citations: [
       { source: "freepoints", sourceUrl: "https://www.freepoints.com.au" },

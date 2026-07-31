@@ -62,6 +62,7 @@ export interface PointsOfferInput {
   mechanism: PointsMechanism;
   startsOn: string | null;
   expiryDate: string | null;
+  conditionsNote: string | null;
   confidence: Confidence;
   citations: Citation[];
   isPublished: boolean;
@@ -78,6 +79,7 @@ interface AdminPointsRow {
   mechanism: PointsMechanism;
   starts_on: string | null;
   expiry_date: string | null;
+  conditions_note: string | null;
   citations: Citation[];
   confidence: Confidence;
   last_checked_at: string;
@@ -99,6 +101,7 @@ function mapAdminPoints(r: AdminPointsRow): AdminPointsOffer {
     mechanism: r.mechanism,
     startsOn: r.starts_on ?? null,
     expiryDate: r.expiry_date,
+    conditionsNote: r.conditions_note ?? null,
     citations: r.citations ?? [],
     confidence: r.confidence,
     lastCheckedAt: r.last_checked_at,
@@ -119,6 +122,7 @@ function toRow(input: PointsOfferInput) {
     mechanism: input.mechanism,
     starts_on: input.startsOn,
     expiry_date: input.expiryDate,
+    conditions_note: input.conditionsNote,
     citations: input.citations as unknown as Json,
     confidence: input.confidence,
     is_published: input.isPublished,

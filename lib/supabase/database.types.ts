@@ -1692,6 +1692,7 @@ export type Database = {
       points_offers: {
         Row: {
           citations: Json
+          conditions_note: string | null
           confidence: string
           created_at: string
           earn_multiple: number | null
@@ -1709,6 +1710,7 @@ export type Database = {
         }
         Insert: {
           citations?: Json
+          conditions_note?: string | null
           confidence: string
           created_at?: string
           earn_multiple?: number | null
@@ -1726,6 +1728,7 @@ export type Database = {
         }
         Update: {
           citations?: Json
+          conditions_note?: string | null
           confidence?: string
           created_at?: string
           earn_multiple?: number | null

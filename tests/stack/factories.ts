@@ -161,6 +161,7 @@ export function makePoints(over: Partial<PointsOffer> = {}): PointsOffer {
     pointValueCents: 1,
     mechanism: "in-store-boost",
     startsOn: null,
+    conditionsNote: null,
     expiryDate: null,
     citations: [{ source: "manual", sourceUrl: "/" }],
     confidence: "confirmed",
