@@ -259,6 +259,41 @@ describe("buildMarquee with points offers", () => {
     expect(slide.valueBadge).toBe("20× POINTS");
   });
 
+  it("badges a one-off award with its size, not a bare POINTS", () => {
+    const { slides } = buildMarquee([], NOW, {
+      points: [
+        makePoints({
+          id: "pts-mastercard",
+          earnRateDisplay: "2,000 points on Mastercard gift cards",
+          earnMultiple: null,
+          fixedPoints: 2000,
+          pointValueCents: 0.5,
+          expiryDate: "2026-07-15",
+        }),
+      ],
+      storeNames,
+    });
+    expect(slides[0].valueBadge).toBe("2,000 POINTS");
+    // The award is worth disclosing as an estimate, never as a cash saving.
+    expect(slides[0].example?.points).toBe(2000);
+    expect(slides[0].example?.saving).toBe(0);
+  });
+
+  it("prefers the per-dollar rate over a lump sum when an offer has both", () => {
+    const { slides } = buildMarquee([], NOW, {
+      points: [
+        makePoints({
+          id: "pts-both",
+          earnMultiple: 20,
+          fixedPoints: 2000,
+          expiryDate: "2026-07-15",
+        }),
+      ],
+      storeNames,
+    });
+    expect(slides[0].valueBadge).toBe("20× POINTS");
+  });
+
   it("drops an expired points offer", () => {
     const { slides, liveCount } = buildMarquee([], NOW, {
       points: [makePoints({ id: "pts-gone", expiryDate: "2026-07-01" })],

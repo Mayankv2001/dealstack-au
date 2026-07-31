@@ -282,6 +282,13 @@ export interface PointsOffer {
   earnRateDisplay: string;
   /** Numeric multiplier for math, null when display-only. */
   earnMultiple: number | null;
+  /**
+   * One-off points award, e.g. 2000 for "2,000 points per card" — the figure
+   * an offer of that kind is actually about. Null when the offer pays a rate
+   * rather than a lump sum. Mirrors gift_card_offers.fixed_points; where a
+   * display can show only one, `earnMultiple` wins. Migration 044.
+   */
+  fixedPoints: number | null;
   /** Assumed value of one point in cents, for effective-price estimates. */
   pointValueCents: number | null;
   /**

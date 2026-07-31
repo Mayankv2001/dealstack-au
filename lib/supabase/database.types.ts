@@ -1696,6 +1696,7 @@ export type Database = {
           confidence: string
           created_at: string
           earn_multiple: number | null
+          fixed_points: number | null
           earn_rate_display: string
           expiry_date: string | null
           id: string
@@ -1714,6 +1715,7 @@ export type Database = {
           confidence: string
           created_at?: string
           earn_multiple?: number | null
+          fixed_points?: number | null
           earn_rate_display?: string
           expiry_date?: string | null
           id: string
@@ -1732,6 +1734,7 @@ export type Database = {
           confidence?: string
           created_at?: string
           earn_multiple?: number | null
+          fixed_points?: number | null
           earn_rate_display?: string
           expiry_date?: string | null
           id?: string

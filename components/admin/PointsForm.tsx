@@ -51,6 +51,7 @@ export interface PointsFormDefaults {
   program?: string;
   earnRateDisplay?: string;
   earnMultiple?: number | null;
+  fixedPoints?: number | null;
   pointValueCents?: number | null;
   mechanism?: string;
   startsOn?: string | null;
@@ -213,6 +214,23 @@ export function PointsForm({
                 step="0.01"
                 inputMode="decimal"
                 defaultValue={defaultValues?.earnMultiple ?? ""}
+                className="max-w-xs"
+              />
+            </Field>
+
+            <Field
+              label="Fixed points award"
+              htmlFor="fixed_points"
+              hint="Optional one-off award, e.g. 2000 for &ldquo;2,000 points per card&rdquo;. Leave empty when the offer pays a per-dollar rate."
+            >
+              <Input
+                id="fixed_points"
+                name="fixed_points"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                defaultValue={defaultValues?.fixedPoints ?? ""}
                 className="max-w-xs"
               />
             </Field>

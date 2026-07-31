@@ -158,6 +158,7 @@ export function makePoints(over: Partial<PointsOffer> = {}): PointsOffer {
     program: "Flybuys",
     earnRateDisplay: "2x / $1",
     earnMultiple: 2,
+    fixedPoints: null,
     pointValueCents: 1,
     mechanism: "in-store-boost",
     startsOn: null,

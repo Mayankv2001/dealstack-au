@@ -162,7 +162,7 @@ function pointsSlide(
       discountPercent: 0,
       bonusPercent: null,
       pointsMultiplier: offer.earnMultiple,
-      fixedPoints: null,
+      fixedPoints: offer.fixedPoints,
       pointsProgram: offer.program,
       pointsValueCents: offer.pointValueCents,
       fixedDiscountDollars: null,
@@ -177,9 +177,13 @@ function pointsSlide(
     id: offer.id,
     detailHref: programme ? `/rewards/${programme.slug}` : "/rewards",
     mechanicLabel: "Points",
+    // Same precedence as the gift-card badge: a per-dollar rate beats a lump
+    // sum, because it is the figure that scales with what you spend.
     valueBadge: offer.earnMultiple
       ? `${offer.earnMultiple}× POINTS`
-      : "POINTS",
+      : offer.fixedPoints
+        ? `${offer.fixedPoints.toLocaleString("en-AU")} POINTS`
+        : "POINTS",
     brandPrimary: offer.earnRateDisplay,
     headline: offer.earnRateDisplay,
     sellerLabel: sellerLabel || offer.program,

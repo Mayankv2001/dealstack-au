@@ -120,6 +120,10 @@ export const COVERED_MIGRATIONS: readonly string[] = [
   // Adds points_offers.conditions_note — limits, fees, channel, activation and
   // crediting time, in our own words. Column only, no constraints or RLS.
   "043_points_offer_conditions_note.sql",
+  // Adds points_offers.fixed_points so a one-off award ("2,000 points per
+  // card") is a number rather than prose inside earn_rate_display. Column
+  // only, no constraints or RLS.
+  "044_points_offer_fixed_points.sql",
 ];
 
 /** Builds a table entry whose columns default to the table's own migration. */
@@ -228,11 +232,12 @@ export const EXPECTED_SCHEMA: Record<string, ExpectedTable> = {
       "id", "merchant_id", "program", "earn_rate_display", "earn_multiple",
       "point_value_cents", "mechanism", "expiry_date", "citations", "confidence",
       "last_checked_at", "is_published", "created_at", "updated_at",
-      "starts_on", "conditions_note",
+      "starts_on", "conditions_note", "fixed_points",
     ],
     {
       starts_on: "042_points_offer_start_date.sql",
       conditions_note: "043_points_offer_conditions_note.sql",
+      fixed_points: "044_points_offer_fixed_points.sql",
     }
   ),
   weekly_deals: table("001_initial_schema.sql", [

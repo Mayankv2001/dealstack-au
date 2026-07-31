@@ -501,6 +501,7 @@ interface PointsRow {
   program: string;
   earn_rate_display: string;
   earn_multiple: number | string | null;
+  fixed_points: number | string | null;
   point_value_cents: number | string | null;
   mechanism: PointsOffer["mechanism"];
   starts_on: string | null;
@@ -518,6 +519,7 @@ function mapPoints(r: PointsRow): PointsOffer {
     program: r.program,
     earnRateDisplay: r.earn_rate_display,
     earnMultiple: toNumberOrNull(r.earn_multiple),
+    fixedPoints: toNumberOrNull(r.fixed_points),
     pointValueCents: toNumberOrNull(r.point_value_cents),
     mechanism: r.mechanism,
     startsOn: r.starts_on ?? null,

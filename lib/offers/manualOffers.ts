@@ -312,6 +312,7 @@ export const pointsOffers: PointsOffer[] = [
     program: "Everyday Rewards",
     earnRateDisplay: "20x points per $1 (activated offer)",
     earnMultiple: 20,
+    fixedPoints: null,
     pointValueCents: 0.5, // ~2,000 pts ≈ $10 in sample terms
     mechanism: "in-store-boost",
     startsOn: null,
@@ -329,6 +330,7 @@ export const pointsOffers: PointsOffer[] = [
     program: "Flybuys",
     earnRateDisplay: "1 point per $1",
     earnMultiple: 1,
+    fixedPoints: null,
     pointValueCents: 0.5,
     mechanism: "base-earn",
     startsOn: null,
@@ -346,6 +348,7 @@ export const pointsOffers: PointsOffer[] = [
     program: "Qantas",
     earnRateDisplay: "3 Qantas pts per $1 (Qantas Shopping)",
     earnMultiple: 3,
+    fixedPoints: null,
     pointValueCents: 1, // ~1c/pt sample valuation
     mechanism: "shopping-portal",
     startsOn: null,
@@ -363,6 +366,7 @@ export const pointsOffers: PointsOffer[] = [
     program: "Velocity",
     earnRateDisplay: "2 Velocity pts per $1 (Velocity e-Store)",
     earnMultiple: 2,
+    fixedPoints: null,
     pointValueCents: 1,
     mechanism: "shopping-portal",
     startsOn: null,

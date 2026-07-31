@@ -67,6 +67,7 @@ function points(over: Partial<PointsOffer> = {}): PointsOffer {
     program: "Everyday Rewards",
     earnRateDisplay: "20x points per $1",
     earnMultiple: 20,
+    fixedPoints: null,
     pointValueCents: 0.5,
     mechanism: "in-store-boost",
     startsOn: null,

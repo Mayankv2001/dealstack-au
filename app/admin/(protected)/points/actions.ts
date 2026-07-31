@@ -78,6 +78,14 @@ function parsePointsForm(formData: FormData): ParseResult {
     return { ok: false, error: "Earn multiple must be a non-negative number." };
   }
 
+  const fixedPoints = parseOptionalAmount(formData.get("fixed_points"));
+  if (!fixedPoints.ok) {
+    return {
+      ok: false,
+      error: "Fixed points award must be a non-negative number.",
+    };
+  }
+
   const pointValueCents = parseOptionalAmount(formData.get("point_value_cents"));
   if (!pointValueCents.ok) {
     return { ok: false, error: "Point value (cents) must be a non-negative number." };
@@ -117,6 +125,7 @@ function parsePointsForm(formData: FormData): ParseResult {
       program,
       earnRateDisplay: String(formData.get("earn_rate_display") ?? "").trim(),
       earnMultiple: earnMultiple.value,
+      fixedPoints: fixedPoints.value,
       pointValueCents: pointValueCents.value,
       mechanism: mechanism as PointsMechanism,
       startsOn,

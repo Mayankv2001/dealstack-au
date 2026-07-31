@@ -58,6 +58,7 @@ export interface PointsOfferInput {
   program: string;
   earnRateDisplay: string;
   earnMultiple: number | null;
+  fixedPoints: number | null;
   pointValueCents: number | null;
   mechanism: PointsMechanism;
   startsOn: string | null;
@@ -75,6 +76,7 @@ interface AdminPointsRow {
   program: string;
   earn_rate_display: string;
   earn_multiple: number | string | null;
+  fixed_points: number | string | null;
   point_value_cents: number | string | null;
   mechanism: PointsMechanism;
   starts_on: string | null;
@@ -97,6 +99,7 @@ function mapAdminPoints(r: AdminPointsRow): AdminPointsOffer {
     program: r.program,
     earnRateDisplay: r.earn_rate_display,
     earnMultiple: toNumberOrNull(r.earn_multiple),
+    fixedPoints: toNumberOrNull(r.fixed_points),
     pointValueCents: toNumberOrNull(r.point_value_cents),
     mechanism: r.mechanism,
     startsOn: r.starts_on ?? null,
@@ -118,6 +121,7 @@ function toRow(input: PointsOfferInput) {
     program: input.program,
     earn_rate_display: input.earnRateDisplay,
     earn_multiple: input.earnMultiple,
+    fixed_points: input.fixedPoints,
     point_value_cents: input.pointValueCents,
     mechanism: input.mechanism,
     starts_on: input.startsOn,

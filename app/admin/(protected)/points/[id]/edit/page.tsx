@@ -44,6 +44,7 @@ export default async function EditPointsPage({
           program: offer.program,
           earnRateDisplay: offer.earnRateDisplay,
           earnMultiple: offer.earnMultiple,
+          fixedPoints: offer.fixedPoints,
           pointValueCents: offer.pointValueCents,
           mechanism: offer.mechanism,
           startsOn: offer.startsOn,
