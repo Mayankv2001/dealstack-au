@@ -299,6 +299,11 @@ describe("gift-card reconcile route — gates and orchestration", () => {
   });
 
   it("keeps source disappearance in private review and never invokes lifecycle", async () => {
+    // Pinned clock: this case turns on the offer NOT being expired, so a
+    // hard-coded expiry plus the real clock is a time bomb — it passed until
+    // 2026-07-30 and then started reporting `expired` instead.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T02:03:04.000Z"));
     mocks.loadReconcileInputs.mockResolvedValue({
       ...emptyInputs,
       items: [{
