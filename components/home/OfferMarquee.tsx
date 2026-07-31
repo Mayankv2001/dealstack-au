@@ -14,7 +14,7 @@ import type { MarqueeSlide } from "@/lib/giftcards/marquee";
 import { cn } from "@/lib/utils";
 
 /**
- * The homepage gift-card carousel. This week's current offers render as a
+ * The homepage offer carousel. This week's current offers render as a
  * responsive, paged carousel — three cards at a time on desktop, two on tablet,
  * one on mobile — grouped into pages of that many. Previous/next move by a whole
  * page; the counter and dots track PAGES (e.g. "1 / 6"), not individual offers.
@@ -202,7 +202,7 @@ export function OfferMarquee({
   return (
     <section
       aria-roledescription="carousel"
-      aria-label="This week's gift-card offers"
+      aria-label="This week's offers"
       className="border-b border-foreground/10 bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-900 text-emerald-50"
       onKeyDown={(event) => {
         if (event.key === "ArrowRight") {
@@ -217,7 +217,7 @@ export function OfferMarquee({
       <div className="page-container py-6 sm:py-8">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <h2 className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">
-            This week&rsquo;s gift-card offers
+            This week&rsquo;s offers
           </h2>
           <p className="text-xs text-emerald-100/60">
             Wednesday cycle · reviewed before publication · ordered by ending soonest
@@ -324,8 +324,11 @@ export function OfferMarquee({
               </span>
             </>
           ) : null}
+          {/* /deals, not /gift-cards: the carousel now mixes gift-card and
+              points offers, and /gift-cards would not list all of what the
+              count claims. */}
           <Link
-            href="/gift-cards"
+            href="/deals"
             className="ml-auto inline-flex items-center gap-1 text-sm font-bold text-emerald-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
           >
             All {liveCount} reviewed offers

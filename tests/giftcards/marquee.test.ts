@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildMarquee } from "@/lib/giftcards/marquee";
+import {
+  buildMarquee,
+  MARQUEE_EXAMPLE_FACE_VALUE,
+} from "@/lib/giftcards/marquee";
+import { makePoints } from "../stack/factories";
 import { makeBareOffer, makeOffer, NOW } from "./offerFixture";
 
 describe("buildMarquee", () => {
@@ -166,5 +170,101 @@ describe("buildMarquee", () => {
       NOW,
     );
     expect(slides[0].caveat).toMatch(/membership/i);
+  });
+});
+
+describe("buildMarquee with points offers", () => {
+  const storeNames = new Map([["woolworths", "Woolworths"]]);
+
+  it("carousels in-store boosts and leaves the rest of the programme out", () => {
+    const { slides } = buildMarquee([], NOW, {
+      points: [
+        makePoints({
+          id: "pts-boost",
+          mechanism: "in-store-boost",
+          expiryDate: "2026-07-15",
+        }),
+        makePoints({ id: "pts-base", mechanism: "base-earn" }),
+        makePoints({ id: "pts-signup", mechanism: "signup-bonus" }),
+      ],
+      storeNames,
+    });
+    expect(slides.map((slide) => slide.id)).toEqual(["pts-boost"]);
+  });
+
+  it("interleaves both pools by ending soonest, upcoming offers last", () => {
+    const { slides, liveCount } = buildMarquee(
+      [
+        makeOffer({ id: "gc-later", expiryDate: "2026-07-20" }),
+        makeOffer({ id: "gc-soon", expiryDate: "2026-07-14" }),
+      ],
+      NOW,
+      {
+        points: [
+          makePoints({ id: "pts-middle", expiryDate: "2026-07-17" }),
+          makePoints({
+            id: "pts-upcoming",
+            startsOn: "2026-07-29",
+            expiryDate: "2026-08-04",
+          }),
+        ],
+        storeNames,
+      },
+    );
+    expect(slides.map((slide) => slide.id)).toEqual([
+      "gc-soon",
+      "pts-middle",
+      "gc-later",
+      "pts-upcoming",
+    ]);
+    expect(liveCount).toBe(4);
+  });
+
+  it("never presents an upcoming points offer as active", () => {
+    const { slides } = buildMarquee([], NOW, {
+      points: [
+        makePoints({
+          id: "pts-next-week",
+          startsOn: "2026-07-29",
+          expiryDate: "2026-08-04",
+        }),
+      ],
+      storeNames,
+    });
+    expect(slides[0].dateLabel).toMatch(/^Starts /);
+    expect(slides[0].urgencyLabel).toBeUndefined();
+  });
+
+  it("keeps a points offer a reward, never a cash saving", () => {
+    const { slides } = buildMarquee([], NOW, {
+      points: [
+        makePoints({
+          id: "pts-woolies",
+          merchantId: "woolworths",
+          program: "Everyday Rewards",
+          earnRateDisplay: "20x points on TCN gift cards",
+          earnMultiple: 20,
+          pointValueCents: 0.5,
+          expiryDate: "2026-07-15",
+        }),
+      ],
+      storeNames,
+    });
+    const [slide] = slides;
+    expect(slide.isRewardOnly).toBe(true);
+    expect(slide.example?.saving).toBe(0);
+    expect(slide.example?.cashPaid).toBe(MARQUEE_EXAMPLE_FACE_VALUE);
+    expect(slide.sellerLabel).toBe("Woolworths");
+    expect(slide.detailHref).toBe("/rewards/everyday-rewards");
+    expect(slide.valueBadge).toBe("20× POINTS");
+  });
+
+  it("drops an expired points offer", () => {
+    const { slides, liveCount } = buildMarquee([], NOW, {
+      points: [makePoints({ id: "pts-gone", expiryDate: "2026-07-01" })],
+      storeNames,
+    });
+    expect(slides).toEqual([]);
+    expect(liveCount).toBe(0);
   });
 });

@@ -104,10 +104,15 @@ export default async function Home({
       isFeaturedStackEligible(recommendation, now),
     ) ?? null;
   const heroStack = featured;
-  // Homepage offer carousel: the week's current gift-card offers, ending
-  // soonest first (unknown-expiry last), derived from the same published
-  // offers the /gift-cards grid uses.
-  const marquee = buildMarquee(giftCardCarouselOffers, now);
+  // Homepage offer carousel: the week's current offers, ending soonest first
+  // (unknown-expiry last). Gift cards come from the same published pool the
+  // /gift-cards grid uses; the in-store points boosts come from the same
+  // display read /rewards uses, because that is where a supermarket
+  // gift-card promotion is actually recorded.
+  const marquee = buildMarquee(giftCardCarouselOffers, now, {
+    points: pointsOffers,
+    storeNames: new Map(data.stores.map((store) => [store.id, store.name])),
+  });
   // Review-freshness stamp for the hero: real figures from the same reviewed
   // pools the page already renders, never the mock's sample numbers.
   const stampPool = [

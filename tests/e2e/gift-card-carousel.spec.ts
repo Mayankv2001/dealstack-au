@@ -16,11 +16,19 @@ import { addDaysToIsoDate, todayAU } from "../../lib/offers/expiry";
  * anchored relative to today (start +2 / end +8 days), so the expected labels
  * are computed here with the same helpers the app uses — the assertions never
  * depend on the machine's absolute clock.
+ *
+ * The carousel also draws the IN-STORE POINTS BOOST tier of `points_offers`,
+ * which in demo mode is one row (pts-woolworths-20x) — hence ten slides, not
+ * nine. That pool is where a supermarket gift-card promotion is recorded, so
+ * excluding it left the carousel empty in any week the GCDB ingest produced no
+ * reviewed candidate.
  */
 
 const ID_FLYBUYS = "gc-sample-coles-tcn-flybuys";
 const ID_EDR = "gc-sample-woolworths-edr-10x";
 const EXPIRED_ID = "gc-sample-expired";
+/** Programme slug of the static in-store points boost (pts-woolworths-20x). */
+const POINTS_BOOST_PROGRAMME = "everyday-rewards";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -37,14 +45,14 @@ const startDateAU = () => formatAU(addDaysToIsoDate(todayAU(), 2));
 const expiryDateAU = () => formatAU(addDaysToIsoDate(todayAU(), 8));
 
 function marquee(page: Page) {
-  return page.getByRole("region", { name: "This week's gift-card offers" });
+  return page.getByRole("region", { name: "This week's offers" });
 }
 
 function slideLinks(page: Page) {
   return marquee(page).getByRole("link", { name: "See this offer" });
 }
 
-test("home: nine unique slides, no duplicates, expired fixture excluded", async ({
+test("home: ten unique slides across both pools, expired fixture excluded", async ({
   page,
 }) => {
   await page.goto("/");
@@ -52,10 +60,13 @@ test("home: nine unique slides, no duplicates, expired fixture excluded", async 
   const hrefs = await slideLinks(page).evaluateAll((links) =>
     links.map((link) => link.getAttribute("href")),
   );
-  expect(hrefs).toHaveLength(9);
-  expect(new Set(hrefs).size).toBe(9);
+  expect(hrefs).toHaveLength(10);
+  expect(new Set(hrefs).size).toBe(10);
   expect(hrefs).toContain(`/gift-cards/${ID_FLYBUYS}`);
   expect(hrefs).toContain(`/gift-cards/${ID_EDR}`);
+  // The in-store points boost is carouselled too, and links to its
+  // programme rather than a gift-card detail page it does not have.
+  expect(hrefs).toContain(`/rewards/${POINTS_BOOST_PROGRAMME}`);
   expect(hrefs).not.toContain(`/gift-cards/${EXPIRED_ID}`);
   await expect(page.getByText("Expired Sample Card")).toHaveCount(0);
 });
@@ -67,7 +78,7 @@ test("home: desktop shows three cards per page and slide three carries both poin
   test.skip(isMobile, "desktop-only layout assertion");
   await page.goto("/");
   const region = marquee(page);
-  await expect(region.getByText("1 / 3")).toBeVisible();
+  await expect(region.getByText("1 / 4")).toBeVisible();
 
   // Exactly three cards fit the track viewport on the first page.
   const track = region.getByRole("group", { name: /Offers, page/ });
@@ -91,10 +102,9 @@ test("home: desktop shows three cards per page and slide three carries both poin
   // Navigate to slide three; both points samples are there.
   const next = region.getByRole("button", { name: "Next offers" }).first();
   await next.click();
-  await expect(region.getByText("2 / 3")).toBeVisible();
+  await expect(region.getByText("2 / 4")).toBeVisible();
   await next.click();
-  await expect(region.getByText("3 / 3")).toBeVisible();
-  await expect(next).toBeDisabled();
+  await expect(region.getByText("3 / 4")).toBeVisible();
 
   const cardFlybuys = region
     .locator("article")
@@ -118,6 +128,19 @@ test("home: desktop shows three cards per page and slide three carries both poin
   // upcoming card must carry no active-sounding urgency chip.
   await expect(cardFlybuys.getByText(/rewards, not cash/)).toBeVisible();
   await expect(cardFlybuys.getByText(/^Ends in /)).toHaveCount(0);
+
+  // The tenth slide adds a fourth, PARTIAL page, so paging has not run out
+  // here — and one more press must still reach the final card. (The counter
+  // is read back from scroll position, and a partial last page cannot be
+  // scrolled a full width, so it settles on "3 / 4" rather than "4 / 4";
+  // reachability is the property that matters to a reader.)
+  await expect(next).toBeEnabled();
+  await next.click();
+  await expect(
+    region
+      .locator("article")
+      .filter({ has: page.locator('a[href^="/gift-cards/gc-sample-upcoming"]') }),
+  ).toBeInViewport();
 });
 
 test("home: a final partial page works at the two-up breakpoint", async ({
@@ -149,11 +172,11 @@ test("home: mobile paging reaches every offer including both points samples", as
   test.skip(!isMobile, "mobile-only reachability assertion");
   await page.goto("/");
   const region = marquee(page);
-  await expect(region.getByText("1 / 9")).toBeVisible();
+  await expect(region.getByText("1 / 10")).toBeVisible();
   const next = region.getByRole("button", { name: "Next offers" }).first();
-  for (let i = 2; i <= 9; i += 1) {
+  for (let i = 2; i <= 10; i += 1) {
     await next.click();
-    await expect(region.getByText(`${i} / 9`)).toBeVisible();
+    await expect(region.getByText(`${i} / 10`)).toBeVisible();
   }
   await expect(next).toBeDisabled();
   const cardEdr = region
@@ -162,7 +185,7 @@ test("home: mobile paging reaches every offer including both points samples", as
   await expect(cardEdr).toBeInViewport();
 });
 
-test("home: carousel count and the /gift-cards listing use the same eligible set", async ({
+test("home: the carousel count matches its slides and points at a page listing them all", async ({
   page,
 }) => {
   await page.goto("/");
@@ -171,12 +194,15 @@ test("home: carousel count and the /gift-cards listing use the same eligible set
   });
   const label = (await allOffersLink.textContent()) ?? "";
   const liveCount = Number(label.match(/All (\d+) reviewed offers/)?.[1]);
-  expect(liveCount).toBe(9);
+  // Gift cards AND in-store points boosts — so the count can no longer equal
+  // the /gift-cards listing, and the link must not send readers there.
+  expect(liveCount).toBe(10);
+  await expect(slideLinks(page)).toHaveCount(liveCount);
+  await expect(allOffersLink).toHaveAttribute("href", "/deals");
 
+  // The gift-card pool itself is untouched: the same nine still list.
   await page.goto("/gift-cards");
-  await expect(page.getByRole("link", { name: "View details" })).toHaveCount(
-    liveCount,
-  );
+  await expect(page.getByRole("link", { name: "View details" })).toHaveCount(9);
   // The two points samples are listed; the expired sample is not.
   await expect(
     page.locator(`a[href="/gift-cards/${ID_FLYBUYS}"]`).first(),
